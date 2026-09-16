@@ -1,0 +1,107 @@
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(23, 43, 77, 0.36);
+  z-index: 60;
+  display: flex;
+  animation: fadeIn 120ms ease-out;
+}
+
+/* ---------- Dialog：居中 ---------- */
+.panel {
+  position: relative;
+  margin: auto;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: 0 16px 40px rgba(23, 43, 77, 0.2);
+  display: flex;
+  flex-direction: column;
+  max-height: 86vh;
+  width: calc(100% - 32px);
+}
+.sm { max-width: 400px; }
+.md { max-width: 560px; }
+.lg { max-width: 760px; }
+
+/* ---------- Drawer：右侧 ---------- */
+.drawer {
+  position: relative;
+  margin-left: auto;
+  height: 100%;
+  max-width: 100%;
+  background: var(--card);
+  border-left: 1px solid var(--line);
+  box-shadow: -12px 0 32px rgba(23, 43, 77, 0.16);
+  display: flex;
+  flex-direction: column;
+  animation: slideIn 160ms ease-out;
+}
+
+.head {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--line);
+}
+.title { margin: 0; font-size: 14px; font-weight: 600; color: var(--ink); }
+.close {
+  flex: none;
+  width: 28px;
+  height: 28px;
+  border: none;
+  background: none;
+  color: var(--ink-3);
+  font-size: 13px;
+  border-radius: var(--radius);
+  line-height: 1;
+}
+.close:hover { background: var(--bg); color: var(--ink); }
+
+.body { flex: 1; overflow: auto; padding: 16px; }
+
+.foot {
+  flex: none;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 12px 16px;
+  border-top: 1px solid var(--line);
+  background: var(--th-bg);
+}
+
+.dangerBtn { background: var(--danger); border-color: var(--danger); }
+.dangerBtn:hover { background: #b91c1c; border-color: #b91c1c; }
+
+/* 内嵌二次确认（脏数据） */
+.inner {
+  position: absolute;
+  left: 16px;
+  right: 16px;
+  bottom: 16px;
+  background: var(--card);
+  border: 1px solid var(--line-warn);
+  border-radius: var(--radius);
+  box-shadow: 0 8px 24px rgba(23, 43, 77, 0.16);
+  padding: 12px 14px;
+  z-index: 2;
+}
+.innerBody { font-size: 13px; margin-bottom: 10px; }
+.innerFoot { display: flex; justify-content: flex-end; gap: 8px; }
+
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes slideIn { from { transform: translateX(16px); opacity: 0.6; } to { transform: none; opacity: 1; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .overlay, .drawer { animation: none; }
+}
+
+/* 移动端：Dialog 变全屏、Drawer 全宽 */
+@media (max-width: 900px) {
+  .panel { margin: auto 0 0; width: 100%; max-width: none; max-height: 92vh; border-radius: var(--radius) var(--radius) 0 0; }
+  .drawer { width: 100% !important; }
+  .foot { position: sticky; bottom: 0; }
+}

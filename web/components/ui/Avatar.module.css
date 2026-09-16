@@ -1,0 +1,12 @@
+.avatar {
+  display: inline-flex; align-items: center; justify-content: center;
+  border-radius: 50%; color: var(--on-brand); font-weight: 600; flex: 0 0 auto;
+  transition: transform 120ms ease-out;
+}
+.a0 { background: var(--avatar-1); }
+.a1 { background: var(--avatar-2); }
+.a2 { background: var(--avatar-3); }
+.a3 { background: var(--avatar-4); }
+.a4 { background: var(--avatar-5); }
+.a5 { background: var(--avatar-6); }
+@media (prefers-reduced-motion: reduce) { .avatar { transition: none; } }

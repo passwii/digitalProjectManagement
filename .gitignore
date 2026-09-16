@@ -1,0 +1,22 @@
+# python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+venv/
+.venv/
+
+# node / next
+node_modules/
+.next/
+out/
+*.tsbuildinfo
+.env.local
+
+# sqlite 数据与备份
+data/
+*.db
+*.db-wal
+*.db-shm
+
+# os
+.DS_Store

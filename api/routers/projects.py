@@ -1,0 +1,542 @@
+"""Stage 1：项目台账 CRUD + 状态机 + 变更留痕 + 附件 + 跟进 + 加权进度。"""
+from datetime import date, datetime, timezone
+from pathlib import Path
+
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi.responses import FileResponse
+from pydantic import BaseModel
+from sqlalchemy import or_, text
+from sqlalchemy.orm import Session
+
+from ..core.audit import write_audit
+from ..core.database import ROOT, get_db, parse_date
+from ..core.deps import get_current_user
+from ..core.rbac import can_read_project, check_project_access, is_admin, require_admin
+from ..models import (Attachment, Followup, Project, ProjectChange,
+                      ProjectMember, SysParam, Task, User)
+from ..core.rbac import visible_project_condition
+
+router = APIRouter(prefix="/projects", tags=["projects"])
+
+# 状态机：草稿/待立项审批/已立项/进行中/暂停/已完成/已归档/已取消
+TRANSITIONS = {
+    "draft": {"pending", "filed", "cancelled"},
+    "pending": {"filed", "cancelled"},   # 立项审批（approval 开关开启时）
+    "filed": {"doing", "cancelled"},
+    "doing": {"paused", "done"},
+    "paused": {"doing", "done"},
+    "done": {"archived"},
+    "archived": {"doing"},  # 管理员可解归档
+    "cancelled": set(),
+}
+ALLOWED_EXT = {".pdf", ".docx", ".xlsx", ".png", ".jpg", ".jpeg"}
+MAX_SIZE = 20 * 1024 * 1024
+
+
+def _p(p: Project):
+    return {"id": p.id, "code": p.code, "name": p.name, "type": p.type,
+            "dept_id": p.dept_id, "owner_id": p.owner_id,
+            "member_ids": [m.user_id for m in p.members],
+            "plan_start": p.plan_start.isoformat() if p.plan_start else None,
+            "plan_end": p.plan_end.isoformat() if p.plan_end else None,
+            "budget_total": p.budget_total, "priority": p.priority,
+            "client": p.client, "description": p.description,
+            "status": p.status, "progress": p.progress}
+
+
+def _next_code(db: Session) -> str:
+    y = date.today().year
+    prefix = f"PJ-{y}-"
+    last = db.query(Project).filter(Project.code.like(prefix + "%")).order_by(Project.code.desc()).first()
+    n = int(last.code.rsplit("-", 1)[1]) + 1 if last else 1
+    return f"{prefix}{n:04d}"
+
+def _get(db: Session, pid: int, user: User, write=False) -> Project:
+    p = db.query(Project).filter_by(id=pid, deleted_at=None).first()
+    if not p:
+        raise HTTPException(404, "项目不存在")
+    check_project_access(user, p, write=write)
+    return p
+
+
+def fts_search(db: Session, keyword: str, limit: int = 500) -> dict[int, str]:
+    """FTS5 trigram 全文检索：返回 {project_id: 高亮片段}。
+
+    trigram 分词器要求查询词 ≥3 字符，短词（1-2 字，如「示例」「改版」）
+    无法命中，返回 {} 由调用方回退 LIKE。FTS 不可用环境同样返回 {}。
+    """
+    import re
+
+    terms = [t for t in re.split(r"\s+", keyword.strip()) if t]
+    if not terms or any(len(t) < 3 for t in terms):
+        return {}   # 含短词：整体回退 LIKE，避免漏召回
+    query = " OR ".join(f'"{t}"' for t in terms)
+    try:
+        rows = db.execute(
+            text(
+                "SELECT rowid, snippet(projects_fts, 0, '<mark>', '</mark>', '…', 12) "
+                "FROM projects_fts WHERE projects_fts MATCH :q ORDER BY rank LIMIT :lim"
+            ),
+            {"q": query, "lim": limit},
+        ).all()
+    except Exception:
+        return {}
+    return {int(r[0]): (r[1] or "") for r in rows}
+
+
+def keyword_condition(db: Session, keyword: str):
+    """关键词过滤：优先 FTS5 命中 id 集合，失败/短词时回退 LIKE。返回 (条件, 片段表)。"""
+    hits = fts_search(db, keyword)
+    if hits:
+        return Project.id.in_(list(hits.keys())), hits
+    kw = f"%{keyword}%"
+    return (or_(Project.name.like(kw), Project.code.like(kw),
+                Project.client.like(kw), Project.description.like(kw))), {}
+
+
+class ProjectIn(BaseModel):
+    name: str
+    type: str = ""
+    dept_id: int | None = None
+    owner_id: int | None = None
+    member_ids: list[int] = []
+    plan_start: date | None = None
+    plan_end: date | None = None
+    budget_total: float = 0
+    priority: str = "中"
+    client: str = ""
+    description: str = ""
+
+
+@router.get("")
+def list_projects(name: str = "", code: str = "", status: str = "", owner_id: int = 0,
+                  dept_id: int = 0, keyword: str = "", date_from: str = "",
+                  date_to: str = "", page: int = 1, size: int = 20,
+                  db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """组合筛（名称/编号/状态/负责人/部门/关键字/计划时间）+ 分页 20/条。
+    关键字优先 FTS5 全文检索（返回高亮片段），不可用时回退 LIKE。"""
+    q = db.query(Project).filter(Project.deleted_at.is_(None)).order_by(Project.id.desc())
+    snips: dict[int, str] = {}
+    if name:
+        q = q.filter(Project.name.like(f"%{name}%"))
+    if code:
+        q = q.filter(Project.code.like(f"%{code}%"))
+    if keyword:
+        cond, snips = keyword_condition(db, keyword)
+        q = q.filter(cond)
+    if status:
+        q = q.filter_by(status=status)
+    if owner_id:
+        q = q.filter_by(owner_id=owner_id)
+    if dept_id:
+        q = q.filter_by(dept_id=dept_id)
+    df, dt = parse_date(date_from or None), parse_date(date_to or None)
+    if df:
+        q = q.filter(or_(Project.plan_end.is_(None), Project.plan_end >= df))
+    if dt:
+        q = q.filter(or_(Project.plan_start.is_(None), Project.plan_start <= dt))
+    # 权限过滤下推 SQL（Stage 5）：不再 q.all() 后 Python 全量过滤
+    vis = visible_project_condition(user)
+    if vis is not None:
+        q = q.filter(vis)
+    total = q.count()
+    page = max(page, 1)
+    size = min(max(size, 1), 100)
+    rows = q.offset((page - 1) * size).limit(size).all()
+    items = []
+    for p in rows:
+        d = _p(p)
+        if keyword and snips:
+            d["snippet"] = snips.get(p.id, "")
+        items.append(d)
+    return {"total": total, "page": page, "size": size, "items": items}
+
+
+@router.post("")
+def create_project(body: ProjectIn, db: Session = Depends(get_db),
+                   user: User = Depends(get_current_user)):
+    if not body.name:
+        raise HTTPException(400, "项目名称必填")
+    if db.query(Project).filter_by(name=body.name).first():
+        raise HTTPException(400, "项目名称已存在")
+    if body.plan_start and body.plan_end and body.plan_start > body.plan_end:
+        raise HTTPException(400, "计划开始不能晚于结束")
+    for _ in range(3):  # 并发取号重试（唯一索引兜底）
+        try:
+            # 立项审批开关：开启则项目进入「待立项审批」，由审批中心放行
+            ap = db.query(SysParam).filter_by(key="project_approval_on").first()
+            filing_on = bool(ap and ap.value == "1")
+            p = Project(code=_next_code(db), name=body.name, type=body.type,
+                        dept_id=body.dept_id if body.dept_id else user.dept_id,
+                        owner_id=body.owner_id or user.id, plan_start=body.plan_start,
+                        plan_end=body.plan_end, budget_total=body.budget_total,
+                        priority=body.priority, client=body.client,
+                        description=body.description,
+                        status="pending" if filing_on else "draft",
+                        created_by=user.id)
+            db.add(p)
+            db.flush()
+            for uid in set(body.member_ids) | {p.owner_id}:
+                if db.query(User).filter_by(id=uid).first():
+                    db.add(ProjectMember(project_id=p.id, user_id=uid))
+            if filing_on:
+                # 立项审批人 = 管理员（唯一审批角色），申请人收到结果通知即可
+                from ..core.notify import approval_recipients, push_many
+                push_many(db, approval_recipients(db), "approval",
+                          f"立项审批待处理：{p.name}",
+                          f"编号 {p.code}，预算 {p.budget_total}",
+                          ref_type="project", ref_id=p.id, project_id=p.id,
+                          dedup_key=f"filing-request:{p.id}")
+            db.commit()
+            break
+        except Exception:
+            db.rollback()
+    else:
+        raise HTTPException(500, "编号生成冲突，请重试")
+    write_audit(db, user.id, "create_project", "projects", p.id, p.code)
+    return _p(db.query(Project).filter_by(id=p.id).first())
+
+
+@router.get("/{pid}")
+def get_project(pid: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    return _p(_get(db, pid, user))
+
+
+@router.patch("/{pid}")
+def update_project(pid: int, body: dict, db: Session = Depends(get_db),
+                   user: User = Depends(get_current_user)):
+    p = _get(db, pid, user, write=True)
+    if p.status == "archived":
+        raise HTTPException(400, "已归档项目只读")
+    allowed = {"name", "type", "dept_id", "owner_id", "plan_start", "plan_end",
+               "budget_total", "priority", "client", "description"}
+    now = datetime.now(timezone.utc)
+    for f, v in body.items():
+        if f == "member_ids":
+            continue
+        if f not in allowed:
+            continue
+        if f in ("plan_start", "plan_end"):
+            v = parse_date(v)
+        old = getattr(p, f)
+        old_s = old.isoformat() if isinstance(old, date) else str(old if old is not None else "")
+        if str(v or "") != old_s:
+            if f == "name" and db.query(Project).filter(Project.name == v, Project.id != pid).first():
+                raise HTTPException(400, "项目名称已存在")
+            setattr(p, f, v)
+            db.add(ProjectChange(project_id=pid, field=f, old=old_s, new=str(v or ""),
+                                 by_id=user.id, at=now))
+    if "member_ids" in body:
+        db.query(ProjectMember).filter_by(project_id=pid).delete()
+        for uid in set(body["member_ids"]) | ({p.owner_id} if p.owner_id else set()):
+            if db.query(User).filter_by(id=uid).first():
+                db.add(ProjectMember(project_id=pid, user_id=uid))
+        db.add(ProjectChange(project_id=pid, field="member_ids", old="", new=str(body["member_ids"]),
+                             by_id=user.id, at=now))
+    db.commit()
+    write_audit(db, user.id, "update_project", "projects", pid, str(list(body.keys())))
+    return _p(p)
+
+
+@router.post("/{pid}/status")
+def change_status(pid: int, body: dict, db: Session = Depends(get_db),
+                  user: User = Depends(get_current_user)):
+    p = _get(db, pid, user, write=True)
+    to = body.get("status", "")
+    reason = body.get("reason", "")
+    if to not in (TRANSITIONS.get(p.status, set())):
+        raise HTTPException(400, f"不允许从 {p.status} 流转到 {to}")
+    if to == "archived" and not is_admin(user) and p.owner_id != user.id:
+        raise HTTPException(403, "仅负责人或管理员可归档")
+    if p.status == "archived" and to == "doing" and not is_admin(user):
+        raise HTTPException(403, "仅管理员可解归档")
+    old = p.status
+    p.status = to
+    db.add(ProjectChange(project_id=pid, field="status", old=old, new=to,
+                         by_id=user.id, at=datetime.now(timezone.utc)))
+    db.commit()
+    write_audit(db, user.id, "project_status", "projects", pid, f"{old}->{to} {reason}")
+    return _p(p)
+
+
+@router.get("/{pid}/changes")
+def list_changes(pid: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    _get(db, pid, user)
+    rows = db.query(ProjectChange).filter_by(project_id=pid).order_by(ProjectChange.id.desc()).all()
+    return [{"id": c.id, "field": c.field, "old": c.old, "new": c.new,
+             "by_id": c.by_id, "at": c.at.isoformat() if c.at else None} for c in rows]
+
+
+@router.post("/{pid}/attachments")
+def upload(pid: int, file: UploadFile = File(...), db: Session = Depends(get_db),
+           user: User = Depends(get_current_user)):
+    p = _get(db, pid, user, write=True)
+    if p.status == "archived":
+        raise HTTPException(400, "已归档禁传附件")
+    ext = Path(file.filename or "").suffix.lower()
+    if ext not in ALLOWED_EXT:
+        raise HTTPException(400, f"仅允许 {sorted(ALLOWED_EXT)}")
+    data = file.file.read()
+    if len(data) > MAX_SIZE:
+        raise HTTPException(400, "单文件最大 20MB")
+    d = ROOT / "data" / "files" / str(pid)
+    d.mkdir(parents=True, exist_ok=True)
+    fp = d / file.filename
+    fp.write_bytes(data)
+    a = Attachment(project_id=pid, filename=file.filename, path=str(fp),
+                   size=len(data), content_type=file.content_type or "",
+                   uploaded_by=user.id, uploaded_at=datetime.now(timezone.utc))
+    db.add(a)
+    db.commit()
+    write_audit(db, user.id, "upload_attachment", "attachments", a.id, file.filename)
+    return {"id": a.id, "filename": a.filename, "size": a.size}
+
+
+@router.get("/{pid}/attachments")
+def list_attachments(pid: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    _get(db, pid, user)
+    return [{"id": a.id, "filename": a.filename, "size": a.size,
+             "uploaded_by": a.uploaded_by,
+             "uploaded_at": a.uploaded_at.isoformat() if a.uploaded_at else None}
+            for a in db.query(Attachment).filter_by(project_id=pid).all()]
+
+
+@router.get("/{pid}/attachments/{aid}/download")
+def download_attachment(pid: int, aid: int, db: Session = Depends(get_db),
+                        user: User = Depends(get_current_user)):
+    """附件下载：校验项目可见性 + 附件归属，防越权取件。"""
+    from urllib.parse import quote
+
+    _get(db, pid, user)
+    a = db.query(Attachment).filter_by(id=aid, project_id=pid).first()
+    if not a:
+        raise HTTPException(404, "附件不存在")
+    fp = Path(a.path)
+    if not fp.exists():
+        raise HTTPException(404, "附件文件已丢失，请联系管理员")
+    write_audit(db, user.id, "download_attachment", "attachments", a.id, a.filename)
+    return FileResponse(
+        fp,
+        media_type=a.content_type or "application/octet-stream",
+        filename=a.filename,
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{quote(a.filename)}"},
+    )
+
+
+@router.delete("/{pid}/attachments/{aid}")
+def delete_attachment(pid: int, aid: int, db: Session = Depends(get_db),
+                      user: User = Depends(get_current_user)):
+    """删除附件：项目可写者或上传者本人，同时清理磁盘文件。"""
+    _get(db, pid, user, write=True)
+    a = db.query(Attachment).filter_by(id=aid, project_id=pid).first()
+    if not a:
+        raise HTTPException(404, "附件不存在")
+    if a.uploaded_by != user.id and not is_admin(user):
+        raise HTTPException(403, "仅上传者或管理员可删除附件")
+    try:
+        Path(a.path).unlink(missing_ok=True)
+    except Exception:
+        pass
+    name = a.filename
+    db.delete(a)
+    db.commit()
+    write_audit(db, user.id, "delete_attachment", "attachments", aid, name)
+    return {"ok": True}
+
+
+@router.put("/{pid}/members")
+def set_members(pid: int, body: dict, db: Session = Depends(get_db),
+                user: User = Depends(get_current_user)):
+    """整体覆盖项目成员：负责人始终保留，变更写入留痕。"""
+    from ..models import ProjectMember
+
+    p = _get(db, pid, user, write=True)
+    ids = body.get("user_ids", [])
+    if not isinstance(ids, list):
+        raise HTTPException(400, "user_ids 须为数组")
+    wanted = {int(i) for i in ids if str(i).isdigit()}
+    if p.owner_id:
+        wanted.add(p.owner_id)
+    for uid in wanted:
+        if not db.query(User).filter_by(id=uid).first():
+            raise HTTPException(400, f"用户 {uid} 不存在")
+    old = sorted({m.user_id for m in db.query(ProjectMember).filter_by(project_id=pid).all()})
+    db.query(ProjectMember).filter_by(project_id=pid).delete()
+    for uid in wanted:
+        db.add(ProjectMember(project_id=pid, user_id=uid))
+    db.add(ProjectChange(project_id=pid, field="members",
+                         old=",".join(map(str, old)), new=",".join(map(str, sorted(wanted))),
+                         by_id=user.id, at=datetime.now(timezone.utc)))
+    db.commit()
+    write_audit(db, user.id, "set_members", "projects", pid, f"{old}->{sorted(wanted)}")
+    return _p(db.query(Project).filter_by(id=pid).first())
+
+
+@router.delete("/{pid}")
+def delete_project(pid: int, db: Session = Depends(get_db),
+                   user: User = Depends(get_current_user)):
+    """软删除项目：仅管理员，数据保留可恢复（回收站见 GET /projects/recycle-bin）。"""
+    require_admin(user)
+    p = db.query(Project).filter_by(id=pid, deleted_at=None).first()
+    if not p:
+        raise HTTPException(404, "项目不存在")
+    if p.status in ("doing", "filed"):
+        raise HTTPException(400, "进行中/已立项项目不可删除，请先取消或归档")
+    p.deleted_at = datetime.now(timezone.utc)
+    db.commit()
+    write_audit(db, user.id, "delete_project", "projects", pid, p.code)
+    return {"ok": True, "id": pid}
+
+
+@router.post("/{pid}/restore")
+def restore_project(pid: int, db: Session = Depends(get_db),
+                    user: User = Depends(get_current_user)):
+    """从回收站恢复（仅管理员）。"""
+    require_admin(user)
+    p = db.query(Project).filter_by(id=pid).first()
+    if not p or not p.deleted_at:
+        raise HTTPException(404, "回收站中无此项目")
+    p.deleted_at = None
+    db.commit()
+    write_audit(db, user.id, "restore_project", "projects", pid, p.code)
+    return _p(p)
+
+
+@router.get("/recycle-bin/list")
+def recycle_bin(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """回收站列表（仅管理员）：正常业务列表不看已软删除项目，回收站单独查看与恢复。"""
+    require_admin(user)
+    rows = db.query(Project).filter(Project.deleted_at.isnot(None)).order_by(Project.deleted_at.desc()).all()
+    return [{"id": p.id, "code": p.code, "name": p.name, "status": p.status,
+             "deleted_at": p.deleted_at.isoformat() if p.deleted_at else None} for p in rows]
+
+
+class FollowupIn(BaseModel):
+    happened_at: datetime | None = None
+    method: str = ""
+    content: str = ""
+    next_step: str = ""
+    remind_at: datetime | None = None
+
+
+@router.get("/{pid}/followups")
+def list_followups(pid: int, user_id: int = 0, date_from: str = "", date_to: str = "",
+                   page: int = 0, size: int = 20,
+                   db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """跟进列表：按人/时间筛；带 page 参数时返回分页信封 {total,page,size,items}。
+    remind 定时扫描见 core.jobs.due_followups，每 10min。"""
+    _get(db, pid, user)
+    q = db.query(Followup).filter_by(project_id=pid).order_by(Followup.id.desc())
+    if user_id:
+        q = q.filter_by(user_id=user_id)
+    df, dt = parse_date(date_from or None), parse_date(date_to or None)
+    if df:
+        q = q.filter(or_(Followup.happened_at.is_(None),
+                         Followup.happened_at >= datetime(df.year, df.month, df.day)))
+    if dt:
+        q = q.filter(or_(Followup.happened_at.is_(None),
+                         Followup.happened_at < datetime(dt.year, dt.month, dt.day, 23, 59, 59)))
+    total = q.count()
+    rows = q.all() if not page else q.offset((max(page, 1) - 1) * size).limit(size).all()
+
+    def _f(f: Followup):
+        return {"id": f.id, "user_id": f.user_id, "method": f.method, "content": f.content,
+                "next_step": f.next_step,
+                "happened_at": f.happened_at.isoformat() if f.happened_at else None,
+                "remind_at": f.remind_at.isoformat() if f.remind_at else None}
+
+    items = [_f(f) for f in rows]
+    if not page:
+        return items
+    return {"total": total, "page": max(page, 1), "size": size, "items": items}
+
+
+@router.post("/{pid}/followups")
+def create_followup(pid: int, body: FollowupIn, db: Session = Depends(get_db),
+                    user: User = Depends(get_current_user)):
+    _get(db, pid, user, write=True)
+    f = Followup(project_id=pid, user_id=user.id,
+                 happened_at=body.happened_at or datetime.now(timezone.utc),
+                 method=body.method, content=body.content,
+                 next_step=body.next_step, remind_at=body.remind_at)
+    db.add(f)
+    db.commit()
+    write_audit(db, user.id, "create_followup", "followups", f.id, str(pid))
+    return {"id": f.id}
+
+
+def _followup(db: Session, pid: int, fid: int, user: User):
+    f = db.query(Followup).filter_by(id=fid, project_id=pid).first()
+    if not f:
+        raise HTTPException(404, "跟进记录不存在")
+    if f.user_id != user.id and not is_admin(user):
+        raise HTTPException(403, "仅记录人或管理员可修改")
+    return f
+
+
+@router.patch("/{pid}/followups/{fid}")
+def update_followup(pid: int, fid: int, body: FollowupIn, db: Session = Depends(get_db),
+                    user: User = Depends(get_current_user)):
+    _get(db, pid, user, write=True)
+    f = _followup(db, pid, fid, user)
+    f.happened_at = body.happened_at or f.happened_at
+    f.method = body.method or f.method
+    f.content = body.content
+    f.next_step = body.next_step
+    f.remind_at = body.remind_at
+    db.commit()
+    write_audit(db, user.id, "update_followup", "followups", fid, f"project={pid}")
+    return {"id": f.id, "content": f.content, "next_step": f.next_step,
+            "method": f.method,
+            "happened_at": f.happened_at.isoformat() if f.happened_at else None,
+            "remind_at": f.remind_at.isoformat() if f.remind_at else None}
+
+
+@router.delete("/{pid}/followups/{fid}")
+def delete_followup(pid: int, fid: int, db: Session = Depends(get_db),
+                    user: User = Depends(get_current_user)):
+    _get(db, pid, user, write=True)
+    f = _followup(db, pid, fid, user)
+    db.delete(f)
+    db.commit()
+    write_audit(db, user.id, "delete_followup", "followups", fid, f"project={pid}")
+    return {"ok": True}
+
+
+@router.get("/{pid}/progress")
+def project_progress(pid: int, db: Session = Depends(get_db),
+                     user: User = Depends(get_current_user)):
+    """加权进度 Σ(进度×权重)/Σ权重（权重缺省均分）。"""
+    p = _get(db, pid, user)
+    tasks = db.query(Task).filter_by(project_id=pid).all()
+    if not tasks:
+        return {"project_id": pid, "progress": 0, "task_count": 0}
+    num = sum((t.progress or 0) * (t.weight or 1) for t in tasks)
+    den = sum((t.weight or 1) for t in tasks) or 1
+    val = round(num / den, 2)
+    p.progress = val
+    db.commit()
+    return {"project_id": pid, "progress": val, "task_count": len(tasks)}
+
+
+@router.post("/{pid}/progress/confirm")
+def confirm_progress(pid: int, db: Session = Depends(get_db),
+                     user: User = Depends(get_current_user)):
+    """负责人一键确认快照：重算加权进度并写入 project_changes 留痕+审计。"""
+    p = _get(db, pid, user, write=True)
+    if user.id != p.owner_id and not is_admin(user):
+        raise HTTPException(403, "仅负责人或管理员可确认")
+    tasks = db.query(Task).filter_by(project_id=pid).all()
+    num = sum((t.progress or 0) * (t.weight or 1) for t in tasks)
+    den = sum((t.weight or 1) for t in tasks) or 1
+    val = round(num / den, 2) if tasks else 0
+    old = str(p.progress or 0)
+    now = datetime.now(timezone.utc)
+    p.progress = val
+    db.add(ProjectChange(project_id=pid, field="progress_snapshot", old=old,
+                         new=str(val), by_id=user.id, at=now))
+    db.commit()
+    write_audit(db, user.id, "confirm_progress", "projects", pid,
+                f"snapshot {old}->{val} tasks={len(tasks)}")
+    return {"project_id": pid, "progress": val, "task_count": len(tasks),
+            "confirmed_by": user.id, "confirmed_at": now.isoformat()}

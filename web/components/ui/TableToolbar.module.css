@@ -1,0 +1,12 @@
+.bar {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  background: var(--card); border: 1px solid var(--line); border-radius: var(--radius);
+  padding: 8px 12px; margin-bottom: 12px;
+}
+.filters { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; flex: 1; }
+.filters input, .filters select { width: auto; min-width: 140px; }
+.right { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+.density {
+  font-size: 12px; color: var(--ink-3); border: 1px solid var(--line);
+  border-radius: 4px; padding: 2px 8px; font-family: var(--font-mono); white-space: nowrap;
+}

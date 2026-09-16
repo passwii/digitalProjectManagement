@@ -1,0 +1,30 @@
+.wrap {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 10px;
+  font-size: 13px;
+  color: var(--ink-2);
+}
+
+.info b { color: var(--ink); }
+
+.right { display: inline-flex; align-items: center; gap: 6px; }
+
+.size { width: auto; height: 28px; font-size: 13px; }
+
+.btn {
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  background: var(--card);
+  border-radius: var(--radius);
+  color: var(--ink);
+  font-size: 13px;
+}
+.btn:hover:not(:disabled) { border-color: var(--brand); color: var(--brand); }
+.btn:disabled { color: var(--ink-3); cursor: not-allowed; }
+
+.page { margin: 0 4px; color: var(--ink-2); }
