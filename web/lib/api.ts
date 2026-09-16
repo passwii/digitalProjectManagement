@@ -629,8 +629,8 @@ export interface PendingApprovals {
 }
 
 export const notificationsApi = {
-  list: (q = "") =>
-    apiGet<{ total: number; unread: number; page: number; size: number; items: Notification[] }>(`/notifications${q}`),
+  list: (q = "", signal?: AbortSignal) =>
+    apiGet<{ total: number; unread: number; page: number; size: number; items: Notification[] }>(`/notifications${q}`, signal),
   count: () => apiGet<{ unread: number }>("/notifications/count"),
   read: (id: number) => apiPost<{ ok: boolean }>(`/notifications/${id}/read`, {}),
   readAll: () => apiPost<{ ok: boolean; read: number }>("/notifications/read-all", {}),

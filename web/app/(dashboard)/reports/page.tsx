@@ -9,6 +9,7 @@ import { useAsyncData } from "@/lib/useAsyncData";
 import { urlInt, useUrlState } from "@/lib/useUrlState";
 import { useMeta } from "@/lib/useMeta";
 import { SUBJECTS, fmtMoney, fmtPct } from "@/lib/labels";
+import { COST_SCOPE_NOTE, MONEY_LABEL } from "@/lib/kpi";
 import Empty from "@/components/ui/Empty";
 import Pagination from "@/components/ui/Pagination";
 import ProjectPicker from "@/components/ui/ProjectPicker";
@@ -207,11 +208,14 @@ function ReportsInner() {
       {exportErr && <LoadFailed message={`导出失败：${exportErr}`} onRetry={exportExcel} />}
 
       <div className="kpi-row">
-        <div className="kpi"><div className="k">预算合计</div><div className="v mono">{fmtMoney(totalBudget)}</div></div>
-        <div className="kpi"><div className="k">已支出</div><div className="v mono">{fmtMoney(totalSpent)}</div></div>
-        <div className="kpi"><div className="k">余额</div><div className="v mono">{fmtMoney(totalBudget - totalSpent)}</div></div>
-        <div className="kpi"><div className="k">执行率</div><div className="v mono">{totalBudget ? fmtPct(totalSpent / totalBudget) : "-"}</div></div>
+        <div className="kpi"><div className="k">{MONEY_LABEL.budget}</div><div className="v mono">{fmtMoney(totalBudget)}</div></div>
+        <div className="kpi"><div className="k">{MONEY_LABEL.spent}</div><div className="v mono">{fmtMoney(totalSpent)}</div></div>
+        <div className="kpi"><div className="k">{MONEY_LABEL.balance}</div><div className="v mono">{fmtMoney(totalBudget - totalSpent)}</div></div>
+        <div className="kpi"><div className="k">{MONEY_LABEL.rate}</div><div className="v mono">{totalBudget ? fmtPct(totalSpent / totalBudget) : "-"}</div></div>
       </div>
+      <p className="muted tiny" style={{ marginTop: -4, marginBottom: 12 }}>
+        {COST_SCOPE_NOTE}；卡片数字对应下方当前筛选范围。
+      </p>
 
       {warns && (warns.overdue_tasks.length + warns.stagnant_projects.length + warns.budget_warnings.length + (warns.followup_due?.length ?? 0) > 0) && (
         <div className="warn-banner">
@@ -330,7 +334,7 @@ function ReportsInner() {
         </div>
       )}
 
-      <p className="tiny" style={{ marginTop: 12 }}>{note || "成本为项目管理口径，与财务账存在差异"}</p>
+      <p className="tiny" style={{ marginTop: 12 }}>{note || COST_SCOPE_NOTE}</p>
     </div>
   );
 }

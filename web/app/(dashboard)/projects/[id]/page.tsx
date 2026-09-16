@@ -1,12 +1,14 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
-  DEFAULT_PAGE_SIZE, buildQuery, errText, projectsApi, unwrapPaged,
+  DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE, buildQuery, errText, projectsApi, unwrapPaged,
   type Attachment, type Followup, type Project, type ProjectChange,
 } from "@/lib/api";
 import { isAbortError } from "@/lib/useAsyncData";
+import { parseTarget, rowClass, useTargetScroll } from "@/lib/deepLink";
 import { useMeta, useMenus } from "@/lib/useMeta";
 import {
   PROJECT_FLOW, fmtDate, fmtDateTime, fmtMoney, projectStatusLabel, projectTone,
@@ -25,15 +27,32 @@ const TABS = ["基本", "变更", "附件", "跟进"] as const;
 type Tab = (typeof TABS)[number];
 const DESTRUCTIVE = new Set(["cancelled", "archived", "done"]);
 
+/** 只有这四项能直接作为业务对象拿到（其余 tab 不支持深链） */
+function parseTab(v: string | null): Tab {
+  return (TABS as readonly string[]).includes(v ?? "") ? (v as Tab) : "基本";
+}
+
 export default function ProjectDetailPage({ params }: { params: { id: string } }) {
   // Next 14 的 App Router 传入已解析的 params（普通对象），不需要 use()
   const pid = Number(params.id);
+  return (
+    <Suspense fallback={<p className="muted">加载中…</p>}>
+      <ProjectDetailInner pid={pid} />
+    </Suspense>
+  );
+}
+
+function ProjectDetailInner({ pid }: { pid: number }) {
+  const router = useRouter();
+  const sp = useSearchParams();
+  // 通知深链：?tab=跟进&followup=12 → 直接落到跟进页签并高亮那条跟进
+  const [tab, setTab] = useState<Tab>(() => parseTab(sp.get("tab")));
+  const followTarget = parseTarget(sp.get("followup"));
   const { userName, deptName } = useMeta();
   // 解归档仅管理员：按钮显示条件取后端菜单契约
   const { isAdmin } = useMenus();
   const toast = useToast();
 
-  const [tab, setTab] = useState<Tab>("基本");
   const [project, setProject] = useState<Project | null>(null);
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
@@ -47,6 +66,10 @@ export default function ProjectDetailPage({ params }: { params: { id: string } }
   const [followSize, setFollowSize] = useState(DEFAULT_PAGE_SIZE);
   // 增删跟进后按当前页重取（页码越界由 Pagination 的边界收敛回到合法页）
   const [followTick, setFollowTick] = useState(0);
+  // 通知定位跟进中的中间态（跨页定位时展示进度，避免闪一下「不在可见范围」）
+  const [followLocating, setFollowLocating] = useState(false);
+  // 每个 (项目, 跟进) 只定位一次，避免列表重渲染反复查询
+  const followLocatedRef = useRef("");
 
   const [editOpen, setEditOpen] = useState(false);
   const [followOpen, setFollowOpen] = useState(false);
@@ -64,6 +87,23 @@ export default function ProjectDetailPage({ params }: { params: { id: string } }
   }, [pid]);
 
   useEffect(() => { loadProject(); }, [loadProject]);
+
+  // URL 的 ?tab= 变化（后退/前进、外链）时同步页签，并把页签选择写回 URL
+  useEffect(() => {
+    const fromUrl = parseTab(sp.get("tab"));
+    setTab(fromUrl);
+  }, [sp]);
+
+  const selectTab = useCallback(
+    (next: Tab) => {
+      setTab(next);
+      const params = new URLSearchParams(sp.toString());
+      params.set("tab", next);
+      if (next !== "跟进") params.delete("followup");
+      router.replace(`/projects/${pid}?${params.toString()}`, { scroll: false });
+    },
+    [router, sp, pid],
+  );
 
   const loadTab = useCallback(async (signal?: AbortSignal) => {
     try {
@@ -96,6 +136,48 @@ export default function ProjectDetailPage({ params }: { params: { id: string } }
     loadTab(ac.signal);
     return () => ac.abort();
   }, [loadTab, followTick]);
+
+  // 通知定位：跟进可能不在当前页（#9 起跟进已分页）→ 用一次上界窗口查到它的页码再跳过去；
+  // 窗口内也没有则如实说明「不在可见范围」，不让用户自己翻页找。
+  useEffect(() => {
+    if (!followTarget || followLocating) return;
+    if (tab !== "跟进") return;
+    if (followups.some((f) => f.id === followTarget)) {
+      setFollowLocating(false);
+      return;
+    }
+    const key = `${pid}:${followTarget}`;
+    if (followLocatedRef.current === key) return;
+    followLocatedRef.current = key;
+
+    let alive = true;
+    setFollowLocating(true);
+    projectsApi
+      .followups(pid, buildQuery({ page: 1, size: MAX_PAGE_SIZE, sort: "-id" }))
+      .then(unwrapPaged<Followup>)
+      .then((win) => {
+        if (!alive) return;
+        const idx = win.items.findIndex((f) => f.id === followTarget);
+        if (idx >= 0) {
+          const found = Math.floor(idx / followSize) + 1;
+          if (found !== followPage) setFollowPage(found);
+        }
+      })
+      .catch(() => {
+        /* 定位失败不阻断页面：下方会给出「不在可见范围」说明 */
+      })
+      .finally(() => {
+        if (alive) setFollowLocating(false);
+      });
+
+    return () => {
+      alive = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab, pid, followTarget, followups, followPage, followSize]);
+
+  // 命中行滚动入视口 + 聚焦其操作按钮
+  useTargetScroll(followTarget, tab === "跟进" && followups.length > 0);
 
   async function changeStatus(to: string) {
     setBusy(true);
@@ -172,7 +254,7 @@ export default function ProjectDetailPage({ params }: { params: { id: string } }
 
       <div className="tabs">
         {TABS.map((t) => (
-          <button key={t} className={tab === t ? "active" : ""} onClick={() => setTab(t)}>{t}</button>
+          <button key={t} className={tab === t ? "active" : ""} onClick={() => selectTab(t)}>{t}</button>
         ))}
       </div>
 
@@ -306,15 +388,35 @@ export default function ProjectDetailPage({ params }: { params: { id: string } }
             <Empty title="暂无跟进记录" hint="记录每次沟通，并可设置到期提醒。" />
           ) : (
             <>
+              {followTotal > followups.length && (
+                <div className="muted tiny" style={{ marginBottom: 8 }}>
+                  共 {followTotal} 条跟进，当前显示第 {followPage} 页的 {followups.length} 条
+                </div>
+              )}
+              {/* 通知定位到一条不在当前页的跟进：说明原因并给出出口，不让用户自己翻页找 */}
+              {followTarget > 0 && !followups.some((f) => f.id === followTarget) && !followLocating && (
+                <div className="warn-banner" role="alert" style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+                  <span style={{ flex: 1, minWidth: 200 }}>
+                    通知指向的跟进记录（#{followTarget}）不在可见范围内，可能已被删除。
+                  </span>
+                  <button type="button" className="btn-ghost" onClick={() => router.replace(`/projects/${pid}?tab=%E8%B7%9F%E8%BF%9B`, { scroll: false })}>
+                    清除定位
+                  </button>
+                </div>
+              )}
+              {followTarget > 0 && followLocating && (
+                <div className="muted tiny" role="status" style={{ marginBottom: 8 }}>正在定位该跟进记录…</div>
+              )}
               <ul className="timeline">
               {followups.map((f) => (
-                <li key={f.id}>
+                <li key={f.id} data-target-id={f.id} className={rowClass(undefined, f.id === followTarget)}>
                   <span className="t mono">{fmtDateTime(f.happened_at)}</span>
                   <span style={{ flex: 1 }}>
                     <Badge status={f.method || "跟进"} />
                     <div>{f.content || "-"}</div>
                     {f.next_step && <div className="muted" style={{ fontSize: 12 }}>下一步：{f.next_step}</div>}
                     {f.remind_at && <div className="chip warn" style={{ marginTop: 4 }}>提醒 {fmtDateTime(f.remind_at)}</div>}
+                    {f.id === followTarget && <div className="tiny">来自通知</div>}
                     <div className="tiny" style={{ marginTop: 2 }}>{userName(f.user_id)}</div>
                   </span>
                   <span className="no-print" style={{ display: "inline-flex", gap: 6, alignSelf: "flex-start" }}>

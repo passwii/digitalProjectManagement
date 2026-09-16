@@ -8,6 +8,7 @@ import {
 } from "recharts";
 import { dashboardApi, errText, type DashboardSummary, type Weekly } from "@/lib/api";
 import { useMe, useMeta, useMenus } from "@/lib/useMeta";
+import { COST_SCOPE_NOTE, HEALTH_LABEL, HEALTH_TONE, MONEY_LABEL, PROGRESS_LABEL, rateBadge } from "@/lib/kpi";
 import { fmtDate, fmtMoney, fmtPct, fmtDateTime, projectStatusLabel } from "@/lib/labels";
 import Badge from "@/components/ui/Badge";
 import Empty from "@/components/ui/Empty";
@@ -15,19 +16,6 @@ import ProgressBar from "@/components/ui/ProgressBar";
 import { LoadingBlock } from "@/components/ui/PageState";
 
 const SUBJECT_COLORS = ["#2b5cff", "#0e7490", "#15803d", "#b45309", "#6d28d9"];
-
-const HEALTH_LABEL: Record<string, string> = {
-  ok: "正常",
-  risk: "风险",
-  bad: "异常",
-  closed: "已关闭",
-};
-const HEALTH_TONE: Record<string, "done" | "warn" | "danger" | "paused"> = {
-  ok: "done",
-  risk: "warn",
-  bad: "danger",
-  closed: "paused",
-};
 
 export default function DashboardPage() {
   const { userName, deptName } = useMeta();
@@ -94,8 +82,9 @@ export default function DashboardPage() {
         ) : (
           <div className="kpi"><div className="k">未读通知</div><div className="v mono">{k.unread_notifications}</div><div className="tiny">审批结果会通过通知告知您</div></div>
         )}
-        <div className="kpi"><div className="k">{k.month} 支出</div><div className="v mono">{fmtMoney(k.month_spent)}</div><div className="tiny">累计执行率 {fmtPct(k.total_rate)}</div></div>
+        <div className="kpi"><div className="k">{k.month} {MONEY_LABEL.spent}</div><div className="v mono">{fmtMoney(k.month_spent)}</div><div className="tiny">累计{MONEY_LABEL.rate} {fmtPct(k.total_rate)}</div></div>
       </div>
+      <p className="muted tiny" style={{ marginTop: -4, marginBottom: 12 }}>{COST_SCOPE_NOTE}。</p>
 
       <div className="split">
         <div className="card">
@@ -170,7 +159,7 @@ export default function DashboardPage() {
           ) : (
             <table className="grid">
               <thead>
-                <tr><th>项目</th><th>健康度</th><th>进度</th><th className="num">执行率</th><th className="num">逾期</th></tr>
+                <tr><th>项目</th><th>健康度</th><th>{PROGRESS_LABEL.weighted}</th><th className="num">{MONEY_LABEL.rate}</th><th className="num">逾期</th></tr>
               </thead>
               <tbody>
                 {data.health.map((h) => (
@@ -181,7 +170,9 @@ export default function DashboardPage() {
                     </td>
                     <td><Badge status={HEALTH_LABEL[h.health]} tone={HEALTH_TONE[h.health]} /></td>
                     <td style={{ minWidth: 130 }}><ProgressBar value={h.progress} tone="brand" /></td>
-                    <td className="num" style={h.rate > 1 ? { color: "var(--danger)" } : undefined}>{fmtPct(h.rate)}</td>
+                    <td className="num" style={rateBadge(h.rate)?.tone === "danger" ? { color: "var(--danger)" } : undefined}>
+                      {fmtPct(h.rate)}{rateBadge(h.rate) ? <span className="muted"> · {rateBadge(h.rate)!.status}</span> : null}
+                    </td>
                     <td className="num" style={h.overdue_tasks > 0 ? { color: "var(--danger)" } : undefined}>{h.overdue_tasks}</td>
                   </tr>
                 ))}

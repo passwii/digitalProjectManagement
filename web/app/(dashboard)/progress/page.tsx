@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE, buildQuery, errText, milestonesApi, projectsApi, reportsApi,
   tasksApi, unwrapPaged, type Milestone, type Task, type Warnings,
@@ -9,6 +9,11 @@ import { useAsyncData } from "@/lib/useAsyncData";
 import { urlInt, useUrlState } from "@/lib/useUrlState";
 import { useProjectsProbe } from "@/lib/useProjects";
 import { useMeta } from "@/lib/useMeta";
+import {
+  LOCATE_PAGE_SIZE, TARGET_KEY, isTargetRow, locateTargetPage, missingTargetText, parseTarget,
+  rowClass, useTargetScroll,
+} from "@/lib/deepLink";
+import { PROGRESS_LABEL } from "@/lib/kpi";
 import { TASK_STATUS, TASK_STATUS_ORDER, fmtDate, isOverdueTask, taskStatusLabel, taskTone } from "@/lib/labels";
 import Badge from "@/components/ui/Badge";
 import Avatar from "@/components/ui/Avatar";
@@ -31,7 +36,7 @@ const VIEWS: { code: View; label: string }[] = [
   { code: "gantt", label: "甘特图" },
 ];
 
-// 当前项目 / 视图模式 / 任务分页 / 里程碑分页写入 URL：链接可分享，刷新/后退不丢状态
+// 当前项目 / 视图模式 / 任务分页 / 里程碑分页 / 通知定位目标写入 URL：链接可分享，刷新/后退不丢状态
 const URL_DEFAULTS = {
   project_id: "",
   view: "list",
@@ -39,6 +44,8 @@ const URL_DEFAULTS = {
   size: "20",
   mpage: "1",
   msize: "20",
+  [TARGET_KEY.task]: "",
+  [TARGET_KEY.milestone]: "",
 };
 
 export default function ProgressPage() {
@@ -57,8 +64,11 @@ export default function ProgressPage() {
 }
 
 function ProgressInner() {
-  const [url, setUrl] = useUrlState(URL_DEFAULTS);
+  const [url, setUrl] = useUrlState(URL_DEFAULTS, { pageKey: false });
   const pid = url.project_id;
+  // 通知深链定位目标（任务 / 里程碑）
+  const taskTarget = parseTarget(url[TARGET_KEY.task]);
+  const mileTarget = parseTarget(url[TARGET_KEY.milestone]);
   // 任务与里程碑各自独立分页：真实翻页，不再单页截断
   const page = urlInt(url.page, 1);
   const size = urlInt(url.size, DEFAULT_PAGE_SIZE, { max: MAX_PAGE_SIZE });
@@ -69,6 +79,9 @@ function ProgressInner() {
   const { userName } = useMeta();
   const toast = useToast();
   const [busy, setBusy] = useState(false);
+  // 定位失败（目标不在可见范围）时的可理解说明
+  const [locateErr, setLocateErr] = useState("");
+  const [locating, setLocating] = useState(false);
   // 是否有可参与项目：只探测 1 条，不再拉取 100 条项目判断存在性
   const { hasProjects, probing, probeError, reloadProbe } = useProjectsProbe();
 
@@ -102,6 +115,7 @@ function ProgressInner() {
 
   const tasks = data?.tasks ?? [];
   const tasksTotal = data?.tasksTotal ?? tasks.length;
+  // 页头任务数优先用服务端全量计数（分页后当页条数不再等于任务总数）
   const taskTotal = data?.serverTaskCount ?? tasksTotal;
   const miles: Milestone[] = data?.miles ?? [];
   const milesTotal = data?.milesTotal ?? miles.length;
@@ -135,14 +149,95 @@ function ProgressInner() {
   const weighted = serverProgress ?? localWeighted;
   const weightedEstimated = serverProgress === null;
 
-  // 切换项目后清理弹窗状态，避免把上一个项目的任务写回新项目
+  // 切换项目后清理弹窗与定位状态，避免把上一个项目的任务写回新项目
   useEffect(() => {
     setEditingTask(null);
     setReportTask(null);
     setTaskOpen(false);
     setEditingMilestone(null);
     setMilestoneOpen(false);
+    setLocateErr("");
   }, [pid]);
+
+  // 手动切换项目后，上一个项目的定位参数已失效 → 丢弃（首次进入时不清，否则深链会被自己抹掉）
+  const prevPidRef = useRef(pid);
+  useEffect(() => {
+    if (prevPidRef.current === pid) return;
+    prevPidRef.current = pid;
+    if (taskTarget || mileTarget) setUrl({ [TARGET_KEY.task]: "", [TARGET_KEY.milestone]: "" });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pid]);
+
+  /**
+   * 定位任务 / 里程碑（通知深链）。
+   *
+   * 目标可能落在任意一页：用一次 size=100 的窗口查询定位它的页码，再让页面翻到那一页。
+   * 窗口内没有 → 明确告知「已不存在或不在可见范围」，不再让用户自己翻页找。
+   *
+   * 只对每个 (项目, 目标) 尝试一次（attemptedRef），因此不会因为列表重渲染而反复查询；
+   * 失败态会一直保留到用户「清除定位」或换目标。
+   */
+  const attemptedRef = useRef("");
+  useEffect(() => {
+    if (!pid || firstLoad) return;
+    const job = taskTarget
+      ? { key: TARGET_KEY.task, label: "任务", target: taskTarget, donePage: page, onPage: tasks.some((t) => isTargetRow(t.id, taskTarget)), pageSize: size, total: tasksTotal }
+      : mileTarget
+      ? { key: TARGET_KEY.milestone, label: "里程碑", target: mileTarget, donePage: mpage, onPage: miles.some((m) => isTargetRow(m.id, mileTarget)), pageSize: msize, total: milesTotal }
+      : null;
+    if (!job) return;
+    // 已经在目标页：交给滚动/高亮
+    if (job.onPage) {
+      setLocateErr("");
+      return;
+    }
+    const attemptKey = `${pid}:${job.key}:${job.target}`;
+    if (attemptedRef.current === attemptKey) return;
+    attemptedRef.current = attemptKey;
+
+    let alive = true;
+    setLocating(true);
+    // 两类列表都满足 `{ id }` 的定位契约，这里统一成同一签名的窗口查询
+    const fetchWindow = (p: number, s: number) =>
+      (job.key === TARGET_KEY.task
+        ? tasksApi.list(buildQuery({ project_id: pid, page: p, size: s })).then(unwrapPaged<Task>)
+        : milestonesApi
+            .list(Number(pid), { page: p, size: s })
+            .then(unwrapPaged<Milestone>)
+      ) as Promise<import("@/lib/api").Paged<{ id: number }>>;
+
+    locateTargetPage(fetchWindow, job.target, job.pageSize)
+      .then((found) => {
+        if (!alive) return;
+        if (found === null) {
+          // 窗口内找不到：给出可理解的说明与「清除定位」的出口
+          setLocateErr(missingTargetText(job.label, job.total));
+          return;
+        }
+        setLocateErr("");
+        if (found !== job.donePage) {
+          setUrl(
+            job.key === TARGET_KEY.task ? { page: String(found) } : { mpage: String(found) },
+            { history: "replace" },
+          );
+        }
+      })
+      .catch(() => {
+        if (alive) setLocateErr(`${job.label}定位失败：无法读取列表，请重试。`);
+      })
+      .finally(() => {
+        if (alive) setLocating(false);
+      });
+
+    return () => {
+      alive = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pid, firstLoad, taskTarget, mileTarget, page, mpage, size, msize, tasksTotal, milesTotal,
+      tasks.some((t) => isTargetRow(t.id, taskTarget)), miles.some((m) => isTargetRow(m.id, mileTarget))]);
+
+  // 命中行滚动入视口；列表 / 看板视图下命中行才可见
+  useTargetScroll(taskTarget || mileTarget, !firstLoad && (view === "list" || view === "board" || !!mileTarget));
 
   // 逾期统计：优先用服务端预警（`/reports/warnings` 在全量可见任务上算，不受当前页影响）；
   // 预警接口失败时才退化到当前页估算，并在横幅上标注口径。
@@ -177,7 +272,7 @@ function ProgressInner() {
           进度跟进
           {pid && data && (
             <span className="sub">
-              加权进度 <span className="mono">{weighted}%</span>
+              {PROGRESS_LABEL.weighted} <span className="mono">{weighted}%</span>
               {weightedEstimated && <span className="tiny">（按当前显示任务估算）</span>} · {taskTotal} 个任务
             </span>
           )}
@@ -241,6 +336,28 @@ function ProgressInner() {
 
       {error && <LoadFailed message={error} onRetry={reload} />}
 
+      {/* 通知定位结果：找不到目标时明确说明原因并给出出口，而不是留一个空页面 */}
+      {pid && locating && (
+        <div className="muted tiny" role="status" style={{ marginBottom: 8 }}>
+          正在定位该{taskTarget ? "任务" : "里程碑"}…
+        </div>
+      )}
+      {pid && locateErr && (
+        <div className="err-banner" role="alert" style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+          <span style={{ flex: 1, minWidth: 200 }}>{locateErr}</span>
+          <button
+            type="button"
+            className="btn-ghost"
+            onClick={() => {
+              setLocateErr("");
+              setUrl({ [TARGET_KEY.task]: "", [TARGET_KEY.milestone]: "", page: 1, mpage: 1 });
+            }}
+          >
+            清除定位
+          </button>
+        </div>
+      )}
+
       {probing ? (
         <LoadingBlock kpis={0} label="加载项目范围…" />
       ) : probeError ? (
@@ -291,12 +408,14 @@ function ProgressInner() {
                   <tbody>
                     {tasks.map((t) => {
                       const od = isOverdueTask(t);
+                      const hit = isTargetRow(t.id, taskTarget);
                       return (
-                        <tr key={t.id} style={od ? { background: "var(--danger-bg)" } : undefined}>
+                        <tr key={t.id} data-target-id={t.id} className={rowClass(undefined, hit)} style={od && !hit ? { background: "var(--danger-bg)" } : undefined}>
                           <td>
                             <span className="ellipsis" title={t.name} style={{ paddingLeft: (t.level - 1) * 12 }}>
                               {t.level > 1 ? "└ " : ""}{t.name}
                             </span>
+                            {hit && <span className="tiny" style={{ marginLeft: 6 }}>· 来自通知</span>}
                           </td>
                           <td><Badge status={od ? "已逾期" : taskStatusLabel(t.status)} tone={taskTone(t.status, od)} /></td>
                           <td><ProgressBar value={t.progress} tone="brand" /></td>
@@ -345,7 +464,13 @@ function ProgressInner() {
                       {TASK_STATUS[s]} <span className="mono tiny">{col.length}</span>
                     </h3>
                     {col.map((t) => (
-                      <div key={t.id} className="card" style={{ marginBottom: 8, background: "var(--bg)", cursor: "pointer" }} onClick={() => setReportTask(t)}>
+                      <div
+                        key={t.id}
+                        data-target-id={t.id}
+                        className={rowClass("card", isTargetRow(t.id, taskTarget))}
+                        style={{ marginBottom: 8, background: "var(--bg)", cursor: "pointer" }}
+                        onClick={() => setReportTask(t)}
+                      >
                         <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "center" }}>
                           <span className="ellipsis" title={t.name}>{t.name}</span>
                           <Badge status={isOverdueTask(t) ? "逾期" : taskStatusLabel(t.status)} tone={taskTone(t.status, isOverdueTask(t))} />
@@ -394,51 +519,57 @@ function ProgressInner() {
                 <table className="grid">
                   <thead><tr><th>里程碑</th><th>计划日期</th><th>实际日期</th><th>状态</th><th>负责人</th><th className="no-print" /></tr></thead>
                   <tbody>
-                    {miles.map((m) => (
-                      <tr key={m.id}>
-                        <td>{m.name}</td>
-                        <td className="mono tiny">{fmtDate(m.plan_date)}</td>
-                        <td className="mono tiny">{fmtDate(m.actual_date)}</td>
-                        <td>
-                          <Badge
-                            status={m.overdue ? "已逾期" : m.near ? "临近" : m.status === "closed" ? "已完成" : "进行中"}
-                            tone={m.overdue ? "danger" : m.near ? "warn" : m.status === "closed" ? "done" : "doing"}
-                          />
-                        </td>
-                        <td>{userName(m.owner_id)}</td>
-                        <td className="no-print">
-                          <span style={{ display: "inline-flex", gap: 6 }}>
-                            {m.status !== "closed" && (
-                              <button className="btn-ghost" style={{ height: 26, lineHeight: "24px", padding: "0 8px", fontSize: 12 }} disabled={busy}
-                                onClick={() => run(() => milestonesApi.update(m.id, { actual_date: new Date().toISOString().slice(0, 10) }), "里程碑已完成")}>
-                                完成
+                    {miles.map((m) => {
+                      const hit = isTargetRow(m.id, mileTarget);
+                      return (
+                        <tr key={m.id} data-target-id={m.id} className={rowClass(undefined, hit)}>
+                          <td>
+                            {m.name}
+                            {hit && <span className="tiny" style={{ marginLeft: 6 }}>· 来自通知</span>}
+                          </td>
+                          <td className="mono tiny">{fmtDate(m.plan_date)}</td>
+                          <td className="mono tiny">{fmtDate(m.actual_date)}</td>
+                          <td>
+                            <Badge
+                              status={m.overdue ? "已逾期" : m.near ? "临近" : m.status === "closed" ? "已完成" : "进行中"}
+                              tone={m.overdue ? "danger" : m.near ? "warn" : m.status === "closed" ? "done" : "doing"}
+                            />
+                          </td>
+                          <td>{userName(m.owner_id)}</td>
+                          <td className="no-print">
+                            <span style={{ display: "inline-flex", gap: 6 }}>
+                              {m.status !== "closed" && (
+                                <button className="btn-ghost" style={{ height: 26, lineHeight: "24px", padding: "0 8px", fontSize: 12 }} disabled={busy}
+                                  onClick={() => run(() => milestonesApi.update(m.id, { actual_date: new Date().toISOString().slice(0, 10) }), "里程碑已完成")}>
+                                  完成
+                                </button>
+                              )}
+                              <button className="btn-ghost" style={{ height: 26, lineHeight: "24px", padding: "0 8px", fontSize: 12 }}
+                                onClick={() => { setEditingMilestone(m); setMilestoneOpen(true); }}>
+                                编辑
                               </button>
-                            )}
-                            <button className="btn-ghost" style={{ height: 26, lineHeight: "24px", padding: "0 8px", fontSize: 12 }}
-                              onClick={() => { setEditingMilestone(m); setMilestoneOpen(true); }}>
-                              编辑
-                            </button>
-                            <button
-                              className="btn-ghost"
-                              style={{ height: 26, lineHeight: "24px", padding: "0 8px", fontSize: 12, color: "var(--danger)", borderColor: "var(--line-danger)" }}
-                              onClick={() =>
-                                setConfirm({
-                                  title: `删除里程碑「${m.name}」？`,
-                                  text: "删除后不可恢复。",
-                                  run: async () => {
-                                    await milestonesApi.remove(m.id);
-                                    toast.ok("里程碑已删除");
-                                    reload();
-                                  },
-                                })
-                              }
-                            >
-                              删除
-                            </button>
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
+                              <button
+                                className="btn-ghost"
+                                style={{ height: 26, lineHeight: "24px", padding: "0 8px", fontSize: 12, color: "var(--danger)", borderColor: "var(--line-danger)" }}
+                                onClick={() =>
+                                  setConfirm({
+                                    title: `删除里程碑「${m.name}」？`,
+                                    text: "删除后不可恢复。",
+                                    run: async () => {
+                                      await milestonesApi.remove(m.id);
+                                      toast.ok("里程碑已删除");
+                                      reload();
+                                    },
+                                  })
+                                }
+                              >
+                                删除
+                              </button>
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>

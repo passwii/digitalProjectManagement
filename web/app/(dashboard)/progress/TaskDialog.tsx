@@ -1,7 +1,7 @@
 "use client";
 // 任务新建/编辑弹窗（编辑走 PATCH，父/前置任务可选）
-import { useEffect } from "react";
-import { tasksApi, type Task } from "@/lib/api";
+import { useEffect, useState } from "react";
+import { errText, tasksApi, type Task } from "@/lib/api";
 import { useMeta } from "@/lib/useMeta";
 import { useForm } from "@/lib/useForm";
 import { Dialog } from "@/components/ui/Modal";
@@ -54,6 +54,8 @@ export default function TaskDialog({
 }) {
   const { users } = useMeta();
   const isEdit = !!task;
+  // 提交失败原因：保存/校验被后端拒绝时必须让用户看到，而不是静默留在弹窗里
+  const [formErr, setFormErr] = useState("");
 
   const form = useForm<Values>(isEdit ? toValues(task) : BLANK, {
     name: { required: "任务名称不能为空", max: 80, label: "任务名称" },
@@ -72,12 +74,16 @@ export default function TaskDialog({
   });
 
   useEffect(() => {
-    if (open) form.reset(isEdit && task ? toValues(task) : BLANK);
+    if (open) {
+      form.reset(isEdit && task ? toValues(task) : BLANK);
+      setFormErr("");
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, task?.id]);
 
   async function submit() {
     if (!form.validate()) return;
+    setFormErr("");
     const v = form.values;
     const payload: Record<string, unknown> = {
       project_id: projectId,
@@ -89,8 +95,14 @@ export default function TaskDialog({
       plan_end: v.plan_end || null,
       weight: Number(v.weight || 1),
     };
-    if (isEdit) await tasksApi.update(task!.id, payload);
-    else await tasksApi.create(payload);
+    try {
+      if (isEdit) await tasksApi.update(task!.id, payload);
+      else await tasksApi.create(payload);
+    } catch (e) {
+      // 保留已填内容，用户改完可直接重试
+      setFormErr(errText(e));
+      return;
+    }
     onSaved();
     onClose();
   }
@@ -128,7 +140,7 @@ export default function TaskDialog({
         <Field label="权重" error={form.errors.weight} hint="加权进度按权重折算">
           <input value={form.values.weight} onChange={(e) => form.set("weight", e.target.value)} inputMode="decimal" />
         </Field>
-        <Field label="父任务" hint={taskScopeNote ?? "最多 5 级"}>
+        <Field label="父任务" hint={taskScopeNote ? `最多 5 级 · ${taskScopeNote}` : "最多 5 级"}>
           <select value={form.values.parent_id} onChange={(e) => form.set("parent_id", e.target.value)}>
             <option value="">无（作为一级任务）</option>
             {others.map((t) => <option key={t.id} value={t.id}>{t.level > 1 ? "└ " : ""}{t.name}</option>)}
@@ -152,6 +164,7 @@ export default function TaskDialog({
           />
         </Field>
       </div>
+      {formErr && <div className="err-banner" style={{ marginTop: 10, marginBottom: 0 }} role="alert">{formErr}</div>}
     </Dialog>
   );
 }

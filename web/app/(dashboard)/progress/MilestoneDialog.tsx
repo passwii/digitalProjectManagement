@@ -1,7 +1,7 @@
 "use client";
 // 里程碑新建/编辑弹窗
-import { useEffect } from "react";
-import { milestonesApi, type Milestone } from "@/lib/api";
+import { useEffect, useState } from "react";
+import { errText, milestonesApi, type Milestone } from "@/lib/api";
 import { useMeta } from "@/lib/useMeta";
 import { useForm } from "@/lib/useForm";
 import { Dialog } from "@/components/ui/Modal";
@@ -40,6 +40,7 @@ export default function MilestoneDialog({
 }) {
   const { users } = useMeta();
   const isEdit = !!milestone;
+  const [formErr, setFormErr] = useState("");
 
   const form = useForm<Values>(isEdit ? toValues(milestone) : BLANK, {
     name: { required: "里程碑名称不能为空", max: 60, label: "里程碑名称" },
@@ -47,12 +48,16 @@ export default function MilestoneDialog({
   });
 
   useEffect(() => {
-    if (open) form.reset(isEdit && milestone ? toValues(milestone) : BLANK);
+    if (open) {
+      form.reset(isEdit && milestone ? toValues(milestone) : BLANK);
+      setFormErr("");
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, milestone?.id]);
 
   async function submit() {
     if (!form.validate()) return;
+    setFormErr("");
     const v = form.values;
     const payload: Record<string, unknown> = {
       project_id: projectId,
@@ -61,8 +66,13 @@ export default function MilestoneDialog({
       actual_date: v.actual_date || null,
       owner_id: v.owner_id ? Number(v.owner_id) : null,
     };
-    if (isEdit) await milestonesApi.update(milestone!.id, payload);
-    else await milestonesApi.create(payload);
+    try {
+      if (isEdit) await milestonesApi.update(milestone!.id, payload);
+      else await milestonesApi.create(payload);
+    } catch (e) {
+      setFormErr(errText(e));
+      return;
+    }
     onSaved();
     onClose();
   }
@@ -107,6 +117,7 @@ export default function MilestoneDialog({
           </select>
         </Field>
       </div>
+      {formErr && <div className="err-banner" style={{ marginTop: 10, marginBottom: 0 }} role="alert">{formErr}</div>}
     </Dialog>
   );
 }
