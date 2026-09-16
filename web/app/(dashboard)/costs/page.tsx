@@ -55,20 +55,24 @@ function CostsInner() {
 
   const { data, loading, firstLoad, error, reload } = useAsyncData(
     async (signal) => {
-      const [b, x] = await Promise.all([
+      const [b, x, p] = await Promise.all([
         // Stage 3A：一律回分页信封（用 unwrapPaged 兼容旧裸数组）
         budgetsApi.list(Number(pid), { size: MAX_PAGE_SIZE }, signal),
         // page/size 先按 Stage 3 契约下发；后端仍返回裸数组时前端本地切片，双向兼容
         expensesApi.list(buildQuery({ project_id: pid, page, size }), signal),
+        // 待审批数：单独取总条数，避免只统计当前页
+        expensesApi.list(buildQuery({ project_id: pid, status: "pending", page: 1, size: 1 }), signal),
       ]);
       const paged = unwrapPaged<Expense>(x);
       const budgetPage = unwrapPaged<Budget>(b);
+      const pendingPage = unwrapPaged<Expense>(p);
       return {
         budgets: budgetPage.items,
         budgetsTotal: budgetPage.total,
         expenses: paged.items,
         serverPaged: paged.paged,
         serverTotal: paged.total,
+        pendingTotal: pendingPage.paged ? pendingPage.total : null,
       };
     },
     [pid, page, size],
@@ -96,6 +100,8 @@ function CostsInner() {
   const totalSpent = budgets.reduce((s, b) => s + b.spent, 0);
   const totalRate = totalBudget ? totalSpent / totalBudget : 0;
   const pending = allExpenses.filter((x) => x.status === "pending");
+  // 服务端能给出精确总数时优先用服务端值（当前页可能不含全部待审批）
+  const pendingTotal = data?.pendingTotal ?? pending.length;
 
   const [budgetOpen, setBudgetOpen] = useState(false);
   const [editingBudget, setEditingBudget] = useState<Budget | null>(null);
@@ -255,7 +261,7 @@ function CostsInner() {
             </div>
           )}
 
-          <h2 className="section-title">支出记录{pending.length > 0 && <span className="sub mono">{pending.length} 待审批</span>}</h2>
+          <h2 className="section-title">支出记录{pendingTotal > 0 && <span className="sub mono">{pendingTotal} 待审批</span>}</h2>
 
           <div className="card no-print" style={{ marginBottom: 12, padding: "8px 12px", display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
             <label style={{ display: "flex", alignItems: "center", gap: 8, margin: 0 }}>

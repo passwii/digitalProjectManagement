@@ -61,19 +61,26 @@ function ProgressInner() {
 
   const { data, loading, firstLoad, error, reload } = useAsyncData(
     async (signal) => {
-      const [t, m, w] = await Promise.all([
-        tasksApi.list(buildQuery({ project_id: pid }), signal),
+      const [t, m, w, pg] = await Promise.all([
+        // 任务：显式下发 size=服务端上限，避免默认 20 条静默截断（>100 条时页面给出范围提示）
+        tasksApi.list(buildQuery({ project_id: pid, size: MAX_PAGE_SIZE }), signal),
         // Stage 3A：一律回分页信封（用 unwrapPaged 兼容旧裸数组）
         milestonesApi.list(Number(pid), { size: MAX_PAGE_SIZE }, signal),
         // 预警是辅助信息：失败不影响任务/里程碑展示
         reportsApi.warnings().catch(() => null),
+        // 加权进度：由服务端在**全量任务**上计算（本地按当前页算会在任务被截断时失真）
+        projectsApi.progress(Number(pid)).catch(() => null),
       ]);
+      const taskPage = unwrapPaged<Task>(t);
       const milestonePage = unwrapPaged<Milestone>(m);
       return {
-        tasks: unwrapPaged<Task>(t).items,
+        tasks: taskPage.items,
+        tasksTotal: taskPage.total,
         miles: milestonePage.items,
         milesTotal: milestonePage.total,
         warns: w as Warnings | null,
+        serverProgress: pg?.progress ?? null,
+        serverTaskCount: pg?.task_count ?? null,
       };
     },
     [pid],
@@ -81,6 +88,8 @@ function ProgressInner() {
   );
 
   const tasks = data?.tasks ?? [];
+  const taskTotal = data?.serverTaskCount ?? data?.tasksTotal ?? tasks.length;
+  const tasksTruncated = taskTotal > tasks.length;
   const miles: Milestone[] = data?.miles ?? [];
   const milesTotal = data?.milesTotal ?? miles.length;
   const warns = data?.warns ?? null;
@@ -92,10 +101,14 @@ function ProgressInner() {
   const [editingMilestone, setEditingMilestone] = useState<Milestone | null>(null);
   const [confirm, setConfirm] = useState<{ title: string; text?: string; run: () => Promise<void> } | null>(null);
 
-  const weighted = useMemo(() => {
+  // 兜底：服务端进度接口不可用时，按当前显示的任务估算（页面会标注“估算”）
+  const localWeighted = useMemo(() => {
     const tw = tasks.reduce((s, t) => s + (t.weight || 1), 0) || 1;
     return Math.round((tasks.reduce((s, t) => s + (t.progress || 0) * (t.weight || 1), 0) / tw) * 100) / 100;
   }, [tasks]);
+  const serverProgress = data?.serverProgress ?? null;
+  const weighted = serverProgress ?? localWeighted;
+  const weightedEstimated = serverProgress === null;
 
   // 切换项目后清理弹窗状态，避免把上一个项目的任务写回新项目
   useEffect(() => {
@@ -133,7 +146,8 @@ function ProgressInner() {
           进度跟进
           {pid && data && (
             <span className="sub">
-              加权进度 <span className="mono">{weighted}%</span> · {tasks.length} 个任务
+              加权进度 <span className="mono">{weighted}%</span>
+              {weightedEstimated && <span className="tiny">（按当前显示任务估算）</span>} · {taskTotal} 个任务
             </span>
           )}
         </h1>
@@ -216,9 +230,20 @@ function ProgressInner() {
         <>
           {(myOverdue.length > 0 || nearMiles.length > 0 || stagnant) && (
             <div className="warn-banner">
-              {myOverdue.length > 0 && <div>逾期任务 {myOverdue.length} 个：{myOverdue.map((t) => t.name).join("、")}</div>}
+              {myOverdue.length > 0 && (
+                <div>
+                  逾期任务 {myOverdue.length} 个：{myOverdue.map((t) => t.name).join("、")}
+                  {tasksTruncated && <span className="tiny">（仅统计当前显示的 {tasks.length} 条）</span>}
+                </div>
+              )}
               {nearMiles.length > 0 && <div>里程碑临近/逾期 {nearMiles.length} 个：{nearMiles.map((m) => m.name).join("、")}</div>}
               {stagnant && <div>项目已 {stagnant.days_no_log} 天无进度填报</div>}
+            </div>
+          )}
+
+          {tasksTruncated && (
+            <div className="muted tiny" role="status" style={{ marginBottom: 8 }}>
+              共 {taskTotal} 条任务，当前显示前 {tasks.length} 条（列表 / 看板 / 甘特图均基于当前显示范围）
             </div>
           )}
 
