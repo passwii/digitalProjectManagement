@@ -1,7 +1,7 @@
 "use client";
 // 进度填报弹窗：完成比例 + 说明 + 剩余工期 + 填报历史
 import { useEffect, useState } from "react";
-import { errText, progressApi, unwrapPaged, type ProgressLog, type Task } from "@/lib/api";
+import { buildQuery, errText, progressApi, unwrapPaged, type ProgressLog, type Task } from "@/lib/api";
 import { useMeta } from "@/lib/useMeta";
 import { useForm } from "@/lib/useForm";
 import { fmtDateTime } from "@/lib/labels";
@@ -13,6 +13,9 @@ interface Values {
   note: string;
   remaining_days: string;
 }
+
+/** 填报历史在弹窗里只展示最近这些条（服务端分页上限内），超出时明确标注范围 */
+const HISTORY_SIZE = 20;
 
 export default function ReportDialog({
   open,
@@ -27,6 +30,7 @@ export default function ReportDialog({
 }) {
   const { userName } = useMeta();
   const [logs, setLogs] = useState<ProgressLog[]>([]);
+  const [logsTotal, setLogsTotal] = useState(0);
   const [err, setErr] = useState("");
 
   const form = useForm<Values>({ progress: "0", note: "", remaining_days: "" }, {
@@ -49,10 +53,24 @@ export default function ReportDialog({
     if (!open || !task) return;
     setErr("");
     form.reset({ progress: String(task.progress ?? 0), note: "", remaining_days: "" });
+    let alive = true;
+    // Stage 3A：历史也走分页信封；弹窗只展示最近一页，超出时在下方明确标注范围
     progressApi
-      .logs(`?task_id=${task.id}`)
-      .then((d) => setLogs(unwrapPaged<ProgressLog>(d).items))
-      .catch(() => setLogs([]));
+      .logs(buildQuery({ task_id: task.id, page: 1, size: HISTORY_SIZE, sort: "-id" }))
+      .then((d) => {
+        if (!alive) return;
+        const paged = unwrapPaged<ProgressLog>(d);
+        setLogs(paged.items);
+        setLogsTotal(paged.total);
+      })
+      .catch(() => {
+        if (!alive) return;
+        setLogs([]);
+        setLogsTotal(0);
+      });
+    return () => {
+      alive = false;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, task?.id]);
 
@@ -135,6 +153,11 @@ export default function ReportDialog({
               </li>
             ))}
           </ul>
+          {logsTotal > logs.length && (
+            <p className="tiny" style={{ marginTop: 6 }}>
+              共 {logsTotal} 条填报历史，此处显示最近 {logs.length} 条。
+            </p>
+          )}
         </div>
       )}
     </Dialog>

@@ -55,6 +55,13 @@ export default function ProjectPicker({
   const boxRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
+  // 上次请求用的关键词：关键词真正变化时与 page 同步归 1，避免
+  // “新关键词 + 旧页码”额外渲染一帧/多发一次无用请求（BLF-1095 review）
+  const lastKeywordRef = useRef(debouncedKeyword);
+  if (lastKeywordRef.current !== debouncedKeyword) {
+    lastKeywordRef.current = debouncedKeyword;
+    if (page !== 1) setPage(1);
+  }
 
   useEffect(() => setRecent(loadRecentProjects()), []);
 
@@ -111,7 +118,7 @@ export default function ProjectPicker({
   const items: ProjectOption[] = data?.items ?? [];
   const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
-  useEffect(() => setPage(1), [debouncedKeyword]);
+  // 关键词变化已在上方渲染期同步归 1（避免“新关键词 + 旧页码”的中间帧）
 
   // 结果页越界（如关键词收窄后）自动收敛到末页
   useEffect(() => {
