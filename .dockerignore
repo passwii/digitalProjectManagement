@@ -7,4 +7,7 @@ api/**/__pycache__
 **/*.pyc
 web/node_modules
 web/.next
+web/.env.local
+web/.env.*
+!web/.env.local.example
 web/npm-debug.log*
