@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from ..core.audit import write_audit
+from ..core.audit import commit_audited
 from ..core.database import get_db, parse_date
 from ..core.deps import get_current_user
 from ..core.paging import DEFAULT_PAGE_SIZE, paginate
@@ -74,8 +74,8 @@ def create_milestone(body: MilestoneIn, db: Session = Depends(get_db),
     m = Milestone(project_id=body.project_id, name=body.name,
                   plan_date=body.plan_date, owner_id=body.owner_id or user.id)
     db.add(m)
-    db.commit()
-    write_audit(db, user.id, "create_milestone", "milestones", m.id, body.name)
+    db.flush()
+    commit_audited(db, user.id, "create_milestone", "milestones", m.id, body.name)
     return _m(m, _warn_days(db))
 
 
@@ -95,8 +95,7 @@ def update_milestone(mid: int, body: dict, db: Session = Depends(get_db),
     if "actual_date" in body:  # 填实际日即关闭
         m.actual_date = parse_date(body["actual_date"])
         m.status = "closed" if body["actual_date"] else "open"
-    db.commit()
-    write_audit(db, user.id, "update_milestone", "milestones", mid, str(list(body.keys())))
+    commit_audited(db, user.id, "update_milestone", "milestones", mid, str(list(body.keys())))
     return _m(m, _warn_days(db))
 
 
@@ -108,5 +107,6 @@ def delete_milestone(mid: int, db: Session = Depends(get_db),
         raise HTTPException(404, "里程碑不存在")
     get_active_project(db, m.project_id, user, write=True)
     db.delete(m)
-    db.commit()
+    db.flush()
+    commit_audited(db, user.id, "delete_milestone", "milestones", mid, m.name)
     return {"ok": True}

@@ -44,6 +44,34 @@ app = FastAPI(
 - **审批待办有界**：`GET /approvals/pending` 每类最多 `limit` 条（默认 200，上限 500），并返回 `totals` 与 `limit`。
 - **边界不变**：子表列表与审批待办继续执行「可见 + 未软删除」过滤；管理员全局 ≠ 包含回收站。
 - 实现与细节见 `api/core/paging.py`、README「列表分页与查询契约」节；回归测试见 `tests/test_mvp.py` 第 31—37 项。
+
+## 进度 / 成本 / 审批 / 通知闭环契约（Stage 4A 定稿，2026-09-16）
+
+- **入参校验零副作用**：任务（名称/权重>0/计划区间落在项目内/父任务同项目且≤5级/前置同项目不成环/状态合法流转）、
+  进度（0—100，前置未完成不得报 100%）、支出（科目白名单/金额>0/日期范围）、预算（金额≥0/期间自洽且落在项目内）
+  全部在**任何写库之前**校验；非法一律 `400` + 中文原因，且**不留部分修改**。`NaN`/`Infinity` 被显式拒绝。
+- **填报历史只可追加**：`/progress-logs` 无 PATCH/DELETE（`405`），任务 `progress` 是快照、每次变化都追加一条 log。
+- **支出闭环**：凭证附件（`POST|GET /expenses/{id}/vouchers`、`/{aid}/download`、`DELETE`）；
+  驳回后重新提交（`POST /expenses/{id}/resubmit`，仅申请人本人 + 仅「已驳回」状态，`resubmit_count` 累加，
+  驳回意见保留在时间线）；审批意见 `decision_reason` / `decided_at` / `approved_by` 落在行上，
+  驳回与特批**意见必填**；申请人可查 `GET /expenses/{id}/timeline` 与 `GET /budget-adjusts/{id}/timeline`。
+  凭证与项目附件**互不串门**：项目附件列表/下载/删除只认项目级附件。
+- **`mine=1`**：`/expenses?mine=1`、`/budget-adjusts?mine=1` 供申请人自查自己单据的驳回原因与状态。
+- **时间线**：`approval_records` 记录每次状态变化（`action`: submit/resubmit/approve/reject/exception/auto_approve，
+  含 `from_status`→`to_status`、`actor_id`、`reason`、`created_at`）；预算审批开关关闭时走 `auto_approve` 且 `approved_by` 留空。
+- **通知可定位**：每条通知都带 `ref_type`/`ref_id`/`project_id`（`ref_type` 白名单），响应额外回 `link` 与 `ref_complete`；
+  `GET /notifications/{id}` 另回 `ref_available`（引用对象已删除时为 false）。
+- **通知可追踪**：`state` = pending/done/ignored + `handled_at`/`handled_by`/`handle_note`；
+  `POST /notifications/{id}/handle`、`POST /notifications/handle-all`；`/notifications/count` 回 `unread` 与 `pending`。
+- **去重窗口**：`sys_params.notify_dedup_days`（默认 1 天，**时间窗口**而非自然日切分，跨零点不重推）；置 0 = 关闭去重。
+- **跟进提醒可追踪**：`followups.remind_state` = pending/done/ignored/none；到期扫描只取未推送过的，
+  推送后自动标记 done，同一到期记录不会重复灌入；处理入口 `POST /projects/{id}/followups/{fid}/remind`。
+- **审计原子**：关键写操作统一 `core.audit.commit_audited()`（业务行 + 时间线 + 通知 + 审计行同一次 commit）；
+  审计写失败 → 整体回滚 + `500`，**绝不静默当成功**。
+- **审批中心无 N+1**：`GET /approvals/pending` 每类各一次 COUNT + 一次取当页，关联名称批量映射；
+  可选 `kind` 只看一类，`totals` 仍给全量口径。
+- 实现见 `api/core/validation.py`、`api/core/timeline.py`、`api/core/notify.py`、`api/core/jobs.py`、`api/core/audit.py`；
+  README「进度 / 成本 / 审批 / 通知闭环契约」节；回归测试见 `tests/test_stage4a_closure.py`。
 """,
 )
 

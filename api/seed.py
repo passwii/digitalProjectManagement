@@ -31,6 +31,7 @@ PARAMS = {
     "stagnant_days": ("7", "项目停滞无填报天数"),
     "project_approval_on": ("0", "立项审批开关 0关/1开"),
     "demo_data_on": ("0", "演示数据开关 0隐藏/1显示"),
+    "notify_dedup_days": ("1", "预警通知去重窗口（天），同一引用在窗口内不重复推送"),
 }
 
 

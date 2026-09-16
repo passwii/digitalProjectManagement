@@ -38,7 +38,8 @@ sys.path.insert(0, str(ROOT))
 from api.core.database import DATA_DIR, SessionLocal, engine, ensure_fts  # noqa: E402
 from api.core.notify import push, user_ids_with_role  # noqa: E402
 from api.core.security import hash_password  # noqa: E402
-from api.models import (Attachment, Budget, BudgetAdjust, Department, Expense,  # noqa: E402
+from api.models import (ApprovalRecord, Attachment, Budget, BudgetAdjust, Department,  # noqa: E402
+                        Expense,
                         Followup, Milestone, Notification, ProgressLog, Project,
                         ProjectChange, ProjectMember, Role, Task, User, UserRole)
 
@@ -158,13 +159,34 @@ def add_budget(db, pid: int, subject: str, amount: float,
 
 def add_expense(db, pid: int, subject: str, amount: float, exp_date: date, note: str,
                 status: str, by_id: int, approved_by: int | None = None) -> Expense:
+    """造支出。Stage 4A 起同一写入路径也会落审批时间线，使演示数据的「状态有来源」。"""
     back = max(0, (TODAY - exp_date).days)
+    decided = None if status == "pending" else ts(-back, hour=17)
     e = Expense(project_id=pid, subject=subject, amount=amount, exp_date=exp_date,
                 note=note, status=status, by_id=by_id, approved_by=approved_by,
+                decided_at=decided,
+                decision_reason={"rejected": "金额与合同不符，请核对后重提",
+                                 "exception": "紧急复工需要，特批放行"}.get(status, ""),
                 created_at=ts(-back, hour=16))
     db.add(e)
     db.flush()
+    add_approval_record(db, "expense", e.id, pid, "submit", "", status, by_id,
+                        ts(-back, hour=16))
+    if status != "pending":
+        action = {"approved": "approve", "exception": "exception",
+                  "rejected": "reject"}[status]
+        add_approval_record(db, "expense", e.id, pid, action, "pending", status,
+                            approved_by or by_id, decided)
     return e
+
+
+def add_approval_record(db, kind: str, ref_id: int, pid: int, action: str,
+                        from_status: str, to_status: str, actor_id: int | None,
+                        at: datetime, reason: str = "") -> None:
+    """写一条审批时间线（与生产 `core.timeline.record` 同结构）。"""
+    db.add(ApprovalRecord(kind=kind, ref_id=ref_id, project_id=pid, action=action,
+                          from_status=from_status, to_status=to_status,
+                          actor_id=actor_id, reason=reason, created_at=at))
 
 
 def add_milestone(db, pid: int, name: str, plan: date, owner: int,
@@ -179,9 +201,11 @@ def add_milestone(db, pid: int, name: str, plan: date, owner: int,
 
 def add_followup(db, pid: int, user_id: int, days_ago: int, method: str, content: str,
                  next_step: str, remind_offset: int | None = None) -> Followup:
+    """造跟进记录。remind_state 与生产一致：无提醒时间 = none，有则 pending（等 jobs 扫描后转 done）。"""
     f = Followup(project_id=pid, user_id=user_id, happened_at=ts(-days_ago, hour=14),
                  method=method, content=content, next_step=next_step,
                  remind_at=ts(remind_offset, hour=9) if remind_offset is not None else None,
+                 remind_state="pending" if remind_offset is not None else "none",
                  created_at=ts(-days_ago, hour=14))
     db.add(f)
     db.flush()
@@ -504,10 +528,13 @@ def seed(db) -> dict:
     db.commit()
     log(f"站内通知已生成（预警 {created.get('total', 0)} 条 + 立项待办）")
 
-    # 让通知有已读/未读混合状态
+    # 让通知有已读/未读混合状态，并演示「已处理 / 待处理」两种处理状态
     notifs = db.query(Notification).order_by(Notification.id).all()
     for n in notifs[: max(1, len(notifs) // 3)]:
         n.read_at = ts(-1, hour=17)
+    for n in notifs[1::4]:
+        n.state, n.handled_at, n.handled_by = "done", ts(-1, hour=18), users["zhangwei"].id
+        n.handle_note = "已与项目组确认处理"
     db.commit()
     return {"projects": len(projects), "summary": summary, "notifications": len(notifs)}
 
