@@ -192,3 +192,14 @@ def visible_project_ids(db, user):
 def visible_project_id_list(db, user) -> set[int]:
     """「可见 + 未软删除」项目 id 集合（需要在 Python 侧做集合判断的场景，如跨项目任务列表）。"""
     return {pid for (pid,) in db.execute(visible_project_ids(db, user)).all()}
+
+
+def scope_child_query(query, model, db, user):
+    """把「可见 + 未软删除」项目边界下推为子表列表的 SQL 过滤。
+
+    用法：`q = scope_child_query(db.query(Task), Task, db, user)`。
+    管理员是唯一全局范围角色：不按参与人过滤（跨部门、跨项目可见），
+    但仍必须排除软删除项目——「管理员全局 ≠ 包含回收站」是 Stage 1 已确认契约，
+    子表列表一律通过 `visible_project_ids` 子查询收口，避免回收站数据回流。
+    """
+    return query.filter(model.project_id.in_(visible_project_ids(db, user)))

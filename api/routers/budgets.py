@@ -11,14 +11,28 @@ from sqlalchemy.orm import Session
 
 from ..core.audit import write_audit
 from ..core.costs import execution
-from ..core.database import get_db
+from ..core.database import get_db, parse_date
 from ..core.deps import get_current_user
-from ..core.rbac import get_active_project, require_admin, visible_project_ids
+from ..core.paging import DEFAULT_PAGE_SIZE, paginate
+from ..core.rbac import (get_active_project, require_admin, scope_child_query,
+                         visible_project_ids)
 from ..models import Budget, BudgetAdjust, Project, SysParam, User
 
 router = APIRouter(prefix="", tags=["budgets"])
 
 SUBJECTS = {"人工", "采购", "外包", "差旅", "其他"}
+
+# 排序白名单（Stage 3A）：字段名 → ORM 列
+BUDGET_SORTS = {
+    "id": Budget.id, "project_id": Budget.project_id, "subject": Budget.subject,
+    "amount": Budget.amount, "period_start": Budget.period_start,
+    "period_end": Budget.period_end, "created_at": Budget.created_at,
+}
+ADJUST_SORTS = {
+    "id": BudgetAdjust.id, "project_id": BudgetAdjust.project_id,
+    "old_amount": BudgetAdjust.old_amount, "new_amount": BudgetAdjust.new_amount,
+    "status": BudgetAdjust.status, "created_at": BudgetAdjust.created_at,
+}
 
 
 def _b(b: Budget, db: Session):
@@ -45,16 +59,24 @@ class BudgetIn(BaseModel):
 
 
 @router.get("/budgets")
-def list_budgets(project_id: int = 0, db: Session = Depends(get_db),
-                 user: User = Depends(get_current_user)):
-    """预算列表：指定 project_id 时按该项目鉴权；否则只返回「可见 + 未软删除」项目的预算。"""
-    q = db.query(Budget).order_by(Budget.id)
+def list_budgets(project_id: int = 0, subject: str = "", sort: str = "id",
+                 page: int = 1, size: int = DEFAULT_PAGE_SIZE,
+                 db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """预算列表：统一分页信封 + 排序白名单（默认 `id` 升序）。
+
+    指定 project_id 时按该项目鉴权；否则只返回「可见 + 未软删除」项目的预算（下推 SQL）。
+    """
+    q = db.query(Budget)
     if project_id:
         _project(db, project_id, user)
-        q = q.filter_by(project_id=project_id)
+        q = q.filter(Budget.project_id == project_id)
     else:
-        q = q.filter(Budget.project_id.in_(visible_project_ids(db, user)))
-    return [_b(b, db) for b in q.all()]
+        q = scope_child_query(q, Budget, db, user)
+    if subject:
+        q = q.filter(Budget.subject == subject)
+    return paginate(q, page=page, size=size, allowed=BUDGET_SORTS,
+                    default_sort="id", sort=sort,
+                    map_row=lambda b: _b(b, db))
 
 
 @router.post("/budgets")
@@ -114,20 +136,31 @@ def adjust_request(bid: int, body: dict, db: Session = Depends(get_db),
 
 
 @router.get("/budget-adjusts")
-def list_adjusts(project_id: int = 0, status: str = "", db: Session = Depends(get_db),
-                 user: User = Depends(get_current_user)):
-    """调整单列表：无 project_id 时只返回可见且未软删除项目的调整单。"""
-    q = db.query(BudgetAdjust).order_by(BudgetAdjust.id.desc())
+def list_adjusts(project_id: int = 0, status: str = "", budget_id: int = 0,
+                 sort: str = "-id", page: int = 1, size: int = DEFAULT_PAGE_SIZE,
+                 db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """调整单列表：统一分页信封（默认 `-id` 最新在前）+ 排序白名单。
+
+    无 project_id 时只返回可见且未软删除项目的调整单（下推 SQL，不再全量载入）。
+    """
+    q = db.query(BudgetAdjust)
     if project_id:
         _project(db, project_id, user)
-        q = q.filter_by(project_id=project_id)
+        q = q.filter(BudgetAdjust.project_id == project_id)
     else:
-        q = q.filter(BudgetAdjust.project_id.in_(visible_project_ids(db, user)))
+        q = scope_child_query(q, BudgetAdjust, db, user)
     if status:
-        q = q.filter_by(status=status)
-    return [{"id": a.id, "budget_id": a.budget_id, "project_id": a.project_id,
-             "old_amount": a.old_amount, "new_amount": a.new_amount,
-             "reason": a.reason, "status": a.status, "by_id": a.by_id} for a in q.all()]
+        q = q.filter(BudgetAdjust.status == status)
+    if budget_id:
+        q = q.filter(BudgetAdjust.budget_id == budget_id)
+
+    def _adj(a: BudgetAdjust):
+        return {"id": a.id, "budget_id": a.budget_id, "project_id": a.project_id,
+                "old_amount": a.old_amount, "new_amount": a.new_amount,
+                "reason": a.reason, "status": a.status, "by_id": a.by_id}
+
+    return paginate(q, page=page, size=size, allowed=ADJUST_SORTS,
+                    default_sort="-id", sort=sort, map_row=_adj)
 
 
 @router.post("/budget-adjusts/{aid}/approve")

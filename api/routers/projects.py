@@ -11,12 +11,40 @@ from sqlalchemy.orm import Session
 from ..core.audit import write_audit
 from ..core.database import ROOT, get_db, parse_date
 from ..core.deps import get_current_user
-from ..core.rbac import (can_read_project, check_project_access, is_admin,
-                         project_scope_condition, require_admin)
-from ..models import (Attachment, Followup, Project, ProjectChange,
-                      ProjectMember, SysParam, Task, User)
+from ..core.paging import DEFAULT_PAGE_SIZE, paginate
+from ..core.rbac import (
+    check_project_access,
+    is_admin,
+    project_scope_condition,
+    require_admin,
+)
+from ..models import (
+    Attachment,
+    Followup,
+    Project,
+    ProjectChange,
+    ProjectMember,
+    SysParam,
+    Task,
+    User,
+)
 
 router = APIRouter(prefix="/projects", tags=["projects"])
+
+# 排序白名单（Stage 3A）：字段名 → ORM 列，用户输入永不拼进 SQL
+PROJECT_SORTS = {
+    "id": Project.id, "code": Project.code, "name": Project.name,
+    "status": Project.status, "priority": Project.priority,
+    "budget_total": Project.budget_total, "progress": Project.progress,
+    "plan_start": Project.plan_start, "plan_end": Project.plan_end,
+    "created_at": Project.created_at, "dept_id": Project.dept_id,
+    "owner_id": Project.owner_id,
+}
+FOLLOWUP_SORTS = {
+    "id": Followup.id, "happened_at": Followup.happened_at,
+    "remind_at": Followup.remind_at, "user_id": Followup.user_id,
+    "method": Followup.method,
+}
 
 # 状态机：草稿/待立项审批/已立项/进行中/暂停/已完成/已归档/已取消
 TRANSITIONS = {
@@ -111,11 +139,15 @@ class ProjectIn(BaseModel):
 @router.get("")
 def list_projects(name: str = "", code: str = "", status: str = "", owner_id: int = 0,
                   dept_id: int = 0, keyword: str = "", date_from: str = "",
-                  date_to: str = "", page: int = 1, size: int = 20,
+                  date_to: str = "", sort: str = "-id",
+                  page: int = 1, size: int = DEFAULT_PAGE_SIZE,
                   db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    """组合筛（名称/编号/状态/负责人/部门/关键字/计划时间）+ 分页 20/条。
-    关键字优先 FTS5 全文检索（返回高亮片段），不可用时回退 LIKE。"""
-    q = db.query(Project).filter(Project.deleted_at.is_(None)).order_by(Project.id.desc())
+    """组合筛（名称/编号/状态/负责人/部门/关键字/计划时间）+ 统一分页信封。
+
+    关键字优先 FTS5 全文检索（返回高亮片段），不可用时回退 LIKE。
+    排序白名单见 `PROJECT_SORTS`，默认 `-id`（最新在前）；`size` 上限 100。
+    """
+    q = db.query(Project).filter(Project.deleted_at.is_(None))
     snips: dict[int, str] = {}
     if name:
         q = q.filter(Project.name.like(f"%{name}%"))
@@ -139,17 +171,49 @@ def list_projects(name: str = "", code: str = "", status: str = "", owner_id: in
     vis = project_scope_condition(user, db)
     if vis is not None:
         q = q.filter(vis)
-    total = q.count()
-    page = max(page, 1)
-    size = min(max(size, 1), 100)
-    rows = q.offset((page - 1) * size).limit(size).all()
-    items = []
-    for p in rows:
+
+    def _row(p: Project):
         d = _p(p)
         if keyword and snips:
             d["snippet"] = snips.get(p.id, "")
-        items.append(d)
-    return {"total": total, "page": page, "size": size, "items": items}
+        return d
+
+    return paginate(q, page=page, size=size, allowed=PROJECT_SORTS,
+                    default_sort="-id", sort=sort, map_row=_row)
+
+
+@router.get("/options")
+def project_options(keyword: str = "", status: str = "", owner_id: int = 0,
+                    sort: str = "-id", page: int = 1, size: int = DEFAULT_PAGE_SIZE,
+                    db: Session = Depends(get_db),
+                    user: User = Depends(get_current_user)):
+    """项目选择器专用：最小字段 + 关键词分页，替代前端 `?size=100` 全量下拉。
+
+    只返回 id/code/name/status/owner_id/dept_id（不含描述、成员等大字段），
+    权限与软删除边界与 `GET /projects` 完全一致（同一次可见性下推）。
+    关键词按「名称/编号」模糊匹配（选择器实际输入的就是项目名或编号）：
+    不走 FTS——FTS 命中集预先截断为 500 条，会让分页的 `total` 失真。
+    注意：本路由必须定义在 `/{pid}` 之前，否则会被单段路径参数抢先匹配。
+    """
+    q = db.query(Project.id, Project.code, Project.name, Project.status,
+                 Project.owner_id, Project.dept_id).filter(Project.deleted_at.is_(None))
+    if keyword:
+        like = f"%{keyword}%"
+        q = q.filter(or_(Project.name.like(like), Project.code.like(like)))
+    if status:
+        q = q.filter(Project.status == status)
+    if owner_id:
+        q = q.filter(Project.owner_id == owner_id)
+    vis = project_scope_condition(user, db)   # 含演示数据开关
+    if vis is not None:
+        q = q.filter(vis)
+
+    def _opt(r):
+        return {"id": r.id, "code": r.code, "name": r.name, "status": r.status,
+                "owner_id": r.owner_id, "dept_id": r.dept_id}
+
+    return paginate(q, page=page, size=size, allowed=PROJECT_SORTS,
+                    default_sort="-id", sort=sort, map_row=_opt)
 
 
 @router.post("")
@@ -403,12 +467,23 @@ def restore_project(pid: int, db: Session = Depends(get_db),
 
 
 @router.get("/recycle-bin/list")
-def recycle_bin(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    """回收站列表（仅管理员）：正常业务列表不看已软删除项目，回收站单独查看与恢复。"""
+def recycle_bin(sort: str = "-deleted_at", page: int = 1, size: int = DEFAULT_PAGE_SIZE,
+                db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """回收站列表（仅管理员）：正常业务列表不看已软删除项目，回收站单独查看与恢复。
+
+    统一分页信封；排序白名单 `id` / `deleted_at` / `code` / `name`，默认按删除时间倒序。
+    """
     require_admin(user)
-    rows = db.query(Project).filter(Project.deleted_at.isnot(None)).order_by(Project.deleted_at.desc()).all()
-    return [{"id": p.id, "code": p.code, "name": p.name, "status": p.status,
-             "deleted_at": p.deleted_at.isoformat() if p.deleted_at else None} for p in rows]
+    q = db.query(Project).filter(Project.deleted_at.isnot(None))
+
+    def _row(p: Project):
+        return {"id": p.id, "code": p.code, "name": p.name, "status": p.status,
+                "deleted_at": p.deleted_at.isoformat() if p.deleted_at else None}
+
+    return paginate(q, page=page, size=size,
+                    allowed={"id": Project.id, "deleted_at": Project.deleted_at,
+                             "code": Project.code, "name": Project.name},
+                    default_sort="-deleted_at", sort=sort, map_row=_row)
 
 
 class FollowupIn(BaseModel):
@@ -421,12 +496,12 @@ class FollowupIn(BaseModel):
 
 @router.get("/{pid}/followups")
 def list_followups(pid: int, user_id: int = 0, date_from: str = "", date_to: str = "",
-                   page: int = 0, size: int = 20,
+                   sort: str = "-id", page: int = 1, size: int = DEFAULT_PAGE_SIZE,
                    db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    """跟进列表：按人/时间筛；带 page 参数时返回分页信封 {total,page,size,items}。
+    """跟进列表：按人/时间筛 + 统一分页信封（默认 `-id`，最新在前）。
     remind 定时扫描见 core.jobs.due_followups，每 10min。"""
     _get(db, pid, user)
-    q = db.query(Followup).filter_by(project_id=pid).order_by(Followup.id.desc())
+    q = db.query(Followup).filter_by(project_id=pid)
     if user_id:
         q = q.filter_by(user_id=user_id)
     df, dt = parse_date(date_from or None), parse_date(date_to or None)
@@ -436,8 +511,6 @@ def list_followups(pid: int, user_id: int = 0, date_from: str = "", date_to: str
     if dt:
         q = q.filter(or_(Followup.happened_at.is_(None),
                          Followup.happened_at < datetime(dt.year, dt.month, dt.day, 23, 59, 59)))
-    total = q.count()
-    rows = q.all() if not page else q.offset((max(page, 1) - 1) * size).limit(size).all()
 
     def _f(f: Followup):
         return {"id": f.id, "user_id": f.user_id, "method": f.method, "content": f.content,
@@ -445,10 +518,8 @@ def list_followups(pid: int, user_id: int = 0, date_from: str = "", date_to: str
                 "happened_at": f.happened_at.isoformat() if f.happened_at else None,
                 "remind_at": f.remind_at.isoformat() if f.remind_at else None}
 
-    items = [_f(f) for f in rows]
-    if not page:
-        return items
-    return {"total": total, "page": max(page, 1), "size": size, "items": items}
+    return paginate(q, page=page, size=size, allowed=FOLLOWUP_SORTS,
+                    default_sort="-id", sort=sort, map_row=_f)
 
 
 @router.post("/{pid}/followups")

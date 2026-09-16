@@ -8,12 +8,26 @@ from sqlalchemy.orm import Session
 from ..core.audit import write_audit
 from ..core.database import get_db, parse_date
 from ..core.deps import get_current_user
-from ..core.rbac import get_active_project, visible_project_id_list, visible_project_ids
+from ..core.paging import DEFAULT_PAGE_SIZE, paginate
+from ..core.rbac import (get_active_project, scope_child_query, visible_project_ids)
 from ..models import ProgressLog, Project, Task, User
 
 router = APIRouter(prefix="", tags=["tasks"])
 
 MAX_LEVEL = 5
+
+# 排序白名单（Stage 3A）：字段名 → ORM 列
+TASK_SORTS = {
+    "id": Task.id, "project_id": Task.project_id, "name": Task.name,
+    "level": Task.level, "status": Task.status, "progress": Task.progress,
+    "weight": Task.weight, "plan_start": Task.plan_start,
+    "plan_end": Task.plan_end, "owner_id": Task.owner_id,
+}
+LOG_SORTS = {
+    "id": ProgressLog.id, "task_id": ProgressLog.task_id,
+    "project_id": ProgressLog.project_id, "progress": ProgressLog.progress,
+    "created_at": ProgressLog.created_at,
+}
 
 
 def _t(t: Task):
@@ -52,21 +66,30 @@ class TaskIn(BaseModel):
 
 
 @router.get("/tasks")
-def list_tasks(project_id: int = 0, status: str = "",
+def list_tasks(project_id: int = 0, status: str = "", owner_id: int = 0, keyword: str = "",
+               sort: str = "id", page: int = 1, size: int = DEFAULT_PAGE_SIZE,
                db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    q = db.query(Task).order_by(Task.id)
+    """任务列表：统一分页信封 + 排序白名单（默认 `id` 升序，保持既有任务序）。
+
+    · 带 `project_id` → 先做单次项目鉴权，再按项目取数；
+    · 不带 `project_id` → 「可见 + 未软删除」项目集合直接下推 SQL（不再 q.all() 后 Python 过滤）；
+    · `keyword` 按任务名模糊匹配；`owner_id` / `status` 为等值筛选。
+    """
+    q = db.query(Task)
     if project_id:
         _project(db, project_id, user)   # 单次项目鉴权
-        q = q.filter_by(project_id=project_id)
+        q = q.filter(Task.project_id == project_id)
+    else:
+        # 跨项目查询：权限与软删除边界下推 SQL，避免全表载入后 Python 过滤
+        q = scope_child_query(q, Task, db, user)
     if status:
-        q = q.filter_by(status=status)
-    rows = q.all()
-    if project_id:
-        # 已鉴权过该项目，直接返回（避免逐任务重复查询：原 N+1 热点）
-        return [_t(t) for t in rows]
-    # 跨项目查询：一次性取「可见 + 未软删除」项目集合，避免逐行 _project()
-    visible = visible_project_id_list(db, user)
-    return [_t(t) for t in rows if t.project_id in visible]
+        q = q.filter(Task.status == status)
+    if owner_id:
+        q = q.filter(Task.owner_id == owner_id)
+    if keyword:
+        q = q.filter(Task.name.like(f"%{keyword}%"))
+    return paginate(q, page=page, size=size, allowed=TASK_SORTS,
+                    default_sort="id", sort=sort, map_row=_t)
 
 
 @router.post("/tasks")
@@ -151,25 +174,34 @@ class LogIn(BaseModel):
 
 
 @router.get("/progress-logs")
-def list_logs(task_id: int = 0, project_id: int = 0,
+def list_logs(task_id: int = 0, project_id: int = 0, sort: str = "-id",
+              page: int = 1, size: int = DEFAULT_PAGE_SIZE,
               db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    """填报历史：task_id / project_id 均需可见；两者都不传时只返回可见且未软删除项目的记录。"""
-    q = db.query(ProgressLog).order_by(ProgressLog.id.desc())
+    """填报历史：task_id / project_id 均需可见；两者都不传时只返回可见且未软删除项目的记录。
+
+    统一分页信封（默认 `-id` 最新在前），避免跨项目全量取数。
+    """
+    q = db.query(ProgressLog)
     if task_id:
         t = db.query(Task).filter_by(id=task_id).first()
         if not t:
             raise HTTPException(404, "任务不存在")
         _project(db, t.project_id, user)
-        q = q.filter_by(task_id=task_id)
+        q = q.filter(ProgressLog.task_id == task_id)
     if project_id:
         _project(db, project_id, user)
-        q = q.filter_by(project_id=project_id)
+        q = q.filter(ProgressLog.project_id == project_id)
     if not task_id and not project_id:
-        q = q.filter(ProgressLog.project_id.in_(visible_project_ids(db, user)))
-    return [{"id": l.id, "task_id": l.task_id, "project_id": l.project_id,
-             "user_id": l.user_id, "progress": l.progress, "note": l.note,
-             "remaining_days": l.remaining_days,
-             "created_at": l.created_at.isoformat() if l.created_at else None} for l in q.all()]
+        q = scope_child_query(q, ProgressLog, db, user)
+
+    def _log(l: ProgressLog):
+        return {"id": l.id, "task_id": l.task_id, "project_id": l.project_id,
+                "user_id": l.user_id, "progress": l.progress, "note": l.note,
+                "remaining_days": l.remaining_days,
+                "created_at": l.created_at.isoformat() if l.created_at else None}
+
+    return paginate(q, page=page, size=size, allowed=LOG_SORTS,
+                    default_sort="-id", sort=sort, map_row=_log)
 
 
 @router.post("/progress-logs")

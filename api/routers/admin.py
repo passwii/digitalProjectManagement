@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 from ..core.audit import write_audit
 from ..core.database import get_db
 from ..core.deps import get_current_user
+from ..core.paging import DEFAULT_PAGE_SIZE, paginate
 from ..core.rbac import require_admin
 from ..core.security import hash_password
 from ..models import AuditLog, Dict, Project, Role, SysParam, User, UserRole
@@ -21,10 +22,15 @@ router = APIRouter(prefix="/admin", tags=["admin"])
 # 统一门禁：定义在 core.rbac（唯一管理员判定来源），此处仅做别名以保持调用点简短
 _admin = require_admin
 
-
-def _page(q, page: int, size: int):
-    total = q.count()
-    return {"total": total, "items": q.offset((page - 1) * size).limit(size).all()}
+# 排序白名单（Stage 3A）：字段名 → ORM 列
+USER_SORTS = {
+    "id": User.id, "username": User.username, "real_name": User.real_name,
+    "status": User.status, "dept_id": User.dept_id, "created_at": User.created_at,
+}
+LOG_SORTS = {
+    "id": AuditLog.id, "user_id": AuditLog.user_id, "action": AuditLog.action,
+    "resource": AuditLog.resource, "created_at": AuditLog.created_at,
+}
 
 
 def _u(u: User):
@@ -42,12 +48,21 @@ class UserIn(BaseModel):
 
 
 @router.get("/users")
-def list_users(page: int = 1, size: int = 20, db: Session = Depends(get_db),
-               user: User = Depends(get_current_user)):
+def list_users(keyword: str = "", status: str = "", dept_id: int = 0, sort: str = "id",
+               page: int = 1, size: int = DEFAULT_PAGE_SIZE,
+               db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """用户列表（仅管理员）：统一分页信封 + 关键词/部门/状态筛选 + 排序白名单。"""
     _admin(user)
-    q = db.query(User).order_by(User.id)
-    r = _page(q, page, size)
-    return {"total": r["total"], "items": [_u(u) for u in r["items"]]}
+    q = db.query(User)
+    if keyword:
+        like = f"%{keyword}%"
+        q = q.filter((User.username.like(like)) | (User.real_name.like(like)))
+    if status:
+        q = q.filter(User.status == status)
+    if dept_id:
+        q = q.filter(User.dept_id == dept_id)
+    return paginate(q, page=page, size=size, allowed=USER_SORTS,
+                    default_sort="id", sort=sort, map_row=_u)
 
 
 @router.post("/users")
@@ -201,17 +216,21 @@ def export_logs(action: str = "", user_id: int = 0, limit: int = 5000,
 
 
 @router.get("/logs")
-def list_logs(page: int = 1, size: int = 20, action: str = "", user_id: int = 0,
+def list_logs(action: str = "", user_id: int = 0, sort: str = "-id",
+              page: int = 1, size: int = DEFAULT_PAGE_SIZE,
               db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """审计日志列表（仅管理员）：统一分页信封（默认 `-id` 最新在前）+ 排序白名单。"""
     _admin(user)
-    q = db.query(AuditLog).order_by(AuditLog.id.desc())
+    q = db.query(AuditLog)
     if action:
-        q = q.filter_by(action=action)
+        q = q.filter(AuditLog.action == action)
     if user_id:
-        q = q.filter_by(user_id=user_id)
-    total = q.count()
-    items = q.offset((page - 1) * size).limit(size).all()
-    return {"total": total, "items": [
-        {"id": l.id, "user_id": l.user_id, "action": l.action, "resource": l.resource,
-         "resource_id": l.resource_id, "detail": l.detail, "ip": l.ip,
-         "created_at": l.created_at.isoformat() if l.created_at else None} for l in items]}
+        q = q.filter(AuditLog.user_id == user_id)
+
+    def _log(l: AuditLog):
+        return {"id": l.id, "user_id": l.user_id, "action": l.action, "resource": l.resource,
+                "resource_id": l.resource_id, "detail": l.detail, "ip": l.ip,
+                "created_at": l.created_at.isoformat() if l.created_at else None}
+
+    return paginate(q, page=page, size=size, allowed=LOG_SORTS,
+                    default_sort="-id", sort=sort, map_row=_log)

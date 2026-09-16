@@ -91,6 +91,16 @@ def mkproject(client, h, name="PAlpha", **kw):
     return r.json()
 
 
+def items(r):
+    """Stage 3A 列表契约：所有列表接口返回 {total,page,size,items}。"""
+    data = r.json()
+    return data["items"] if isinstance(data, dict) else data
+
+
+def mkprojects(client, h, n, prefix="PPg"):
+    return [mkproject(client, h, f"{prefix}{i:03d}") for i in range(n)]
+
+
 # 1. 未登录一律 401
 def test_unauth_401(client):
     r = client.get("/api/v1/projects")
@@ -258,7 +268,7 @@ def test_over_budget_and_exception(client, db):
                        json={"reason": "不行"}).status_code == 403
     assert client.post(f"/api/v1/expenses/{e['id']}/exception", json={"reason": "特批"},
                        headers=hc).status_code == 403
-    assert client.get(f"/api/v1/expenses?project_id={p['id']}", headers=ha).json()[0]["status"] == "pending"
+    assert items(client.get(f"/api/v1/expenses?project_id={p['id']}", headers=ha))[0]["status"] == "pending"
     # 管理员：approve 被超预算拦截，exception 放行
     ra = client.post(f"/api/v1/expenses/{e['id']}/approve", headers=ha)
     assert ra.status_code == 400
@@ -319,7 +329,7 @@ def test_followup_update_delete_paged(client):
     page = client.get(f"/api/v1/projects/{p['id']}/followups?page=1&size=5", headers=h).json()
     assert page["total"] == 1 and len(page["items"]) == 1
     assert client.delete(f"/api/v1/projects/{p['id']}/followups/{fid}", headers=h).status_code == 200
-    assert client.get(f"/api/v1/projects/{p['id']}/followups", headers=h).json() == []
+    assert items(client.get(f"/api/v1/projects/{p['id']}/followups", headers=h)) == []
 
 
 # 17. 成员管理：整体覆盖 + 负责人保留
@@ -350,7 +360,7 @@ def test_soft_delete_recycle_restore(client):
     # 台账不再可见
     ids = [x["id"] for x in client.get("/api/v1/projects", headers=ha).json()["items"]]
     assert p["id"] not in ids
-    bin_rows = client.get("/api/v1/projects/recycle-bin/list", headers=ha).json()
+    bin_rows = items(client.get("/api/v1/projects/recycle-bin/list", headers=ha))
     assert any(x["id"] == p["id"] for x in bin_rows)
     assert client.post(f"/api/v1/projects/{p['id']}/restore", headers=ha).status_code == 200
     ids2 = [x["id"] for x in client.get("/api/v1/projects", headers=ha).json()["items"]]
@@ -554,9 +564,9 @@ def test_non_admin_management_and_approval_403(client, db):
 
     # 无状态变更：立项仍待审批、调整单仍待审批、支出仍待审批、参数与用户未被改写
     assert client.get(f"/api/v1/projects/{p['id']}", headers=ha).json()["status"] == "pending"
-    asserts = client.get("/api/v1/budget-adjusts?status=pending", headers=ha).json()
+    asserts = items(client.get("/api/v1/budget-adjusts?status=pending", headers=ha))
     assert any(x["id"] == aid for x in asserts)
-    assert client.get(f"/api/v1/expenses?project_id={p['id']}", headers=ha).json()[0]["status"] == "pending"
+    assert items(client.get(f"/api/v1/expenses?project_id={p['id']}", headers=ha))[0]["status"] == "pending"
     assert client.get("/api/v1/admin/params", headers=ha).json()["expense_approval_on"] == "1"
     assert not any(u["username"] == "hacker"
                    for u in client.get("/api/v1/admin/users", headers=ha).json()["items"])
@@ -661,7 +671,7 @@ def test_soft_delete_boundary_with_admin_global_scope(client, db):
     assert client.delete(f"/api/v1/projects/{p['id']}", headers=ha).status_code == 200
     assert p["id"] not in [x["id"] for x in client.get("/api/v1/projects?size=100", headers=ha).json()["items"]]
     assert client.get(f"/api/v1/projects/{p['id']}", headers=ha).status_code == 404
-    assert any(x["id"] == p["id"] for x in client.get("/api/v1/projects/recycle-bin/list", headers=ha).json())
+    assert any(x["id"] == p["id"] for x in items(client.get("/api/v1/projects/recycle-bin/list", headers=ha)))
     assert client.post(f"/api/v1/projects/{p['id']}/restore", headers=ha).status_code == 200
     assert p["id"] in [x["id"] for x in client.get("/api/v1/projects?size=100", headers=ha).json()["items"]]
 
@@ -674,7 +684,7 @@ def test_soft_delete_boundary_with_admin_global_scope(client, db):
     assert client.delete(f"/api/v1/projects/{p2['id']}", headers=ha).status_code == 200
     assert p2["id"] not in filings()
     assert p2["id"] not in [x["id"] for x in client.get("/api/v1/projects?size=100", headers=ha).json()["items"]]
-    assert any(x["id"] == p2["id"] for x in client.get("/api/v1/projects/recycle-bin/list", headers=ha).json())
+    assert any(x["id"] == p2["id"] for x in items(client.get("/api/v1/projects/recycle-bin/list", headers=ha)))
     assert client.post(f"/api/v1/projects/{p2['id']}/restore", headers=ha).status_code == 200
     assert p2["id"] in filings()
     # 回收站属管理面：非管理员连查看都 403
@@ -706,22 +716,22 @@ def test_child_lists_apply_visibility_boundary(client, db):
     client.post("/api/v1/progress-logs", headers=h, json={"task_id": tid, "progress": 40})
 
     # 管理员（全局）在所有列表里都能看到这些记录
-    assert any(x["id"] == bid for x in client.get("/api/v1/budgets", headers=ha).json())
-    assert any(x["id"] == aid for x in client.get("/api/v1/budget-adjusts", headers=ha).json())
-    assert any(x["id"] == eid for x in client.get("/api/v1/expenses", headers=ha).json())
-    assert any(x["id"] == mid for x in client.get("/api/v1/milestones", headers=ha).json())
-    assert any(x["id"] == tid for x in client.get("/api/v1/tasks", headers=ha).json())
-    assert any(x["project_id"] == p["id"] for x in client.get("/api/v1/progress-logs", headers=ha).json())
+    assert any(x["id"] == bid for x in items(client.get("/api/v1/budgets", headers=ha)))
+    assert any(x["id"] == aid for x in items(client.get("/api/v1/budget-adjusts", headers=ha)))
+    assert any(x["id"] == eid for x in items(client.get("/api/v1/expenses", headers=ha)))
+    assert any(x["id"] == mid for x in items(client.get("/api/v1/milestones", headers=ha)))
+    assert any(x["id"] == tid for x in items(client.get("/api/v1/tasks", headers=ha)))
+    assert any(x["project_id"] == p["id"] for x in items(client.get("/api/v1/progress-logs", headers=ha)))
 
     # 非参与人（含保留角色）：不带 project_id 的列表必须是空，不得泄漏其他项目数据
     for name in ("outsider", "exec", "deptm", "cost"):
         hh = login(client, name)
-        assert client.get("/api/v1/budgets", headers=hh).json() == [], name
-        assert client.get("/api/v1/budget-adjusts", headers=hh).json() == [], name
-        assert client.get("/api/v1/expenses", headers=hh).json() == [], name
-        assert client.get("/api/v1/milestones", headers=hh).json() == [], name
-        assert client.get("/api/v1/tasks", headers=hh).json() == [], name
-        assert client.get("/api/v1/progress-logs", headers=hh).json() == [], name
+        assert items(client.get("/api/v1/budgets", headers=hh)) == [], name
+        assert items(client.get("/api/v1/budget-adjusts", headers=hh)) == [], name
+        assert items(client.get("/api/v1/expenses", headers=hh)) == [], name
+        assert items(client.get("/api/v1/milestones", headers=hh)) == [], name
+        assert items(client.get("/api/v1/tasks", headers=hh)) == [], name
+        assert items(client.get("/api/v1/progress-logs", headers=hh)) == [], name
         # 也不能用 project_id / task_id 绕过项目边界
         for url in (f"/api/v1/budgets?project_id={p['id']}",
                     f"/api/v1/budget-adjusts?project_id={p['id']}",
@@ -732,8 +742,8 @@ def test_child_lists_apply_visibility_boundary(client, db):
                     f"/api/v1/progress-logs?task_id={tid}"):
             assert client.get(url, headers=hh).status_code == 403, f"{name} {url}"
     # 参与路径未被收敛：负责人自己仍然看得到
-    assert any(x["id"] == bid for x in client.get("/api/v1/budgets", headers=h).json())
-    assert any(x["project_id"] == p["id"] for x in client.get("/api/v1/progress-logs", headers=h).json())
+    assert any(x["id"] == bid for x in items(client.get("/api/v1/budgets", headers=h)))
+    assert any(x["project_id"] == p["id"] for x in items(client.get("/api/v1/progress-logs", headers=h)))
 
 
 # 30. 软删除项目边界（子表）：列表 / 待办 / 计数 / 决策入口 / 写入口一律排除
@@ -773,12 +783,12 @@ def test_soft_deleted_project_child_records_excluded(client, db):
 
     # 普通列表：连管理员（全局范围）也不再看到已删除项目的子表记录
     assert client.get(f"/api/v1/budgets?project_id={p['id']}", headers=ha).status_code == 404
-    assert all(x["id"] != bid for x in client.get("/api/v1/budgets", headers=ha).json())
-    assert all(x["id"] != aid for x in client.get("/api/v1/budget-adjusts", headers=ha).json())
-    assert all(x["id"] != eid for x in client.get("/api/v1/expenses", headers=ha).json())
-    assert all(x["id"] != mid for x in client.get("/api/v1/milestones", headers=ha).json())
-    assert all(x["id"] != tid for x in client.get("/api/v1/tasks", headers=ha).json())
-    assert all(x["project_id"] != p["id"] for x in client.get("/api/v1/progress-logs", headers=ha).json())
+    assert all(x["id"] != bid for x in items(client.get("/api/v1/budgets", headers=ha)))
+    assert all(x["id"] != aid for x in items(client.get("/api/v1/budget-adjusts", headers=ha)))
+    assert all(x["id"] != eid for x in items(client.get("/api/v1/expenses", headers=ha)))
+    assert all(x["id"] != mid for x in items(client.get("/api/v1/milestones", headers=ha)))
+    assert all(x["id"] != tid for x in items(client.get("/api/v1/tasks", headers=ha)))
+    assert all(x["project_id"] != p["id"] for x in items(client.get("/api/v1/progress-logs", headers=ha)))
 
     # 审批待办与「待我审批」计数：同样排除
     pend2 = client.get("/api/v1/approvals/pending", headers=ha).json()
@@ -828,7 +838,7 @@ def test_soft_deleted_project_child_records_excluded(client, db):
 
     # 恢复后重新回到正常业务面（记录与待办都回来了）
     assert client.post(f"/api/v1/projects/{p['id']}/restore", headers=ha).status_code == 200
-    assert any(x["id"] == bid for x in client.get("/api/v1/budgets", headers=ha).json())
+    assert any(x["id"] == bid for x in items(client.get("/api/v1/budgets", headers=ha)))
     assert client.get("/api/v1/dashboard/summary", headers=ha).json()["kpi"]["pending_approvals"] == 2
     client.put("/api/v1/admin/params", headers=ha,
                json={"budget_approval_on": "0", "expense_approval_on": "0"})
@@ -855,7 +865,7 @@ def _set_demo(client, h, on):
     return client.put("/api/v1/admin/demo-data", headers=h, json={"on": on})
 
 
-# 25. 开关默认关闭：演示数据在列表/看板/报表/预警/直连五处一并隐藏
+# 38. 演示数据开关默认关闭：列表/看板/报表/预警/直连五处一并隐藏
 def test_demo_data_hidden_by_default(client, db):
     ha = login(client, "admin")
     pid = _mk_demo_project(client, db)
@@ -871,7 +881,7 @@ def test_demo_data_hidden_by_default(client, db):
         "project_id": pid, "subject": "人工", "amount": 10}).status_code == 404
 
 
-# 26. 打开开关：演示数据恢复可见，且工作台「我的项目」对管理员不再恒为 0
+# 39. 演示数据开关打开：恢复可见，且工作台「我的项目」对管理员不再恒为 0
 def test_demo_data_toggle_on(client, db):
     ha = login(client, "admin")
     pid = _mk_demo_project(client, db, "DemoToggle")
@@ -886,7 +896,7 @@ def test_demo_data_toggle_on(client, db):
     assert client.get("/api/v1/projects", headers=ha).json()["total"] == 0
 
 
-# 27. 非管理员不能切换开关，但能读到状态；非演示数据不受开关影响
+# 40. 演示数据开关权限：非管理员不能切换但能读状态；非演示数据不受影响
 def test_demo_data_permission_and_scope(client, db):
     ha = login(client, "admin")
     p = mkproject(client, ha, "RealProj")          # 非演示项目
@@ -902,3 +912,209 @@ def test_demo_data_permission_and_scope(client, db):
     # 打开开关后真实项目仍可见，演示项目一并可见
     _set_demo(client, ha, True)
     assert client.get("/api/v1/projects", headers=ha).json()["total"] == 2
+# ============ Stage 3A：列表分页 / 排序 / 查询边界契约 ============
+# 契约（前端与回归测试共同依赖）：
+#   · 所有列表接口返回 {total,page,size,items}；省略分页参数 = page1/size20（不再返回无界数据）
+#   · 非法 page/size/sort → 400；size 上限 100；排序白名单外字段绝不拼进 SQL
+#   · total 与 items 同条件对应；越过末页返回空 items（不抛异常、不重复上一页）
+#   · 排序稳定性：请求的 sort 之后以 id 兜底，连续翻页不重不漏
+
+
+def paged_keys(data):
+    return {"total", "page", "size", "items"} <= set(data.keys())
+
+
+# 31. 所有列表接口统一信封：省略分页参数不再返回无界数据
+def test_list_endpoints_always_paged(client):
+    ha = login(client, "admin")
+    h = login(client, "pm")
+    ps = mkprojects(client, h, 25)          # 25 个项目 > 默认 size
+    pid = ps[0]["id"]
+    tids = [client.post("/api/v1/tasks", headers=h,
+                        json={"project_id": pid, "name": f"T{i}"}).json()["id"] for i in range(3)]
+    bid = client.post("/api/v1/budgets", headers=h,
+                      json={"project_id": pid, "subject": "人工", "amount": 100}).json()["id"]
+    client.patch(f"/api/v1/budgets/{bid}", headers=h, json={"amount": 200, "reason": "追加"})
+    for i in range(3):
+        client.post("/api/v1/expenses", headers=h,
+                    json={"project_id": pid, "subject": "差旅", "amount": 10 + i})
+    client.post("/api/v1/milestones", headers=h, json={"project_id": pid, "name": "M1"})
+    client.post(f"/api/v1/projects/{pid}/followups", headers=h, json={"content": "跟进"})
+    client.post("/api/v1/progress-logs", headers=h, json={"task_id": tids[0], "progress": 10})
+
+    for url in ("/api/v1/projects", "/api/v1/tasks", "/api/v1/budgets",
+                "/api/v1/budget-adjusts", "/api/v1/expenses", "/api/v1/milestones",
+                "/api/v1/progress-logs", f"/api/v1/projects/{pid}/followups",
+                "/api/v1/admin/users", "/api/v1/admin/logs",
+                "/api/v1/projects/recycle-bin/list"):
+        r = client.get(url, headers=ha)
+        assert r.status_code == 200, f"{url} -> {r.status_code} {r.text}"
+        data = r.json()
+        assert isinstance(data, dict), f"{url} 未返回分页信封：{type(data).__name__}"
+        assert paged_keys(data), f"{url} 信封字段缺失：{sorted(data.keys())}"
+        assert (data["page"], data["size"]) == (1, 20), f"{url} 默认分页不一致：{data['page']}/{data['size']}"
+        assert data["total"] >= len(data["items"]), url
+        assert len(data["items"]) <= 20, f"{url} 省略分页参数返回了无界数据：{len(data['items'])}"
+    # 25 个项目：默认只回当页，total 仍是全量
+    got = client.get("/api/v1/projects", headers=ha).json()
+    assert got["total"] == 25 and len(got["items"]) == 20
+
+
+# 32. 非法 page/size/sort 一律 400（含注入式排序字段不会执行任意 SQL）
+def test_list_rejects_invalid_page_size_and_sort(client):
+    ha = login(client, "admin")
+    h = login(client, "pm")
+    mkprojects(client, h, 3, prefix="PBad")
+    urls = ("/api/v1/projects", "/api/v1/tasks", "/api/v1/budgets", "/api/v1/expenses",
+            "/api/v1/budget-adjusts", "/api/v1/admin/logs")
+    for url in urls:
+        assert client.get(f"{url}?page=0", headers=ha).status_code == 400, url
+        assert client.get(f"{url}?page=-3", headers=ha).status_code == 400, url
+        assert client.get(f"{url}?size=0", headers=ha).status_code == 400, url
+        assert client.get(f"{url}?size=101", headers=ha).status_code == 400, url
+        # 白名单外（含注入式负载）的排序字段：400，绝不拼进 SQL
+        for bad in ("id%3BDROP%20TABLE%20projects", "amount%22--", "1%3D1",
+                    "amount%20desc", "%28select%201%29"):
+            assert client.get(f"{url}?sort={bad}", headers=ha).status_code == 400, f"{url} sort={bad}"
+    # size 合法上界 100 放行；库表完好、注入未生效
+    ok = client.get("/api/v1/projects?size=100", headers=ha)
+    assert ok.status_code == 200 and ok.json()["size"] == 100
+    assert client.get("/api/v1/projects", headers=ha).status_code == 200
+
+
+# 33. 翻页边界与排序稳定性：相同排序值下以 id 兜底，不重不漏
+def test_paging_boundaries_and_stable_sort(client):
+    h = login(client, "pm")
+    ps = mkprojects(client, h, 25, prefix="PStab")   # 预算额相同 → 校验 id 兜底
+    ids = sorted(p["id"] for p in ps)
+    seen = []
+    for page in (1, 2, 3):
+        data = client.get(f"/api/v1/projects?sort=budget_total&page={page}&size=10", headers=h).json()
+        assert data["total"] == 25 and (data["page"], data["size"]) == (page, 10)
+        seen += [x["id"] for x in data["items"]]
+    assert seen == ids, "相同排序值下翻页必须稳定（id 兜底），不重不漏"
+    # 越过末页：空 items，不抛异常、不重复上一页数据
+    last = client.get("/api/v1/projects?sort=budget_total&page=4&size=10", headers=h).json()
+    assert last["total"] == 25 and last["items"] == []
+    assert client.get("/api/v1/projects?page=9999", headers=h).json()["items"] == []
+    # 排序方向与多字段排序生效
+    desc = client.get("/api/v1/projects?sort=-id&size=5", headers=h).json()
+    assert [x["id"] for x in desc["items"]] == sorted(ids, reverse=True)[:5]
+    multi = client.get("/api/v1/projects?sort=-budget_total,id&size=5", headers=h).json()
+    assert [x["id"] for x in multi["items"]] == ids[:5]
+
+
+# 34. 筛选组合、越权项目查询、软删除边界与注入式输入
+def test_list_filters_scope_and_safe_inputs(client):
+    ha = login(client, "admin")
+    h = login(client, "pm")
+    ho = login(client, "outsider")
+    p1 = mkproject(client, h, "PScopeA")
+    assert client.post(f"/api/v1/projects/{p1['id']}/status", headers=ha,
+                       json={"status": "filed"}).status_code == 200
+    p2 = mkproject(client, h, "PScopeB")
+    tid2 = client.post("/api/v1/tasks", headers=h,
+                       json={"project_id": p2["id"], "name": "T-Hidden"}).json()["id"]
+    client.post("/api/v1/tasks", headers=h, json={"project_id": p1["id"], "name": "T-Scope"})
+    bid = client.post("/api/v1/budgets", headers=h,
+                      json={"project_id": p1["id"], "subject": "人工", "amount": 500}).json()["id"]
+    client.post("/api/v1/expenses", headers=h,
+                json={"project_id": p1["id"], "subject": "差旅", "amount": 20, "note": "机票"})
+    client.post("/api/v1/milestones", headers=h,
+                json={"project_id": p1["id"], "name": "M-Scope"})
+
+    # 组合筛选 + 分页信封同时生效
+    data = client.get("/api/v1/projects?status=filed&keyword=PScopeA&page=1&size=10", headers=h).json()
+    assert data["total"] == 1 and data["items"][0]["id"] == p1["id"]
+    assert client.get("/api/v1/projects?status=filed&keyword=PScopeB", headers=h).json()["total"] == 0
+    assert client.get("/api/v1/tasks?keyword=T-Scope&size=5", headers=h).json()["total"] == 1
+    assert client.get("/api/v1/expenses?subject=差旅&keyword=机票", headers=h).json()["total"] == 1
+    assert client.get("/api/v1/expenses?subject=人工", headers=h).json()["total"] == 0
+    assert client.get("/api/v1/budgets?subject=人工&sort=-amount", headers=h).json()["items"][0]["id"] == bid
+    assert client.get("/api/v1/milestones?status=open", headers=h).json()["total"] == 1
+    assert client.get(f"/api/v1/budget-adjusts?project_id={p1['id']}&status=pending",
+                      headers=h).json()["total"] == 0
+
+    # 越权项目查询：403；不带 project_id 时只回「可见 + 未软删除」范围（此处为空）
+    for url in (f"/api/v1/tasks?project_id={p1['id']}",
+                f"/api/v1/budgets?project_id={p1['id']}",
+                f"/api/v1/expenses?project_id={p1['id']}",
+                f"/api/v1/milestones?project_id={p1['id']}",
+                f"/api/v1/progress-logs?project_id={p1['id']}"):
+        assert client.get(url, headers=ho).status_code == 403, url
+    for url in ("/api/v1/tasks", "/api/v1/budgets", "/api/v1/expenses", "/api/v1/milestones",
+                "/api/v1/progress-logs", "/api/v1/budget-adjusts"):
+        r = client.get(url, headers=ho).json()
+        assert r["total"] == 0 and r["items"] == [], url
+
+    # 软删除项目的子表记录退出所有列表（管理员全局范围也不例外），只在回收站可见
+    client.post(f"/api/v1/projects/{p2['id']}/status", headers=ha, json={"status": "cancelled"})
+    assert client.delete(f"/api/v1/projects/{p2['id']}", headers=ha).status_code == 200
+    assert client.get(f"/api/v1/tasks?project_id={p2['id']}", headers=ha).status_code == 404
+    assert all(x["id"] != tid2 for x in items(client.get("/api/v1/tasks", headers=ha)))
+    assert any(x["id"] == p2["id"]
+               for x in items(client.get("/api/v1/projects/recycle-bin/list", headers=ha)))
+
+    # 注入式输入：keyword 走参数化、sort 走白名单，不执行也不 500
+    inj = client.get("/api/v1/projects?keyword=%27%20OR%201%3D1%20--", headers=h)
+    assert inj.status_code == 200 and inj.json()["total"] == 0
+    assert client.get("/api/v1/projects", headers=h).status_code == 200
+
+
+# 35. 项目选择器最小字段接口 + meta 字典边界
+def test_project_options_and_meta_contract(client):
+    h = login(client, "pm")
+    ho = login(client, "outsider")
+    mkprojects(client, h, 25, prefix="POpt")
+    data = client.get("/api/v1/projects/options?keyword=POpt&page=1&size=10", headers=h).json()
+    assert paged_keys(data) and data["total"] == 25 and len(data["items"]) == 10
+    assert set(data["items"][0].keys()) == {"id", "code", "name", "status", "owner_id", "dept_id"}
+    assert client.get("/api/v1/projects/options?page=0", headers=h).status_code == 400
+    assert client.get("/api/v1/projects/options?size=101", headers=h).status_code == 400
+    # 选择器不泄漏不可见项目
+    assert client.get("/api/v1/projects/options?keyword=POpt", headers=ho).json()["items"] == []
+    # 人员字典：最小字段 + 服务端硬上限；选择器用分页搜索接口
+    users = client.get("/api/v1/meta/users", headers=h).json()
+    assert isinstance(users, list) and users
+    assert set(users[0].keys()) == {"id", "username", "real_name", "dept_id", "status", "roles"}
+    assert len(users) <= 500
+    assert [u["username"] for u in client.get("/api/v1/meta/users?keyword=pm", headers=h).json()] == ["pm"]
+    sr = client.get("/api/v1/meta/users/search?keyword=pm&page=1&size=1", headers=h).json()
+    assert sr["total"] == 1 and len(sr["items"]) == 1
+    assert client.get("/api/v1/meta/users/search?size=101", headers=h).status_code == 400
+    assert client.get("/api/v1/meta/users?ids=1,2", headers=h).json()
+    assert len(client.get("/api/v1/meta/depts", headers=h).json()) <= 500
+
+
+# 36. 审批待办：有界返回 + totals 与总数口径一致
+def test_pending_is_bounded_with_totals(client):
+    ha = login(client, "admin")
+    h = login(client, "pm")
+    assert client.put("/api/v1/admin/params", headers=ha,
+                      json={"expense_approval_on": "1"}).status_code == 200
+    p = mkproject(client, h, "PPend")
+    for i in range(3):
+        client.post("/api/v1/expenses", headers=h,
+                    json={"project_id": p["id"], "subject": "差旅", "amount": 10 + i})
+    data = client.get("/api/v1/approvals/pending?limit=2", headers=ha).json()
+    assert data["totals"]["expenses"] == 3 and len(data["expenses"]) == 2
+    assert data["total"] == 3 and data["limit"] == 2
+    assert client.get("/api/v1/approvals/pending?limit=0", headers=ha).status_code == 400
+    assert client.get("/api/v1/approvals/pending?limit=501", headers=ha).status_code == 400
+    full = client.get("/api/v1/approvals/pending", headers=ha).json()
+    assert len(full["expenses"]) == 3 and full["totals"]["expenses"] == 3
+    client.put("/api/v1/admin/params", headers=ha, json={"expense_approval_on": "0"})
+
+
+# 37. 排序白名单真实生效且默认排序保持不变
+def test_sort_whitelist_orders(client):
+    h = login(client, "pm")
+    p = mkproject(client, h, "PSort")
+    for a in (300, 100, 200):
+        client.post("/api/v1/expenses", headers=h,
+                    json={"project_id": p["id"], "subject": "差旅", "amount": a})
+    base = f"/api/v1/expenses?project_id={p['id']}"
+    assert [x["amount"] for x in items(client.get(f"{base}&sort=amount", headers=h))] == [100, 200, 300]
+    assert [x["amount"] for x in items(client.get(f"{base}&sort=-amount", headers=h))] == [300, 200, 100]
+    # 默认 -id（最新在前）保持既有行为
+    assert [x["amount"] for x in items(client.get(base, headers=h))] == [200, 100, 300]
