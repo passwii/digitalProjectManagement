@@ -123,11 +123,17 @@ def summary(db: Session = Depends(get_db), user: User = Depends(get_current_user
     month_spent = round(trend_map.get(month, 0), 2)
 
     # 待我审批：只有管理员有审批资格，其他人恒为 0（与审批中心入口同一判定）
+    # 计数同样只含未软删除项目的记录，与 /approvals/pending 一致
     if can_approve(user):
+        from sqlalchemy import select
+
+        active = select(Project.id).where(Project.deleted_at.is_(None))
         filings = db.query(func.count(Project.id)).filter(
             Project.status == "pending", Project.deleted_at.is_(None)).scalar() or 0
-        adjusts = db.query(func.count(BudgetAdjust.id)).filter_by(status="pending").scalar() or 0
-        pending_expenses = db.query(func.count(Expense.id)).filter_by(status="pending").scalar() or 0
+        adjusts = db.query(func.count(BudgetAdjust.id)).filter(
+            BudgetAdjust.status == "pending", BudgetAdjust.project_id.in_(active)).scalar() or 0
+        pending_expenses = db.query(func.count(Expense.id)).filter(
+            Expense.status == "pending", Expense.project_id.in_(active)).scalar() or 0
         pending_approvals = int(filings + adjusts + pending_expenses)
     else:
         pending_approvals = 0
