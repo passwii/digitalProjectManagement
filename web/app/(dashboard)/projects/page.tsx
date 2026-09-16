@@ -1,8 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { Suspense, useState } from "react";
 import Link from "next/link";
-import { demoApi, errText, projectsApi, type Project } from "@/lib/api";
+import { buildQuery, demoApi, errText, projectsApi, type Project } from "@/lib/api";
+import { useAsyncData } from "@/lib/useAsyncData";
+import { urlInt, useUrlState, useUrlText } from "@/lib/useUrlState";
 import { useMeta, useMenus } from "@/lib/useMeta";
 import {
   PROJECT_FLOW, PROJECT_STATUS, fmtDate, fmtMoney,
@@ -11,30 +13,69 @@ import {
 import Badge from "@/components/ui/Badge";
 import Avatar from "@/components/ui/Avatar";
 import Empty from "@/components/ui/Empty";
-import Pagination from "@/components/ui/Pagination";
+import Pagination, { DEFAULT_SIZE_OPTIONS } from "@/components/ui/Pagination";
+import { LoadingBlock, LoadFailed } from "@/components/ui/PageState";
 import TableToolbar from "@/components/ui/TableToolbar";
 import ProgressBar from "@/components/ui/ProgressBar";
 import { Confirm, Drawer } from "@/components/ui/Modal";
 import { useToast } from "@/components/ui/Toast";
 import ProjectFormDialog from "./ProjectFormDialog";
 
-const SIZE = 20;
+const SIZE_OPTIONS = DEFAULT_SIZE_OPTIONS;
+
+// 筛选 / 分页 / 每页条数写入 URL：刷新、复制链接、前进后退都能恢复同一视图（BLF-1095）
+const URL_DEFAULTS = {
+  q: "",
+  status: "",
+  owner: "",
+  page: "1",
+  size: "20",
+};
 
 export default function ProjectsPage() {
+  return (
+    <Suspense
+      fallback={
+        <div>
+          <div className="skel skel-title" />
+          <LoadingBlock kpis={0} label="加载项目台账…" />
+        </div>
+      }
+    >
+      <ProjectsInner />
+    </Suspense>
+  );
+}
+
+function ProjectsInner() {
   const { users, depts, userName, deptName } = useMeta();
   // 删除（软删除）与解归档仅管理员：显示条件取后端菜单契约
   const { isAdmin, demoOn, canToggleDemo, reload: reloadMenus } = useMenus();
   const toast = useToast();
 
-  const [items, setItems] = useState<Project[]>([]);
-  const [total, setTotal] = useState(0);
-  const [page, setPage] = useState(1);
-  const [loading, setLoading] = useState(true);
-  const [err, setErr] = useState("");
+  const [url, setUrl] = useUrlState(URL_DEFAULTS, { pageKey: "page" });
+  const page = urlInt(url.page, 1);
+  const size = SIZE_OPTIONS.includes(Number(url.size)) ? Number(url.size) : SIZE_OPTIONS[0];
+  const [qDraft, setQDraft] = useUrlText(url.q, (next) => setUrl({ q: next }));
 
-  const [q, setQ] = useState("");
-  const [status, setStatus] = useState("");
-  const [ownerId, setOwnerId] = useState("");
+  const { data, loading, firstLoad, error, reload } = useAsyncData(
+    (signal) =>
+      projectsApi.list(
+        buildQuery({
+          page,
+          size,
+          keyword: url.q.trim(),
+          status: url.status,
+          owner_id: url.owner,
+        }),
+        signal,
+      ),
+    [page, size, url.q, url.status, url.owner],
+    { resetOnDepChange: true },
+  );
+
+  const items: Project[] = data?.items ?? [];
+  const total = data?.total ?? 0;
 
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<Project | null>(null);
@@ -44,34 +85,32 @@ export default function ProjectsPage() {
   const [busy, setBusy] = useState(false);
   const [demoBusy, setDemoBusy] = useState(false);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setErr("");
-    const params = new URLSearchParams({ page: String(page), size: String(SIZE) });
-    if (q.trim()) params.set("keyword", q.trim());
-    if (status) params.set("status", status);
-    if (ownerId) params.set("owner_id", ownerId);
-    try {
-      const data = await projectsApi.list(`?${params.toString()}`);
-      setItems(data.items ?? []);
-      setTotal(data.total ?? 0);
-    } catch (e) {
-      setErr(errText(e));
-      setItems([]);
-    } finally {
-      setLoading(false);
-    }
-  }, [page, q, status, ownerId]);
-
-  useEffect(() => {
-    const t = setTimeout(load, 200);
-    return () => clearTimeout(t);
-  }, [load]);
-
-  useEffect(() => setPage(1), [q, status, ownerId]);
-
   const statusOptions = Object.entries(PROJECT_STATUS).map(([code, label]) => ({ code, label }));
   const DESTRUCTIVE = new Set(["cancelled", "archived", "done"]);
+  const hasFilter = !!(url.q || url.status || url.owner);
+  const scopeText = [
+    url.q ? `关键词「${url.q}」` : "",
+    url.status ? `状态=${PROJECT_STATUS[url.status] ?? url.status}` : "",
+    url.owner ? `负责人=${userName(Number(url.owner))}` : "",
+  ]
+    .filter(Boolean)
+    .join(" · ");
+
+  async function toggleDemo(next: boolean) {
+    setDemoBusy(true);
+    try {
+      const r = await demoApi.set(next);
+      toast.ok(r.on ? "已显示演示数据" : "已隐藏演示数据");
+      // 菜单缓存里的 demo_on 决定列表口径：切完要重载权限上下文，再刷新列表
+      reloadMenus();
+      setUrl({ page: 1 });
+      reload();
+    } catch (e) {
+      toast.err(errText(e));
+    } finally {
+      setDemoBusy(false);
+    }
+  }
 
   async function changeStatus(p: Project, to: string) {
     setBusy(true);
@@ -79,7 +118,7 @@ export default function ProjectsPage() {
       const updated = await projectsApi.status(p.id, to, "页面流转");
       toast.ok(`已流转为「${projectStatusLabel(updated.status)}」`);
       setDetail((d) => (d?.id === updated.id ? updated : d));
-      await load();
+      reload();
     } catch (e) {
       toast.err(errText(e));
     } finally {
@@ -88,34 +127,18 @@ export default function ProjectsPage() {
     }
   }
 
-  async function toggleDemo(next: boolean) {
-    setDemoBusy(true);
-    try {
-      const r = await demoApi.set(next);
-      toast.ok(r.on ? "已显示演示数据" : "已隐藏演示数据");
-      // 菜单缓存里的 demo_on 决定列表口径，切换后需重载权限上下文再刷新列表
-      reloadMenus();
-      setPage(1);
-      await load();
-    } catch (e) {
-      toast.err(errText(e));
-    } finally {
-      setDemoBusy(false);
-    }
-  }
-
   return (
     <div>
       <div className="page-head">
         <h1>
           项目台账
-          <span className="sub mono">{total} 个项目</span>
+          {data && <span className="sub mono">{total} 个项目</span>}
         </h1>
         <div className="actions">
           {canToggleDemo && (
             <label
               className="demo-switch"
-              title={demoOn ? "当前包含演示数据，点此隐藏" : "当前不含演示数据，点此显示"}
+              title={demoOn ? "当前包含演示数据，点此全站隐藏" : "当前不含演示数据，点此显示"}
             >
               <input
                 type="checkbox"
@@ -138,117 +161,160 @@ export default function ProjectsPage() {
       </div>
 
       {demoOn && (
-        <div className="warn-banner" style={{ background: "var(--brand-soft)", borderColor: "var(--line-blue)", color: "var(--brand)" }}>
+        <div
+          className="warn-banner"
+          style={{ background: "var(--brand-soft)", borderColor: "var(--line-blue)", color: "var(--brand)" }}
+        >
           当前正在显示<b>演示数据</b>（工作台与报表统计同样包含），关闭开关即可全站隐藏。
         </div>
       )}
 
-      {err && <div className="err-banner">{err}</div>}
+      {error && <LoadFailed message={error} onRetry={reload} />}
 
       <TableToolbar>
-        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="搜索名称 / 编号 / 客户…" aria-label="搜索项目" />
-        <select value={status} onChange={(e) => setStatus(e.target.value)} aria-label="按状态筛选">
+        <input
+          value={qDraft}
+          onChange={(e) => setQDraft(e.target.value)}
+          placeholder="搜索名称 / 编号 / 客户…"
+          aria-label="搜索项目"
+        />
+        <select
+          value={url.status}
+          onChange={(e) => setUrl({ status: e.target.value })}
+          aria-label="按状态筛选"
+        >
           <option value="">全部状态</option>
           {statusOptions.map((s) => <option key={s.code} value={s.code}>{s.label}</option>)}
         </select>
-        <select value={ownerId} onChange={(e) => setOwnerId(e.target.value)} aria-label="按负责人筛选">
+        <select
+          value={url.owner}
+          onChange={(e) => setUrl({ owner: e.target.value })}
+          aria-label="按负责人筛选"
+        >
           <option value="">全部负责人</option>
           {users.map((u) => <option key={u.id} value={u.id}>{u.real_name}</option>)}
         </select>
+        {hasFilter && (
+          <button
+            type="button"
+            className="btn-ghost"
+            style={{ height: 32, lineHeight: "30px", width: "auto" }}
+            onClick={() => setUrl({ q: "", status: "", owner: "" })}
+          >
+            清除筛选
+          </button>
+        )}
       </TableToolbar>
 
-      {loading ? (
-        <p className="muted">加载中…</p>
+      {firstLoad ? (
+        <LoadingBlock kpis={0} label="加载项目台账…" />
       ) : items.length === 0 ? (
         <div className="card">
           <Empty
-            title="暂无项目"
+            title={hasFilter ? "没有匹配的项目" : "暂无项目"}
             hint={
-              canToggleDemo && !demoOn
-                ? "换个筛选条件、新建项目，或打开右上角「显示演示数据」查看演示数据。"
-                : "换个筛选条件，或新建第一个项目。"
+              hasFilter
+                ? "换个筛选条件，或清除筛选后重试。"
+                : canToggleDemo && !demoOn
+                ? "点击右上角新建第一个项目，或打开「显示演示数据」查看演示数据。"
+                : "点击右上角新建第一个项目。"
             }
           />
         </div>
       ) : (
         <>
-          <table className="grid">
-            <thead>
-              <tr>
-                <th>编号</th>
-                <th>名称</th>
-                <th>状态</th>
-                <th>负责人</th>
-                <th>部门</th>
-                <th>计划期</th>
-                <th className="num">预算（元）</th>
-                <th className="num">进度</th>
-                <th className="no-print" />
-              </tr>
-            </thead>
-            <tbody>
-              {items.map((p) => (
-                <tr
-                  key={p.id}
-                  onClick={() => setDetail(p)}
-                  style={{ cursor: "pointer" }}
-                  title="点击查看详情"
-                >
-                  <td className="mono tiny">{p.code}</td>
-                  <td>
-                    <span className="ellipsis" title={p.name}>{p.name}</span>{" "}
-                    {p.snippet && (
-                      <span
-                        className="tiny snippet"
-                        title="关键词命中位置"
-                        dangerouslySetInnerHTML={{ __html: p.snippet }}
-                      />
-                    )}
-                    <span className="row-actions" onClick={(e) => e.stopPropagation()}>
-                      <button onClick={() => setDetail(p)}>详情</button>
-                      <button onClick={() => { setEditing(p); setFormOpen(true); }}>编辑</button>
-                      <Link href={`/progress?project_id=${p.id}`}>进度</Link>
-                      <Link href={`/costs?project_id=${p.id}`}>成本</Link>
-                    </span>
-                  </td>
-                  <td><Badge status={projectStatusLabel(p.status)} tone={projectTone(p.status)} /></td>
-                  <td>
-                    <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-                      <Avatar name={userName(p.owner_id)} size={22} />{userName(p.owner_id)}
-                    </span>
-                  </td>
-                  <td className="muted">{deptName(p.dept_id)}</td>
-                  <td className="mono tiny">{fmtDate(p.plan_start)} ~ {fmtDate(p.plan_end)}</td>
-                  <td className="num">{fmtMoney(p.budget_total)}</td>
-                  <td className="num">{p.progress ?? 0}%</td>
-                  <td className="no-print">
-                    <span style={{ display: "inline-flex", gap: 6 }}>
-                      <button
-                        className="btn-ghost"
-                        style={{ height: 26, lineHeight: "24px", padding: "0 8px", fontSize: 12 }}
-                        onClick={(e) => { e.stopPropagation(); setEditing(p); setFormOpen(true); }}
-                      >
-                        编辑
-                      </button>
-                      {isAdmin && !["doing", "filed"].includes(p.status) && (
+          <div className="table-scroll">
+            <table className="grid" aria-busy={loading}>
+              <thead>
+                <tr>
+                  <th>编号</th>
+                  <th>名称</th>
+                  <th>状态</th>
+                  <th>负责人</th>
+                  <th>部门</th>
+                  <th>计划期</th>
+                  <th className="num">预算（元）</th>
+                  <th className="num">进度</th>
+                  <th className="no-print" />
+                </tr>
+              </thead>
+              <tbody>
+                {items.map((p) => (
+                  <tr
+                    key={p.id}
+                    onClick={() => setDetail(p)}
+                    style={{ cursor: "pointer" }}
+                    title="点击查看详情"
+                  >
+                    <td className="mono tiny">{p.code}</td>
+                    <td>
+                      <span className="ellipsis" title={p.name}>{p.name}</span>{" "}
+                      {p.snippet && (
+                        <span
+                          className="tiny snippet"
+                          title="关键词命中位置"
+                          dangerouslySetInnerHTML={{ __html: p.snippet }}
+                        />
+                      )}
+                      <span className="row-actions" onClick={(e) => e.stopPropagation()}>
+                        <button onClick={() => setDetail(p)}>详情</button>
+                        <button onClick={() => { setEditing(p); setFormOpen(true); }}>编辑</button>
+                        <Link href={`/progress?project_id=${p.id}`}>进度</Link>
+                        <Link href={`/costs?project_id=${p.id}`}>成本</Link>
+                      </span>
+                    </td>
+                    <td><Badge status={projectStatusLabel(p.status)} tone={projectTone(p.status)} /></td>
+                    <td>
+                      <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                        <Avatar name={userName(p.owner_id)} size={22} />{userName(p.owner_id)}
+                      </span>
+                    </td>
+                    <td className="muted">{deptName(p.dept_id)}</td>
+                    <td className="mono tiny">{fmtDate(p.plan_start)} ~ {fmtDate(p.plan_end)}</td>
+                    <td className="num">{fmtMoney(p.budget_total)}</td>
+                    <td className="num">{p.progress ?? 0}%</td>
+                    <td className="no-print">
+                      <span style={{ display: "inline-flex", gap: 6 }}>
                         <button
                           className="btn-ghost"
-                          style={{ height: 26, lineHeight: "24px", padding: "0 8px", fontSize: 12, color: "var(--danger)", borderColor: "var(--line-danger)" }}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setDeleteTarget(p);
-                          }}
+                          style={{ height: 26, lineHeight: "24px", padding: "0 8px", fontSize: 12 }}
+                          onClick={(e) => { e.stopPropagation(); setEditing(p); setFormOpen(true); }}
                         >
-                          删除
+                          编辑
                         </button>
-                      )}
-                    </span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          <Pagination page={page} size={SIZE} total={total} onChange={setPage} />
+                        {isAdmin && !["doing", "filed"].includes(p.status) && (
+                          <button
+                            className="btn-ghost"
+                            style={{ height: 26, lineHeight: "24px", padding: "0 8px", fontSize: 12, color: "var(--danger)", borderColor: "var(--line-danger)" }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setDeleteTarget(p);
+                            }}
+                          >
+                            删除
+                          </button>
+                        )}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <Pagination
+            page={page}
+            size={size}
+            total={total}
+            loading={loading}
+            scopeText={scopeText}
+            ariaLabel="项目台账分页"
+            onChange={(next) =>
+              setUrl(
+                { page: String(next.page), size: String(next.size) },
+                { history: next.page === page ? "replace" : "push" },
+              )
+            }
+          />
         </>
       )}
 
@@ -261,7 +327,7 @@ export default function ProjectsPage() {
           toast.ok(isNew ? `项目已创建：${saved.code}` : "项目信息已保存（变更已留痕）");
           setFormOpen(false);
           setDetail((d) => (d && d.id === saved.id ? saved : d));
-          load();
+          reload();
         }}
       />
 
@@ -342,7 +408,8 @@ export default function ProjectsPage() {
         )}
       </Drawer>
 
-      {/* 危险流转二次确认 */}      <Confirm
+      {/* 危险流转二次确认 */}
+      <Confirm
         open={!!confirmFlow}
         danger
         loading={busy}
@@ -378,7 +445,7 @@ export default function ProjectsPage() {
           try {
             await projectsApi.remove(deleteTarget.id);
             toast.ok("项目已移入回收站（系统管理 → 回收站可恢复）");
-            await load();
+            reload();
           } catch (e) {
             toast.err(errText(e));
           } finally {

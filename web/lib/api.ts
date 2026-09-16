@@ -1,6 +1,6 @@
 // API 封装：base + token 注入 + 401 跳登录。字段与后端 api/routers/*.py 对齐。
 export const API_BASE =
-  process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8000/api/v1";
+  process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8001/api/v1";
 
 export class UnauthorizedError extends Error {}
 export class NetworkError extends Error {}
@@ -57,7 +57,9 @@ async function request<T>(path: string, init: RequestInit = {}, raw = false): Pr
   let res: Response;
   try {
     res = await fetch(`${API_BASE}${path}`, { ...init, headers });
-  } catch {
+  } catch (e) {
+    // 主动取消（AbortController）不是网络故障：原样抛出，由调用方静默丢弃
+    if ((e as { name?: string } | null)?.name === "AbortError") throw e;
     throw new NetworkError("无法连接后端");
   }
   if (res.status === 401) {
@@ -74,7 +76,8 @@ async function request<T>(path: string, init: RequestInit = {}, raw = false): Pr
   return (text ? JSON.parse(text) : undefined) as T;
 }
 
-export const apiGet = <T>(path: string) => request<T>(path);
+/** GET：可选传 AbortSignal，快速切换筛选/项目时取消过期请求（BLF-1095） */
+export const apiGet = <T>(path: string, signal?: AbortSignal) => request<T>(path, { signal });
 export const apiPost = <T>(path: string, body?: unknown) =>
   request<T>(path, { method: "POST", body: body === undefined ? undefined : JSON.stringify(body) });
 export const apiPut = <T>(path: string, body: unknown) =>
@@ -84,6 +87,17 @@ export const apiPatch = <T>(path: string, body: unknown) =>
 export const apiDelete = <T>(path: string) => request<T>(path, { method: "DELETE" });
 export const apiUpload = <T>(path: string, form: FormData) =>
   request<T>(path, { method: "POST", body: form });
+
+/** 拼查询串：null/undefined/空串自动跳过（筛选项与分页参数共用） */
+export function buildQuery(params: Record<string, string | number | null | undefined>): string {
+  const p = new URLSearchParams();
+  for (const [k, v] of Object.entries(params)) {
+    if (v === null || v === undefined || v === "") continue;
+    p.set(k, String(v));
+  }
+  const s = p.toString();
+  return s ? `?${s}` : "";
+}
 
 /** 导出下载：附 token 拉 blob 后触发浏览器下载 */
 export async function downloadFile(path: string, filename: string) {
@@ -285,13 +299,18 @@ export const metaApi = {
 };
 
 export const projectsApi = {
-  list: (q = "") => apiGet<{ total: number; page: number; size: number; items: Project[] }>(`/projects${q}`),
+  list: (q = "", signal?: AbortSignal) => apiGet<Paged<Project>>(`/projects${q}`, signal),
+  /** 项目选择器：关键词 + 分页（消费 /projects 的 keyword/page/size 契约） */
+  search: (
+    { keyword = "", page = 1, size = 20 }: { keyword?: string; page?: number; size?: number },
+    signal?: AbortSignal,
+  ) => apiGet<Paged<Project>>(`/projects${buildQuery({ keyword: keyword.trim(), page, size })}`, signal),
   get: (id: number | string) => apiGet<Project>(`/projects/${id}`),
   create: (body: Partial<Project>) => apiPost<Project>("/projects", body),
   update: (id: number, body: Record<string, unknown>) => apiPatch<Project>(`/projects/${id}`, body),
   remove: (id: number) => apiDelete<{ ok: boolean }>(`/projects/${id}`),
   restore: (id: number) => apiPost<Project>(`/projects/${id}/restore`, {}),
-  recycleBin: () => apiGet<{ id: number; code: string; name: string; status: string; deleted_at: string | null }[]>("/projects/recycle-bin/list"),
+  recycleBin: (signal?: AbortSignal) => apiGet<{ id: number; code: string; name: string; status: string; deleted_at: string | null }[]>("/projects/recycle-bin/list", signal),
   status: (id: number, status: string, reason = "") =>
     apiPost<Project>(`/projects/${id}/status`, { status, reason }),
   changes: (id: number) => apiGet<ProjectChange[]>(`/projects/${id}/changes`),
@@ -318,7 +337,8 @@ export const projectsApi = {
 };
 
 export const tasksApi = {
-  list: (q = "") => apiGet<Task[]>(`/tasks${q}`),
+  list: (q = "", signal?: AbortSignal) =>
+    apiGet<Task[] | Paged<Task>>(`/tasks${q}`, signal),
   create: (body: Record<string, unknown>) => apiPost<Task>("/tasks", body),
   update: (id: number, body: Record<string, unknown>) => apiPatch<Task>(`/tasks/${id}`, body),
   remove: (id: number) => apiDelete<void>(`/tasks/${id}`),
@@ -330,20 +350,20 @@ export const tasksApi = {
 };
 
 export const milestonesApi = {
-  list: (projectId: number) => apiGet<Milestone[]>(`/milestones?project_id=${projectId}`),
+  list: (projectId: number, signal?: AbortSignal) => apiGet<Milestone[]>(`/milestones?project_id=${projectId}`, signal),
   create: (body: Record<string, unknown>) => apiPost<Milestone>("/milestones", body),
   update: (id: number, body: Record<string, unknown>) => apiPatch<Milestone>(`/milestones/${id}`, body),
   remove: (id: number) => apiDelete<void>(`/milestones/${id}`),
 };
 
 export const progressApi = {
-  logs: (q = "") => apiGet<ProgressLog[]>(`/progress-logs${q}`),
+  logs: (q = "", signal?: AbortSignal) => apiGet<ProgressLog[]>(`/progress-logs${q}`, signal),
   report: (body: { task_id: number; progress: number; note?: string; remaining_days?: number | null }) =>
     apiPost<{ id: number; progress: number }>("/progress-logs", body),
 };
 
 export const budgetsApi = {
-  list: (projectId: number) => apiGet<Budget[]>(`/budgets?project_id=${projectId}`),
+  list: (projectId: number, signal?: AbortSignal) => apiGet<Budget[]>(`/budgets?project_id=${projectId}`, signal),
   create: (body: Record<string, unknown>) => apiPost<Budget>("/budgets", body),
   adjust: (id: number, body: Record<string, unknown>) => apiPatch<Budget>(`/budgets/${id}`, body),
   adjusts: (projectId: number) => apiGet<Record<string, unknown>[]>(`/budget-adjusts?project_id=${projectId}`),
@@ -352,7 +372,8 @@ export const budgetsApi = {
 };
 
 export const expensesApi = {
-  list: (q = "") => apiGet<Expense[] | { total: number; page: number; size: number; items: Expense[] }>(`/expenses${q}`),
+  list: (q = "", signal?: AbortSignal) =>
+    apiGet<Expense[] | Paged<Expense>>(`/expenses${q}`, signal),
   create: (body: Record<string, unknown>) => apiPost<Expense>("/expenses", body),
   approve: (id: number) => apiPost<Expense>(`/expenses/${id}/approve`, {}),
   reject: (id: number, reason: string) => apiPost<Expense>(`/expenses/${id}/reject`, { reason }),
@@ -364,8 +385,35 @@ export function unwrapList<T>(data: T[] | { items?: T[] }): T[] {
   return Array.isArray(data) ? data : data.items ?? [];
 }
 
+/** 兼容两种列表返回：Stage 3 前为裸数组，Stage 3 后为 {total,page,size,items} 信封 */
+export interface Paged<T> {
+  total: number;
+  page: number;
+  size: number;
+  items: T[];
+  /** 后端是否已提供分页信封（未提供时 total 退化为当前批条数） */
+  paged: boolean;
+}
+
+export function unwrapPaged<T>(
+  data: T[] | { items?: T[]; total?: number; page?: number; size?: number } | null | undefined,
+): Paged<T> {
+  if (!data) return { total: 0, page: 1, size: 0, items: [], paged: false };
+  if (Array.isArray(data)) {
+    return { total: data.length, page: 1, size: data.length, items: data, paged: false };
+  }
+  const items = data.items ?? [];
+  return {
+    total: typeof data.total === "number" ? data.total : items.length,
+    page: data.page ?? 1,
+    size: data.size ?? items.length,
+    items,
+    paged: typeof data.total === "number",
+  };
+}
+
 export const reportsApi = {
-  cost: (q = "") => apiGet<{ items: CostRow[]; note: string }>(`/reports/cost${q}`),
+  cost: (q = "", signal?: AbortSignal) => apiGet<{ items: CostRow[]; note: string; total?: number }>(`/reports/cost${q}`, signal),
   warnings: () => apiGet<Warnings>("/reports/warnings"),
   exportCost: (q = "") => downloadFile(`/reports/cost/export${q}`, "cost_report.xlsx"),
 };
@@ -402,15 +450,17 @@ export const demoApi = {
 };
 
 export const adminApi = {
-  users: (page = 1, size = 50) => apiGet<{ total: number; items: AdminUser[] }>(`/admin/users?page=${page}&size=${size}`),
+  users: (page = 1, size = 20, signal?: AbortSignal) =>
+    apiGet<Paged<AdminUser>>(`/admin/users${buildQuery({ page, size })}`, signal),
   createUser: (body: Record<string, unknown>) => apiPost<AdminUser>("/admin/users", body),
   updateUser: (id: number, body: Record<string, unknown>) => apiPatch<AdminUser>(`/admin/users/${id}`, body),
-  roles: () => apiGet<{ id: number; code: string; name: string }[]>("/admin/roles"),
-  dicts: (type = "") => apiGet<DictItem[]>(`/admin/dicts${type ? `?type=${type}` : ""}`),
+  roles: (signal?: AbortSignal) => apiGet<{ id: number; code: string; name: string }[]>("/admin/roles", signal),
+  dicts: (type = "", signal?: AbortSignal) =>
+    apiGet<DictItem[]>(`/admin/dicts${type ? `?type=${type}` : ""}`, signal),
   createDict: (body: Record<string, unknown>) => apiPost<{ id: number }>("/admin/dicts", body),
-  params: () => apiGet<Record<string, string>>("/admin/params"),
+  params: (signal?: AbortSignal) => apiGet<Record<string, string>>("/admin/params", signal),
   setParams: (body: Record<string, string>) => apiPut<{ ok: boolean }>("/admin/params", body),
-  logs: (q = "") => apiGet<{ total: number; items: AuditLog[] }>(`/admin/logs${q}`),
+  logs: (q = "", signal?: AbortSignal) => apiGet<Paged<AuditLog>>(`/admin/logs${q}`, signal),
 };
 
 // ---------------- Stage 3：站内通知 + 审批中心 ----------------
