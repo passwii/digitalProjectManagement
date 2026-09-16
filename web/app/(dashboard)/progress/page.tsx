@@ -2,7 +2,7 @@
 
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import {
-  buildQuery, errText, milestonesApi, projectsApi, reportsApi, tasksApi, unwrapPaged,
+  MAX_PAGE_SIZE, buildQuery, errText, milestonesApi, projectsApi, reportsApi, tasksApi, unwrapPaged,
   type Milestone, type Task, type Warnings,
 } from "@/lib/api";
 import { useAsyncData } from "@/lib/useAsyncData";
@@ -63,18 +63,26 @@ function ProgressInner() {
     async (signal) => {
       const [t, m, w] = await Promise.all([
         tasksApi.list(buildQuery({ project_id: pid }), signal),
-        milestonesApi.list(Number(pid), signal),
+        // Stage 3A：一律回分页信封（用 unwrapPaged 兼容旧裸数组）
+        milestonesApi.list(Number(pid), { size: MAX_PAGE_SIZE }, signal),
         // 预警是辅助信息：失败不影响任务/里程碑展示
         reportsApi.warnings().catch(() => null),
       ]);
-      return { tasks: unwrapPaged<Task>(t).items, miles: m, warns: w as Warnings | null };
+      const milestonePage = unwrapPaged<Milestone>(m);
+      return {
+        tasks: unwrapPaged<Task>(t).items,
+        miles: milestonePage.items,
+        milesTotal: milestonePage.total,
+        warns: w as Warnings | null,
+      };
     },
     [pid],
     { enabled: !!pid, resetOnDepChange: true },
   );
 
   const tasks = data?.tasks ?? [];
-  const miles = data?.miles ?? [];
+  const miles: Milestone[] = data?.miles ?? [];
+  const milesTotal = data?.milesTotal ?? miles.length;
   const warns = data?.warns ?? null;
 
   const [taskOpen, setTaskOpen] = useState(false);
@@ -355,6 +363,11 @@ function ProgressInner() {
                     ))}
                   </tbody>
                 </table>
+              </div>
+            )}
+            {milesTotal > miles.length && (
+              <div className="muted tiny" style={{ marginTop: 8 }}>
+                共 {milesTotal} 条里程碑，当前显示前 {miles.length} 条
               </div>
             )}
           </div>

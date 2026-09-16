@@ -2,7 +2,7 @@
 
 import { Suspense, useCallback, useMemo, useState } from "react";
 import {
-  budgetsApi, buildQuery, errText, expensesApi, unwrapPaged,
+  MAX_PAGE_SIZE, budgetsApi, buildQuery, errText, expensesApi, unwrapPaged,
   type Budget, type Expense,
 } from "@/lib/api";
 import { useAsyncData } from "@/lib/useAsyncData";
@@ -56,18 +56,27 @@ function CostsInner() {
   const { data, loading, firstLoad, error, reload } = useAsyncData(
     async (signal) => {
       const [b, x] = await Promise.all([
-        budgetsApi.list(Number(pid), signal),
+        // Stage 3A：一律回分页信封（用 unwrapPaged 兼容旧裸数组）
+        budgetsApi.list(Number(pid), { size: MAX_PAGE_SIZE }, signal),
         // page/size 先按 Stage 3 契约下发；后端仍返回裸数组时前端本地切片，双向兼容
         expensesApi.list(buildQuery({ project_id: pid, page, size }), signal),
       ]);
       const paged = unwrapPaged<Expense>(x);
-      return { budgets: b, expenses: paged.items, serverPaged: paged.paged, serverTotal: paged.total };
+      const budgetPage = unwrapPaged<Budget>(b);
+      return {
+        budgets: budgetPage.items,
+        budgetsTotal: budgetPage.total,
+        expenses: paged.items,
+        serverPaged: paged.paged,
+        serverTotal: paged.total,
+      };
     },
     [pid, page, size],
     { enabled: !!pid, resetOnDepChange: true },
   );
 
   const budgets: Budget[] = data?.budgets ?? [];
+  const budgetsTotal = data?.budgetsTotal ?? budgets.length;
   const allExpenses: Expense[] = data?.expenses ?? [];
 
   // 支出筛选：后端支持则服务端过滤，否则前端过滤后再分页
@@ -238,6 +247,11 @@ function CostsInner() {
                   ))}
                 </tbody>
               </table>
+            </div>
+          )}
+          {budgetsTotal > budgets.length && (
+            <div className="muted tiny" style={{ marginBottom: 16 }}>
+              共 {budgetsTotal} 条科目预算，当前显示前 {budgets.length} 条
             </div>
           )}
 

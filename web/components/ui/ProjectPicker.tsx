@@ -9,13 +9,13 @@
  * - 键盘：↑/↓ 移动、Enter 选择、Esc 关闭；移动端弹层宽度自适应，不产生横向溢出
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { errText, projectsApi, type Project } from "@/lib/api";
+import { DEFAULT_PAGE_SIZE, errText, projectsApi, type ProjectOption } from "@/lib/api";
 import { useAsyncData } from "@/lib/useAsyncData";
 import { useDebouncedValue } from "@/lib/useDebouncedValue";
 import { loadRecentProjects, rememberProject, type RecentProject } from "@/lib/recentProjects";
 import st from "./ProjectPicker.module.css";
 
-const PAGE_SIZE = 20;
+const PAGE_SIZE = DEFAULT_PAGE_SIZE;
 
 interface OptionRow {
   id: number | null; // null = 「全部」
@@ -98,13 +98,17 @@ export default function ProjectPicker({
   }, [value, recent]);
 
   const { data, loading, firstLoad, error, reload } = useAsyncData(
-    (signal) => projectsApi.search({ keyword: debouncedKeyword, page, size: PAGE_SIZE }, signal),
+    (signal) =>
+      projectsApi.options(
+        { keyword: debouncedKeyword, page, size: PAGE_SIZE, sort: "-id" },
+        signal,
+      ),
     [debouncedKeyword, page, open],
     { enabled: open, resetOnDepChange: true },
   );
 
   const total = data?.total ?? 0;
-  const items: Project[] = data?.items ?? [];
+  const items: ProjectOption[] = data?.items ?? [];
   const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   useEffect(() => setPage(1), [debouncedKeyword]);
@@ -126,7 +130,7 @@ export default function ProjectPicker({
         id: p.id,
         code: p.code,
         name: p.name,
-        hint: p.client || undefined,
+        hint: p.client,
         section: showRecent ? "搜索结果" : undefined,
       });
     }

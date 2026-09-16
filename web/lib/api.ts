@@ -99,6 +99,29 @@ export function buildQuery(params: Record<string, string | number | null | undef
   return s ? `?${s}` : "";
 }
 
+/** 列表分页边界（与后端 Stage 3A 契约一致：省略分页参数 = 1/20，size 上限 100） */
+export const DEFAULT_PAGE_SIZE = 20;
+export const MAX_PAGE_SIZE = 100;
+
+/** 列表接口通用查询（分页 + 排序白名单字段） */
+export interface ListOpts {
+  page?: number;
+  size?: number;
+  sort?: string;
+}
+
+/** 回收站行（`GET /projects/recycle-bin/list`） */
+export interface RecycleBinItem {
+  id: number;
+  code: string;
+  name: string;
+  status: string;
+  deleted_at: string | null;
+}
+
+/** `/projects/options` 可用性：后端 Stage 3A 前后自动切换，同一会话只探测一次 */
+let optionsSupported: boolean | null = null;
+
 /** 导出下载：附 token 拉 blob 后触发浏览器下载 */
 export async function downloadFile(path: string, filename: string) {
   const res = await request<Response>(path, {}, true);
@@ -178,6 +201,18 @@ export interface Project {
   progress: number;
   /** FTS5 命中时的关键词高亮片段（仅带 keyword 检索返回） */
   snippet?: string;
+}
+
+/** 项目选择器最小字段（`GET /projects/options`） */
+export interface ProjectOption {
+  id: number;
+  code: string;
+  name: string;
+  status: string;
+  owner_id: number | null;
+  dept_id: number | null;
+  /** 仅当回退到 `GET /projects`（后端未升级）时才有客户名 */
+  client?: string;
 }
 export interface ProjectChange {
   id: number;
@@ -302,15 +337,57 @@ export const projectsApi = {
   list: (q = "", signal?: AbortSignal) => apiGet<Paged<Project>>(`/projects${q}`, signal),
   /** 项目选择器：关键词 + 分页（消费 /projects 的 keyword/page/size 契约） */
   search: (
-    { keyword = "", page = 1, size = 20 }: { keyword?: string; page?: number; size?: number },
+    { keyword = "", page = 1, size = DEFAULT_PAGE_SIZE }: { keyword?: string; page?: number; size?: number },
     signal?: AbortSignal,
   ) => apiGet<Paged<Project>>(`/projects${buildQuery({ keyword: keyword.trim(), page, size })}`, signal),
+  /**
+   * 项目选择器专用最小字段接口（Stage 3A）：只回 id/code/name/status/owner_id/dept_id，
+   * 关键词按名称/编号 LIKE 匹配（total 准确、分页可靠，不受 FTS 命中集截断影响）。
+   * 后端尚未升级（该路由 404）时自动回退 `/projects`，同一会话只探测一次。
+   */
+  options: async (
+    params: ListOpts & { keyword?: string; status?: string; owner_id?: number | string },
+    signal?: AbortSignal,
+  ): Promise<Paged<ProjectOption>> => {
+    const query = buildQuery({
+      keyword: (params.keyword ?? "").trim(),
+      status: params.status,
+      owner_id: params.owner_id,
+      page: params.page ?? 1,
+      size: params.size ?? DEFAULT_PAGE_SIZE,
+      sort: params.sort,
+    });
+    if (optionsSupported !== false) {
+      try {
+        const data = await apiGet<Paged<ProjectOption>>(`/projects/options${query}`, signal);
+        optionsSupported = true;
+        return data;
+      } catch (e) {
+        if (!(e instanceof Error) || !e.message.startsWith("API 404")) throw e;
+        optionsSupported = false;
+      }
+    }
+    const fallback = await apiGet<Paged<Project>>(`/projects${query}`, signal);
+    return {
+      ...fallback,
+      items: fallback.items.map((p) => ({
+        id: p.id,
+        code: p.code,
+        name: p.name,
+        status: p.status,
+        owner_id: p.owner_id,
+        dept_id: p.dept_id,
+        client: p.client,
+      })),
+    };
+  },
   get: (id: number | string) => apiGet<Project>(`/projects/${id}`),
   create: (body: Partial<Project>) => apiPost<Project>("/projects", body),
   update: (id: number, body: Record<string, unknown>) => apiPatch<Project>(`/projects/${id}`, body),
   remove: (id: number) => apiDelete<{ ok: boolean }>(`/projects/${id}`),
   restore: (id: number) => apiPost<Project>(`/projects/${id}/restore`, {}),
-  recycleBin: (signal?: AbortSignal) => apiGet<{ id: number; code: string; name: string; status: string; deleted_at: string | null }[]>("/projects/recycle-bin/list", signal),
+  recycleBin: (q = "", signal?: AbortSignal) =>
+    apiGet<RecycleBinItem[] | Paged<RecycleBinItem>>(`/projects/recycle-bin/list${q}`, signal),
   status: (id: number, status: string, reason = "") =>
     apiPost<Project>(`/projects/${id}/status`, { status, reason }),
   changes: (id: number) => apiGet<ProjectChange[]>(`/projects/${id}/changes`),
@@ -324,7 +401,8 @@ export const projectsApi = {
     downloadFile(`/projects/${id}/attachments/${aid}/download`, filename),
   deleteAttachment: (id: number, aid: number) => apiDelete<{ ok: boolean }>(`/projects/${id}/attachments/${aid}`),
   setMembers: (id: number, userIds: number[]) => apiPut<Project>(`/projects/${id}/members`, { user_ids: userIds }),
-  followups: (id: number, q = "") => apiGet<Followup[]>(`/projects/${id}/followups${q}`),
+  followups: (id: number, q = "", signal?: AbortSignal) =>
+    apiGet<Followup[] | Paged<Followup>>(`/projects/${id}/followups${q}`, signal),
   addFollowup: (id: number, body: Record<string, unknown>) =>
     apiPost<{ id: number }>(`/projects/${id}/followups`, body),
   updateFollowup: (id: number, fid: number, body: Record<string, unknown>) =>
@@ -350,23 +428,36 @@ export const tasksApi = {
 };
 
 export const milestonesApi = {
-  list: (projectId: number, signal?: AbortSignal) => apiGet<Milestone[]>(`/milestones?project_id=${projectId}`, signal),
+  list: (projectId: number, opts: ListOpts = {}, signal?: AbortSignal) =>
+    apiGet<Milestone[] | Paged<Milestone>>(
+      `/milestones${buildQuery({ project_id: projectId, ...opts })}`,
+      signal,
+    ),
   create: (body: Record<string, unknown>) => apiPost<Milestone>("/milestones", body),
   update: (id: number, body: Record<string, unknown>) => apiPatch<Milestone>(`/milestones/${id}`, body),
   remove: (id: number) => apiDelete<void>(`/milestones/${id}`),
 };
 
 export const progressApi = {
-  logs: (q = "", signal?: AbortSignal) => apiGet<ProgressLog[]>(`/progress-logs${q}`, signal),
+  logs: (q = "", signal?: AbortSignal) =>
+    apiGet<ProgressLog[] | Paged<ProgressLog>>(`/progress-logs${q}`, signal),
   report: (body: { task_id: number; progress: number; note?: string; remaining_days?: number | null }) =>
     apiPost<{ id: number; progress: number }>("/progress-logs", body),
 };
 
 export const budgetsApi = {
-  list: (projectId: number, signal?: AbortSignal) => apiGet<Budget[]>(`/budgets?project_id=${projectId}`, signal),
+  list: (projectId: number, opts: ListOpts = {}, signal?: AbortSignal) =>
+    apiGet<Budget[] | Paged<Budget>>(
+      `/budgets${buildQuery({ project_id: projectId, ...opts })}`,
+      signal,
+    ),
   create: (body: Record<string, unknown>) => apiPost<Budget>("/budgets", body),
   adjust: (id: number, body: Record<string, unknown>) => apiPatch<Budget>(`/budgets/${id}`, body),
-  adjusts: (projectId: number) => apiGet<Record<string, unknown>[]>(`/budget-adjusts?project_id=${projectId}`),
+  adjusts: (projectId: number, opts: ListOpts = {}, signal?: AbortSignal) =>
+    apiGet<Record<string, unknown>[] | Paged<Record<string, unknown>>>(
+      `/budget-adjusts${buildQuery({ project_id: projectId, ...opts })}`,
+      signal,
+    ),
   approveAdjust: (id: number, body: Record<string, unknown>) =>
     apiPost<Record<string, unknown>>(`/budget-adjusts/${id}/approve`, body),
 };
@@ -516,7 +607,12 @@ export interface PendingApprovals {
   project_filings: PendingFilings[];
   budget_adjusts: PendingAdjust[];
   expenses: PendingExpense[];
+  /** 三类待办总数（= 三个数组长度之和，与 totals 一致） */
   total: number;
+  /** Stage 3A：三类待办真实总数，每类服务端最多返回 limit 条 */
+  totals?: { project_filings: number; budget_adjusts: number; expenses: number };
+  /** Stage 3A：本次请求的 limit（默认 200，上限 500） */
+  limit?: number;
 }
 
 export const notificationsApi = {

@@ -1,9 +1,9 @@
 "use client";
 
-import { use, useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import {
-  errText, projectsApi,
+  MAX_PAGE_SIZE, buildQuery, errText, projectsApi, unwrapPaged,
   type Attachment, type Followup, type Project, type ProjectChange,
 } from "@/lib/api";
 import { useMeta, useMenus } from "@/lib/useMeta";
@@ -23,9 +23,9 @@ const TABS = ["基本", "变更", "附件", "跟进"] as const;
 type Tab = (typeof TABS)[number];
 const DESTRUCTIVE = new Set(["cancelled", "archived", "done"]);
 
-export default function ProjectDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = use(params);
-  const pid = Number(id);
+export default function ProjectDetailPage({ params }: { params: { id: string } }) {
+  // Next 14 的 App Router 传入已解析的 params（普通对象），不需要 use()
+  const pid = Number(params.id);
   const { userName, deptName } = useMeta();
   // 解归档仅管理员：按钮显示条件取后端菜单契约
   const { isAdmin } = useMenus();
@@ -39,6 +39,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
   const [changes, setChanges] = useState<ProjectChange[]>([]);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [followups, setFollowups] = useState<Followup[]>([]);
+  const [followTotal, setFollowTotal] = useState(0);
 
   const [editOpen, setEditOpen] = useState(false);
   const [followOpen, setFollowOpen] = useState(false);
@@ -61,7 +62,14 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
     try {
       if (tab === "变更") setChanges(await projectsApi.changes(pid));
       if (tab === "附件") setAttachments(await projectsApi.attachments(pid));
-      if (tab === "跟进") setFollowups(await projectsApi.followups(pid));
+      if (tab === "跟进") {
+        // Stage 3A：跟进列表一律回分页信封（unwrapPaged 兼容旧裸数组）
+        const page = unwrapPaged<Followup>(
+          await projectsApi.followups(pid, buildQuery({ size: MAX_PAGE_SIZE })),
+        );
+        setFollowups(page.items);
+        setFollowTotal(page.total);
+      }
     } catch (e) {
       setErr(errText(e));
     }
@@ -277,7 +285,13 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
           {followups.length === 0 ? (
             <Empty title="暂无跟进记录" hint="记录每次沟通，并可设置到期提醒。" />
           ) : (
-            <ul className="timeline">
+            <>
+              {followTotal > followups.length && (
+                <div className="muted tiny" style={{ marginBottom: 8 }}>
+                  共 {followTotal} 条跟进，当前显示最近 {followups.length} 条
+                </div>
+              )}
+              <ul className="timeline">
               {followups.map((f) => (
                 <li key={f.id}>
                   <span className="t mono">{fmtDateTime(f.happened_at)}</span>
@@ -303,7 +317,11 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                           run: async () => {
                             await projectsApi.deleteFollowup(pid, f.id);
                             toast.ok("跟进记录已删除");
-                            setFollowups(await projectsApi.followups(pid));
+                            const page = unwrapPaged<Followup>(
+                              await projectsApi.followups(pid, buildQuery({ size: MAX_PAGE_SIZE })),
+                            );
+                            setFollowups(page.items);
+                            setFollowTotal(page.total);
                           },
                         })
                       }
@@ -313,7 +331,8 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                   </span>
                 </li>
               ))}
-            </ul>
+              </ul>
+            </>
           )}
         </div>
       )}
