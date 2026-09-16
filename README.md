@@ -122,7 +122,59 @@ u.pwd_hash=hash_password('admin123456'); u.must_change_pwd=False; db.commit(); p
 **系统管理（`/admin`）**
 - 用户（弹窗新增/编辑/角色多选/停用启用）、角色、字典（可新增）、参数（弹窗编辑，即时生效）、审计日志（分页 + Drawer 详情 + 导出 Excel）、回收站
 
+## 列表分页与查询契约（Stage 3A，2026-09-16 定稿）
+
+所有列表接口统一分页、排序与查询边界，前端与回归测试可直接依赖（实现见 `api/core/paging.py`）：
+
+- **响应信封**：`{"total": int, "page": int, "size": int, "items": [...]}`
+  - `total` = 当前筛选 + 权限 + 软删除条件下的全量条数（与 `items` 同一次查询条件）。
+  - **省略分页参数 = `page=1&size=20`**：任何列表都不会因为「不传参数」而返回无界数据。
+  - 越过末页（`page` 超过最后一页）返回空 `items`，不抛异常、不重复上一页数据。
+- **请求参数**：`page`（≥1，默认 1）、`size`（1—100，默认 20）、`sort`（白名单字段，逗号分隔最多 3 个，前缀 `-` 表示倒序）。
+  - 非法 `page`/`size`/`sort` 一律 `400` 并返回中文原因（不做静默截断）。
+  - `sort` 只做「字段名 → ORM 列」白名单查表，**用户输入永远不会被拼进 SQL**。
+  - 排序稳定性：请求的 `sort` 之后自动追加主键 `id` 兜底，连续翻页不重不漏。
+- **覆盖接口**：`/projects`、`/projects/options`、`/projects/recycle-bin/list`、`/projects/{id}/followups`、
+  `/tasks`、`/progress-logs`、`/milestones`、`/budgets`、`/budget-adjusts`、`/expenses`、
+  `/admin/users`、`/admin/logs`。
+- **项目选择器最小字段**：`GET /projects/options` 只回 `id/code/name/status/owner_id/dept_id`，
+  关键词按名称/编号匹配（不走 FTS，避免命中集预截断造成 `total` 失真），前端不必再靠 `?size=100` 拉全量。
+- **字典类接口硬上限**：`GET /meta/users`（支持 `keyword`/`dept_id`/`status`/`ids` 筛选）、`GET /meta/depts`
+  保留「一次取回后本地映射 id→名称」的用法，但**服务端硬上限 500 行**；需要搜索式分页（如人员选择器）
+  用 `GET /meta/users/search`（返回信封）。
+- **审批待办有界**：`GET /approvals/pending` 每类最多返回 `limit` 条（默认 200，上限 500），
+  同时返回 `totals`（三类待办真实总数）与 `limit`，前端可提示「还有 N 条」；行内 `can_decide` 与决策入口同一判定不变。
+  待办行的关联名称改为批量取，消除原来的 N+1。
+- **权限与软删除边界不变**：子表列表与审批待办继续执行「可见 + 未软删除」下推过滤；
+  管理员全局 ≠ 包含回收站，回收站单独分页查看与恢复。
+
+> ⚠️ 破坏性变更（Stage 3B 前端需同步）：`/tasks`、`/budgets`、`/budget-adjusts`、`/expenses`、
+> `/projects/{id}/followups`、`/milestones`、`/projects/recycle-bin/list`、`/progress-logs`
+> 过去在省略分页参数时返回**裸数组**（部分接口只在显式传 `page` 时才回信封），现在**一律返回信封**；
+> 消费方统一用 `unwrapPaged`（`web/lib/api.ts`）取值即可。
+
 ## 性能（已实测，2000 项目规模）
+
+列表分页与查询边界的 P95 实测（临时 sqlite 库 + 真实 ASGI 请求路径，每接口采样 30 次，含鉴权与序列化）：
+
+| 接口 | median | P95 | total |
+|---|---|---|---|
+| `GET /projects?page=2&size=20&sort=-id` | 0.007s | 0.013s | 2000 |
+| `GET /projects?keyword=PERF&status=doing&sort=-budget_total` | 0.010s | 0.012s | 96 |
+| `GET /projects/options?keyword=PERF` | 0.005s | 0.006s | 2000 |
+| `GET /tasks?page=1&size=20&sort=-id`（跨项目 5057 条） | 0.006s | 0.007s | 5057 |
+| `GET /budgets?page=1&size=20`（3972 条） | 0.015s | 0.018s | 3972 |
+| `GET /expenses?page=1&size=20&sort=-amount`（3972 条） | 0.006s | 0.007s | 3972 |
+| `GET /approvals/pending?limit=50` | 0.005s | 0.006s | — |
+
+13 个核心列表接口 P95 全部 ≤ 0.018s（阈值 2s）。复现：
+
+```bash
+python3 scripts/perf_list_p95.py --projects 2000 --runs 30
+python3 scripts/perf_list_p95.py --projects 500 --runs 10 --keep-db   # 小规模/保留临时库排查
+```
+
+其余既有基准：
 
 | 接口 | 耗时 |
 |---|---|
@@ -143,15 +195,19 @@ python3 scripts/seed_perf.py 0 --clean     # 清理压测数据
 
 ```bash
 cd /Users/damon/DamonProjects/digitalProjectManagement
-python3 -m pytest -q        # 30 项，覆盖鉴权/状态机/越权/加权/预警/拦截/审批/通知/软删除/检索/分页，
-                            # 以及 Stage 1 的管理员全局范围、非管理员管理/审批接口 403、软删除项目边界，
-                            # 和子表列表的可见性/active-project 边界（第 29—30 项）
+python3 -m pytest -q        # 37 项，覆盖鉴权/状态机/越权/加权/预警/拦截/审批/通知/软删除/检索/分页，
+                            # Stage 1 的管理员全局范围、非管理员管理/审批接口 403、软删除项目边界（第 25—30 项），
+                            # 以及 Stage 3A 的列表分页/排序/查询边界契约（第 31—37 项：统一信封、非法 page/size/sort 400、
+                            # 越界翻页空 items、排序稳定性、筛选组合与越权项目查询、最小字段选择器、审批待办有界）
 ```
 
 ## 已知限制
 
 - SQLite FTS5 的 trigram 分词要求查询词 ≥3 字符，1-2 字关键词回退 LIKE（中文全文检索的完整方案留给 PostgreSQL 阶段）
-- 列表筛选/分页未写入 URL，刷新会丢筛选条件
+- FTS 命中集在检索时预先截断为 500 条（`fts_search` 的性能护栏），因此 `GET /projects?keyword=` 的 `total` 在命中超过
+  500 条时会低估；需要精确总数/分页的选择器场景请用 `GET /projects/options`（走 LIKE，`total` 准确）
+- 字典类接口（`/meta/users`、`/meta/depts`）为「一次取回本地映射」设计，服务端硬上限 500 行；超出请用 `/meta/users/search`
+- 列表筛选/分页未写入 URL，刷新会丢筛选条件（Stage 3B 前端处理）
 - 前端 token 存 localStorage + 非 httpOnly cookie（供 middleware 鉴权），生产建议改服务端 httpOnly
 - `docker-compose.yml` 已提供但未在本机实跑（无 docker 环境）
 

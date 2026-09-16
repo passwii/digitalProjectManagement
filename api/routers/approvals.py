@@ -26,50 +26,86 @@ router = APIRouter(prefix="/approvals", tags=["approvals"])
 
 
 @router.get("/pending")
-def pending(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    """管理员审批中心：全局三类待办聚合（跨部门、跨项目，仅含未软删除项目的记录）。"""
+def pending(limit: int = 200, db: Session = Depends(get_db),
+            user: User = Depends(get_current_user)):
+    """管理员审批中心：全局三类待办聚合（跨部门、跨项目，仅含未软删除项目的记录）。
+
+    查询边界（Stage 3A）：每类待办服务端最多返回 `limit` 条（默认 200，上限 500），
+    并用 `totals` 同时回传三类待办的真实总数，避免待办积压时响应无界放大（前端可据此提示“还有 N 条”）。
+    行内 `can_decide` 与决策入口共用 `core.rbac.can_approve`，不存在「按钮可见但接口 403」的错位。
+    兼容旧客户端：`total` 仍为三类待办总数，`project_filings` / `budget_adjusts` / `expenses` 三个键不变。
+    """
     require_admin(user)
+    if limit < 1 or limit > 500:
+        raise HTTPException(400, f"limit 须为 1-500 的整数，收到 {limit!r}")
+
     from sqlalchemy import select
 
+    from ..core.rbac import is_admin  # noqa: F401  (保持模块导入清晰，便于后续扩展)
+
     active = select(Project.id).where(Project.deleted_at.is_(None))
-    filings = db.query(Project).filter(Project.status == "pending",
-                                       Project.deleted_at.is_(None)).all()
-    # 软删除项目的调整单/支出不进待办（与决策入口的 active 边界一致）
-    adjusts = db.query(BudgetAdjust).filter(BudgetAdjust.status == "pending",
-                                            BudgetAdjust.project_id.in_(active)).all()
-    expenses = db.query(Expense).filter(Expense.status == "pending",
-                                        Expense.project_id.in_(active)).all()
+    adjust_q = db.query(BudgetAdjust).filter(BudgetAdjust.status == "pending",
+                                            BudgetAdjust.project_id.in_(active))
+    expense_q = db.query(Expense).filter(Expense.status == "pending",
+                                         Expense.project_id.in_(active))
+    filing_q = db.query(Project).filter(Project.status == "pending",
+                                        Project.deleted_at.is_(None))
+
+    # 总数（不截断）与当页行分开取：前端既能显示“还有多少条”，又不会拉到无界数据
+    totals = {
+        "project_filings": filing_q.count(),
+        "budget_adjusts": adjust_q.count(),
+        "expenses": expense_q.count(),
+    }
+    filings = filing_q.order_by(Project.id.desc()).limit(limit).all()
+    adjusts = adjust_q.order_by(BudgetAdjust.id.desc()).limit(limit).all()
+    expenses = expense_q.order_by(Expense.id.desc()).limit(limit).all()
+
+    # 批量取关联名称（原实现每行一次查询，待办多时是 N+1 热点）
+    project_ids = {p.id for p in filings} | {a.project_id for a in adjusts} \
+        | {e.project_id for e in expenses}
+    project_names = {
+        pid: name for pid, name in
+        db.query(Project.id, Project.name).filter(Project.id.in_(project_ids or [0])).all()
+    } if project_ids else {}
+    budget_subjects = {
+        bid: subject for bid, subject in
+        db.query(Budget.id, Budget.subject).filter(
+            Budget.id.in_({a.budget_id for a in adjusts} or [0])).all()
+    } if adjusts else {}
+
+    decide = can_approve(user)
 
     def filing_row(p: Project):
         return {"kind": "project_filing", "id": p.id, "project_id": p.id, "code": p.code,
                 "name": p.name, "owner_id": p.owner_id, "budget_total": p.budget_total,
                 "plan_start": p.plan_start.isoformat() if p.plan_start else None,
                 "plan_end": p.plan_end.isoformat() if p.plan_end else None,
-                "can_decide": can_approve(user)}
+                "can_decide": decide}
 
     def adjust_row(a: BudgetAdjust):
-        b = db.query(Budget).filter_by(id=a.budget_id).first()
-        p = db.query(Project).filter_by(id=a.project_id).first()
         return {"kind": "budget_adjust", "id": a.id, "project_id": a.project_id,
-                "project_name": p.name if p else "", "subject": b.subject if b else "",
+                "project_name": project_names.get(a.project_id, ""),
+                "subject": budget_subjects.get(a.budget_id, ""),
                 "old_amount": a.old_amount, "new_amount": a.new_amount, "reason": a.reason,
                 "by_id": a.by_id,
-                "can_decide": can_approve(user)}
+                "can_decide": decide}
 
     def expense_row(e: Expense):
-        p = db.query(Project).filter_by(id=e.project_id).first()
         return {"kind": "expense", "id": e.id, "project_id": e.project_id,
-                "project_name": p.name if p else "", "subject": e.subject,
+                "project_name": project_names.get(e.project_id, ""), "subject": e.subject,
                 "amount": e.amount,
                 "exp_date": e.exp_date.isoformat() if e.exp_date else None,
                 "note": e.note, "by_id": e.by_id,
-                "can_decide": can_approve(user)}
+                "can_decide": decide}
 
     return {
         "project_filings": [filing_row(p) for p in filings],
         "budget_adjusts": [adjust_row(a) for a in adjusts],
         "expenses": [expense_row(e) for e in expenses],
-        "total": len(filings) + len(adjusts) + len(expenses),
+        "total": totals["project_filings"] + totals["budget_adjusts"] + totals["expenses"],
+        "totals": totals,
+        "limit": limit,
     }
 
 

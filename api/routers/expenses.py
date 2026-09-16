@@ -11,12 +11,20 @@ from sqlalchemy.orm import Session
 
 from ..core.audit import write_audit
 from ..core.costs import PASS, budget_total, execution, spent
-from ..core.database import get_db
+from ..core.database import get_db, parse_date
 from ..core.deps import get_current_user
-from ..core.rbac import get_active_project, require_admin, visible_project_ids
+from ..core.paging import DEFAULT_PAGE_SIZE, paginate
+from ..core.rbac import get_active_project, require_admin, scope_child_query
 from ..models import Expense, SysParam, User
 
 router = APIRouter(prefix="/expenses", tags=["expenses"])
+
+# 排序白名单（Stage 3A）：字段名 → ORM 列
+EXPENSE_SORTS = {
+    "id": Expense.id, "project_id": Expense.project_id, "subject": Expense.subject,
+    "amount": Expense.amount, "exp_date": Expense.exp_date,
+    "status": Expense.status, "by_id": Expense.by_id,
+}
 
 
 def _e(e: Expense):
@@ -39,24 +47,34 @@ class ExpenseIn(BaseModel):
 
 
 @router.get("")
-def list_expenses(project_id: int = 0, status: str = "",
-                  page: int = 0, size: int = 20,
+def list_expenses(project_id: int = 0, status: str = "", subject: str = "",
+                  keyword: str = "", date_from: str = "", date_to: str = "",
+                  sort: str = "-id", page: int = 1, size: int = DEFAULT_PAGE_SIZE,
                   db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    """支出列表：指定 project_id 时按该项目鉴权；否则只返回「可见 + 未软删除」项目的支出。"""
-    q = db.query(Expense).order_by(Expense.id.desc())
+    """支出列表：统一分页信封（默认 `-id` 最新在前）+ 排序白名单 + 组合筛选。
+
+    指定 project_id 时按该项目鉴权；否则只返回「可见 + 未软删除」项目的支出（下推 SQL）。
+    `keyword` 匹配说明字段，`date_from`/`date_to` 按支出日期筛选（含边界）。
+    """
+    q = db.query(Expense)
     if project_id:
         get_active_project(db, project_id, user)
-        q = q.filter_by(project_id=project_id)
+        q = q.filter(Expense.project_id == project_id)
     else:
-        q = q.filter(Expense.project_id.in_(visible_project_ids(db, user)))
+        q = scope_child_query(q, Expense, db, user)
     if status:
-        q = q.filter_by(status=status)
-    total = q.count()
-    rows = q.all() if not page else q.offset((max(page, 1) - 1) * size).limit(size).all()
-    items = [_e(e) for e in rows]
-    if not page:
-        return items
-    return {"total": total, "page": max(page, 1), "size": size, "items": items}
+        q = q.filter(Expense.status == status)
+    if subject:
+        q = q.filter(Expense.subject == subject)
+    if keyword:
+        q = q.filter(Expense.note.like(f"%{keyword}%"))
+    df, dt = parse_date(date_from or None), parse_date(date_to or None)
+    if df:
+        q = q.filter((Expense.exp_date.is_(None)) | (Expense.exp_date >= df))
+    if dt:
+        q = q.filter((Expense.exp_date.is_(None)) | (Expense.exp_date <= dt))
+    return paginate(q, page=page, size=size, allowed=EXPENSE_SORTS,
+                    default_sort="-id", sort=sort, map_row=_e)
 
 
 @router.post("")

@@ -8,10 +8,18 @@ from sqlalchemy.orm import Session
 from ..core.audit import write_audit
 from ..core.database import get_db, parse_date
 from ..core.deps import get_current_user
-from ..core.rbac import get_active_project, visible_project_ids
+from ..core.paging import DEFAULT_PAGE_SIZE, paginate
+from ..core.rbac import get_active_project, scope_child_query
 from ..models import Milestone, SysParam, User
 
 router = APIRouter(prefix="/milestones", tags=["milestones"])
+
+# 排序白名单（Stage 3A）：字段名 → ORM 列
+MILESTONE_SORTS = {
+    "id": Milestone.id, "project_id": Milestone.project_id,
+    "name": Milestone.name, "plan_date": Milestone.plan_date,
+    "actual_date": Milestone.actual_date, "status": Milestone.status,
+}
 
 
 def _m(m: Milestone, warn_days: int = 3):
@@ -38,17 +46,25 @@ class MilestoneIn(BaseModel):
 
 
 @router.get("")
-def list_milestones(project_id: int = 0, db: Session = Depends(get_db),
-                    user: User = Depends(get_current_user)):
-    """里程碑列表：指定 project_id 时按该项目鉴权；否则只返回「可见 + 未软删除」项目的里程碑。"""
-    q = db.query(Milestone).order_by(Milestone.plan_date)
+def list_milestones(project_id: int = 0, status: str = "", sort: str = "plan_date",
+                    page: int = 1, size: int = DEFAULT_PAGE_SIZE,
+                    db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """里程碑列表：统一分页信封（默认按 `plan_date` 升序，便于看板/甘特排序）。
+
+    指定 project_id 时按该项目鉴权；否则只返回「可见 + 未软删除」项目的里程碑（下推 SQL）。
+    """
+    q = db.query(Milestone)
     if project_id:
         get_active_project(db, project_id, user)
-        q = q.filter_by(project_id=project_id)
+        q = q.filter(Milestone.project_id == project_id)
     else:
-        q = q.filter(Milestone.project_id.in_(visible_project_ids(db, user)))
+        q = scope_child_query(q, Milestone, db, user)
+    if status:
+        q = q.filter(Milestone.status == status)
     wd = _warn_days(db)
-    return [_m(m, wd) for m in q.all()]
+    return paginate(q, page=page, size=size, allowed=MILESTONE_SORTS,
+                    default_sort="plan_date", sort=sort,
+                    map_row=lambda m: _m(m, wd))
 
 
 @router.post("")
