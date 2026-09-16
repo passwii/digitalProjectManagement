@@ -61,7 +61,8 @@ def _t(t: Task):
             "plan_start": t.plan_start.isoformat() if t.plan_start else None,
             "plan_end": t.plan_end.isoformat() if t.plan_end else None,
             "weight": t.weight, "progress": t.progress, "status": t.status,
-            "predecessor_id": t.predecessor_id}
+            "predecessor_id": t.predecessor_id,
+            "created_at": t.created_at.isoformat() if t.created_at else None}
 
 
 def _project(db: Session, pid: int, user: User, write=False) -> Project:

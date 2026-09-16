@@ -1,7 +1,8 @@
 .overlay {
   position: fixed;
   inset: 0;
-  background: rgba(23, 43, 77, 0.36);
+  background: rgba(15, 39, 66, 0.38);
+  backdrop-filter: blur(3px);
   z-index: 60;
   display: flex;
   animation: fadeIn 120ms ease-out;
@@ -19,6 +20,7 @@
   flex-direction: column;
   max-height: 86vh;
   width: calc(100% - 32px);
+  animation: dialogIn 180ms cubic-bezier(.2, .72, .2, 1) both;
 }
 .sm { max-width: 400px; }
 .md { max-width: 560px; }
@@ -93,10 +95,14 @@
 .innerFoot { display: flex; justify-content: flex-end; gap: 8px; }
 
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes dialogIn {
+  from { opacity: 0; transform: translateY(6px) scale(.995); }
+  to { opacity: 1; transform: none; }
+}
 @keyframes slideIn { from { transform: translateX(16px); opacity: 0.6; } to { transform: none; opacity: 1; } }
 
 @media (prefers-reduced-motion: reduce) {
-  .overlay, .drawer { animation: none; }
+  .overlay, .drawer, .panel { animation: none; }
 }
 
 /* 移动端：Dialog 占满窗口（全屏），Drawer 全宽。

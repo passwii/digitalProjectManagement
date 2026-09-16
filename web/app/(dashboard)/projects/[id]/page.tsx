@@ -4,202 +4,147 @@ import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
-  DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE, buildQuery, errText, projectsApi, unwrapPaged,
-  type Attachment, type Followup, type Project, type ProjectChange,
+  errText, expensesApi, fetchObjectUrl, projectsApi, tasksApi, unwrapPaged,
+  type Attachment, type Expense, type Project, type ProjectChange, type Task,
 } from "@/lib/api";
-import { isAbortError } from "@/lib/useAsyncData";
-import { parseTarget, rowClass, useTargetScroll } from "@/lib/deepLink";
-import { useMeta, useMenus } from "@/lib/useMeta";
-import {
-  PROJECT_FLOW, fmtDate, fmtDateTime, fmtMoney, projectStatusLabel, projectTone,
-} from "@/lib/labels";
+import { useMeta } from "@/lib/useMeta";
+import { expenseStatusLabel, expenseTone, fmtDate, fmtDateTime, fmtMoney } from "@/lib/labels";
 import Badge from "@/components/ui/Badge";
 import Empty from "@/components/ui/Empty";
-import Pagination from "@/components/ui/Pagination";
-import ProgressBar from "@/components/ui/ProgressBar";
-import { Confirm } from "@/components/ui/Modal";
+import { LoadingBlock } from "@/components/ui/PageState";
+import { Dialog } from "@/components/ui/Modal";
 import { useToast } from "@/components/ui/Toast";
 import ProjectFormDialog from "../ProjectFormDialog";
-import FollowupDialog from "../FollowupDialog";
-import MembersDialog from "../MembersDialog";
+import ProgressNodeDialog from "../../progress/ProgressNodeDialog";
+import ExpenseDialog from "../../costs/ExpenseDialog";
 
-const TABS = ["基本", "变更", "附件", "跟进"] as const;
+const TABS = ["白板", "合同", "进度", "支出", "变更"] as const;
 type Tab = (typeof TABS)[number];
-const DESTRUCTIVE = new Set(["cancelled", "archived", "done"]);
 
-/** 只有这四项能直接作为业务对象拿到（其余 tab 不支持深链） */
-function parseTab(v: string | null): Tab {
-  return (TABS as readonly string[]).includes(v ?? "") ? (v as Tab) : "基本";
+function parseTab(raw: string | null): Tab {
+  if (raw && (TABS as readonly string[]).includes(raw)) return raw as Tab;
+  if (raw === "基本" || raw === "附件" || raw === "跟进") return "白板";
+  return "白板";
 }
 
 export default function ProjectDetailPage({ params }: { params: { id: string } }) {
-  // Next 14 的 App Router 传入已解析的 params（普通对象），不需要 use()
-  const pid = Number(params.id);
   return (
-    <Suspense fallback={<p className="muted">加载中…</p>}>
-      <ProjectDetailInner pid={pid} />
+    <Suspense fallback={<LoadingBlock kpis={0} label="加载项目档案…" />}>
+      <ProjectDetail pid={Number(params.id)} />
     </Suspense>
   );
 }
 
-function ProjectDetailInner({ pid }: { pid: number }) {
+function ProjectDetail({ pid }: { pid: number }) {
   const router = useRouter();
-  const sp = useSearchParams();
-  // 通知深链：?tab=跟进&followup=12 → 直接落到跟进页签并高亮那条跟进
-  const [tab, setTab] = useState<Tab>(() => parseTab(sp.get("tab")));
-  const followTarget = parseTarget(sp.get("followup"));
-  const { userName, deptName } = useMeta();
-  // 解归档仅管理员：按钮显示条件取后端菜单契约
-  const { isAdmin } = useMenus();
+  const search = useSearchParams();
+  const { userName } = useMeta();
   const toast = useToast();
-
+  const [tab, setTab] = useState<Tab>(() => parseTab(search.get("tab")));
   const [project, setProject] = useState<Project | null>(null);
-  const [err, setErr] = useState("");
-  const [busy, setBusy] = useState(false);
-
+  const [content, setContent] = useState("");
+  const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
+  const [assets, setAssets] = useState<Attachment[]>([]);
+  const [contracts, setContracts] = useState<Attachment[]>([]);
+  const [previews, setPreviews] = useState<Record<number, string>>({});
   const [changes, setChanges] = useState<ProjectChange[]>([]);
-  const [attachments, setAttachments] = useState<Attachment[]>([]);
-  const [followups, setFollowups] = useState<Followup[]>([]);
-  const [followTotal, setFollowTotal] = useState(0);
-  // 跟进子列表真实分页（详情页 Tab 状态不进 URL，用局部状态即可）
-  const [followPage, setFollowPage] = useState(1);
-  const [followSize, setFollowSize] = useState(DEFAULT_PAGE_SIZE);
-  // 增删跟进后按当前页重取（页码越界由 Pagination 的边界收敛回到合法页）
-  const [followTick, setFollowTick] = useState(0);
-  // 通知定位跟进中的中间态（跨页定位时展示进度，避免闪一下「不在可见范围」）
-  const [followLocating, setFollowLocating] = useState(false);
-  // 每个 (项目, 跟进) 只定位一次，避免列表重渲染反复查询
-  const followLocatedRef = useRef("");
-
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [expenses, setExpenses] = useState<Expense[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
   const [editOpen, setEditOpen] = useState(false);
-  const [followOpen, setFollowOpen] = useState(false);
-  const [editingFollow, setEditingFollow] = useState<Followup | null>(null);
-  const [membersOpen, setMembersOpen] = useState(false);
-  const [confirmTo, setConfirmTo] = useState<string | null>(null);
-  const [confirmDel, setConfirmDel] = useState<{ title: string; text?: string; run: () => Promise<void> } | null>(null);
-
-  const loadProject = useCallback(async () => {
+  const [nodeOpen, setNodeOpen] = useState(false);
+  const [editingTask, setEditingTask] = useState<Task | null>(null);
+  const [expenseOpen, setExpenseOpen] = useState(false);
+  const [filePreview, setFilePreview] = useState<Attachment | null>(null);
+  const previewUrlsRef = useRef<string[]>([]);
+  const hydratedRef = useRef(false);
+  const objectUrlFor = useCallback(async (a: Attachment) => {
     try {
-      setProject(await projectsApi.get(pid));
-    } catch (e) {
-      setErr(errText(e));
+      return await fetchObjectUrl(`/projects/${pid}/attachments/${a.id}/download`);
+    } catch {
+      return "";
     }
   }, [pid]);
 
-  useEffect(() => { loadProject(); }, [loadProject]);
-
-  // URL 的 ?tab= 变化（后退/前进、外链）时同步页签，并把页签选择写回 URL
-  useEffect(() => {
-    const fromUrl = parseTab(sp.get("tab"));
-    setTab(fromUrl);
-  }, [sp]);
-
-  const selectTab = useCallback(
-    (next: Tab) => {
-      setTab(next);
-      const params = new URLSearchParams(sp.toString());
-      params.set("tab", next);
-      if (next !== "跟进") params.delete("followup");
-      router.replace(`/projects/${pid}?${params.toString()}`, { scroll: false });
-    },
-    [router, sp, pid],
-  );
-
-  const loadTab = useCallback(async (signal?: AbortSignal) => {
+  const loadAll = useCallback(async () => {
+    setLoading(true);
+    setErr("");
     try {
-      if (tab === "变更") setChanges(await projectsApi.changes(pid, signal));
-      if (tab === "附件") setAttachments(await projectsApi.attachments(pid, signal));
-      if (tab === "跟进") {
-        // Stage 3A：跟进列表一律回分页信封（unwrapPaged 兼容旧裸数组）
-        const page = unwrapPaged<Followup>(
-          await projectsApi.followups(
-            pid,
-            buildQuery({ page: followPage, size: followSize, sort: "-id" }),
-            signal,
-          ),
-        );
-        setFollowups(page.items);
-        setFollowTotal(page.total);
+      const [p, assetRows, contractRows, changeRows, taskRows, expenseRows] = await Promise.all([
+        projectsApi.get(pid),
+        projectsApi.attachments(pid),
+        projectsApi.attachments(pid, "contract"),
+        projectsApi.changes(pid),
+        tasksApi.list(`?project_id=${pid}&page=1&size=100&sort=-plan_end`),
+        expensesApi.list(`?project_id=${pid}&page=1&size=100&sort=-exp_date`),
+      ]);
+      const pagedTasks = unwrapPaged<Task>(taskRows);
+      const pagedExpenses = unwrapPaged<Expense>(expenseRows);
+      setProject(p);
+      setContent(p.description || "");
+      setAssets(assetRows);
+      setContracts(contractRows);
+      setChanges(changeRows);
+      setTasks(pagedTasks.items);
+      setExpenses(pagedExpenses.items);
+      hydratedRef.current = true;
+
+      previewUrlsRef.current.forEach(URL.revokeObjectURL);
+      previewUrlsRef.current = [];
+      const imageRows = assetRows.filter((a) => (a.content_type || "").startsWith("image/"));
+      const pairs = await Promise.all(imageRows.map(async (a) => [a.id, await objectUrlFor(a)] as const));
+      const next: Record<number, string> = {};
+      for (const [id, url] of pairs) {
+        if (!url) continue;
+        next[id] = url;
+        previewUrlsRef.current.push(url);
       }
+      setPreviews(next);
     } catch (e) {
-      // 主动取消 / 组件卸载：不写任何状态（避免迟到响应覆盖当前 Tab）
-      if (isAbortError(e)) return;
       setErr(errText(e));
-    }
-  }, [tab, pid, followPage, followSize]);
-
-  const reloadFollows = useCallback(() => setFollowTick((t) => t + 1), []);
-
-  // 切 Tab / 切项目 / 离开详情时取消上一个请求，并用序号丢弃迟到响应
-  useEffect(() => {
-    const ac = new AbortController();
-    loadTab(ac.signal);
-    return () => ac.abort();
-  }, [loadTab, followTick]);
-
-  // 通知定位：跟进可能不在当前页（#9 起跟进已分页）→ 用一次上界窗口查到它的页码再跳过去；
-  // 窗口内也没有则如实说明「不在可见范围」，不让用户自己翻页找。
-  useEffect(() => {
-    if (!followTarget || followLocating) return;
-    if (tab !== "跟进") return;
-    if (followups.some((f) => f.id === followTarget)) {
-      setFollowLocating(false);
-      return;
-    }
-    const key = `${pid}:${followTarget}`;
-    if (followLocatedRef.current === key) return;
-    followLocatedRef.current = key;
-
-    let alive = true;
-    setFollowLocating(true);
-    projectsApi
-      .followups(pid, buildQuery({ page: 1, size: MAX_PAGE_SIZE, sort: "-id" }))
-      .then(unwrapPaged<Followup>)
-      .then((win) => {
-        if (!alive) return;
-        const idx = win.items.findIndex((f) => f.id === followTarget);
-        if (idx >= 0) {
-          const found = Math.floor(idx / followSize) + 1;
-          if (found !== followPage) setFollowPage(found);
-        }
-      })
-      .catch(() => {
-        /* 定位失败不阻断页面：下方会给出「不在可见范围」说明 */
-      })
-      .finally(() => {
-        if (alive) setFollowLocating(false);
-      });
-
-    return () => {
-      alive = false;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tab, pid, followTarget, followups, followPage, followSize]);
-
-  // 命中行滚动入视口 + 聚焦其操作按钮
-  useTargetScroll(followTarget, tab === "跟进" && followups.length > 0);
-
-  async function changeStatus(to: string) {
-    setBusy(true);
-    try {
-      const updated = await projectsApi.status(pid, to, "页面流转");
-      setProject(updated);
-      toast.ok(`已流转为「${projectStatusLabel(updated.status)}」`);
-      if (tab === "变更") loadTab();
-    } catch (e) {
-      toast.err(errText(e));
     } finally {
-      setBusy(false);
-      setConfirmTo(null);
+      setLoading(false);
     }
+  }, [objectUrlFor, pid]);
+
+  useEffect(() => { loadAll(); }, [loadAll]);
+  useEffect(() => () => previewUrlsRef.current.forEach(URL.revokeObjectURL), []);
+  useEffect(() => {
+    const t = parseTab(search.get("tab"));
+    setTab(t);
+  }, [search]);
+
+  useEffect(() => {
+    if (!project || !hydratedRef.current) return;
+    if (content === (project.description || "")) return;
+    const timer = window.setTimeout(async () => {
+      setSaveState("saving");
+      try {
+        const saved = await projectsApi.update(pid, { description: content });
+        setProject(saved);
+        setSaveState("saved");
+      } catch {
+        setSaveState("error");
+      }
+    }, 900);
+    return () => window.clearTimeout(timer);
+  }, [content, pid, project]);
+
+  function selectTab(next: Tab) {
+    setTab(next);
+    const q = new URLSearchParams(search.toString());
+    q.set("tab", next);
+    router.replace(`/projects/${pid}?${q.toString()}`, { scroll: false });
   }
 
-  async function uploadFile(file: File) {
+  async function uploadAsset(file: File) {
     setBusy(true);
     try {
       await projectsApi.upload(pid, file);
-      toast.ok("附件已上传");
-      setAttachments(await projectsApi.attachments(pid));
+      toast.ok("图片已上传到项目白板");
+      await loadAll();
     } catch (e) {
       toast.err(errText(e));
     } finally {
@@ -207,12 +152,15 @@ function ProjectDetailInner({ pid }: { pid: number }) {
     }
   }
 
-  async function confirmProgress() {
+  async function uploadContract(files: FileList | null) {
+    if (!files?.length) return;
     setBusy(true);
     try {
-      const r = await projectsApi.confirmProgress(pid);
-      toast.ok(`已确认并快照当前进度 ${r.progress}%`);
-      await loadProject();
+      for (const file of Array.from(files)) {
+        await projectsApi.upload(pid, file, "contract");
+      }
+      toast.ok("合同附件已上传");
+      setContracts(await projectsApi.attachments(pid, "contract"));
     } catch (e) {
       toast.err(errText(e));
     } finally {
@@ -220,307 +168,294 @@ function ProjectDetailInner({ pid }: { pid: number }) {
     }
   }
 
-  if (err && !project) return <div className="err-banner">{err}</div>;
-  if (!project) return <p className="muted">加载中…</p>;
+  async function download(a: Attachment) {
+    try {
+      await projectsApi.downloadAttachment(pid, a.id, a.filename);
+    } catch (e) {
+      toast.err(errText(e));
+    }
+  }
 
-  const nextStatuses = (PROJECT_FLOW[project.status] ?? []).filter(
-    // archived → doing（解归档）仅管理员可操作
-    (to) => !(project.status === "archived" && to === "doing" && !isAdmin)
-  );
+  async function removeAsset(a: Attachment) {
+    setBusy(true);
+    try {
+      await projectsApi.deleteAttachment(pid, a.id);
+      toast.ok("素材已移除");
+      await loadAll();
+    } catch (e) {
+      toast.err(errText(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (loading && !project) return <LoadingBlock kpis={2} label="加载项目档案…" />;
+  if (err && !project) return <div className="err-banner">{err}</div>;
+  if (!project) return <Empty title="项目不存在" hint="项目可能已删除，或当前账号无权访问。" />;
+
+  const owner = project.owner_name || userName(project.owner_id);
+  const spent = expenses
+    .filter((x) => ["approved", "exception"].includes(x.status))
+    .reduce((sum, x) => sum + x.amount, 0);
 
   return (
     <div>
-      <div className="page-head">
-        <h1 className="ellipsis" style={{ maxWidth: "100%" }} title={project.name}>
-          {project.name}
-          <span className="sub mono">{project.code}</span>
-        </h1>
-        <div className="actions">
-          <button className="btn-ghost" onClick={() => setEditOpen(true)}>编辑</button>
-          <Link className="btn-ghost" href={`/progress?project_id=${project.id}`}>进度</Link>
-          <Link className="btn-ghost" href={`/costs?project_id=${project.id}`}>成本</Link>
-          <Link className="btn-ghost" href="/projects">返回列表</Link>
+      <div className="page-head project-detail-head">
+        <div>
+          <div className="eyebrow">项目完整档案</div>
+          <h1>
+            <span className="ellipsis" title={project.name}>{project.name}</span>
+            <span className="sub mono">{project.code}</span>
+          </h1>
+          <div className="project-meta">
+            <span>负责人：{owner || "-"}</span>
+            <span>客户：{project.client || "-"}</span>
+            <span>合同：{project.contract_status || "未登记"}</span>
+          </div>
         </div>
-      </div>
-
-      <div className="kpi-row">
-        <div className="kpi"><div className="k">状态</div><div className="v"><Badge status={projectStatusLabel(project.status)} tone={projectTone(project.status)} /></div></div>
-        <div className="kpi"><div className="k">加权进度</div><div className="v mono">{project.progress ?? 0}%</div><ProgressBar value={project.progress ?? 0} tone="brand" /></div>
-        <div className="kpi"><div className="k">负责人</div><div className="v" style={{ fontSize: 15 }}>{userName(project.owner_id)}</div></div>
-        <div className="kpi"><div className="k">预算总额</div><div className="v mono">{fmtMoney(project.budget_total)}</div></div>
+        <div className="actions no-print">
+          <button className="btn-ghost" onClick={() => setEditOpen(true)}>编辑项目</button>
+          <Link className="btn-ghost" href={`/progress?project_id=${pid}`}>进度跟踪</Link>
+          <Link className="btn-ghost" href={`/costs?project_id=${pid}`}>支出记录</Link>
+          <Link className="btn-ghost" href="/projects">返回台账</Link>
+        </div>
       </div>
 
       {err && <div className="err-banner">{err}</div>}
 
-      <div className="tabs">
+      <div className="tabs detail-tabs">
         {TABS.map((t) => (
           <button key={t} className={tab === t ? "active" : ""} onClick={() => selectTab(t)}>{t}</button>
         ))}
       </div>
 
-      {tab === "基本" && (
-        <div className="card">
-          <dl className="kv">
-            <div><dt>项目类型</dt><dd>{project.type || "-"}</dd></div>
-            <div><dt>所属部门</dt><dd>{deptName(project.dept_id)}</dd></div>
-            <div><dt>客户 / 委托方</dt><dd>{project.client || "-"}</dd></div>
-            <div><dt>优先级</dt><dd>{project.priority}</dd></div>
-            <div><dt>计划起止</dt><dd className="mono">{fmtDate(project.plan_start)} ~ {fmtDate(project.plan_end)}</dd></div>
-            <div className="span-2">
-              <dt>项目成员</dt>
-              <dd style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-                <span>{project.member_ids.map((m) => userName(m)).join("、") || "-"}</span>
-                <button className="btn-ghost no-print" style={{ height: 26, lineHeight: "24px", padding: "0 8px", fontSize: 12 }} onClick={() => setMembersOpen(true)}>
-                  管理成员
-                </button>
-              </dd>
+      {tab === "白板" && (
+        <section className="whiteboard-shell">
+          <div className="whiteboard-toolbar">
+            <div>
+              <strong>项目白板</strong>
             </div>
-            <div className="span-2"><dt>项目简介</dt><dd>{project.description || "-"}</dd></div>
-          </dl>
-
-          <div style={{ marginTop: 16, paddingTop: 12, borderTop: "1px solid var(--line-soft)", display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-            <button className="btn-ghost" disabled={busy} onClick={confirmProgress}>确认进度快照</button>
-            {nextStatuses.map((to) =>
-              DESTRUCTIVE.has(to) ? (
-                <button key={to} className="btn-ghost" onClick={() => setConfirmTo(to)}>→ {projectStatusLabel(to)}</button>
-              ) : (
-                <button key={to} className="btn-ghost" disabled={busy} onClick={() => changeStatus(to)}>→ {projectStatusLabel(to)}</button>
-              )
-            )}
-            {project.status === "archived" && !isAdmin && nextStatuses.length === 0 && (
-              <span className="muted" style={{ fontSize: 12 }}>项目已归档且为只读，解除归档需管理员操作。</span>
-            )}
+            <div className="whiteboard-actions">
+              <span className={`save-state ${saveState}`}>
+                {saveState === "saving" ? "保存中…" : saveState === "saved" ? "已自动保存" : saveState === "error" ? "保存失败" : "自动保存"}
+              </span>
+              <label className="btn-ghost btn-file">
+                {busy ? "上传中…" : "上传图片"}
+                <input
+                  type="file"
+                  accept="image/*"
+                  disabled={busy}
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    if (f) uploadAsset(f);
+                    e.target.value = "";
+                  }}
+                />
+              </label>
+            </div>
           </div>
-        </div>
+          <textarea
+            className="whiteboard-editor"
+            value={content}
+            onChange={(e) => { setSaveState("idle"); setContent(e.target.value); }}
+            placeholder="在这里记录项目背景、目标、会议结论、现场情况或下一步安排…"
+          />
+          <div className="whiteboard-assets">
+            {assets.length === 0 ? (
+              <div className="whiteboard-empty">上传的图片会依次显示在这里，形成项目素材墙。</div>
+            ) : assets.map((a) => (
+              <figure className="asset-tile" key={a.id}>
+                {(a.content_type || "").startsWith("image/") && previews[a.id] ? (
+                  <button type="button" className="asset-preview" onClick={() => setFilePreview(a)}>
+                    <img src={previews[a.id]} alt={a.filename} />
+                  </button>
+                ) : (
+                  <div className="asset-file">FILE</div>
+                )}
+                <figcaption>
+                  <span className="ellipsis" title={a.filename}>{a.filename}</span>
+                  <span className="asset-actions">
+                    <button type="button" onClick={() => download(a)}>下载</button>
+                    <button type="button" className="danger-link" onClick={() => removeAsset(a)}>移除</button>
+                  </span>
+                </figcaption>
+              </figure>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {tab === "合同" && (
+        <section className="card detail-section">
+          <div className="section-head">
+            <div>
+              <h2>合同档案</h2>
+            </div>
+            <label className="btn-primary btn-file">
+              {busy ? "上传中…" : "上传合同附件"}
+              <input
+                type="file"
+                multiple
+                accept=".pdf,.docx,.xlsx,.png,.jpg,.jpeg"
+                disabled={busy}
+                onChange={(e) => { uploadContract(e.target.files); e.target.value = ""; }}
+              />
+            </label>
+          </div>
+          <div className="contract-grid">
+            <div className="contract-card">
+              <span>合同状态</span>
+              <Badge status={project.contract_status || "未登记"} tone={project.contract_status === "已签订" ? "done" : "todo"} />
+            </div>
+            <div className="contract-card">
+              <span>前向合同（甲方）</span>
+              <strong>{project.forward_contract || "-"}</strong>
+            </div>
+            <div className="contract-card">
+              <span>后向合同（乙方）</span>
+              <strong>{project.backward_contract || "-"}</strong>
+            </div>
+          </div>
+          {contracts.length === 0 ? (
+            <Empty title="暂无合同附件" hint="上传合同扫描件或电子文件后，会在这里统一归档。" />
+          ) : (
+            <div className="attachment-list">
+              {contracts.map((a) => (
+                <div className="attachment-row" key={a.id}>
+                  <span className="attachment-name" title={a.filename}>{a.filename}</span>
+                  <span className="tiny">{(a.size / 1024).toFixed(1)} KB · {fmtDateTime(a.uploaded_at)}</span>
+                  <button className="linklike" onClick={() => download(a)}>下载</button>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+      )}
+
+      {tab === "进度" && (
+        <section className="card detail-section">
+          <div className="section-head">
+            <div>
+              <h2>进度记录</h2>
+            </div>
+            <button className="btn-primary" onClick={() => { setEditingTask(null); setNodeOpen(true); }}>+ 添加进度</button>
+          </div>
+          {tasks.length === 0 ? (
+            <Empty title="暂无进度" hint="点击「添加进度」记录第一条项目进展。" />
+          ) : (
+            <div className="table-scroll">
+              <table className="grid">
+                <thead><tr><th>进度节点时间</th><th>进度关键内容</th><th>记录人</th><th className="no-print" /></tr></thead>
+                <tbody>
+                  {tasks.map((t) => (
+                    <tr key={t.id}>
+                      <td className="mono">{fmtDate(t.plan_end || t.plan_start)}</td>
+                      <td><span className="ellipsis" title={t.name}>{t.name}</span></td>
+                      <td>{userName(t.owner_id)}</td>
+                      <td className="no-print">
+                        <button className="btn-ghost btn-xs" onClick={() => { setEditingTask(t); setNodeOpen(true); }}>编辑</button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+      )}
+
+      {tab === "支出" && (
+        <section className="card detail-section">
+          <div className="section-head">
+            <div>
+              <h2>项目支出</h2>
+              <p>项目预算 {fmtMoney(project.budget_total)} 元 · 已登记支出 {fmtMoney(spent)} 元</p>
+            </div>
+            <button className="btn-primary" onClick={() => setExpenseOpen(true)}>+ 支出</button>
+          </div>
+          {expenses.length === 0 ? (
+            <Empty title="暂无支出" hint="点击「+ 支出」登记项目关联费用。" />
+          ) : (
+            <div className="table-scroll">
+              <table className="grid">
+                <thead><tr><th>日期</th><th>人员</th><th className="num">金额</th><th>费用说明</th><th>状态</th></tr></thead>
+                <tbody>
+                  {expenses.map((x) => (
+                    <tr key={x.id}>
+                      <td className="mono">{fmtDate(x.exp_date)}</td>
+                      <td>{x.subject}</td>
+                      <td className="num">{fmtMoney(x.amount)}</td>
+                      <td><span className="ellipsis" title={x.note}>{x.note || "-"}</span></td>
+                      <td><Badge status={expenseStatusLabel(x.status)} tone={expenseTone(x.status)} /></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
       )}
 
       {tab === "变更" && (
-        <div className="card">
+        <section className="card detail-section">
+          <div className="section-head">
+            <div>
+              <h2>操作记录</h2>
+            </div>
+          </div>
           {changes.length === 0 ? (
-            <Empty title="暂无变更记录" hint="项目字段或状态变更后会自动留痕。" />
+            <Empty title="暂无变更记录" hint="修改项目信息后，系统会自动记录变更。" />
           ) : (
             <ul className="timeline">
               {changes.map((c) => (
                 <li key={c.id}>
                   <span className="t mono">{fmtDateTime(c.at)}</span>
-                  <span>
-                    <b>{c.field}</b>：<span className="muted">{c.old ?? "空"}</span> → <span className="mono">{c.new ?? "空"}</span>
-                    <span className="tiny"> · {userName(c.by_id)}</span>
-                  </span>
+                  <span><b>{c.field}</b>：<span className="muted">{c.old || "空"}</span> → <span>{c.new || "空"}</span></span>
                 </li>
               ))}
             </ul>
           )}
-        </div>
-      )}
-
-      {tab === "附件" && (
-        <div className="card">
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10, gap: 12, flexWrap: "wrap" }}>
-            <span className="muted" style={{ fontSize: 13 }}>支持 pdf / docx / xlsx / png / jpg，单文件 ≤ 20MB</span>
-            <label className="btn-ghost" style={{ display: "inline-flex", alignItems: "center", height: 32, cursor: "pointer" }}>
-              上传附件
-              <input type="file" style={{ display: "none" }} accept=".pdf,.docx,.xlsx,.png,.jpg,.jpeg"
-                onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadFile(f); e.target.value = ""; }} />
-            </label>
-          </div>
-          {attachments.length === 0 ? (
-            <Empty title="暂无附件" hint="可上传立项书、合同扫描件、需求文档等。" />
-          ) : (
-            <table className="grid">
-              <thead><tr><th>文件名</th><th className="num">大小</th><th>上传人</th><th>上传时间</th><th className="no-print" /></tr></thead>
-              <tbody>
-                {attachments.map((a) => (
-                  <tr key={a.id}>
-                    <td className="ellipsis" title={a.filename}>{a.filename}</td>
-                    <td className="num">{(a.size / 1024).toFixed(1)} KB</td>
-                    <td>{userName(a.uploaded_by)}</td>
-                    <td className="mono tiny">{fmtDateTime(a.uploaded_at)}</td>
-                    <td className="no-print">
-                      <span style={{ display: "inline-flex", gap: 6 }}>
-                        <button
-                          className="btn-ghost"
-                          style={{ height: 26, lineHeight: "24px", padding: "0 8px", fontSize: 12 }}
-                          onClick={async () => {
-                            try {
-                              await projectsApi.downloadAttachment(pid, a.id, a.filename);
-                              toast.ok(`已开始下载 ${a.filename}`);
-                            } catch (e) {
-                              toast.err(errText(e));
-                            }
-                          }}
-                        >
-                          下载
-                        </button>
-                        <button
-                          className="btn-ghost"
-                          style={{ height: 26, lineHeight: "24px", padding: "0 8px", fontSize: 12, color: "var(--danger)", borderColor: "var(--line-danger)" }}
-                          onClick={() =>
-                            setConfirmDel({
-                              title: `删除附件「${a.filename}」？`,
-                              text: "文件将从服务器一并移除，操作不可撤销。",
-                              run: async () => {
-                                await projectsApi.deleteAttachment(pid, a.id);
-                                toast.ok("附件已删除");
-                                setAttachments(await projectsApi.attachments(pid));
-                              },
-                            })
-                          }
-                        >
-                          删除
-                        </button>
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </div>
-      )}
-
-      {tab === "跟进" && (
-        <div className="card">
-          <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 10 }}>
-            <button className="btn-primary" style={{ width: "auto" }} onClick={() => { setEditingFollow(null); setFollowOpen(true); }}>+ 新增跟进</button>
-          </div>
-          {followups.length === 0 ? (
-            <Empty title="暂无跟进记录" hint="记录每次沟通，并可设置到期提醒。" />
-          ) : (
-            <>
-              {followTotal > followups.length && (
-                <div className="muted tiny" style={{ marginBottom: 8 }}>
-                  共 {followTotal} 条跟进，当前显示第 {followPage} 页的 {followups.length} 条
-                </div>
-              )}
-              {/* 通知定位到一条不在当前页的跟进：说明原因并给出出口，不让用户自己翻页找 */}
-              {followTarget > 0 && !followups.some((f) => f.id === followTarget) && !followLocating && (
-                <div className="warn-banner" role="alert" style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
-                  <span style={{ flex: 1, minWidth: 200 }}>
-                    通知指向的跟进记录（#{followTarget}）不在可见范围内，可能已被删除。
-                  </span>
-                  <button type="button" className="btn-ghost" onClick={() => router.replace(`/projects/${pid}?tab=%E8%B7%9F%E8%BF%9B`, { scroll: false })}>
-                    清除定位
-                  </button>
-                </div>
-              )}
-              {followTarget > 0 && followLocating && (
-                <div className="muted tiny" role="status" style={{ marginBottom: 8 }}>正在定位该跟进记录…</div>
-              )}
-              <ul className="timeline">
-              {followups.map((f) => (
-                <li key={f.id} data-target-id={f.id} className={rowClass(undefined, f.id === followTarget)}>
-                  <span className="t mono">{fmtDateTime(f.happened_at)}</span>
-                  <span style={{ flex: 1 }}>
-                    <Badge status={f.method || "跟进"} />
-                    <div>{f.content || "-"}</div>
-                    {f.next_step && <div className="muted" style={{ fontSize: 12 }}>下一步：{f.next_step}</div>}
-                    {f.remind_at && <div className="chip warn" style={{ marginTop: 4 }}>提醒 {fmtDateTime(f.remind_at)}</div>}
-                    {f.id === followTarget && <div className="tiny">来自通知</div>}
-                    <div className="tiny" style={{ marginTop: 2 }}>{userName(f.user_id)}</div>
-                  </span>
-                  <span className="no-print" style={{ display: "inline-flex", gap: 6, alignSelf: "flex-start" }}>
-                    <button className="btn-ghost" style={{ height: 26, lineHeight: "24px", padding: "0 8px", fontSize: 12 }}
-                      onClick={() => { setEditingFollow(f); setFollowOpen(true); }}>
-                      编辑
-                    </button>
-                    <button
-                      className="btn-ghost"
-                      style={{ height: 26, lineHeight: "24px", padding: "0 8px", fontSize: 12, color: "var(--danger)", borderColor: "var(--line-danger)" }}
-                      onClick={() =>
-                        setConfirmDel({
-                          title: "删除这条跟进记录？",
-                          text: "删除后不可恢复。",
-                          run: async () => {
-                            await projectsApi.deleteFollowup(pid, f.id);
-                            toast.ok("跟进记录已删除");
-                            reloadFollows();
-                          },
-                        })
-                      }
-                    >
-                      删除
-                    </button>
-                  </span>
-                </li>
-              ))}
-              </ul>
-              <Pagination
-                page={followPage}
-                size={followSize}
-                total={followTotal}
-                loading={busy}
-                scopeText="跟进记录"
-                ariaLabel="跟进记录分页"
-                onChange={(next) => {
-                  setFollowPage(next.page);
-                  setFollowSize(next.size);
-                }}
-              />
-            </>
-          )}
-        </div>
+        </section>
       )}
 
       <ProjectFormDialog
         open={editOpen}
         onClose={() => setEditOpen(false)}
         project={project}
-        onSaved={(saved) => {
-          toast.ok("项目信息已保存（变更已留痕）");
-          setProject(saved);
-          setEditOpen(false);
-          loadTab();
-        }}
+        onSaved={(saved) => { setProject(saved); toast.ok("项目信息已保存"); }}
       />
-
-      <FollowupDialog
-        open={followOpen}
-        onClose={() => setFollowOpen(false)}
+      <ProgressNodeDialog
+        open={nodeOpen}
+        onClose={() => setNodeOpen(false)}
         projectId={pid}
-        followup={editingFollow}
-        onSaved={(isNew) => { toast.ok(isNew ? "跟进记录已新增" : "跟进记录已保存"); loadTab(); }}
-      />
-
-      <MembersDialog
-        open={membersOpen}
-        onClose={() => setMembersOpen(false)}
-        project={project}
-        onSaved={(saved) => { toast.ok("项目成员已更新"); setProject(saved); }}
-      />
-
-      <Confirm
-        open={!!confirmDel}
-        danger
-        loading={busy}
-        title={confirmDel?.title ?? ""}
-        text={confirmDel?.text}
-        okText="确认删除"
-        onConfirm={async () => {
-          if (!confirmDel) return;
-          setBusy(true);
-          try {
-            await confirmDel.run();
-          } catch (e) {
-            toast.err(errText(e));
-          } finally {
-            setBusy(false);
-            setConfirmDel(null);
-          }
+        task={editingTask}
+        onSaved={async () => {
+          toast.ok(editingTask ? "进度已更新" : "进度已添加");
+          const rows = await tasksApi.list(`?project_id=${pid}&page=1&size=100&sort=-plan_end`);
+          setTasks(unwrapPaged<Task>(rows).items);
         }}
-        onCancel={() => setConfirmDel(null)}
       />
-
-      <Confirm
-        open={!!confirmTo}
-        danger
-        loading={busy}
-        title={`确认流转为「${confirmTo ? projectStatusLabel(confirmTo) : ""}」？`}
-        text={confirmTo === "archived" ? "归档后项目变为只读，需管理员解除归档。" : "该操作会记入变更留痕。"}
-        okText="确认流转"
-        onConfirm={() => confirmTo && changeStatus(confirmTo)}
-        onCancel={() => setConfirmTo(null)}
+      <ExpenseDialog
+        open={expenseOpen}
+        onClose={() => setExpenseOpen(false)}
+        projectId={pid}
+        onSaved={async (msg) => {
+          toast.ok(msg);
+          const rows = await expensesApi.list(`?project_id=${pid}&page=1&size=100&sort=-exp_date`);
+          setExpenses(unwrapPaged<Expense>(rows).items);
+        }}
       />
+      <Dialog
+        open={!!filePreview}
+        onClose={() => setFilePreview(null)}
+        size="lg"
+        title={filePreview?.filename || "图片预览"}
+        footer={<button className="btn-primary" onClick={() => setFilePreview(null)}>关闭</button>}
+      >
+        {filePreview && previews[filePreview.id] && (
+          <img className="image-preview" src={previews[filePreview.id]} alt={filePreview.filename} />
+        )}
+      </Dialog>
     </div>
   );
 }

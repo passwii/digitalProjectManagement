@@ -3,7 +3,7 @@
 // 提交失败（超预算等业务错误）时**不清空表单**，用户改完可以直接重试。
 import { useEffect, useState } from "react";
 import { errText, expensesApi, type Expense } from "@/lib/api";
-import { SUBJECTS, todayISO } from "@/lib/labels";
+import { EXPENSE_PEOPLE, todayISO } from "@/lib/labels";
 import { useForm } from "@/lib/useForm";
 import { Dialog } from "@/components/ui/Modal";
 import Field from "@/components/ui/Field";
@@ -15,7 +15,7 @@ interface Values {
   note: string;
 }
 
-const BLANK: Values = { subject: "人工", amount: "", exp_date: "", note: "" };
+const BLANK: Values = { subject: EXPENSE_PEOPLE[0], amount: "", exp_date: "", note: "" };
 
 /** 被驳回单据 → 表单预填：让「修改后重新提交」不必重新敲一遍 */
 function fromExpense(x: Expense): Values {
@@ -96,7 +96,7 @@ export default function ExpenseDialog({
       open={open}
       onClose={onClose}
       dirty={form.dirty}
-      title={isResubmit ? `重新提交支出 · ${resubmitOf?.subject ?? ""}` : "登记支出"}
+      title={isResubmit ? `重新提交支出 · ${resubmitOf?.subject ?? ""}` : "添加支出"}
       footer={
         <>
           <button className="btn-ghost" onClick={onClose}>取消</button>
@@ -105,9 +105,9 @@ export default function ExpenseDialog({
       }
     >
       <div className="form-grid">
-        <Field label="科目" required>
+        <Field label="人员" required>
           <select value={form.values.subject} onChange={(e) => form.set("subject", e.target.value)}>
-            {SUBJECTS.map((s) => <option key={s} value={s}>{s}</option>)}
+            {EXPENSE_PEOPLE.map((s) => <option key={s} value={s}>{s}</option>)}
           </select>
         </Field>
         <Field label="支出金额（元）" required error={form.errors.amount}>
@@ -127,13 +127,7 @@ export default function ExpenseDialog({
         </Field>
       </div>
       {formErr && <div className="err-banner" style={{ marginTop: 10, marginBottom: 0 }} role="alert">{formErr}</div>}
-      {isResubmit ? (
-        <p className="tiny">
-          以被驳回的单据为模板新建一条记录（原单保留以便追溯）。请按审批意见调整金额或说明后提交。
-        </p>
-      ) : (
-        <p className="tiny">审批开关开启或超预算时转为「待审批」；审批关闭且超预算会被直接拦截，需调整预算或走特批。</p>
-      )}
+      {isResubmit && <p className="tiny">原单保留，按审批意见修改后重新提交。</p>}
     </Dialog>
   );
 }

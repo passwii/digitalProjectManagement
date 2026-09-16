@@ -14,7 +14,7 @@ COPY scripts /app/scripts
 # 数据目录（SQLite + 附件），由 compose 挂 volume 持久化
 RUN mkdir -p /app/data/files
 
-EXPOSE 8000
+EXPOSE 8001
 
 # 启动前建表 + 幂等种子，然后起服务
-CMD ["sh", "-c", "cd /app/api && alembic upgrade head && cd /app && python3 -m api.seed && uvicorn api.main:app --host 0.0.0.0 --port 8000"]
+CMD ["sh", "-c", "cd /app/api && alembic upgrade head && cd /app && python3 -m api.seed && uvicorn api.main:app --host 0.0.0.0 --port 8001"]

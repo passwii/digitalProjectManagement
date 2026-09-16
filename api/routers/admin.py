@@ -2,6 +2,7 @@
 
 权限契约（Stage 1 收敛）：所有接口统一走 core.rbac.require_admin，非管理员恒定 403。
 """
+import re
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -18,6 +19,7 @@ from ..core.security import hash_password
 from ..models import AuditLog, Dict, Project, Role, SysParam, User, UserRole
 
 router = APIRouter(prefix="/admin", tags=["admin"])
+PHONE_RE = re.compile(r"^1\d{10}$")
 
 # 统一门禁：定义在 core.rbac（唯一管理员判定来源），此处仅做别名以保持调用点简短
 _admin = require_admin
@@ -41,7 +43,7 @@ def _u(u: User):
 
 class UserIn(BaseModel):
     username: str
-    password: str = "123456"
+    password: str = "admin123456"
     real_name: str = ""
     dept_id: int | None = None
     roles: list[str] = []
@@ -68,10 +70,17 @@ def list_users(keyword: str = "", status: str = "", dept_id: int = 0, sort: str 
 @router.post("/users")
 def create_user(body: UserIn, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     _admin(user)
-    if db.query(User).filter_by(username=body.username).first():
-        raise HTTPException(400, "用户名已存在")
-    u = User(username=body.username, pwd_hash=hash_password(body.password),
+    username = str(body.username or "").strip()
+    if not PHONE_RE.match(username):
+        raise HTTPException(400, "登录账号须为 11 位手机号")
+    password = body.password or "admin123456"
+    if len(password) < 8 or not any(c.isalpha() for c in password) or not any(c.isdigit() for c in password):
+        raise HTTPException(400, "初始密码至少 8 位且需同时包含字母与数字")
+    if db.query(User).filter_by(username=username).first():
+        raise HTTPException(400, "手机号已存在")
+    u = User(username=username, pwd_hash=hash_password(password),
              real_name=body.real_name, dept_id=body.dept_id,
+             must_change_pwd=True,
              created_at=datetime.now(timezone.utc))
     db.add(u)
     db.flush()
@@ -79,7 +88,7 @@ def create_user(body: UserIn, db: Session = Depends(get_db), user: User = Depend
         r = db.query(Role).filter_by(code=code).first()
         if r:
             db.add(UserRole(user_id=u.id, role_id=r.id))
-    commit_audited(db, user.id, "create_user", "users", u.id, body.username)
+    commit_audited(db, user.id, "create_user", "users", u.id, username)
     return _u(db.query(User).filter_by(id=u.id).first())
 
 
@@ -95,7 +104,7 @@ def update_user(uid: int, body: dict, db: Session = Depends(get_db),
             setattr(u, f, body[f])
     if body.get("password"):
         u.pwd_hash = hash_password(body["password"])
-        u.must_change_pwd = False
+        u.must_change_pwd = True
     if "roles" in body:
         db.query(UserRole).filter_by(user_id=uid).delete()
         for code in body["roles"]:

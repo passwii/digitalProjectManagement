@@ -191,10 +191,10 @@ function AdminInner() {
           <>
             <div className="table-scroll">
               <table className="grid" aria-busy={users.loading}>
-                <thead><tr><th>账号</th><th>姓名</th><th>部门</th><th>角色</th><th>状态</th><th className="no-print" /></tr></thead>
+                <thead><tr><th>手机号</th><th>姓名</th><th>部门</th><th>角色</th><th>状态</th><th className="no-print" /></tr></thead>
                 <tbody>
                   {userItems.map((u) => (
-                    <tr key={u.id} style={{ cursor: "pointer" }} onClick={() => { setEditingUser(u); setUserOpen(true); }}>
+                    <tr key={u.id} className="clickable-row" onClick={() => { setEditingUser(u); setUserOpen(true); }}>
                       <td className="mono tiny">{u.username}</td>
                       <td>{u.real_name}</td>
                       <td className="muted">{deptName(u.dept_id)}</td>
@@ -267,7 +267,7 @@ function AdminInner() {
         dicts.firstLoad ? (
           <LoadingBlock kpis={0} label="加载字典…" />
         ) : dictItems.length === 0 ? (
-          <div className="card"><Empty title="暂无字典" hint="项目类型、优先级、科目等枚举可在此维护。" /></div>
+          <div className="card"><Empty title="暂无字典" hint="系统枚举可在此维护。" /></div>
         ) : (
           <div className="table-scroll">
             <table className="grid">
@@ -337,7 +337,7 @@ function AdminInner() {
                   <thead><tr><th>时间</th><th>操作人</th><th>动作</th><th>对象</th><th>详情</th><th>IP</th></tr></thead>
                   <tbody>
                     {logItems.map((l) => (
-                      <tr key={l.id} style={{ cursor: "pointer" }} onClick={() => setLogDetail(l)}>
+                      <tr key={l.id} className="clickable-row" onClick={() => setLogDetail(l)}>
                         <td className="mono tiny">{fmtDateTime(l.created_at)}</td>
                         <td>用户#{l.user_id ?? "-"}</td>
                         <td className="mono tiny">{l.action}</td>

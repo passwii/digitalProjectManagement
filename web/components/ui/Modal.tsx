@@ -188,6 +188,7 @@ export interface ConfirmProps {
   open: boolean;
   title: string;
   text?: React.ReactNode;
+  children?: React.ReactNode;
   okText?: string;
   cancelText?: string;
   danger?: boolean;
@@ -197,7 +198,7 @@ export interface ConfirmProps {
 }
 
 export function Confirm({
-  open, title, text, okText = "确定", cancelText = "取消", danger, loading, onConfirm, onCancel,
+  open, title, text, children, okText = "确定", cancelText = "取消", danger, loading, onConfirm, onCancel,
 }: ConfirmProps) {
   const { mounted, panelRef, requestClose } = useModalBehavior({ open, onRequestClose: onCancel });
   if (!mounted || !open) return null;
@@ -216,7 +217,7 @@ export function Confirm({
           <h2 className={st.title}>{title}</h2>
           <button className={st.close} onClick={requestClose} aria-label="关闭">✕</button>
         </header>
-        {text && <div className={st.body}>{text}</div>}
+        {(text || children) && <div className={st.body}>{text}{children}</div>}
         <footer className={st.foot}>
           <button className="btn-ghost" onClick={requestClose}>{cancelText}</button>
           <button

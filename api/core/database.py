@@ -1,5 +1,7 @@
-"""SQLite 单文件：WAL + busy_timeout 30s + 外键 ON。"""
+"""数据库连接：默认 SQLite，可用 DATABASE_URL 切换 PostgreSQL 等外部数据库。"""
+import os
 from pathlib import Path
+
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import declarative_base, sessionmaker
 
@@ -7,13 +9,34 @@ ROOT = Path(__file__).resolve().parents[2]
 DATA_DIR = ROOT / "data"
 DATA_DIR.mkdir(exist_ok=True)
 DB_PATH = DATA_DIR / "app.db"
-DB_URL = f"sqlite:///{DB_PATH}"
 
-engine = create_engine(DB_URL, connect_args={"check_same_thread": False, "timeout": 30})
+
+def _database_url() -> str:
+    raw = (os.getenv("DATABASE_URL") or "").strip()
+    if not raw:
+        return f"sqlite:///{DB_PATH}"
+    # 兼容常见 PaaS 的 postgres:// 前缀，统一落到 psycopg3 驱动。
+    if raw.startswith("postgres://"):
+        raw = "postgresql+psycopg://" + raw[len("postgres://"):]
+    elif raw.startswith("postgresql://"):
+        raw = "postgresql+psycopg://" + raw[len("postgresql://"):]
+    return raw
+
+
+DB_URL = _database_url()
+IS_SQLITE = DB_URL.startswith("sqlite")
+
+_engine_kwargs = {"pool_pre_ping": not IS_SQLITE}
+if IS_SQLITE:
+    _engine_kwargs["connect_args"] = {"check_same_thread": False, "timeout": 30}
+
+engine = create_engine(DB_URL, **_engine_kwargs)
 
 
 @event.listens_for(engine, "connect")
 def _sqlite_pragmas(dbapi_conn, _record):
+    if not IS_SQLITE:
+        return
     cur = dbapi_conn.cursor()
     cur.execute("PRAGMA journal_mode=WAL;")
     cur.execute("PRAGMA busy_timeout=30000;")
@@ -67,7 +90,8 @@ _FTS_DDL = [
 
 def ensure_fts(engine_) -> bool:
     """幂等创建 FTS5 全文检索表与触发器。环境不支持 FTS5/trigram 时返回 False（运行时回退 LIKE）。"""
-    from sqlalchemy import text as _text
+    if engine_.dialect.name != "sqlite":
+        return False
 
     with engine_.begin() as conn:
         for ddl in _FTS_DDL:

@@ -21,13 +21,13 @@ def upgrade():
     if not _has_column("projects", "is_demo"):
         # server_default 让存量行立刻有值（0=非演示），随后由回填写入演示标记
         op.add_column("projects", sa.Column("is_demo", sa.Boolean(), nullable=False,
-                                            server_default=sa.text("0")))
+                                            server_default=sa.false()))
         op.create_index("ix_projects_is_demo", "projects", ["is_demo"])
 
     # 存量回填：把早期由 seed_mock 写入的演示项目（编号 PJ-<年>-90xx）标记为演示数据。
     # 说明：seed_mock 早期版本没有 is_demo 字段，只能按编号区间识别；新版本会显式写入该字段。
     op.get_bind().exec_driver_sql(
-        "UPDATE projects SET is_demo = 1 WHERE code LIKE 'PJ-____-90__'"
+        "UPDATE projects SET is_demo = TRUE WHERE code LIKE 'PJ-____-90__'"
     )
 
 

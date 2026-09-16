@@ -29,6 +29,7 @@ export interface ApprovalNote {
  */
 const NOTE_FIELDS = [
   "reason",
+  "decision_reason",
   "decision_note",
   "reject_reason",
   "approval_note",

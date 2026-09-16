@@ -65,9 +65,9 @@ const ICON: Record<string, React.ReactNode> = {
 const LABEL: Record<string, string> = {
   "/dashboard": "工作台",
   "/projects": "项目台账",
-  "/progress": "进度跟进",
-  "/costs": "成本支出",
-  "/reports": "报表",
+  "/progress": "进度跟踪",
+  "/costs": "支出记录",
+  "/reports": "支出报表",
   "/approvals": "审批中心",
   "/admin": "系统管理",
 };
@@ -150,9 +150,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     <div className={`${s.shell} ${collapsed ? s.collapsed : ""}`}>
       <aside className={s.sidebar}>
         <div className={s.ws}>
-          <div className={s.wsName} title="项目管理工作区">
-            <span className={s.dot} />
-            <span className={s.label}>{collapsed ? "PM" : "项目管理工作区"}</span>
+          <div className={s.wsName} title="数慧致科OA管理平台">
+            <span className={s.brandSeal}>SH</span>
+            <span className={s.brandText}>
+              <b>数慧致科</b>
+              <small>OA管理平台</small>
+            </span>
           </div>
           <Link className={s.newBtn} href="/projects" title="新建项目">
             {collapsed ? "+" : "+ 新建项目"}
@@ -211,14 +214,26 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
       <div className={s.main}>
         <header className={s.topbar}>
-          <span className={s.crumb}>工作区 / <b>{current ? CRUMB[current] : "控制台"}</b></span>
-          <span className={s.topDate}>{today}</span>
-          <Bell />
-          <Avatar name={displayName} size={28} />
-          <button className={`${s.logoutBtn} no-print`} onClick={logout}>登出</button>
+          <div className={s.topContext}>
+            <span className={s.crumb}>数慧致科 / <b>{current ? CRUMB[current] : "控制台"}</b></span>
+            <span className={s.topHint}>项目全周期管理</span>
+          </div>
+          <div className={s.topActions}>
+            <span className={s.topDate}>{today}</span>
+            <Bell />
+            <div className={s.userChip}>
+              <Avatar name={displayName} size={30} />
+              <span className={s.userChipText}>
+                <b>{displayName}</b>
+                <small>{isAdmin ? "管理员" : "项目成员"}</small>
+              </span>
+            </div>
+          </div>
         </header>
         <main className={s.content} id="main-content" tabIndex={-1}>
-          <div className={s.contentInner}>{children}</div>
+          <div className={s.contentInner}>
+            <div key={pathname} className={s.routeView}>{children}</div>
+          </div>
         </main>
       </div>
     </div>

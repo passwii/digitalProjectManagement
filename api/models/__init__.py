@@ -50,17 +50,21 @@ class UserRole(Base):
 class Project(Base):
     __tablename__ = "projects"
     id = Column(Integer, primary_key=True)
-    code = Column(String(32), unique=True, nullable=False, index=True)  # PJ-2026-0001
+    code = Column(String(32), unique=True, nullable=False, index=True)  # PJ-2026-0001 或用户录入编号
     name = Column(String(128), unique=True, nullable=False)
     type = Column(String(32), default="")
     dept_id = Column(Integer, ForeignKey("departments.id"), nullable=True, index=True)
     owner_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
+    owner_name = Column(String(64), default="")
     plan_start = Column(Date, nullable=True)
     plan_end = Column(Date, nullable=True)
     budget_total = Column(Float, default=0)
     priority = Column(String(16), default="中")
     client = Column(String(128), default="")
     description = Column(Text, default="")
+    contract_status = Column(String(16), default="")  # 已签订 / 未签订
+    forward_contract = Column(String(128), default="")  # 前向合同（甲方）
+    backward_contract = Column(String(128), default="")  # 后向合同（乙方）
     status = Column(String(16), default="draft", index=True)
     # draft草稿/filed已立项/doing进行中/paused暂停/done已完成/archived已归档/cancelled已取消
     progress = Column(Float, default=0)

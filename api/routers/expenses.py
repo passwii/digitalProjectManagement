@@ -34,7 +34,11 @@ from ..models import Attachment, Expense, Project, SysParam, User
 
 router = APIRouter(prefix="/expenses", tags=["expenses"])
 
-SUBJECTS = {"人工", "采购", "外包", "差旅", "其他"}
+PEOPLE = {"张爱杰", "张玉军", "段佳奕", "段佳雷", "李智",
+          "朱成龙", "张涛", "田孝通", "李润康", "薛凡"}
+# `subject` 为兼容既有表结构的稳定存储字段；当前业务语义已调整为「支出人员」。
+# 仍接受历史科目值，确保存量单据可编辑、重提与审计不中断。
+SUBJECTS = PEOPLE | {"人工", "采购", "外包", "差旅", "其他"}
 VOUCHER_EXT = {".pdf", ".docx", ".xlsx", ".png", ".jpg", ".jpeg"}
 VOUCHER_MAX_SIZE = 20 * 1024 * 1024
 

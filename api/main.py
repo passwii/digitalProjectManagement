@@ -75,7 +75,7 @@ app = FastAPI(
 """,
 )
 
-# CORS：默认放行本地前端（3000/3001），可用 CORS_ORIGINS 覆盖（逗号分隔）
+# CORS：默认放行本地前端 3001（保留 3000 方便 Next dev），可用 CORS_ORIGINS 覆盖
 _default_origins = (
     "http://localhost:3000,http://127.0.0.1:3000,"
     "http://localhost:3001,http://127.0.0.1:3001"

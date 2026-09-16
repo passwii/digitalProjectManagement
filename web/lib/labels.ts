@@ -42,6 +42,14 @@ export const TASK_STATUS_ORDER = ["todo", "doing", "paused", "done"];
 
 export const SUBJECTS = ["人工", "采购", "外包", "差旅", "其他"];
 
+export const PROJECT_OWNERS = [
+  "张爱杰", "张玉军", "段佳奕", "段佳雷", "李智",
+  "朱成龙", "张涛", "田孝通", "李润康", "薛凡",
+] as const;
+
+export const EXPENSE_PEOPLE = PROJECT_OWNERS;
+export const CONTRACT_STATUSES = ["已签订", "未签订"] as const;
+
 export const FOLLOWUP_METHODS = ["电话", "会议", "现场", "邮件", "其他"];
 
 export const PRIORITIES = ["高", "中", "低"];

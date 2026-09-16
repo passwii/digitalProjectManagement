@@ -111,9 +111,9 @@ def menus(db: Session = Depends(get_db), user: User = Depends(get_current_user))
     admin = ROLE_ADMIN in codes
     items = [
         {"key": "projects", "label": "项目台账", "href": "/projects"},
-        {"key": "progress", "label": "进度跟进", "href": "/progress"},
-        {"key": "costs", "label": "成本支出", "href": "/costs"},
-        {"key": "reports", "label": "报表", "href": "/reports"},
+        {"key": "progress", "label": "进度跟踪", "href": "/progress"},
+        {"key": "costs", "label": "支出记录", "href": "/costs"},
+        {"key": "reports", "label": "支出报表", "href": "/reports"},
     ]
     if admin:
         items.append({"key": "approvals", "label": "审批中心", "href": "/approvals"})

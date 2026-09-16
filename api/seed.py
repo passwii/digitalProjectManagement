@@ -1,4 +1,4 @@
-"""种子：admin/admin123456（首次强制改密）+ 6 角色 + 字典 + 参数。"""
+"""种子：手机号管理员（首次强制改密）+ 6 角色 + 字典 + 参数。"""
 from .core.database import Base, SessionLocal, engine
 from .core.security import hash_password
 from .models import Department, Dict, Role, SysParam, User, UserRole
@@ -34,6 +34,9 @@ PARAMS = {
     "notify_dedup_days": ("1", "预警通知去重窗口（天），同一引用在窗口内不重复推送"),
 }
 
+INITIAL_ADMIN_USERNAME = "15796280534"
+INITIAL_ADMIN_PASSWORD = "admin123456"
+
 
 def main():
     Base.metadata.create_all(bind=engine)
@@ -54,9 +57,10 @@ def main():
         for k, (v, desc) in PARAMS.items():
             if not db.query(SysParam).filter_by(key=k).first():
                 db.add(SysParam(key=k, value=v, desc=desc))
-        admin = db.query(User).filter_by(username="admin").first()
+        admin = db.query(User).filter_by(username=INITIAL_ADMIN_USERNAME).first()
         if not admin:
-            admin = User(username="admin", pwd_hash=hash_password("admin123456"),
+            admin = User(username=INITIAL_ADMIN_USERNAME,
+                         pwd_hash=hash_password(INITIAL_ADMIN_PASSWORD),
                          real_name="系统管理员", dept_id=dept.id,
                          must_change_pwd=True)
             db.add(admin)
@@ -66,7 +70,7 @@ def main():
         if not db.query(UserRole).filter_by(user_id=admin.id, role_id=role.id).first():
             db.add(UserRole(user_id=admin.id, role_id=role.id))
         db.commit()
-        print("seed ok: admin/admin123456, roles=6, dicts, params")
+        print(f"seed ok: {INITIAL_ADMIN_USERNAME}/{INITIAL_ADMIN_PASSWORD}, roles=6, dicts, params")
     finally:
         db.close()
 

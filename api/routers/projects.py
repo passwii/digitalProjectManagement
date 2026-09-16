@@ -2,7 +2,7 @@
 from datetime import date, datetime, timezone
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from sqlalchemy import or_, text
@@ -59,17 +59,22 @@ TRANSITIONS = {
     "cancelled": set(),
 }
 ALLOWED_EXT = {".pdf", ".docx", ".xlsx", ".png", ".jpg", ".jpeg"}
+CONTRACT_STATUSES = {"已签订", "未签订"}
 MAX_SIZE = 20 * 1024 * 1024
 
 
 def _p(p: Project):
     return {"id": p.id, "code": p.code, "name": p.name, "type": p.type,
             "dept_id": p.dept_id, "owner_id": p.owner_id,
+            "owner_name": p.owner_name or "",
             "member_ids": [m.user_id for m in p.members],
             "plan_start": p.plan_start.isoformat() if p.plan_start else None,
             "plan_end": p.plan_end.isoformat() if p.plan_end else None,
             "budget_total": p.budget_total, "priority": p.priority,
             "client": p.client, "description": p.description,
+            "contract_status": p.contract_status or "",
+            "forward_contract": p.forward_contract or "",
+            "backward_contract": p.backward_contract or "",
             "status": p.status, "progress": p.progress}
 
 
@@ -124,10 +129,12 @@ def keyword_condition(db: Session, keyword: str):
 
 
 class ProjectIn(BaseModel):
+    code: str = ""
     name: str
     type: str = ""
     dept_id: int | None = None
     owner_id: int | None = None
+    owner_name: str = ""
     member_ids: list[int] = []
     plan_start: date | None = None
     plan_end: date | None = None
@@ -135,6 +142,27 @@ class ProjectIn(BaseModel):
     priority: str = "中"
     client: str = ""
     description: str = ""
+    contract_status: str = ""
+    forward_contract: str = ""
+    backward_contract: str = ""
+
+
+def _code(value: str) -> str:
+    return str(value or "").strip()
+
+
+def _owner(db: Session, owner_id: int | None, owner_name: str) -> tuple[int | None, str]:
+    selected_name = str(owner_name or "").strip()
+    if owner_id:
+        u = db.query(User).filter_by(id=owner_id).first()
+        if not u:
+            raise HTTPException(400, "项目负责人不存在")
+        return u.id, selected_name or u.real_name or u.username
+    if selected_name:
+        u = db.query(User).filter_by(real_name=selected_name).first()
+        if u:
+            return u.id, selected_name
+    return None, selected_name
 
 
 @router.get("")
@@ -222,8 +250,16 @@ def create_project(body: ProjectIn, db: Session = Depends(get_db),
                    user: User = Depends(get_current_user)):
     if not body.name:
         raise HTTPException(400, "项目名称必填")
+    code = _code(body.code)
+    if code and len(code) > 32:
+        raise HTTPException(400, "项目编号最多 32 个字符")
+    if code and db.query(Project).filter_by(code=code).first():
+        raise HTTPException(400, "项目编号已存在")
     if db.query(Project).filter_by(name=body.name).first():
         raise HTTPException(400, "项目名称已存在")
+    if body.contract_status and body.contract_status not in CONTRACT_STATUSES:
+        raise HTTPException(400, "合同状态须为「已签订」或「未签订」")
+    owner_id, owner_name = _owner(db, body.owner_id, body.owner_name)
     if body.plan_start and body.plan_end and body.plan_start > body.plan_end:
         raise HTTPException(400, "计划开始不能晚于结束")
     for _ in range(3):  # 并发取号重试（唯一索引兜底）
@@ -231,12 +267,16 @@ def create_project(body: ProjectIn, db: Session = Depends(get_db),
             # 立项审批开关：开启则项目进入「待立项审批」，由审批中心放行
             ap = db.query(SysParam).filter_by(key="project_approval_on").first()
             filing_on = bool(ap and ap.value == "1")
-            p = Project(code=_next_code(db), name=body.name, type=body.type,
+            p = Project(code=code or _next_code(db), name=body.name, type=body.type,
                         dept_id=body.dept_id if body.dept_id else user.dept_id,
-                        owner_id=body.owner_id or user.id, plan_start=body.plan_start,
+                        owner_id=owner_id or user.id, owner_name=owner_name,
+                        plan_start=body.plan_start,
                         plan_end=body.plan_end, budget_total=body.budget_total,
                         priority=body.priority, client=body.client,
                         description=body.description,
+                        contract_status=body.contract_status,
+                        forward_contract=body.forward_contract,
+                        backward_contract=body.backward_contract,
                         status="pending" if filing_on else "draft",
                         created_by=user.id)
             db.add(p)
@@ -285,14 +325,39 @@ def update_project(pid: int, body: dict, db: Session = Depends(get_db),
     p = _get(db, pid, user, write=True)
     if p.status == "archived":
         raise HTTPException(400, "已归档项目只读")
-    allowed = {"name", "type", "dept_id", "owner_id", "plan_start", "plan_end",
-               "budget_total", "priority", "client", "description"}
+    allowed = {"code", "name", "type", "dept_id", "owner_id", "owner_name",
+               "plan_start", "plan_end", "budget_total", "priority", "client",
+               "description", "contract_status", "forward_contract", "backward_contract"}
     now = datetime.now(timezone.utc)
     for f, v in body.items():
         if f == "member_ids":
             continue
         if f not in allowed:
             continue
+        if f == "code":
+            v = _code(v)
+            if not v:
+                raise HTTPException(400, "项目编号不能为空")
+            if len(v) > 32:
+                raise HTTPException(400, "项目编号最多 32 个字符")
+            if db.query(Project).filter(Project.code == v, Project.id != pid).first():
+                raise HTTPException(400, "项目编号已存在")
+        if f == "contract_status" and v not in ("", *CONTRACT_STATUSES):
+            raise HTTPException(400, "合同状态须为「已签订」或「未签订」")
+        if f == "owner_id":
+            owner_id, owner_name = _owner(db, int(v) if v else None, body.get("owner_name", p.owner_name))
+            if owner_id != p.owner_id:
+                old_owner = p.owner_id
+                p.owner_id = owner_id
+                db.add(ProjectChange(project_id=pid, field="owner_id", old=str(old_owner or ""),
+                                     new=str(owner_id or ""), by_id=user.id, at=now))
+            if owner_name != (p.owner_name or ""):
+                p.owner_name = owner_name
+                db.add(ProjectChange(project_id=pid, field="owner_name", old="", new=owner_name,
+                                     by_id=user.id, at=now))
+            continue
+        if f == "owner_name":
+            v = str(v or "").strip()
         if f in ("plan_start", "plan_end"):
             v = parse_date(v)
         old = getattr(p, f)
@@ -310,6 +375,9 @@ def update_project(pid: int, body: dict, db: Session = Depends(get_db),
                 db.add(ProjectMember(project_id=pid, user_id=uid))
         db.add(ProjectChange(project_id=pid, field="member_ids", old="", new=str(body["member_ids"]),
                              by_id=user.id, at=now))
+    if p.owner_id and "member_ids" not in body:
+        db.add(ProjectMember(project_id=pid, user_id=p.owner_id)) if not db.query(ProjectMember).filter_by(
+            project_id=pid, user_id=p.owner_id).first() else None
     commit_audited(db, user.id, "update_project", "projects", pid, str(list(body.keys())))
     return _p(p)
 
@@ -354,7 +422,8 @@ def list_changes(pid: int, db: Session = Depends(get_db), user: User = Depends(g
 
 
 @router.post("/{pid}/attachments")
-def upload(pid: int, file: UploadFile = File(...), db: Session = Depends(get_db),
+def upload(pid: int, file: UploadFile = File(...), ref_type: str = Form(""),
+           db: Session = Depends(get_db),
            user: User = Depends(get_current_user)):
     p = _get(db, pid, user, write=True)
     if p.status == "archived":
@@ -365,14 +434,16 @@ def upload(pid: int, file: UploadFile = File(...), db: Session = Depends(get_db)
     data = file.file.read()
     if len(data) > MAX_SIZE:
         raise HTTPException(400, "单文件最大 20MB")
-    d = ROOT / "data" / "files" / str(pid)
+    if ref_type not in ("", "contract"):
+        raise HTTPException(400, "附件类型不支持")
+    d = ROOT / "data" / "files" / str(pid) / (ref_type or "project")
     d.mkdir(parents=True, exist_ok=True)
     fp = d / file.filename
     fp.write_bytes(data)
     a = Attachment(project_id=pid, filename=file.filename, path=str(fp),
                    size=len(data), content_type=file.content_type or "",
                    uploaded_by=user.id, uploaded_at=datetime.now(timezone.utc),
-                   ref_type="", ref_id=None)
+                   ref_type=ref_type, ref_id=None)
     db.add(a)
     db.flush()
     commit_audited(db, user.id, "upload_attachment", "attachments", a.id, file.filename)
@@ -380,18 +451,25 @@ def upload(pid: int, file: UploadFile = File(...), db: Session = Depends(get_db)
 
 
 @router.get("/{pid}/attachments")
-def list_attachments(pid: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+def list_attachments(pid: int, ref_type: str = "", db: Session = Depends(get_db),
+                     user: User = Depends(get_current_user)):
     """项目附件列表（只含项目级附件）。
 
     支出凭证（`ref_type="expense"`）挂在同一张表上，必须按 `ref_type` 排除，
     否则项目附件列表会泄漏支出单据的凭证文件名与上传人。
     """
     _get(db, pid, user)
-    rows = db.query(Attachment).filter(
-        Attachment.project_id == pid,
-        or_(Attachment.ref_type == "", Attachment.ref_type.is_(None)),
-    ).all()
+    if ref_type not in ("", "contract"):
+        raise HTTPException(400, "附件类型不支持")
+    q = db.query(Attachment).filter(Attachment.project_id == pid)
+    if ref_type:
+        q = q.filter(Attachment.ref_type == ref_type)
+    else:
+        q = q.filter(or_(Attachment.ref_type == "", Attachment.ref_type.is_(None)))
+    rows = q.all()
     return [{"id": a.id, "filename": a.filename, "size": a.size,
+             "ref_type": a.ref_type or "",
+             "content_type": a.content_type or "",
              "uploaded_by": a.uploaded_by,
              "uploaded_at": a.uploaded_at.isoformat() if a.uploaded_at else None}
             for a in rows]
@@ -410,7 +488,7 @@ def download_attachment(pid: int, aid: int, db: Session = Depends(get_db),
     _get(db, pid, user)
     a = db.query(Attachment).filter(
         Attachment.id == aid, Attachment.project_id == pid,
-        or_(Attachment.ref_type == "", Attachment.ref_type.is_(None)),
+        or_(Attachment.ref_type.in_(("", "contract")), Attachment.ref_type.is_(None)),
     ).first()
     if not a:
         raise HTTPException(404, "附件不存在")
@@ -433,7 +511,7 @@ def delete_attachment(pid: int, aid: int, db: Session = Depends(get_db),
     _get(db, pid, user, write=True)
     a = db.query(Attachment).filter(
         Attachment.id == aid, Attachment.project_id == pid,
-        or_(Attachment.ref_type == "", Attachment.ref_type.is_(None)),
+        or_(Attachment.ref_type.in_(("", "contract")), Attachment.ref_type.is_(None)),
     ).first()
     if not a:
         raise HTTPException(404, "附件不存在")

@@ -43,6 +43,8 @@ def _rebuild_triggers(bind):
 
 def upgrade():
     bind = op.get_bind()
+    if bind.dialect.name != "sqlite":
+        return  # PostgreSQL 等数据库使用普通 LIKE 检索，不创建 SQLite FTS5 对象
     bind.exec_driver_sql("DROP TABLE IF EXISTS projects_fts")
     try:
         bind.exec_driver_sql(
@@ -62,7 +64,8 @@ def upgrade():
 
 def downgrade():
     bind = op.get_bind()
+    if bind.dialect.name != "sqlite":
+        return
     for name in ("projects_ai", "projects_ad", "projects_au"):
         bind.exec_driver_sql(f"DROP TRIGGER IF EXISTS {name}")
     bind.exec_driver_sql("DROP TABLE IF EXISTS projects_fts")
-

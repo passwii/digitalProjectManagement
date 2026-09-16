@@ -3,19 +3,19 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import {
-  Bar, BarChart, CartesianGrid, Cell, Legend, Line, LineChart, Pie, PieChart,
+  CartesianGrid, Cell, Legend, Line, LineChart, Pie, PieChart,
   ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from "recharts";
 import { dashboardApi, errText, type DashboardSummary, type Weekly } from "@/lib/api";
 import { useMe, useMeta, useMenus } from "@/lib/useMeta";
-import { COST_SCOPE_NOTE, HEALTH_LABEL, HEALTH_TONE, MONEY_LABEL, PROGRESS_LABEL, rateBadge } from "@/lib/kpi";
+import { HEALTH_LABEL, HEALTH_TONE, MONEY_LABEL, PROGRESS_LABEL, rateBadge } from "@/lib/kpi";
 import { fmtDate, fmtMoney, fmtPct, fmtDateTime, projectStatusLabel } from "@/lib/labels";
 import Badge from "@/components/ui/Badge";
 import Empty from "@/components/ui/Empty";
 import ProgressBar from "@/components/ui/ProgressBar";
 import { LoadingBlock } from "@/components/ui/PageState";
 
-const SUBJECT_COLORS = ["#2b5cff", "#0e7490", "#15803d", "#b45309", "#6d28d9"];
+const SUBJECT_COLORS = ["#1677FF", "#5B8DEF", "#7C5CFC", "#2C9C69", "#D48806"];
 
 export default function DashboardPage() {
   const { userName, deptName } = useMeta();
@@ -59,13 +59,13 @@ export default function DashboardPage() {
             {displayName || "当前用户"} 视角
             <span className="mono">
               {" · "}
-              {isAdmin ? "管理员 · 全局管理与审批" : "普通用户 · 项目参与"}
+              {isAdmin ? "管理员 · 全局" : "项目参与"}
             </span>
           </span>
         </h1>
         <div className="actions no-print">
           <button className="btn-ghost" onClick={load}>刷新</button>
-          <Link className="btn-ghost" href="/reports">成本报表</Link>
+          <Link className="btn-ghost" href="/reports">支出报表</Link>
           {isAdmin && (
             <Link className="btn-primary" href="/approvals" style={{ display: "inline-flex", alignItems: "center", padding: "0 14px" }}>
               待审批 {k.pending_approvals}
@@ -82,10 +82,8 @@ export default function DashboardPage() {
         ) : (
           <div className="kpi"><div className="k">未读通知</div><div className="v mono">{k.unread_notifications}</div><div className="tiny">审批结果会通过通知告知您</div></div>
         )}
-        <div className="kpi"><div className="k">{k.month} {MONEY_LABEL.spent}</div><div className="v mono">{fmtMoney(k.month_spent)}</div><div className="tiny">累计{MONEY_LABEL.rate} {fmtPct(k.total_rate)}</div></div>
+        <div className="kpi"><div className="k">{k.month} 支出</div><div className="v mono">{fmtMoney(k.month_spent)}</div><div className="tiny">按已通过支出统计</div></div>
       </div>
-      <p className="muted tiny" style={{ marginTop: -4, marginBottom: 12 }}>{COST_SCOPE_NOTE}。</p>
-
       <div className="split">
         <div className="card">
           <h3 className="section-title" style={{ marginTop: 0 }}>近 6 个月支出趋势</h3>
@@ -100,7 +98,7 @@ export default function DashboardPage() {
                   <YAxis tick={{ fontSize: 12, fill: "#8993a4" }} axisLine={false} tickLine={false} width={64}
                     tickFormatter={(v) => (Number(v) >= 10000 ? `${Math.round(Number(v) / 10000)}万` : String(v))} />
                   <Tooltip formatter={(v) => [`${fmtMoney(Number(v))} 元`, "支出"]} contentStyle={{ fontSize: 12, borderRadius: 6, border: "1px solid #e3e6eb" }} />
-                  <Line type="monotone" dataKey="spent" stroke="#2b5cff" strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 5 }} name="支出" />
+                  <Line type="monotone" dataKey="spent" stroke="#1677FF" strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 5 }} name="支出" />
                 </LineChart>
               </ResponsiveContainer>
             </div>
@@ -108,9 +106,9 @@ export default function DashboardPage() {
         </div>
 
         <div className="card">
-          <h3 className="section-title" style={{ marginTop: 0 }}>科目支出构成</h3>
+          <h3 className="section-title" style={{ marginTop: 0 }}>人员支出构成</h3>
           {data.by_subject.length === 0 ? (
-            <Empty title="暂无科目数据" hint="登记预算与支出后显示占比。" />
+            <Empty title="暂无人员支出数据" hint="登记支出后显示人员维度占比。" />
           ) : (
             <div style={{ width: "100%", height: 220 }}>
               <ResponsiveContainer>
@@ -127,28 +125,6 @@ export default function DashboardPage() {
             </div>
           )}
         </div>
-      </div>
-
-      <div className="card" style={{ marginTop: 16 }}>
-        <h3 className="section-title" style={{ marginTop: 0 }}>预算 vs 支出（按科目）</h3>
-        {data.by_subject.length === 0 ? (
-          <Empty title="暂无预算数据" hint="登记预算后显示对比。" />
-        ) : (
-          <div style={{ width: "100%", height: 240 }}>
-            <ResponsiveContainer>
-              <BarChart data={data.by_subject} margin={{ top: 8, right: 12, bottom: 0, left: 0 }}>
-                <CartesianGrid stroke="#eef0f4" vertical={false} />
-                <XAxis dataKey="subject" tick={{ fontSize: 12, fill: "#8993a4" }} axisLine={{ stroke: "#e3e6eb" }} tickLine={false} />
-                <YAxis tick={{ fontSize: 12, fill: "#8993a4" }} axisLine={false} tickLine={false} width={64}
-                  tickFormatter={(v) => (Number(v) >= 10000 ? `${Math.round(Number(v) / 10000)}万` : String(v))} />
-                <Tooltip formatter={(v) => `${fmtMoney(Number(v))} 元`} contentStyle={{ fontSize: 12, borderRadius: 6, border: "1px solid #e3e6eb" }} />
-                <Legend wrapperStyle={{ fontSize: 12 }} />
-                <Bar dataKey="budget" fill="#c7d7fe" name="预算" radius={[3, 3, 0, 0]} />
-                <Bar dataKey="spent" fill="#2b5cff" name="已支出" radius={[3, 3, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        )}
       </div>
 
       <div className="split" style={{ marginTop: 16 }}>

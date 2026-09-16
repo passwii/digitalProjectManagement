@@ -1118,3 +1118,57 @@ def test_sort_whitelist_orders(client):
     assert [x["amount"] for x in items(client.get(f"{base}&sort=-amount", headers=h))] == [300, 200, 100]
     # 默认 -id（最新在前）保持既有行为
     assert [x["amount"] for x in items(client.get(base, headers=h))] == [200, 100, 300]
+
+
+def test_admin_issued_phone_user_must_change_password(client, db):
+    ha = login(client, "admin")
+    r = client.post("/api/v1/admin/users", headers=ha, json={
+        "username": "13800138000",
+        "password": "InitPass2026",
+        "real_name": "新成员",
+        "roles": ["member"],
+    })
+    assert r.status_code == 200, r.text
+    S = db()
+    from api.models import User
+    u = S.query(User).filter_by(username="13800138000").first()
+    assert u is not None and u.must_change_pwd is True
+    S.close()
+
+    issued = client.post("/api/v1/auth/login", json={
+        "username": "13800138000", "password": "InitPass2026",
+    })
+    assert issued.status_code == 200
+    assert issued.json()["must_change_pwd"] is True
+
+
+def test_project_custom_code_contract_and_contract_attachment_scope(client):
+    h = login(client, "pm")
+    r = client.post("/api/v1/projects", headers=h, json={
+        "name": "合同字段项目",
+        "code": "SHzk-2026-088",
+        "owner_name": "张爱杰",
+        "client": "测试客户",
+        "budget_total": 100000,
+        "contract_status": "已签订",
+        "forward_contract": "前向合同",
+        "backward_contract": "后向合同",
+    })
+    assert r.status_code == 200, r.text
+    p = r.json()
+    assert p["code"] == "SHzk-2026-088"
+    assert p["owner_name"] == "张爱杰"
+    assert p["contract_status"] == "已签订"
+
+    att = client.post(
+        f"/api/v1/projects/{p['id']}/attachments",
+        headers=h,
+        files={"file": ("contract.pdf", b"pdf", "application/pdf")},
+        data={"ref_type": "contract"},
+    )
+    assert att.status_code == 200, att.text
+    assert client.get(f"/api/v1/projects/{p['id']}/attachments", headers=h).json() == []
+    contracts = client.get(
+        f"/api/v1/projects/{p['id']}/attachments?ref_type=contract", headers=h
+    ).json()
+    assert [a["filename"] for a in contracts] == ["contract.pdf"]

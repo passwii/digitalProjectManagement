@@ -7,7 +7,7 @@ import { useAsyncData } from "@/lib/useAsyncData";
 import { urlInt, useUrlState, useUrlText } from "@/lib/useUrlState";
 import { useMeta, useMenus } from "@/lib/useMeta";
 import {
-  PROJECT_FLOW, PROJECT_STATUS, fmtDate, fmtMoney,
+  PROJECT_FLOW, PROJECT_STATUS, fmtMoney,
   projectStatusLabel, projectTone,
 } from "@/lib/labels";
 import Badge from "@/components/ui/Badge";
@@ -16,7 +16,6 @@ import Empty from "@/components/ui/Empty";
 import Pagination, { DEFAULT_SIZE_OPTIONS } from "@/components/ui/Pagination";
 import { LoadingBlock, LoadFailed } from "@/components/ui/PageState";
 import TableToolbar from "@/components/ui/TableToolbar";
-import ProgressBar from "@/components/ui/ProgressBar";
 import { Confirm, Drawer } from "@/components/ui/Modal";
 import { useToast } from "@/components/ui/Toast";
 import ProjectFormDialog from "./ProjectFormDialog";
@@ -48,7 +47,7 @@ export default function ProjectsPage() {
 }
 
 function ProjectsInner() {
-  const { users, depts, userName, deptName } = useMeta();
+  const { users, userName } = useMeta();
   // 删除（软删除）与解归档仅管理员：显示条件取后端菜单契约
   const { isAdmin, demoOn, canToggleDemo, reload: reloadMenus } = useMenus();
   const toast = useToast();
@@ -95,6 +94,7 @@ function ProjectsInner() {
   ]
     .filter(Boolean)
     .join(" · ");
+  const ownerText = (p: Project) => p.owner_name || userName(p.owner_id);
 
   async function toggleDemo(next: boolean) {
     setDemoBusy(true);
@@ -229,12 +229,12 @@ function ProjectsInner() {
                 <tr>
                   <th>编号</th>
                   <th>名称</th>
-                  <th>状态</th>
                   <th>负责人</th>
-                  <th>部门</th>
-                  <th>计划期</th>
+                  <th>客户</th>
+                  <th>合同</th>
                   <th className="num">预算（元）</th>
                   <th className="num">进度</th>
+                  <th>状态</th>
                   <th className="no-print" />
                 </tr>
               </thead>
@@ -242,8 +242,8 @@ function ProjectsInner() {
                 {items.map((p) => (
                   <tr
                     key={p.id}
+                    className="clickable-row"
                     onClick={() => setDetail(p)}
-                    style={{ cursor: "pointer" }}
                     title="点击查看详情"
                   >
                     <td className="mono tiny">{p.code}</td>
@@ -263,16 +263,16 @@ function ProjectsInner() {
                         <Link href={`/costs?project_id=${p.id}`}>成本</Link>
                       </span>
                     </td>
-                    <td><Badge status={projectStatusLabel(p.status)} tone={projectTone(p.status)} /></td>
                     <td>
                       <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-                        <Avatar name={userName(p.owner_id)} size={22} />{userName(p.owner_id)}
+                        <Avatar name={ownerText(p)} size={22} />{ownerText(p)}
                       </span>
                     </td>
-                    <td className="muted">{deptName(p.dept_id)}</td>
-                    <td className="mono tiny">{fmtDate(p.plan_start)} ~ {fmtDate(p.plan_end)}</td>
+                    <td className="muted"><span className="ellipsis" title={p.client}>{p.client || "-"}</span></td>
+                    <td><Badge status={p.contract_status || "未登记"} tone={p.contract_status === "已签订" ? "done" : "todo"} /></td>
                     <td className="num">{fmtMoney(p.budget_total)}</td>
                     <td className="num">{p.progress ?? 0}%</td>
+                    <td><Badge status={projectStatusLabel(p.status)} tone={projectTone(p.status)} /></td>
                     <td className="no-print">
                       <span style={{ display: "inline-flex", gap: 6 }}>
                         <button
@@ -358,15 +358,12 @@ function ProjectsInner() {
           <>
             <dl className="kv one">
               <div><dt>项目编号</dt><dd className="mono">{detail.code}</dd></div>
-              <div><dt>状态</dt><dd><Badge status={projectStatusLabel(detail.status)} tone={projectTone(detail.status)} /></dd></div>
-              <div><dt>加权进度</dt><dd><ProgressBar value={detail.progress ?? 0} tone="brand" /></dd></div>
-              <div><dt>项目类型 / 优先级</dt><dd>{detail.type || "-"} · {detail.priority}</dd></div>
-              <div><dt>所属部门</dt><dd>{deptName(detail.dept_id)}</dd></div>
-              <div><dt>项目负责人</dt><dd>{userName(detail.owner_id)}</dd></div>
+              <div><dt>项目负责人</dt><dd>{ownerText(detail)}</dd></div>
               <div><dt>客户 / 委托方</dt><dd>{detail.client || "-"}</dd></div>
-              <div><dt>计划起止</dt><dd className="mono">{fmtDate(detail.plan_start)} ~ {fmtDate(detail.plan_end)}</dd></div>
+              <div><dt>合同状态</dt><dd>{detail.contract_status || "-"}</dd></div>
+              <div><dt>前向合同（甲方）</dt><dd>{detail.forward_contract || "-"}</dd></div>
+              <div><dt>后向合同（乙方）</dt><dd>{detail.backward_contract || "-"}</dd></div>
               <div><dt>预算总额</dt><dd className="mono">{fmtMoney(detail.budget_total)} 元</dd></div>
-              <div><dt>项目成员</dt><dd>{detail.member_ids.map((m) => userName(m)).join("、") || "-"}</dd></div>
               <div><dt>项目简介</dt><dd>{detail.description || "-"}</dd></div>
             </dl>
 

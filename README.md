@@ -1,6 +1,16 @@
-# 项目管理系统 MVP
+# 数慧致科OA管理平台
 
 Next.js 14（前端）+ FastAPI（后端）+ SQLite（单文件库）实现的 MVP。计划与设计见 `docs/superpowers/plans/`。
+
+## 本版本交付口径（2026-09-16）
+
+- 全站品牌标题为「数慧致科OA管理平台」，登录账号统一使用手机号，系统不提供自助注册。
+- 初始管理员账号 `15796280534` / `admin123456`，首次登录强制修改密码。管理员签发的其他账号同样强制首登改密。
+- 项目台账支持手填项目编号、固定负责人列表、合同状态、前向/后向合同及合同附件。
+- 项目完整档案默认进入可编辑白板，可自动保存文字并上传图片素材。
+- 进度跟踪仅保留列表模式，按钮为「添加进度」，字段只有进度节点时间和进度关键内容。
+- 支出登记不再使用预算科目，人员为固定下拉列表，保留支出金额、日期和费用说明。
+- 全站采用 Teambition 式商务蓝，已完成手机端、iPad 竖屏和横屏适配。
 
 ## 启动
 
@@ -41,8 +51,7 @@ npm run build && npx next start --port 3001
 
 | 账号 | 密码 | 角色 |
 |---|---|---|
-| admin | admin123456 | 系统管理员（首次登录强制改密） |
-| member1 | member123 | 项目成员（用于验证权限隔离） |
+| 15796280534 | admin123456 | 系统管理员（首次登录强制改密） |
 
 首次登录会跳转 `/change-password`，设置新密码后进入系统。若忘记密码，重置：
 
@@ -52,7 +61,7 @@ import sys; sys.path.insert(0,'..')
 from api.core.database import SessionLocal
 from api.core.security import hash_password
 from api.models import User
-db=SessionLocal(); u=db.query(User).filter_by(username='admin').first()
+db=SessionLocal(); u=db.query(User).filter_by(username='15796280534').first()
 u.pwd_hash=hash_password('admin123456'); u.must_change_pwd=False; db.commit(); print('reset ok')"
 ```
 
@@ -292,13 +301,32 @@ python3 -m pytest -q        # 62 项：
   但前端 Stage 4B 尚未消费（通知跳转目前仍由 `web/components/ui/Bell.tsx` 自行拼路径，
   建议改用服务端返回的 `link`，避免两处跳转规则漂移）
 - 前端 token 存 localStorage + 非 httpOnly cookie（供 middleware 鉴权），生产建议改服务端 httpOnly
-- `docker-compose.yml` 已提供但未在本机实跑（无 docker 环境）
+- Docker Compose 只定义 `api` 与 `web` 两个服务，不启动数据库容器。
 
-## 启动方式二：Docker（未实机验证）
+## 启动方式二：Docker（仅前后端，可连接本地 PostgreSQL）
 
 ```bash
-docker compose up --build     # api:8001 / web:3001，数据落在命名卷 pm-data
+docker compose up --build
+# web: http://localhost:3001
+# api: http://localhost:8001
 ```
+
+不设置 `DATABASE_URL` 时默认使用容器内 SQLite：
+
+```text
+sqlite:////app/data/app.db
+```
+
+连接宿主机 PostgreSQL 时，在项目根目录创建 `.env`：
+
+```dotenv
+DATABASE_URL=postgresql+psycopg://oa_user:change_me@host.docker.internal:5432/oa_platform
+CORS_ORIGINS=http://localhost:3001,http://127.0.0.1:3001
+```
+
+Compose 已为 Linux 添加 `host.docker.internal:host-gateway`。本机 PostgreSQL 需要允许 Docker 网段连接，
+即确认 `listen_addresses` 不只绑定 `127.0.0.1`，并在 `pg_hba.conf` 中允许对应 Docker 子网访问业务库和业务账号。
+首次启动 `api` 会自动执行 Alembic 迁移和幂等种子。附件仍持久化在 `pm-data` 卷，与数据库位置无关。
 
 ## 运维
 
@@ -309,8 +337,9 @@ python3 -m api.core.jobs    # 跟进到期扫描（建议 cron 每 10 分钟）
 
 ## 说明
 
-- 数据库为 SQLite（`data/app.db`，路径固定相对项目根，与启动目录无关），PG 不在本期范围。备份为文件级拷贝，部署时确保 `data/` 落在持久卷。
-- CORS 默认放行 `localhost:3000/3001`，可用环境变量 `CORS_ORIGINS` 覆盖。
+- 本地默认数据库为 SQLite（`data/app.db`）；设置 `DATABASE_URL` 后可切换 PostgreSQL，SQLite 专用 FTS 会自动降级为 LIKE。
+- Docker 仅运行前后端，不运行数据库；可连接宿主机已有 PostgreSQL。
+- CORS 默认放行 `localhost:3000/3001`，Docker 默认放行 `3001`，可用环境变量 `CORS_ORIGINS` 覆盖。
 - 前端 token 存 localStorage + 非 httpOnly cookie（供 middleware 鉴权），生产环境建议改由服务端下发 httpOnly cookie。
 ---
 

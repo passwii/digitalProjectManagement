@@ -1,0 +1,24 @@
+# VPS 生产覆盖配置：web 3001 + api 8001。
+# 使用：
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+#
+# APP_SECRET 和可选的 DATABASE_URL 从 /opt/pm/.env 注入，不提交到 Git。
+
+services:
+  api:
+    restart: unless-stopped
+    ports:
+      - "8001:8001"
+    environment:
+      TZ: Asia/Shanghai
+      APP_SECRET: "${APP_SECRET:?APP_SECRET must be set}"
+      DATABASE_URL: "${DATABASE_URL:-sqlite:////app/data/app.db}"
+      CORS_ORIGINS: "${CORS_ORIGINS:-http://145.79.143.98:3001}"
+
+  web:
+    restart: unless-stopped
+    build:
+      args:
+        NEXT_PUBLIC_API_BASE: "${NEXT_PUBLIC_API_BASE:-http://145.79.143.98:8001/api/v1}"
+    ports:
+      - "3001:3001"

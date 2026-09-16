@@ -8,14 +8,12 @@ import {
 import { useAsyncData } from "@/lib/useAsyncData";
 import { urlInt, useUrlState } from "@/lib/useUrlState";
 import { useMeta } from "@/lib/useMeta";
-import { SUBJECTS, fmtMoney, fmtPct } from "@/lib/labels";
-import { COST_SCOPE_NOTE, MONEY_LABEL } from "@/lib/kpi";
+import { EXPENSE_PEOPLE, fmtMoney } from "@/lib/labels";
 import Empty from "@/components/ui/Empty";
 import Pagination from "@/components/ui/Pagination";
 import ProjectPicker from "@/components/ui/ProjectPicker";
 import { LoadingBlock, LoadFailed } from "@/components/ui/PageState";
 import ProgressBar from "@/components/ui/ProgressBar";
-import Badge from "@/components/ui/Badge";
 
 type View = "detail" | "summary";
 
@@ -76,7 +74,7 @@ function ReportsInner() {
         reportsApi.cost(query, signal),
         reportsApi.warnings().catch(() => null),
       ]);
-      return { rows: report.items ?? [], note: report.note ?? "", warns: warns as Warnings | null };
+      return { rows: report.items ?? [], warns: warns as Warnings | null };
     },
     [query],
     { resetOnDepChange: true },
@@ -84,42 +82,42 @@ function ReportsInner() {
 
   const rows: CostRow[] = data?.rows ?? [];
   const warns = data?.warns ?? null;
-  const note = data?.note ?? "";
 
   // 报表口径由后端一次性返回，明细在本地分页（页码/每页条数同样写入 URL）
   const pages = Math.max(1, Math.ceil(rows.length / size));
   const safePage = Math.min(page, pages);
   const pageRows = view === "detail" ? rows.slice((safePage - 1) * size, safePage * size) : rows;
 
-  const totalBudget = rows.reduce((s, r) => s + r.budget, 0);
   const totalSpent = rows.reduce((s, r) => s + r.spent, 0);
+  const peopleOptions = Array.from(new Set<string>([
+    ...EXPENSE_PEOPLE,
+    ...rows.map((r) => r.subject).filter(Boolean),
+  ]));
 
-  const bySubjectRows = useMemo(
+  const byPersonRows = useMemo(
     () =>
-      SUBJECTS.map((s) => {
+      peopleOptions.map((s) => {
         const rs = rows.filter((r) => r.subject === s);
-        const b = rs.reduce((a, r) => a + r.budget, 0);
         const sp = rs.reduce((a, r) => a + r.spent, 0);
-        return { subject: s, budget: b, spent: sp, rate: b ? sp / b : 0 };
-      }).filter((r) => r.budget > 0 || r.spent > 0),
-    [rows],
+        return { subject: s, spent: sp, share: totalSpent ? sp / totalSpent : 0 };
+      }).filter((r) => r.spent > 0),
+    [peopleOptions, rows, totalSpent],
   );
   const byDeptRows = useMemo(
     () =>
       depts
         .map((d) => {
           const rs = rows.filter((r) => r.dept_id === d.id);
-          const b = rs.reduce((a, r) => a + r.budget, 0);
           const sp = rs.reduce((a, r) => a + r.spent, 0);
-          return { dept: d.name, budget: b, spent: sp, rate: b ? sp / b : 0 };
+          return { dept: d.name, spent: sp, share: totalSpent ? sp / totalSpent : 0 };
         })
-        .filter((r) => r.budget > 0 || r.spent > 0),
-    [depts, rows],
+        .filter((r) => r.spent > 0),
+    [depts, rows, totalSpent],
   );
 
   const hasFilter = !!(url.project_id || url.dept || url.subject || url.month);
   const scopeText = [
-    url.subject ? `科目=${url.subject}` : "",
+    url.subject ? `人员=${url.subject}` : "",
     url.month ? `月份=${url.month}` : "",
     view === "detail" ? "" : "汇总视图",
   ]
@@ -141,7 +139,7 @@ function ReportsInner() {
   return (
     <div>
       <div className="page-head">
-        <h1>成本报表<span className="sub">项目 / 科目 / 部门 / 时间 四维度 · 管理口径</span></h1>
+        <h1>支出报表<span className="sub">项目 / 人员 / 部门 / 时间</span></h1>
         <div className="actions no-print">
           {VIEWS.map((v) => (
             <button
@@ -182,10 +180,10 @@ function ReportsInner() {
           </select>
         </label>
         <label style={{ display: "flex", alignItems: "center", gap: 6, margin: 0 }}>
-          <span className="muted" style={{ fontSize: 13 }}>科目</span>
-          <select style={{ width: 120 }} value={url.subject} onChange={(e) => setUrl({ subject: e.target.value })} aria-label="按科目筛选">
+          <span className="muted" style={{ fontSize: 13 }}>人员</span>
+          <select style={{ width: 120 }} value={url.subject} onChange={(e) => setUrl({ subject: e.target.value })} aria-label="按人员筛选">
             <option value="">全部</option>
-            {SUBJECTS.map((s) => <option key={s} value={s}>{s}</option>)}
+            {peopleOptions.map((s) => <option key={s} value={s}>{s}</option>)}
           </select>
         </label>
         <label style={{ display: "flex", alignItems: "center", gap: 6, margin: 0 }}>
@@ -208,25 +206,16 @@ function ReportsInner() {
       {exportErr && <LoadFailed message={`导出失败：${exportErr}`} onRetry={exportExcel} />}
 
       <div className="kpi-row">
-        <div className="kpi"><div className="k">{MONEY_LABEL.budget}</div><div className="v mono">{fmtMoney(totalBudget)}</div></div>
-        <div className="kpi"><div className="k">{MONEY_LABEL.spent}</div><div className="v mono">{fmtMoney(totalSpent)}</div></div>
-        <div className="kpi"><div className="k">{MONEY_LABEL.balance}</div><div className="v mono">{fmtMoney(totalBudget - totalSpent)}</div></div>
-        <div className="kpi"><div className="k">{MONEY_LABEL.rate}</div><div className="v mono">{totalBudget ? fmtPct(totalSpent / totalBudget) : "-"}</div></div>
+        <div className="kpi"><div className="k">支出总额</div><div className="v mono">{fmtMoney(totalSpent)}</div></div>
+        <div className="kpi"><div className="k">涉及项目</div><div className="v mono">{new Set(rows.map((r) => r.project_id)).size}</div></div>
+        <div className="kpi"><div className="k">涉及人员</div><div className="v mono">{byPersonRows.length}</div></div>
+        <div className="kpi"><div className="k">明细条数</div><div className="v mono">{rows.length}</div></div>
       </div>
-      <p className="muted tiny" style={{ marginTop: -4, marginBottom: 12 }}>
-        {COST_SCOPE_NOTE}；卡片数字对应下方当前筛选范围。
-      </p>
-
-      {warns && (warns.overdue_tasks.length + warns.stagnant_projects.length + warns.budget_warnings.length + (warns.followup_due?.length ?? 0) > 0) && (
+      {warns && (warns.overdue_tasks.length + warns.stagnant_projects.length + (warns.followup_due?.length ?? 0) > 0) && (
         <div className="warn-banner">
           <b>预警</b>
-          <span className="tiny" style={{ marginLeft: 8 }}>逾期任务 {warns.overdue_tasks.length} · 停滞项目 {warns.stagnant_projects.length} · 预算预警 {warns.budget_warnings.length} · 跟进到期 {warns.followup_due?.length ?? 0}</span>
+          <span className="tiny" style={{ marginLeft: 8 }}>逾期任务 {warns.overdue_tasks.length} · 停滞项目 {warns.stagnant_projects.length} · 跟进到期 {warns.followup_due?.length ?? 0}</span>
           <ul style={{ margin: "6px 0 0", paddingLeft: 18, fontSize: 13 }}>
-            {warns.budget_warnings.slice(0, 5).map((b) => (
-              <li key={`${b.project_id}-${b.subject}`}>
-                项目#{b.project_id} {b.subject} 执行率 <span className="mono">{fmtPct(b.rate)}</span> {b.over ? <Badge status="超支" tone="danger" /> : <Badge status="≥80%" tone="warn" />}
-              </li>
-            ))}
             {warns.stagnant_projects.slice(0, 3).map((s) => (
               <li key={s.project_id}>项目「{s.name}」已 {s.days_no_log} 天无进度填报</li>
             ))}
@@ -239,31 +228,29 @@ function ReportsInner() {
 
       {view === "detail" ? (
         <>
-          <h2 className="section-title">明细（项目 × 科目）</h2>
+          <h2 className="section-title">明细（项目 × 人员）</h2>
           {firstLoad ? (
             <LoadingBlock kpis={0} label="加载明细…" />
           ) : rows.length === 0 ? (
             <div className="card">
               <Empty
                 title={hasFilter ? "当前筛选下暂无数据" : "暂无报表数据"}
-                hint={hasFilter ? "换个筛选条件，或清除筛选。" : "登记预算与支出后自动汇总。"}
+                hint={hasFilter ? "换个筛选条件，或清除筛选。" : "登记项目支出后自动汇总。"}
               />
             </div>
           ) : (
             <>
               <div className="table-scroll">
                 <table className="grid" aria-busy={loading}>
-                  <thead><tr><th>项目编号</th><th>项目名称</th><th>科目</th><th className="num">预算</th><th className="num">已支出</th><th className="num">余额</th><th>执行率</th></tr></thead>
+                  <thead><tr><th>项目编号</th><th>项目名称</th><th>人员</th><th className="num">支出金额</th><th>占比</th></tr></thead>
                   <tbody>
                     {pageRows.map((r, i) => (
                       <tr key={`${r.project_id}-${r.subject}-${(safePage - 1) * size + i}`}>
                         <td className="mono tiny">{r.project_code}</td>
                         <td><span className="ellipsis" title={r.project_name}>{r.project_name}</span></td>
-                        <td>{r.subject || "未分类"}</td>
-                        <td className="num">{fmtMoney(r.budget)}</td>
+                        <td>{r.subject || "未填写人员"}</td>
                         <td className="num">{fmtMoney(r.spent)}</td>
-                        <td className="num" style={r.balance < 0 ? { color: "var(--danger)" } : undefined}>{fmtMoney(r.balance)}</td>
-                        <td><ProgressBar value={r.rate * 100} /></td>
+                        <td><ProgressBar value={totalSpent ? r.spent / totalSpent * 100 : 0} /></td>
                       </tr>
                     ))}
                   </tbody>
@@ -284,22 +271,21 @@ function ReportsInner() {
       ) : (
         <div className="split" style={{ marginTop: 16 }}>
           <div>
-            <h2 className="section-title">按科目汇总</h2>
+            <h2 className="section-title">按人员汇总</h2>
             {firstLoad ? (
               <LoadingBlock kpis={0} label="加载汇总…" />
-            ) : bySubjectRows.length === 0 ? (
-              <div className="card"><Empty title="暂无科目数据" hint="登记预算后按科目汇总。" /></div>
+            ) : byPersonRows.length === 0 ? (
+              <div className="card"><Empty title="暂无人员支出" hint="登记支出后按人员汇总。" /></div>
             ) : (
               <div className="table-scroll">
                 <table className="grid">
-                  <thead><tr><th>科目</th><th className="num">预算</th><th className="num">已支出</th><th>执行率</th></tr></thead>
+                  <thead><tr><th>人员</th><th className="num">支出金额</th><th>占比</th></tr></thead>
                   <tbody>
-                    {bySubjectRows.map((r) => (
+                    {byPersonRows.map((r) => (
                       <tr key={r.subject}>
                         <td>{r.subject}</td>
-                        <td className="num">{fmtMoney(r.budget)}</td>
                         <td className="num">{fmtMoney(r.spent)}</td>
-                        <td><ProgressBar value={r.rate * 100} /></td>
+                        <td><ProgressBar value={r.share * 100} /></td>
                       </tr>
                     ))}
                   </tbody>
@@ -316,14 +302,13 @@ function ReportsInner() {
             ) : (
               <div className="table-scroll">
                 <table className="grid">
-                  <thead><tr><th>部门</th><th className="num">预算</th><th className="num">已支出</th><th>执行率</th></tr></thead>
+                  <thead><tr><th>部门</th><th className="num">支出金额</th><th>占比</th></tr></thead>
                   <tbody>
                     {byDeptRows.map((r) => (
                       <tr key={r.dept}>
                         <td>{r.dept}</td>
-                        <td className="num">{fmtMoney(r.budget)}</td>
                         <td className="num">{fmtMoney(r.spent)}</td>
-                        <td><ProgressBar value={r.rate * 100} /></td>
+                        <td><ProgressBar value={r.share * 100} /></td>
                       </tr>
                     ))}
                   </tbody>
@@ -334,7 +319,6 @@ function ReportsInner() {
         </div>
       )}
 
-      <p className="tiny" style={{ marginTop: 12 }}>{note || COST_SCOPE_NOTE}</p>
     </div>
   );
 }

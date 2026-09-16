@@ -149,6 +149,12 @@ export async function downloadFile(path: string, filename: string) {
   URL.revokeObjectURL(url);
 }
 
+/** 需要鉴权的文件转浏览器对象 URL（用于图片预览，调用方负责 revokeObjectURL）。 */
+export async function fetchObjectUrl(path: string): Promise<string> {
+  const res = await request<Response>(path, {}, true);
+  return URL.createObjectURL(await res.blob());
+}
+
 // ---------------- 类型（对齐后端返回） ----------------
 export interface LoginResp {
   access_token: string;
@@ -203,6 +209,7 @@ export interface Project {
   type: string;
   dept_id: number | null;
   owner_id: number | null;
+  owner_name?: string;
   member_ids: number[];
   plan_start: string | null;
   plan_end: string | null;
@@ -210,6 +217,9 @@ export interface Project {
   priority: string;
   client: string;
   description: string;
+  contract_status?: string;
+  forward_contract?: string;
+  backward_contract?: string;
   status: string;
   progress: number;
   /** FTS5 命中时的关键词高亮片段（仅带 keyword 检索返回） */
@@ -239,6 +249,8 @@ export interface Attachment {
   id: number;
   filename: string;
   size: number;
+  ref_type?: string;
+  content_type?: string;
   uploaded_by: number | null;
   uploaded_at: string | null;
 }
@@ -264,6 +276,7 @@ export interface Task {
   progress: number;
   status: string;
   predecessor_id: number | null;
+  created_at?: string | null;
 }
 export interface Milestone {
   id: number;
@@ -307,6 +320,10 @@ export interface Expense {
   note: string;
   status: string;
   by_id: number | null;
+  decision_reason?: string;
+  decided_at?: string | null;
+  resubmit_count?: number;
+  can_resubmit?: boolean;
   execution?: { budget: number; spent: number; balance: number; rate: number; warn: boolean; over: boolean };
 }
 export interface CostRow {
@@ -404,10 +421,15 @@ export const projectsApi = {
   status: (id: number, status: string, reason = "") =>
     apiPost<Project>(`/projects/${id}/status`, { status, reason }),
   changes: (id: number, signal?: AbortSignal) => apiGet<ProjectChange[]>(`/projects/${id}/changes`, signal),
-  attachments: (id: number, signal?: AbortSignal) => apiGet<Attachment[]>(`/projects/${id}/attachments`, signal),
-  upload: (id: number, file: File) => {
+  attachments: (id: number, refType = "", signal?: AbortSignal) =>
+    apiGet<Attachment[]>(
+      `/projects/${id}/attachments${refType ? `?ref_type=${encodeURIComponent(refType)}` : ""}`,
+      signal,
+    ),
+  upload: (id: number, file: File, refType = "") => {
     const fd = new FormData();
     fd.append("file", file);
+    if (refType) fd.append("ref_type", refType);
     return apiUpload<Attachment>(`/projects/${id}/attachments`, fd);
   },
   downloadAttachment: (id: number, aid: number, filename: string) =>

@@ -14,7 +14,7 @@ interface Values {
   password: string;
 }
 
-const BLANK: Values = { username: "", real_name: "", dept_id: "", password: "123456" };
+const BLANK: Values = { username: "", real_name: "", dept_id: "", password: "admin123456" };
 
 export default function UserDialog({
   open,
@@ -39,17 +39,18 @@ export default function UserDialog({
       : BLANK,
     {
       username: {
-        label: "账号",
-        required: "账号不能为空",
-        pattern: /^[A-Za-z0-9_.-]{3,32}$/,
-        custom: (v) => (/^[A-Za-z0-9_.-]{3,32}$/.test(String(v)) ? null : "账号需 3-32 位字母、数字或 _ . -"),
+        label: "登录手机号",
+        required: "登录手机号不能为空",
+        custom: (v) => (/^1\d{10}$/.test(String(v)) ? null : "请输入 11 位手机号"),
       },
       password: {
         label: "密码",
         custom: (v) => {
           if (isEdit && !v) return null; // 编辑时留空表示不改
           const s = String(v);
-          if (s.length < 6) return "密码至少 6 位";
+          if (s.length < 8 || !/[A-Za-z]/.test(s) || !/\d/.test(s)) {
+            return "初始密码至少 8 位且需同时包含字母与数字";
+          }
           return null;
         },
       },
@@ -85,7 +86,7 @@ export default function UserDialog({
     } else {
       await adminApi.createUser({
         username: v.username,
-        password: v.password || "123456",
+        password: v.password || "admin123456",
         real_name: v.real_name,
         dept_id: v.dept_id ? Number(v.dept_id) : null,
         roles: picked,
@@ -109,13 +110,13 @@ export default function UserDialog({
       }
     >
       <div className="form-grid">
-        <Field label="登录账号" required error={form.errors.username} hint={isEdit ? "账号创建后不可修改" : undefined}>
+        <Field label="登录手机号" required error={form.errors.username} hint={isEdit ? "手机号创建后不可修改" : "其他账号仅可由管理员签发"}>
           <input
             value={form.values.username}
             disabled={isEdit}
             aria-invalid={!!form.errors.username}
             onChange={(e) => form.set("username", e.target.value)}
-            placeholder="如：zhangsan"
+            placeholder="如：15796280534"
           />
         </Field>
         <Field label="姓名">
@@ -127,13 +128,13 @@ export default function UserDialog({
             {depts.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
           </select>
         </Field>
-        <Field label={isEdit ? "重置密码" : "初始密码"} error={form.errors.password} hint={isEdit ? "留空表示不修改" : "默认 123456"}>
+        <Field label={isEdit ? "重置密码" : "初始密码"} error={form.errors.password} hint={isEdit ? "重置后用户下次登录必须改密" : "用户首次登录必须修改密码"}>
           <input
             type="text"
             value={form.values.password}
             aria-invalid={!!form.errors.password}
             onChange={(e) => form.set("password", e.target.value)}
-            placeholder={isEdit ? "留空不修改" : "123456"}
+            placeholder={isEdit ? "留空不修改" : "admin123456"}
           />
         </Field>
         <Field label="角色（可多选，权限取并集）" required error={form.errors.real_name} span>

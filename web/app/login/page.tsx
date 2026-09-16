@@ -16,9 +16,12 @@ export default function LoginPage() {
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setApiErr("");
-    // 空值前端拦截（PLAN Stage 0 验收）
-    if (!username.trim() || !password) {
-      setFieldErr("账号和密码不能为空");
+    if (!/^1\d{10}$/.test(username.trim())) {
+      setFieldErr("请输入 11 位手机号账号");
+      return;
+    }
+    if (!password) {
+      setFieldErr("请输入密码");
       return;
     }
     setFieldErr("");
@@ -26,7 +29,6 @@ export default function LoginPage() {
     try {
       const data = await authApi.login(username.trim(), password);
       saveSession(data.access_token, data.refresh_token);
-      // 首次登录强制改密（seed admin 默认 must_change_pwd=true）
       router.push(data.must_change_pwd ? "/change-password" : "/dashboard");
     } catch (err: unknown) {
       setApiErr(errText(err));
@@ -37,40 +39,76 @@ export default function LoginPage() {
 
   return (
     <main className={st.wrap}>
-      <div className={st.card}>
-        <div className={st.brand}>
-          <span className={st.dot} />
-          <span className={st.name}>项目管理工作区</span>
+      <section className={st.story}>
+        <div className={st.storyGrid} aria-hidden />
+        <div className={st.storyTop}>
+          <span className={st.mark}>数慧致科</span>
+          <span className={st.edition}>OA / PROJECT DELIVERY</span>
         </div>
-        <p className={st.sub}>效率控制台 · 请登录后继续</p>
-        <form onSubmit={onSubmit}>
-          <div className={st.field}>
-            <label>账号<input
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              placeholder="请输入账号"
-              autoComplete="username"
-            /></label>
+        <div className={st.storyMain}>
+          <p className={st.kicker}>Digital Project Operations</p>
+          <h1>
+            数慧致科
+            <span>OA管理平台</span>
+          </h1>
+          <p className={st.storyText}>
+            让项目台账、交付进度、合同档案与支出记录沉淀在同一套管理坐标中。
+          </p>
+        </div>
+        <div className={st.storyFoot}>
+          <div><b>01</b><span>统一台账</span></div>
+          <div><b>02</b><span>进度留痕</span></div>
+          <div><b>03</b><span>支出归集</span></div>
+        </div>
+      </section>
+
+      <section className={st.auth}>
+        <div className={st.card}>
+          <div className={st.cardHead}>
+            <span className={st.cardBadge}>SHZK</span>
+            <div>
+              <p className={st.cardEyebrow}>数慧致科OA管理平台</p>
+              <h2>登录管理工作台</h2>
+            </div>
           </div>
-          <div className={st.field}>
-            <label>密码<input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="请输入密码"
-              autoComplete="current-password"
-            /></label>
-          </div>
-          {fieldErr && <div className={`${st.alert} ${st.alertErr}`} role="alert">{fieldErr}</div>}
-          {apiErr && <div className={`${st.alert} ${st.alertErr}`} role="alert">{apiErr}</div>}
-          <div className={st.submit}>
-            <button className="btn-primary" type="submit" disabled={loading}>
-              {loading ? "登录中…" : "登 录"}
+          <p className={st.sub}>使用管理员签发的手机号账号登录。</p>
+          <form onSubmit={onSubmit}>
+            <div className={st.field}>
+              <label htmlFor="login-phone">手机号</label>
+              <input
+                id="login-phone"
+                value={username}
+                onChange={(e) => setUsername(e.target.value.replace(/\D/g, "").slice(0, 11))}
+                placeholder="请输入 11 位手机号"
+                inputMode="numeric"
+                autoComplete="username"
+              />
+            </div>
+            <div className={st.field}>
+              <label htmlFor="login-password">密码</label>
+              <input
+                id="login-password"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="请输入登录密码"
+                autoComplete="current-password"
+              />
+            </div>
+            {fieldErr && <div className={`${st.alert} ${st.alertErr}`} role="alert">{fieldErr}</div>}
+            {apiErr && <div className={`${st.alert} ${st.alertErr}`} role="alert">{apiErr}</div>}
+            <button className={st.submit} type="submit" disabled={loading}>
+              {loading ? "正在验证…" : "进入管理平台"}
             </button>
+          </form>
+          <div className={st.hint}>
+            <span>初始管理员</span>
+            <b className="mono">15796280534</b>
+            <span>首次登录须修改密码</span>
           </div>
-        </form>
-        <div className={st.hint}>回车直接登录 · 初始账号 <span className="mono">admin / admin123456</span>（首次登录需改密）</div>
-      </div>
+        </div>
+        <p className={st.copyright}>数慧致科 · 项目管理系统</p>
+      </section>
     </main>
   );
 }

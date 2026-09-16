@@ -59,8 +59,15 @@ def build_cost_rows(db: Session, projects: list, subject: str = "",
 
     eq = db.query(Expense.project_id, Expense.subject, func.sum(Expense.amount)) \
         .filter(Expense.project_id.in_(pids), Expense.status.in_(PASS))
-    if month:  # YYYY-MM：按月份前缀过滤，避免 Python 端全量扫描
-        eq = eq.filter(func.strftime("%Y-%m", Expense.exp_date) == month)
+    if month:  # YYYY-MM：使用闭开日期区间，SQLite / PostgreSQL 均可用
+        try:
+            y, m = (int(x) for x in month.split("-", 1))
+            start = date(y, m, 1)
+            end = date(y + (m == 12), 1 if m == 12 else m + 1, 1)
+        except (TypeError, ValueError):
+            start = end = None
+        if start and end:
+            eq = eq.filter(Expense.exp_date >= start, Expense.exp_date < end)
     if subject:
         eq = eq.filter(Expense.subject == subject)
     spent_map: dict[tuple[int, str], float] = {

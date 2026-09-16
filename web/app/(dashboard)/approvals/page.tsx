@@ -302,7 +302,7 @@ function ApprovalsInner() {
               <div className="table-scroll">
                 <table className="grid" aria-busy={loading}>
                   <thead>
-                    <tr><th>项目</th><th>科目</th><th className="num">金额</th><th>日期</th><th>说明</th><th>经办人</th><th className="no-print" /></tr>
+                    <tr><th>项目</th><th>人员</th><th className="num">金额</th><th>日期</th><th>说明</th><th>经办人</th><th className="no-print" /></tr>
                   </thead>
                   <tbody>
                     {d!.expenses.map((e: PendingExpense) => {
