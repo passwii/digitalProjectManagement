@@ -88,6 +88,95 @@ def main() -> int:
             record("存在审批类通知", False, "无可点 approval 通知")
 
         # ---------------- 3. 审批深链：支出 / 不存在 ----------------
+        # 待审批支出是「审批中心深链」与「驳回」两处断言的样本，但它会被消费掉，所以每次自己播种。
+        #
+        # 后端规则（api/routers/expenses.py:create_expense）：
+        #     st = "pending" if (approval_on or over) else "approved"
+        #     且 over and not approval_on → 400「超预算已拦截」
+        # 即：开关关闭时超预算是被**拒绝**而非转待审批。所以要稳定得到 pending，只能临时开启
+        # 「支出先审批」开关（产品自带的管理员配置，走 /admin/params），造完样本后在 finally 里恢复。
+        # 不直接改库、不绕过任何校验；恢复后用 GET 回读确认。
+        orig_switch = page.evaluate(
+            """async ([api, tok]) => {
+                const j = await (await fetch(api + '/admin/params', { headers: { Authorization: 'Bearer ' + tok } })).json();
+                return j.expense_approval_on ?? '0';
+            }""",
+            [API, token],
+        )
+        seeded = page.evaluate(
+            """async ([api, tok, orig]) => {
+                const h = { 'Content-Type': 'application/json', Authorization: 'Bearer ' + tok };
+                const out = { ids: [], error: null, restored: null };
+                const setR = await fetch(api + '/admin/params', {
+                    method: 'PUT', headers: h, body: JSON.stringify({ expense_approval_on: '1' }),
+                });
+                if (!setR.ok) { out.error = '无法开启审批开关：' + (await setR.text()); return out; }
+                try {
+                    // 挑一个有预算的项目×科目，金额取「差额 + 1」；开关开着也会落 pending，
+                    // 两条样本：一条供审批中心深链，一条供驳回。
+                    const p = await (await fetch(api + '/projects/options?page=1&size=100', { headers: h })).json();
+                    for (const cand of (p.items || [])) {
+                        const c = await (await fetch(api + `/reports/cost?project_id=${cand.id}`, { headers: h })).json();
+                        const row = (c.items || []).find((r) => r.budget > 0);
+                        if (!row) continue;
+                        const over = Math.max(1, Math.ceil(row.budget - row.spent) + 1);
+                        const ids = [];
+                        let failed = null;
+                        for (let i = 0; i < 2; i++) {
+                            const r = await fetch(api + '/expenses', {
+                                method: 'POST', headers: h,
+                                body: JSON.stringify({ project_id: cand.id, subject: row.subject, amount: over,
+                                                       note: `BLF-1093 走查样本 ${i + 1}` }),
+                            });
+                            if (!r.ok) { failed = (await r.text()).slice(0, 120); break; }
+                            const saved = await r.json();
+                            if (saved.status !== 'pending') { failed = 'expected pending, got ' + saved.status; break; }
+                            ids.push(saved.id);
+                        }
+                        if (failed) { out.error = failed; return out; }
+                        out.ids = ids;
+                        out.project_id = cand.id;
+                        out.subject = row.subject;
+                        out.budget = row.budget;
+                        out.spent = row.spent;
+                        out.over_amount = over;
+                        return out;
+                    }
+                    out.error = '找不到有预算的项目×科目';
+                    return out;
+                } finally {
+                    // 无论成败都要把环境改回去（上一轮崩溃就是漏了这一步，把开关留在了 1）
+                    await fetch(api + '/admin/params', {
+                        method: 'PUT', headers: h, body: JSON.stringify({ expense_approval_on: orig }),
+                    });
+                    const g = await (await fetch(api + '/admin/params', { headers: h })).json().catch(() => ({}));
+                    out.restored = String(g.expense_approval_on) === String(orig);
+                }
+            }""",
+            [API, token, orig_switch],
+        )
+        if seeded.get("ids"):
+            record(
+                "播种待审批支出样本并恢复开关",
+                len(seeded["ids"]) == 2 and seeded.get("restored") is True,
+                f"ids={seeded['ids']} project={seeded.get('project_id')} subject={seeded.get('subject')} "
+                f"预算={seeded.get('budget')} 已支出={seeded.get('spent')} 播种金额={seeded.get('over_amount')} "
+                f"开关已回读确认恢复={seeded.get('restored')}",
+            )
+        else:
+            record("播种待审批支出样本并恢复开关", False, str(seeded)[:160])
+        over_amount = seeded.get("over_amount") or 100000000
+
+        # 超预算断言的形态取决于开关：先确认它已恢复，否则 400 会被 pending 取代
+        live_switch = page.evaluate(
+            """async ([api, tok]) => {
+                const j = await (await fetch(api + '/admin/params', { headers: { Authorization: 'Bearer ' + tok } })).json();
+                return j.expense_approval_on ?? '0';
+            }""",
+            [API, token],
+        )
+        record("播种后审批开关与初始值一致", str(live_switch) == str(orig_switch), f"现在={live_switch} 初始={orig_switch}")
+
         exp = page.evaluate(
             """async ([api, tok]) => {
                 const r = await fetch(api + '/approvals/pending', { headers: { Authorization: 'Bearer ' + tok } });
@@ -104,7 +193,7 @@ def main() -> int:
             record("支出待办深链定位并高亮", hit > 0 and hl > 0, f"id={exp['expense']} 命中={hit} 高亮={hl}")
             page.screenshot(path=f"{SHOT}/03-approvals-expense-target.png")
         else:
-            record("存在待审批支出", False, "无 pending expense")
+            record("审批中心有待审批支出", False, "无 pending expense")
 
         page.goto(f"{BASE}/approvals?adjust={exp['adjust'] or 1}", wait_until="networkidle")
         if exp["adjust"]:
@@ -120,6 +209,96 @@ def main() -> int:
         miss = " ".join(page.locator('.warn-banner[role="alert"]').all_text_contents())
         record("审批深链目标不存在时给出说明", "不在待审批列表" in miss, miss[:120])
         page.screenshot(path=f"{SHOT}/04-approvals-missing.png")
+
+        # ---------------- 3b. 成本页支出深链：跨页定位（Tia 复审阻塞项） ----------------
+        # 取一个真实项目有多条支出，把 size 压到 2 → 目标必然落在第 2 页之后，
+        # 验证「找到就翻页并高亮」「找不到就说明 + 清除定位」「被筛选挡住就给清除筛选」三条路径。
+        exp_case = page.evaluate(
+            """async ([api, tok]) => {
+                const p = await (await fetch(api + '/projects/options?page=1&size=100', { headers: { Authorization: 'Bearer ' + tok } })).json();
+                let best = null;
+                for (const proj of (p.items || [])) {
+                    const r = await fetch(api + `/expenses?project_id=${proj.id}&page=1&size=100`, { headers: { Authorization: 'Bearer ' + tok } });
+                    if (!r.ok) continue;
+                    const j = await r.json();
+                    const items = j.items || [];
+                    const sorted = items.slice().sort((a, b) => b.id - a.id);   // 列表默认 -id
+                    if (sorted.length >= 3 && (!best || sorted.length > best.count)) {
+                        const oldest = sorted[sorted.length - 1];
+                        best = { project_id: proj.id, count: sorted.length,
+                                 target: oldest.id, target_status: oldest.status };
+                    }
+                }
+                return best;
+            }""",
+            [API, token],
+        )
+        if exp_case:
+            # 只看「目标落在第 2 页之后」这一条：size=2 → 末条必然在第 2 页+
+            pg_url = (
+                f"{BASE}/costs?project_id={exp_case['project_id']}"
+                f"&size=2&expense={exp_case['target']}"
+            )
+            page.goto(pg_url, wait_until="networkidle")
+            page.wait_for_selector("tr.row-target", timeout=20000)
+            page.wait_for_timeout(600)
+            jumped = page.locator(f'tr[data-target-id="{exp_case["target"]}"].row-target').count()
+            page_now = page.evaluate(
+                "() => document.querySelector('nav[aria-label=\"支出记录分页\"]')?.innerText.replace(/\\s+/g,' ') || ''"
+            )
+            record(
+                "支出深链跨页定位（目标在第 2 页+）",
+                jumped > 0,
+                f"id={exp_case['target']} / 共 {exp_case['count']} 条 / size=2 → 高亮={jumped} 页码={page_now!r} url={page.url}",
+            )
+            page.screenshot(path=f"{SHOT}/04b-costs-expense-crosspage.png")
+
+            # 成功后定位参数保留（与任务/审批/跟进一致：刷新/分享链接仍能重现高亮），
+            # 清除入口在「找不到目标」的错误横幅上（下方两条断言覆盖）。
+            record(
+                "支出定位命中后链接可重现（参数保留）",
+                "expense=" in page.url and "page=" in page.url,
+                page.url,
+            )
+
+            # 不存在目标 → 可理解说明 + 清除出口（点完参数消失、高亮消失）
+            page.goto(f"{BASE}/costs?project_id={exp_case['project_id']}&expense=999999", wait_until="networkidle")
+            page.wait_for_selector('.err-banner[role="alert"]', timeout=20000)
+            miss_txt = page.locator('.err-banner[role="alert"]').inner_text()
+            record(
+                "支出深链目标不存在时给出说明",
+                "不在可见范围" in miss_txt and page.locator('button:has-text("清除定位")').count() > 0,
+                miss_txt[:110],
+            )
+            page.screenshot(path=f"{SHOT}/04c-costs-expense-missing.png")
+            page.click('button:has-text("清除定位")')
+            page.wait_for_timeout(1500)
+            record(
+                "清除定位后参数与提示一并消失",
+                "expense=" not in page.url
+                and page.locator('.err-banner[role="alert"]').count() == 0,
+                page.url,
+            )
+            # 被状态筛选挡住 → 给出「清除筛选并定位」且点完真的落到目标
+            blocked_status = "rejected" if exp_case["target_status"] != "rejected" else "pending"
+            page.goto(
+                f"{BASE}/costs?project_id={exp_case['project_id']}&status={blocked_status}&expense={exp_case['target']}",
+                wait_until="networkidle",
+            )
+            page.wait_for_selector('button:has-text("清除筛选并定位")', timeout=20000)
+            blocked_txt = page.locator('.err-banner[role="alert"]').inner_text()
+            record("支出被筛选挡住时区分并给出出口", "筛选范围" in blocked_txt, blocked_txt[:110])
+            page.click('button:has-text("清除筛选并定位")')
+            page.wait_for_selector("tr.row-target", timeout=20000)
+            record(
+                "清除筛选后确实落到目标支出",
+                page.evaluate('()=>document.querySelector("tr.row-target")?.dataset.targetId')
+                == str(exp_case["target"]),
+                f"url={page.url} 目标={exp_case['target']}",
+            )
+            page.screenshot(path=f"{SHOT}/04d-costs-expense-unfiltered.png")
+        else:
+            record("找到可跨页定位的支出样本", False, "无含 ≥3 条支出的项目")
 
         # ---------------- 4. 进度页：任务填报 + 深链 ----------------
         page.goto(f"{BASE}/progress?project_id=1", wait_until="networkidle")
@@ -172,15 +351,42 @@ def main() -> int:
         page.click('[role="dialog"] button:has-text("取消")')
 
         # ---------------- 6. 成本页：驳回原因 + 重新提交 ----------------
+        # 自己产生一条「有意见的驳回」（用播种出来的样本），不依赖历史遗留数据：
+        # 没有它，后面的「申请人可见驳回原因」就会因库中样本被消费而莫名失败。
         rej = page.evaluate(
-            """async ([api, tok]) => {
-                const r = await fetch(api + '/expenses?status=rejected&size=100', { headers: { Authorization: 'Bearer ' + tok } });
-                const j = await r.json();
-                const x = (j.items || [])[0];
-                return x ? { id: x.id, project_id: x.project_id, amount: x.amount } : null;
+            """async ([api, tok, ids]) => {
+                const h = { 'Content-Type': 'application/json', Authorization: 'Bearer ' + tok };
+                const reason = '附件缺少发票，请补齐后重新提交';
+                for (const id of ids) {
+                    const r = await fetch(api + '/approvals/expense/' + id + '/decide', {
+                        method: 'POST', headers: h,
+                        body: JSON.stringify({ approve: false, reason }),
+                    });
+                    if (!r.ok) continue;
+                    const j = await r.json();
+                    const d = await (await fetch(api + '/expenses?status=rejected&size=100', { headers: h })).json();
+                    const x = (d.items || []).find((e) => e.id === id);
+                    if (x) return { id: x.id, project_id: x.project_id, amount: x.amount, reason };
+                }
+                return null;
             }""",
-            [API, token],
+            [API, token, seeded.get("ids", [])],
         )
+        if rej:
+            record("播种带审批意见的驳回样本", True, f"id={rej['id']} project={rej['project_id']}")
+        else:
+            record("播种带审批意见的驳回样本", False, "审批开关播种的样本均不可驳回")
+        # 若播种失败，退回库里已有的驳回单以保证后续断言不误报
+        if not rej:
+            rej = page.evaluate(
+                """async ([api, tok]) => {
+                    const r = await fetch(api + '/expenses?status=rejected&size=100', { headers: { Authorization: 'Bearer ' + tok } });
+                    const j = await r.json();
+                    const x = (j.items || [])[0];
+                    return x ? { id: x.id, project_id: x.project_id, amount: x.amount, reason: '' } : null;
+                }""",
+                [API, token],
+            )
         if rej:
             page.goto(f"{BASE}/costs?project_id={rej['project_id']}&status=rejected", wait_until="networkidle")
             page.wait_for_timeout(2000)
@@ -203,16 +409,22 @@ def main() -> int:
                 val = page.locator('[role="dialog"] input[inputmode="decimal"]').input_value()
                 record("重新提交预填被驳回单据", "重新提交" in title and val not in ("", "0"), f"标题={title} 金额={val}")
                 page.screenshot(path=f"{SHOT}/11-costs-resubmit.png")
-                # 超预算 → 后端拒绝，必须保留表单内容
-                page.fill('[role="dialog"] input[inputmode="decimal"]', "99999999")
+                # 超预算 → 后端 400 拦截（常态）→ 弹窗保留、内容不丢。
+                # `_over()` 只看「已支出 + 金额 > 预算」，与「支出先审批」开关无关，所以这里形态稳定。
+                page.fill('[role="dialog"] input[inputmode="decimal"]', str(over_amount))
                 page.click('[role="dialog"] button:has-text("重新提交")')
-                page.wait_for_timeout(2000)
+                page.wait_for_timeout(2500)
                 still = page.locator('[role="dialog"]').count()
-                kept2 = page.locator('[role="dialog"] input[inputmode="decimal"]').input_value()
                 err2 = " ".join(page.locator('[role="dialog"] .err-banner').all_text_contents())
-                record("提交失败保留表单内容并给出下一步", still > 0 and kept2 == "99999999" and bool(err2), f"弹窗={still} 值={kept2} 提示={err2[:90]}")
+                kept2 = page.locator('[role="dialog"] input[inputmode="decimal"]').input_value() if still else ""
+                record(
+                    "提交失败保留表单内容并给出下一步",
+                    still > 0 and kept2 == str(over_amount) and bool(err2),
+                    f"弹窗={still} 值={kept2} 超预算金额={over_amount} 提示={err2[:90]}",
+                )
                 page.screenshot(path=f"{SHOT}/12-costs-submit-error.png")
-                page.click('[role="dialog"] button:has-text("取消")')
+                if still:
+                    page.click('[role="dialog"] button:has-text("取消")')
             else:
                 record("成本页提供重新提交入口", False, "未找到按钮")
         else:

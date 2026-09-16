@@ -10,7 +10,7 @@ import { urlInt, useUrlState } from "@/lib/useUrlState";
 import { useProjectsProbe } from "@/lib/useProjects";
 import { useMeta, useMenus } from "@/lib/useMeta";
 import { useApprovalNotes } from "@/lib/useApprovalNotes";
-import { TARGET_KEY, isTargetRow, parseTarget, rowClass, useTargetScroll } from "@/lib/deepLink";
+import { TARGET_KEY, isTargetRow, locateTargetPage, missingTargetText, parseTarget, rowClass, useTargetScroll } from "@/lib/deepLink";
 import {
   COST_SCOPE_NOTE, MONEY_LABEL, RATE_WARN, rateBadge,
 } from "@/lib/kpi";
@@ -67,6 +67,9 @@ function CostsInner() {
   const { noteFor, hasUnread } = useApprovalNotes();
   const toast = useToast();
   const [busy, setBusy] = useState(false);
+  // 定位失败/被筛选挡住时的可理解说明（与任务、里程碑、跟进、审批中心同一套）
+  const [locateErr, setLocateErr] = useState("");
+  const [locating, setLocating] = useState(false);
   // 驳回原因查看弹层
   const [reasonOf, setReasonOf] = useState<Expense | null>(null);
   // 重新提交：以被驳回的单据为模板预填（后端不新增状态表，重提即新建一条待审批单）
@@ -121,6 +124,66 @@ function CostsInner() {
   // 定位命中行滚动入视口
   const hitAny = expenses.some((x) => isTargetRow(x.id, expenseTarget));
   useTargetScroll(expenseTarget, !firstLoad && hitAny);
+
+  /**
+   * 支出深链定位。
+   *
+   * 与任务 / 里程碑 / 跟进 / 审批中心一致：目标可能落在任意一页，用一次 `size=100` 窗口查询
+   * 算出它的页码再跳过去（查询次数有上界）；窗口内找不到时区分两种情况——
+   * · 被当前「状态」筛选挡住：给出「清除筛选并定位」出口（否则用户会以为记录没了）；
+   * · 确实不在可见范围：按 missingTargetText 如实说明，并提供「清除定位」。
+   *
+   * 窗口查询**带上当前筛选**，页码换算才与屏幕上看到的列表一致。
+   * 只对每个 (项目, 筛选, 目标) 尝试一次，不会因列表重渲染反复查询。
+   */
+  const locateAttemptRef = useRef("");
+  useEffect(() => {
+    if (!pid || firstLoad || !expenseTarget) return;
+    // 已经在当前页：交给滚动 / 高亮
+    if (expenses.some((x) => isTargetRow(x.id, expenseTarget))) {
+      setLocateErr("");
+      return;
+    }
+    const attemptKey = `${pid}:${url.status}:${expenseTarget}`;
+    if (locateAttemptRef.current === attemptKey) return;
+    locateAttemptRef.current = attemptKey;
+
+    let alive = true;
+    setLocating(true);
+    locateTargetPage(
+      (p, s) =>
+        expensesApi
+          .list(buildQuery({ project_id: pid, status: url.status, page: p, size: s }))
+          .then(unwrapPaged<Expense>),
+      expenseTarget,
+      size,
+    )
+      .then((found) => {
+        if (!alive) return;
+        if (found === null) {
+          setLocateErr(
+            url.status
+              ? `该支出不在当前「状态=${EXPENSE_STATUS[url.status] ?? url.status}」筛选范围内。`
+              : missingTargetText("支出", expTotal),
+          );
+          return;
+        }
+        setLocateErr("");
+        if (found !== page) setUrl({ page: String(found) }, { history: "replace" });
+      })
+      .catch(() => {
+        if (alive) setLocateErr("支出定位失败：无法读取列表，请重试。");
+      })
+      .finally(() => {
+        if (alive) setLocating(false);
+      });
+
+    return () => {
+      alive = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pid, firstLoad, expenseTarget, url.status, page, size, expTotal,
+      expenses.some((x) => isTargetRow(x.id, expenseTarget))]);
 
   // 切换项目后丢弃上一个项目的定位参数（首次进入时不清，否则深链会被自己抹掉）
   const prevPidRef = useRef(pid);
@@ -260,6 +323,32 @@ function CostsInner() {
       </div>
 
       {error && <LoadFailed message={error} onRetry={reload} />}
+
+      {/* 通知定位结果：找不到目标时说明原因并给出出口，而不是让用户对着列表自己翻 */}
+      {pid && locating && (
+        <div className="muted tiny" role="status" style={{ marginBottom: 8 }}>正在定位该支出…</div>
+      )}
+      {pid && locateErr && (
+        <div className="err-banner" role="alert" style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+          <span style={{ flex: 1, minWidth: 200 }}>{locateErr}</span>
+          {url.status && (
+            <button
+              type="button"
+              className="btn-ghost"
+              onClick={() => { locateAttemptRef.current = ""; setUrl({ status: "", page: 1 }); }}
+            >
+              清除筛选并定位
+            </button>
+          )}
+          <button
+            type="button"
+            className="btn-ghost"
+            onClick={() => { setLocateErr(""); setUrl({ [TARGET_KEY.expense]: "", page: 1 }); }}
+          >
+            清除定位
+          </button>
+        </div>
+      )}
 
       {!pid ? (
         <div className="card">
