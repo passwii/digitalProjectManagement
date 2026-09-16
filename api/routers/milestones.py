@@ -8,8 +8,8 @@ from sqlalchemy.orm import Session
 from ..core.audit import write_audit
 from ..core.database import get_db, parse_date
 from ..core.deps import get_current_user
-from ..core.rbac import check_project_access
-from ..models import Milestone, Project, SysParam, User
+from ..core.rbac import get_active_project, visible_project_ids
+from ..models import Milestone, SysParam, User
 
 router = APIRouter(prefix="/milestones", tags=["milestones"])
 
@@ -40,13 +40,13 @@ class MilestoneIn(BaseModel):
 @router.get("")
 def list_milestones(project_id: int = 0, db: Session = Depends(get_db),
                     user: User = Depends(get_current_user)):
+    """里程碑列表：指定 project_id 时按该项目鉴权；否则只返回「可见 + 未软删除」项目的里程碑。"""
     q = db.query(Milestone).order_by(Milestone.plan_date)
     if project_id:
-        p = db.query(Project).filter_by(id=project_id).first()
-        if not p:
-            raise HTTPException(404, "项目不存在")
-        check_project_access(user, p)
+        get_active_project(db, project_id, user)
         q = q.filter_by(project_id=project_id)
+    else:
+        q = q.filter(Milestone.project_id.in_(visible_project_ids(db, user)))
     wd = _warn_days(db)
     return [_m(m, wd) for m in q.all()]
 
@@ -54,10 +54,7 @@ def list_milestones(project_id: int = 0, db: Session = Depends(get_db),
 @router.post("")
 def create_milestone(body: MilestoneIn, db: Session = Depends(get_db),
                      user: User = Depends(get_current_user)):
-    p = db.query(Project).filter_by(id=body.project_id).first()
-    if not p:
-        raise HTTPException(404, "项目不存在")
-    check_project_access(user, p, write=True)
+    get_active_project(db, body.project_id, user, write=True)
     m = Milestone(project_id=body.project_id, name=body.name,
                   plan_date=body.plan_date, owner_id=body.owner_id or user.id)
     db.add(m)
@@ -72,8 +69,7 @@ def update_milestone(mid: int, body: dict, db: Session = Depends(get_db),
     m = db.query(Milestone).filter_by(id=mid).first()
     if not m:
         raise HTTPException(404, "里程碑不存在")
-    p = db.query(Project).filter_by(id=m.project_id).first()
-    check_project_access(user, p, write=True)
+    get_active_project(db, m.project_id, user, write=True)
     for f in ("name", "plan_date", "owner_id"):
         if f in body:
             v = body[f]
@@ -94,8 +90,7 @@ def delete_milestone(mid: int, db: Session = Depends(get_db),
     m = db.query(Milestone).filter_by(id=mid).first()
     if not m:
         raise HTTPException(404, "里程碑不存在")
-    p = db.query(Project).filter_by(id=m.project_id).first()
-    check_project_access(user, p, write=True)
+    get_active_project(db, m.project_id, user, write=True)
     db.delete(m)
     db.commit()
     return {"ok": True}

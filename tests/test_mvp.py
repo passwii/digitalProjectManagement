@@ -534,6 +534,7 @@ def test_non_admin_management_and_approval_403(client, db):
         ("get", "/api/v1/admin/logs/export", None),
         ("get", "/api/v1/projects/recycle-bin/list", None),
         ("delete", f"/api/v1/projects/{p['id']}", None),
+        ("post", f"/api/v1/projects/{p['id']}/restore", None),
         ("get", "/api/v1/approvals/pending", None),
         ("post", f"/api/v1/approvals/project_filing/{p['id']}/decide", {"approve": True}),
         ("post", f"/api/v1/approvals/budget_adjust/{aid}/decide", {"approve": True}),
@@ -679,3 +680,155 @@ def test_soft_delete_boundary_with_admin_global_scope(client, db):
     # 回收站属管理面：非管理员连查看都 403
     assert client.get("/api/v1/projects/recycle-bin/list", headers=hpm).status_code == 403
     client.put("/api/v1/admin/params", headers=ha, json={"project_approval_on": "0"})
+
+
+# 29. 子表列表的统一边界：不带 project_id 时只返回「可见 + 未软删除」项目的数据
+def test_child_lists_apply_visibility_boundary(client, db):
+    ha = login(client, "admin")
+    h = login(client, "pm")
+    assert client.put("/api/v1/admin/params", headers=ha,
+                      json={"budget_approval_on": "1",
+                            "expense_approval_on": "1"}).status_code == 200
+    p = mkproject(client, h, "PVisBound")
+    bid = client.post("/api/v1/budgets", headers=h,
+                      json={"project_id": p["id"], "subject": "人工", "amount": 1000,
+                            "period_start": "2026-01-01", "period_end": "2026-12-31"}).json()["id"]
+    aid = client.patch(f"/api/v1/budgets/{bid}", headers=h,
+                       json={"amount": 1200, "reason": "追加"}).json()["id"]
+    eid = client.post("/api/v1/expenses", headers=h,
+                      json={"project_id": p["id"], "subject": "人工", "amount": 300,
+                            "exp_date": "2026-06-01"}).json()["id"]
+    mid = client.post("/api/v1/milestones", headers=h,
+                      json={"project_id": p["id"], "name": "M1",
+                            "plan_date": "2026-06-30"}).json()["id"]
+    tid = client.post("/api/v1/tasks", headers=h,
+                      json={"project_id": p["id"], "name": "T1"}).json()["id"]
+    client.post("/api/v1/progress-logs", headers=h, json={"task_id": tid, "progress": 40})
+
+    # 管理员（全局）在所有列表里都能看到这些记录
+    assert any(x["id"] == bid for x in client.get("/api/v1/budgets", headers=ha).json())
+    assert any(x["id"] == aid for x in client.get("/api/v1/budget-adjusts", headers=ha).json())
+    assert any(x["id"] == eid for x in client.get("/api/v1/expenses", headers=ha).json())
+    assert any(x["id"] == mid for x in client.get("/api/v1/milestones", headers=ha).json())
+    assert any(x["id"] == tid for x in client.get("/api/v1/tasks", headers=ha).json())
+    assert any(x["project_id"] == p["id"] for x in client.get("/api/v1/progress-logs", headers=ha).json())
+
+    # 非参与人（含保留角色）：不带 project_id 的列表必须是空，不得泄漏其他项目数据
+    for name in ("outsider", "exec", "deptm", "cost"):
+        hh = login(client, name)
+        assert client.get("/api/v1/budgets", headers=hh).json() == [], name
+        assert client.get("/api/v1/budget-adjusts", headers=hh).json() == [], name
+        assert client.get("/api/v1/expenses", headers=hh).json() == [], name
+        assert client.get("/api/v1/milestones", headers=hh).json() == [], name
+        assert client.get("/api/v1/tasks", headers=hh).json() == [], name
+        assert client.get("/api/v1/progress-logs", headers=hh).json() == [], name
+        # 也不能用 project_id / task_id 绕过项目边界
+        for url in (f"/api/v1/budgets?project_id={p['id']}",
+                    f"/api/v1/budget-adjusts?project_id={p['id']}",
+                    f"/api/v1/expenses?project_id={p['id']}",
+                    f"/api/v1/milestones?project_id={p['id']}",
+                    f"/api/v1/tasks?project_id={p['id']}",
+                    f"/api/v1/progress-logs?project_id={p['id']}",
+                    f"/api/v1/progress-logs?task_id={tid}"):
+            assert client.get(url, headers=hh).status_code == 403, f"{name} {url}"
+    # 参与路径未被收敛：负责人自己仍然看得到
+    assert any(x["id"] == bid for x in client.get("/api/v1/budgets", headers=h).json())
+    assert any(x["project_id"] == p["id"] for x in client.get("/api/v1/progress-logs", headers=h).json())
+
+
+# 30. 软删除项目边界（子表）：列表 / 待办 / 计数 / 决策入口 / 写入口一律排除
+def test_soft_deleted_project_child_records_excluded(client, db):
+    from api.models import BudgetAdjust, Expense
+
+    ha = login(client, "admin")
+    h = login(client, "pm")
+    assert client.put("/api/v1/admin/params", headers=ha,
+                      json={"budget_approval_on": "1",
+                            "expense_approval_on": "1"}).status_code == 200
+    p = mkproject(client, h, "PSoftRec")
+    bid = client.post("/api/v1/budgets", headers=h,
+                      json={"project_id": p["id"], "subject": "人工", "amount": 1000,
+                            "period_start": "2026-01-01", "period_end": "2026-12-31"}).json()["id"]
+    aid = client.patch(f"/api/v1/budgets/{bid}", headers=h,
+                       json={"amount": 1200, "reason": "追加"}).json()["id"]
+    eid = client.post("/api/v1/expenses", headers=h,
+                      json={"project_id": p["id"], "subject": "人工", "amount": 300,
+                            "exp_date": "2026-06-01"}).json()["id"]
+    mid = client.post("/api/v1/milestones", headers=h,
+                      json={"project_id": p["id"], "name": "M1",
+                            "plan_date": "2026-06-30"}).json()["id"]
+    tid = client.post("/api/v1/tasks", headers=h,
+                      json={"project_id": p["id"], "name": "T1"}).json()["id"]
+    client.post("/api/v1/progress-logs", headers=h, json={"task_id": tid, "progress": 40})
+
+    # 删除前：待办与计数都包含这些记录（调整单 + 支出 = 2）
+    pend = client.get("/api/v1/approvals/pending", headers=ha).json()
+    assert any(x["id"] == aid for x in pend["budget_adjusts"])
+    assert any(x["id"] == eid for x in pend["expenses"])
+    assert client.get("/api/v1/dashboard/summary", headers=ha).json()["kpi"]["pending_approvals"] == 2
+
+    # 软删除项目（draft → cancelled → 删除）
+    client.post(f"/api/v1/projects/{p['id']}/status", headers=ha, json={"status": "cancelled"})
+    assert client.delete(f"/api/v1/projects/{p['id']}", headers=ha).status_code == 200
+
+    # 普通列表：连管理员（全局范围）也不再看到已删除项目的子表记录
+    assert client.get(f"/api/v1/budgets?project_id={p['id']}", headers=ha).status_code == 404
+    assert all(x["id"] != bid for x in client.get("/api/v1/budgets", headers=ha).json())
+    assert all(x["id"] != aid for x in client.get("/api/v1/budget-adjusts", headers=ha).json())
+    assert all(x["id"] != eid for x in client.get("/api/v1/expenses", headers=ha).json())
+    assert all(x["id"] != mid for x in client.get("/api/v1/milestones", headers=ha).json())
+    assert all(x["id"] != tid for x in client.get("/api/v1/tasks", headers=ha).json())
+    assert all(x["project_id"] != p["id"] for x in client.get("/api/v1/progress-logs", headers=ha).json())
+
+    # 审批待办与「待我审批」计数：同样排除
+    pend2 = client.get("/api/v1/approvals/pending", headers=ha).json()
+    assert not any(x["id"] == aid for x in pend2["budget_adjusts"])
+    assert not any(x["id"] == eid for x in pend2["expenses"])
+    assert client.get("/api/v1/dashboard/summary", headers=ha).json()["kpi"]["pending_approvals"] == 0
+
+    # 决策入口：一律 404，且不得产生状态变更
+    assert client.post(f"/api/v1/approvals/budget_adjust/{aid}/decide", headers=ha,
+                       json={"approve": True}).status_code == 404
+    assert client.post(f"/api/v1/approvals/expense/{eid}/decide", headers=ha,
+                       json={"approve": True}).status_code == 404
+    assert client.post(f"/api/v1/approvals/expense/{eid}/exception", headers=ha,
+                       json={"reason": "特批"}).status_code == 404
+    assert client.post(f"/api/v1/budget-adjusts/{aid}/approve", headers=ha,
+                       json={"approve": True}).status_code == 404
+    assert client.post(f"/api/v1/expenses/{eid}/approve", headers=ha).status_code == 404
+    assert client.post(f"/api/v1/expenses/{eid}/reject", headers=ha,
+                       json={"reason": "驳回"}).status_code == 404
+    assert client.post(f"/api/v1/expenses/{eid}/exception", headers=ha,
+                       json={"reason": "特批"}).status_code == 404
+    S = db()
+    assert S.query(BudgetAdjust).filter_by(id=aid).first().status == "pending"
+    assert S.query(Expense).filter_by(id=eid).first().status == "pending"
+    S.close()
+
+    # 普通写入口：软删除项目统一 404（不静默写入）
+    assert client.post("/api/v1/budgets", headers=ha,
+                       json={"project_id": p["id"], "subject": "人工", "amount": 100,
+                             "period_start": "2026-01-01",
+                             "period_end": "2026-12-31"}).status_code == 404
+    assert client.patch(f"/api/v1/budgets/{bid}", headers=ha,
+                        json={"amount": 999}).status_code == 404
+    assert client.post("/api/v1/expenses", headers=ha,
+                       json={"project_id": p["id"], "subject": "人工", "amount": 10}).status_code == 404
+    assert client.post("/api/v1/milestones", headers=ha,
+                       json={"project_id": p["id"], "name": "M2",
+                             "plan_date": "2026-07-31"}).status_code == 404
+    assert client.patch(f"/api/v1/milestones/{mid}", headers=ha,
+                        json={"name": "M1x"}).status_code == 404
+    assert client.delete(f"/api/v1/milestones/{mid}", headers=ha).status_code == 404
+    assert client.post("/api/v1/tasks", headers=ha,
+                       json={"project_id": p["id"], "name": "T2"}).status_code == 404
+    assert client.patch(f"/api/v1/tasks/{tid}", headers=ha, json={"name": "T1x"}).status_code == 404
+    assert client.post("/api/v1/progress-logs", headers=ha,
+                       json={"task_id": tid, "progress": 60}).status_code == 404
+
+    # 恢复后重新回到正常业务面（记录与待办都回来了）
+    assert client.post(f"/api/v1/projects/{p['id']}/restore", headers=ha).status_code == 200
+    assert any(x["id"] == bid for x in client.get("/api/v1/budgets", headers=ha).json())
+    assert client.get("/api/v1/dashboard/summary", headers=ha).json()["kpi"]["pending_approvals"] == 2
+    client.put("/api/v1/admin/params", headers=ha,
+               json={"budget_approval_on": "0", "expense_approval_on": "0"})

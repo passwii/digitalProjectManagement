@@ -13,7 +13,7 @@ from ..core.audit import write_audit
 from ..core.costs import execution
 from ..core.database import get_db
 from ..core.deps import get_current_user
-from ..core.rbac import check_project_access, require_admin
+from ..core.rbac import get_active_project, require_admin, visible_project_ids
 from ..models import Budget, BudgetAdjust, Project, SysParam, User
 
 router = APIRouter(prefix="", tags=["budgets"])
@@ -32,11 +32,8 @@ def _b(b: Budget, db: Session):
 
 
 def _project(db: Session, pid: int, user: User, write=False) -> Project:
-    p = db.query(Project).filter_by(id=pid).first()
-    if not p:
-        raise HTTPException(404, "项目不存在")
-    check_project_access(user, p, write=write)
-    return p
+    """子表接口的项目边界：未软删除 + 参与人校验（软删除项目一律 404）。"""
+    return get_active_project(db, pid, user, write=write)
 
 
 class BudgetIn(BaseModel):
@@ -50,10 +47,13 @@ class BudgetIn(BaseModel):
 @router.get("/budgets")
 def list_budgets(project_id: int = 0, db: Session = Depends(get_db),
                  user: User = Depends(get_current_user)):
+    """预算列表：指定 project_id 时按该项目鉴权；否则只返回「可见 + 未软删除」项目的预算。"""
     q = db.query(Budget).order_by(Budget.id)
     if project_id:
         _project(db, project_id, user)
         q = q.filter_by(project_id=project_id)
+    else:
+        q = q.filter(Budget.project_id.in_(visible_project_ids(db, user)))
     return [_b(b, db) for b in q.all()]
 
 
@@ -116,10 +116,13 @@ def adjust_request(bid: int, body: dict, db: Session = Depends(get_db),
 @router.get("/budget-adjusts")
 def list_adjusts(project_id: int = 0, status: str = "", db: Session = Depends(get_db),
                  user: User = Depends(get_current_user)):
+    """调整单列表：无 project_id 时只返回可见且未软删除项目的调整单。"""
     q = db.query(BudgetAdjust).order_by(BudgetAdjust.id.desc())
     if project_id:
         _project(db, project_id, user)
         q = q.filter_by(project_id=project_id)
+    else:
+        q = q.filter(BudgetAdjust.project_id.in_(visible_project_ids(db, user)))
     if status:
         q = q.filter_by(status=status)
     return [{"id": a.id, "budget_id": a.budget_id, "project_id": a.project_id,
@@ -135,6 +138,8 @@ def approve_adjust(aid: int, body: dict, db: Session = Depends(get_db),
     a = db.query(BudgetAdjust).filter_by(id=aid).first()
     if not a or a.status != "pending":
         raise HTTPException(404, "调整单不存在或已处理")
+    # 决策边界：软删除项目的调整单不可处理
+    get_active_project(db, a.project_id, msg="项目已删除，调整单不可处理")
     ok = body.get("approve", True)
     a.status = "approved" if ok else "rejected"
     a.approved_by = user.id

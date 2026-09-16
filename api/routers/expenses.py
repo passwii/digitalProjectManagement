@@ -13,8 +13,8 @@ from ..core.audit import write_audit
 from ..core.costs import PASS, budget_total, execution, spent
 from ..core.database import get_db
 from ..core.deps import get_current_user
-from ..core.rbac import check_project_access, require_admin
-from ..models import Expense, Project, SysParam, User
+from ..core.rbac import get_active_project, require_admin, visible_project_ids
+from ..models import Expense, SysParam, User
 
 router = APIRouter(prefix="/expenses", tags=["expenses"])
 
@@ -42,14 +42,13 @@ class ExpenseIn(BaseModel):
 def list_expenses(project_id: int = 0, status: str = "",
                   page: int = 0, size: int = 20,
                   db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    """支出列表：带 page 参数时返回分页信封 {total,page,size,items}。"""
+    """支出列表：指定 project_id 时按该项目鉴权；否则只返回「可见 + 未软删除」项目的支出。"""
     q = db.query(Expense).order_by(Expense.id.desc())
     if project_id:
-        p = db.query(Project).filter_by(id=project_id).first()
-        if not p:
-            raise HTTPException(404, "项目不存在")
-        check_project_access(user, p)
+        get_active_project(db, project_id, user)
         q = q.filter_by(project_id=project_id)
+    else:
+        q = q.filter(Expense.project_id.in_(visible_project_ids(db, user)))
     if status:
         q = q.filter_by(status=status)
     total = q.count()
@@ -63,10 +62,7 @@ def list_expenses(project_id: int = 0, status: str = "",
 @router.post("")
 def create_expense(body: ExpenseIn, db: Session = Depends(get_db),
                    user: User = Depends(get_current_user)):
-    p = db.query(Project).filter_by(id=body.project_id).first()
-    if not p:
-        raise HTTPException(404, "项目不存在")
-    check_project_access(user, p, write=True)
+    p = get_active_project(db, body.project_id, user, write=True)
     if body.amount <= 0:
         raise HTTPException(400, "支出金额须大于 0")
     on = db.query(SysParam).filter_by(key="expense_approval_on").first()
@@ -104,6 +100,7 @@ def approve(eid: int, db: Session = Depends(get_db), user: User = Depends(get_cu
     e = db.query(Expense).filter_by(id=eid).first()
     if not e or e.status != "pending":
         raise HTTPException(404, "支出不存在或不在待审批")
+    get_active_project(db, e.project_id, msg="项目已删除，该支出不可处理")
     if _over(db, e.project_id, e.subject, e.amount):
         raise HTTPException(400, "超预算：通过前请先调预算或走特批")
     e.status, e.approved_by = "approved", user.id
@@ -120,6 +117,7 @@ def reject(eid: int, body: dict, db: Session = Depends(get_db),
     e = db.query(Expense).filter_by(id=eid).first()
     if not e or e.status != "pending":
         raise HTTPException(404, "支出不存在或不在待审批")
+    get_active_project(db, e.project_id, msg="项目已删除，该支出不可处理")
     e.status, e.approved_by = "rejected", user.id
     db.commit()
     write_audit(db, user.id, "reject_expense", "expenses", eid, body.get("reason", ""))
@@ -136,6 +134,7 @@ def exception(eid: int, body: dict, db: Session = Depends(get_db),
         if not e:
             raise HTTPException(404, "支出不存在")
         raise HTTPException(400, "仅待审批/已驳回可特批")
+    get_active_project(db, e.project_id, msg="项目已删除，该支出不可处理")
     e.status, e.approved_by = "exception", user.id
     db.commit()
     write_audit(db, user.id, "exception_expense", "expenses", eid, body.get("reason", "特批"))
