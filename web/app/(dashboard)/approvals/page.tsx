@@ -97,6 +97,9 @@ function ApprovalsInner() {
 
   const d = data;
   const nothing = d && d.total === 0;
+  // Stage 3A：每类待办服务端最多返回 limit 条，totals 是真实总数 → 明确提示未展示的部分
+  const shownCount = d ? d.project_filings.length + d.budget_adjusts.length + d.expenses.length : 0;
+  const hiddenCount = d ? Math.max(0, d.total - shownCount) : 0;
 
   return (
     <div>
@@ -126,6 +129,12 @@ function ApprovalsInner() {
             <div className="kpi"><div className="k">预算调整</div><div className="v mono">{d?.budget_adjusts.length ?? 0}</div></div>
             <div className="kpi"><div className="k">支出审批</div><div className="v mono">{d?.expenses.length ?? 0}</div></div>
           </div>
+
+          {hiddenCount > 0 && (
+            <div className="muted tiny" role="status" style={{ marginBottom: 8 }}>
+              还有 {hiddenCount} 条待办未展示（每类最多显示前 {d?.limit ?? 200} 条，处理后可用「刷新」继续）
+            </div>
+          )}
 
           {(d?.project_filings.length ?? 0) > 0 && (
             <>

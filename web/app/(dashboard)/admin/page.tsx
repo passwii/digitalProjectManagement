@@ -2,8 +2,8 @@
 
 import { Suspense, useState } from "react";
 import {
-  adminApi, buildQuery, errText, projectsApi,
-  type AdminUser, type AuditLog, type DictItem,
+  adminApi, buildQuery, errText, projectsApi, unwrapPaged,
+  type AdminUser, type AuditLog, type DictItem, type RecycleBinItem,
 } from "@/lib/api";
 import { useAsyncData } from "@/lib/useAsyncData";
 import { urlInt, useUrlState, useUrlText } from "@/lib/useUrlState";
@@ -22,14 +22,6 @@ import UserDialog from "./UserDialog";
 const TABS = ["用户", "角色", "字典", "参数", "日志", "回收站"] as const;
 type Tab = (typeof TABS)[number];
 
-interface BinItem {
-  id: number;
-  code: string;
-  name: string;
-  status: string;
-  deleted_at: string | null;
-}
-
 interface RoleItem {
   id: number;
   code: string;
@@ -44,6 +36,8 @@ const URL_DEFAULTS = {
   logsize: "20",
   upage: "1",
   usize: "20",
+  binpage: "1",
+  binsize: "20",
 };
 
 export default function AdminPage() {
@@ -94,6 +88,8 @@ function AdminInner() {
   const userSize = urlInt(url.usize, 20, { max: 100 });
   const logPage = urlInt(url.logpage, 1);
   const logSize = urlInt(url.logsize, 20, { max: 100 });
+  const binPage = urlInt(url.binpage, 1);
+  const binSize = urlInt(url.binsize, 20, { max: 100 });
   const [logDraft, setLogDraft] = useUrlText(url.logq, (next) =>
     setUrl({ logq: next, logpage: "1" }),
   );
@@ -127,7 +123,19 @@ function AdminInner() {
     [logPage, logSize, url.logq],
     { enabled: tab === "日志", resetOnDepChange: true },
   );
-  const bin = useAsyncData((signal) => projectsApi.recycleBin(signal), [], { enabled: tab === "回收站" });
+  // 回收站：Stage 3A 起一律回分页信封，默认按删除时间倒序
+  const bin = useAsyncData(
+    (signal) =>
+      projectsApi.recycleBin(
+        buildQuery({ page: binPage, size: binSize, sort: "-deleted_at" }),
+        signal,
+      ),
+    [binPage, binSize],
+    { enabled: tab === "回收站", resetOnDepChange: true },
+  );
+  const binPageData = unwrapPaged<RecycleBinItem>(bin.data);
+  const binItems: RecycleBinItem[] = binPageData.items;
+  const binTotal = binPageData.total;
 
   const userItems: AdminUser[] = users.data?.items ?? [];
   const roleItems: RoleItem[] = roles.data ?? [];
@@ -358,14 +366,15 @@ function AdminInner() {
       {tab === "回收站" && (
         bin.firstLoad ? (
           <LoadingBlock kpis={0} label="加载回收站…" />
-        ) : (bin.data ?? []).length === 0 ? (
+        ) : binItems.length === 0 ? (
           <div className="card"><Empty title="回收站为空" hint="删除的项目会进入这里，可恢复。" /></div>
         ) : (
+          <>
           <div className="table-scroll">
             <table className="grid" aria-busy={bin.loading}>
               <thead><tr><th>编号</th><th>名称</th><th>原状态</th><th>删除时间</th><th className="no-print" /></tr></thead>
               <tbody>
-                {(bin.data ?? []).map((p: BinItem) => (
+                {binItems.map((p) => (
                   <tr key={p.id}>
                     <td className="mono tiny">{p.code}</td>
                     <td><span className="ellipsis" title={p.name}>{p.name}</span></td>
@@ -395,6 +404,15 @@ function AdminInner() {
               </tbody>
             </table>
           </div>
+          <Pagination
+            page={binPage}
+            size={binSize}
+            total={binTotal}
+            loading={bin.loading}
+            ariaLabel="回收站分页"
+            onChange={(next) => setUrl({ binpage: String(next.page), binsize: String(next.size) })}
+          />
+          </>
         )
       )}
 

@@ -1,7 +1,7 @@
 "use client";
 // 进度填报弹窗：完成比例 + 说明 + 剩余工期 + 填报历史
 import { useEffect, useState } from "react";
-import { errText, progressApi, type ProgressLog, type Task } from "@/lib/api";
+import { errText, progressApi, unwrapPaged, type ProgressLog, type Task } from "@/lib/api";
 import { useMeta } from "@/lib/useMeta";
 import { useForm } from "@/lib/useForm";
 import { fmtDateTime } from "@/lib/labels";
@@ -51,7 +51,7 @@ export default function ReportDialog({
     form.reset({ progress: String(task.progress ?? 0), note: "", remaining_days: "" });
     progressApi
       .logs(`?task_id=${task.id}`)
-      .then(setLogs)
+      .then((d) => setLogs(unwrapPaged<ProgressLog>(d).items))
       .catch(() => setLogs([]));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, task?.id]);
