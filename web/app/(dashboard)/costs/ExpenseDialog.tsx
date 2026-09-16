@@ -1,7 +1,8 @@
 "use client";
-// 支出登记弹窗：提交后按审批开关决定直接计入 / 待审批
+// 支出登记 / 被驳回后修改重新提交弹窗。
+// 提交失败（超预算等业务错误）时**不清空表单**，用户改完可以直接重试。
 import { useEffect, useState } from "react";
-import { errText, expensesApi } from "@/lib/api";
+import { errText, expensesApi, type Expense } from "@/lib/api";
 import { SUBJECTS, todayISO } from "@/lib/labels";
 import { useForm } from "@/lib/useForm";
 import { Dialog } from "@/components/ui/Modal";
@@ -16,18 +17,32 @@ interface Values {
 
 const BLANK: Values = { subject: "人工", amount: "", exp_date: "", note: "" };
 
+/** 被驳回单据 → 表单预填：让「修改后重新提交」不必重新敲一遍 */
+function fromExpense(x: Expense): Values {
+  return {
+    subject: x.subject || BLANK.subject,
+    amount: String(x.amount ?? ""),
+    exp_date: x.exp_date ?? todayISO(),
+    note: x.note ?? "",
+  };
+}
+
 export default function ExpenseDialog({
   open,
   onClose,
   projectId,
+  resubmitOf,
   onSaved,
 }: {
   open: boolean;
   onClose: () => void;
   projectId: number;
+  /** 传入被驳回的支出 → 以它为模板重新提交（标题与提示切换为「重新提交」） */
+  resubmitOf?: Expense | null;
   onSaved: (msg: string, warn: boolean) => void;
 }) {
   const [formErr, setFormErr] = useState("");
+  const isResubmit = !!resubmitOf;
   const form = useForm<Values>(BLANK, {
     amount: {
       required: "请填写支出金额",
@@ -37,36 +52,42 @@ export default function ExpenseDialog({
   });
 
   useEffect(() => {
-    if (open) {
-      form.reset({ ...BLANK, exp_date: todayISO() });
-      setFormErr("");
-    }
+    if (!open) return;
+    form.reset(resubmitOf ? fromExpense(resubmitOf) : { ...BLANK, exp_date: todayISO() });
+    setFormErr("");
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open]);
+  }, [open, resubmitOf?.id]);
 
   async function submit() {
     setFormErr("");
     if (!form.validate()) return;
     const v = form.values;
+    const payload = {
+      project_id: projectId,
+      subject: v.subject,
+      amount: Number(v.amount),
+      exp_date: v.exp_date || null,
+      note: v.note.trim(),
+    };
     try {
-      const saved = await expensesApi.create({
-        project_id: projectId,
-        subject: v.subject,
-        amount: Number(v.amount),
-        exp_date: v.exp_date || null,
-        note: v.note.trim(),
-      });
+      const saved = await expensesApi.create(payload);
       const rate = saved.execution?.rate;
       const msg =
         saved.status === "pending"
-          ? "支出已提交，等待审批后计入执行"
+          ? isResubmit
+            ? "已重新提交，等待审批后计入执行"
+            : "支出已提交，等待审批后计入执行"
           : `支出已登记并计入执行${rate != null ? `（执行率 ${(rate * 100).toFixed(1)}%）` : ""}`;
       onSaved(msg, !!saved.execution?.warn);
       onClose();
     } catch (e) {
-      // 超预算等业务错误：保留弹窗内容，提示走特批
+      // 超预算等业务错误：**保留弹窗内容**（含已填数据），提示下一步可走的路径
       const msg = errText(e);
-      setFormErr(/超预算/.test(msg) ? `${msg}。可在支出列表对挂起单据点「特批放行」。` : msg);
+      setFormErr(
+        /超预算/.test(msg)
+          ? `${msg}。可调整预算，或先把单据提交为待审批再由管理员「特批放行」。`
+          : msg,
+      );
     }
   }
 
@@ -75,11 +96,11 @@ export default function ExpenseDialog({
       open={open}
       onClose={onClose}
       dirty={form.dirty}
-      title="登记支出"
+      title={isResubmit ? `重新提交支出 · ${resubmitOf?.subject ?? ""}` : "登记支出"}
       footer={
         <>
           <button className="btn-ghost" onClick={onClose}>取消</button>
-          <button className="btn-primary" onClick={submit}>提交支出</button>
+          <button className="btn-primary" onClick={submit}>{isResubmit ? "重新提交" : "提交支出"}</button>
         </>
       }
     >
@@ -106,7 +127,13 @@ export default function ExpenseDialog({
         </Field>
       </div>
       {formErr && <div className="err-banner" style={{ marginTop: 10, marginBottom: 0 }} role="alert">{formErr}</div>}
-      <p className="tiny">审批开关开启或超预算时转为「待审批」；审批关闭且超预算会被直接拦截，需调整预算或走特批。</p>
+      {isResubmit ? (
+        <p className="tiny">
+          以被驳回的单据为模板新建一条记录（原单保留以便追溯）。请按审批意见调整金额或说明后提交。
+        </p>
+      ) : (
+        <p className="tiny">审批开关开启或超预算时转为「待审批」；审批关闭且超预算会被直接拦截，需调整预算或走特批。</p>
+      )}
     </Dialog>
   );
 }

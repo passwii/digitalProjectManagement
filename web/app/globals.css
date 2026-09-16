@@ -201,6 +201,27 @@ table.grid tbody tr { transition: background var(--motion); }
 table.grid tbody tr:hover { background: var(--row-hover); }
 table.grid tbody tr:last-child td { border-bottom: none; }
 
+/* 通知定位命中行：左侧色条 + 持久底色，与 hover 区分开（BLF-1093）。
+   不能只靠 hover —— 用户从通知跳进来后鼠标不在表上，必须一眼看到「就是这一条」。 */
+table.grid tbody tr.row-target > td {
+  background: var(--brand-soft);
+  box-shadow: inset 0 1px 0 var(--line-blue), inset 0 -1px 0 var(--line-blue);
+}
+table.grid tbody tr.row-target > td:first-child {
+  box-shadow: inset 3px 0 0 var(--brand), inset 0 1px 0 var(--line-blue), inset 0 -1px 0 var(--line-blue);
+}
+table.grid tbody tr.row-target:hover > td { background: var(--brand-soft); }
+
+/* 卡片形态的定位命中（看板列） */
+.card.row-target {
+  border-color: var(--brand) !important;
+  box-shadow: 0 0 0 2px var(--brand-soft), var(--shadow-card);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  table.grid tbody tr { transition: none; }
+}
+
 /* ---------- ops utilities ---------- */
 .mono { font-family: var(--font-mono); }
 .num { font-family: var(--font-mono); text-align: right; font-variant-numeric: tabular-nums; }
@@ -222,6 +243,11 @@ td.num, th.num { text-align: right; }
 
 .row-actions { display: none; gap: 8px; }
 tr:hover .row-actions { display: inline-flex; }
+/* 触控设备没有 hover：始终展开行内操作，否则手机/平板上这些操作根本点不到（BLF-1093） */
+@media (pointer: coarse) {
+  .row-actions { display: inline-flex; flex-wrap: wrap; }
+  .row-actions button, .row-actions a { min-height: 30px; padding: 0 4px; }
+}
 .row-actions a, .row-actions button {
   font-size: 12px;
   color: var(--brand);
@@ -327,6 +353,13 @@ tr:hover .row-actions { display: inline-flex; }
 .timeline li { display: flex; gap: 10px; padding: 8px 0; border-bottom: 1px dashed var(--line-soft); font-size: 13px; }
 .timeline li:last-child { border-bottom: none; }
 .timeline .t { color: var(--ink-3); font-size: 12px; white-space: nowrap; }
+/* 时间线里的定位命中项（跟进深链，BLF-1093） */
+.timeline li.row-target {
+  background: var(--brand-soft);
+  border-left: 3px solid var(--brand);
+  padding-left: 8px;
+  border-radius: 0 var(--radius) var(--radius) 0;
+}
 
 /* member picker（成员管理弹窗） */
 .member-list { max-height: 320px; overflow: auto; border: 1px solid var(--line); border-radius: var(--radius); }
@@ -416,6 +449,36 @@ tr:hover .row-actions { display: inline-flex; }
   .page-head { flex-wrap: wrap; }
   .ellipsis { max-width: 180px; }
   table.grid th, table.grid td { padding: 0 8px; }
+}
+
+/* 窄屏（手机）：关键页面仍要能操作。
+   表格不折行会导致操作按钮被挤出屏幕，必需横向滚动；这里把操作列钳在右侧，
+   并给可点元素 ≥40px 的触控高度（原本行内小按钮 26px，手机上很易误点）。 */
+@media (max-width: 640px) {
+  .page-head .actions { gap: 6px; }
+  .page-head .actions > * { flex: 1 1 auto; }
+  .kpi-row { grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); }
+  .kpi .v { font-size: 17px; }
+  .kpi .v.mono { font-size: 16px; }
+
+  table.grid { font-size: 12px; }
+  table.grid th, table.grid td { padding: 0 6px; }
+  /* 行内操作按钮：触控达标 + 可换行，不被容器裁掉 */
+  table.grid td.no-print button { min-height: 30px; }
+  table.grid td.no-print > span { flex-wrap: wrap; }
+
+  .table-scroll { -webkit-overflow-scrolling: touch; }
+  .picker-grow { flex-basis: auto; }
+
+  /* 筛选条在窄屏堆叠，不挤压输入框到不可用宽度 */
+  .card > label[style*="flex"] { flex: 1 1 100% !important; }
+}
+
+/* 触控设备：可点元素至少 40px 高，避免行内小按钮在手机上误点（BLF-1093） */
+@media (pointer: coarse) {
+  .btn-ghost, .btn-primary { min-height: 36px; }
+  table.grid td.no-print button { min-height: 34px; padding-left: 10px; padding-right: 10px; }
+  a, button, select, input { touch-action: manipulation; }
 }
 
 /* ---------- print: 报表黑白可读 ---------- */

@@ -1,7 +1,7 @@
 "use client";
 // 预算登记 / 调整申请弹窗
-import { useEffect } from "react";
-import { budgetsApi, type Budget } from "@/lib/api";
+import { useEffect, useState } from "react";
+import { budgetsApi, errText, type Budget } from "@/lib/api";
 import { SUBJECTS } from "@/lib/labels";
 import { useForm } from "@/lib/useForm";
 import { Dialog } from "@/components/ui/Modal";
@@ -40,6 +40,7 @@ export default function BudgetDialog({
   onSaved: (isAdjust: boolean) => void;
 }) {
   const isAdjust = !!budget;
+  const [formErr, setFormErr] = useState("");
 
   const form = useForm<Values>(isAdjust ? toValues(budget) : BLANK, {
     amount: {
@@ -55,12 +56,16 @@ export default function BudgetDialog({
   });
 
   useEffect(() => {
-    if (open) form.reset(isAdjust && budget ? toValues(budget) : BLANK);
+    if (open) {
+      form.reset(isAdjust && budget ? toValues(budget) : BLANK);
+      setFormErr("");
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, budget?.id]);
 
   async function submit() {
     if (!form.validate()) return;
+    setFormErr("");
     const v = form.values;
     const payload = {
       project_id: projectId,
@@ -69,8 +74,14 @@ export default function BudgetDialog({
       period_start: v.period_start || null,
       period_end: v.period_end || null,
     };
-    if (isAdjust) await budgetsApi.adjust(budget!.id, payload);
-    else await budgetsApi.create(payload);
+    try {
+      if (isAdjust) await budgetsApi.adjust(budget!.id, payload);
+      else await budgetsApi.create(payload);
+    } catch (e) {
+      // 保留已填内容（含调整理由），改完可直接重试
+      setFormErr(errText(e));
+      return;
+    }
     onSaved(isAdjust);
     onClose();
   }
@@ -115,6 +126,7 @@ export default function BudgetDialog({
           />
         </Field>
       </div>
+      {formErr && <div className="err-banner" style={{ marginTop: 10, marginBottom: 0 }} role="alert">{formErr}</div>}
       {isAdjust && <p className="tiny">调整需审批（开关可配置），通过后自动更新预算执行数据并留痕。</p>}
     </Dialog>
   );

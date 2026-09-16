@@ -99,9 +99,31 @@
   .overlay, .drawer { animation: none; }
 }
 
-/* 移动端：Dialog 变全屏、Drawer 全宽 */
+/* 移动端：Dialog 占满窗口（全屏），Drawer 全宽。
+   窄屏下列表在后面透出来会让人以为弹层没盖住，也会误点到后面的行，
+   所以这里真正铺满（之前是 92vh 底部弹层，与「移动端全屏弹层」的约定不一致）。 */
 @media (max-width: 900px) {
-  .panel { margin: auto 0 0; width: 100%; max-width: none; max-height: 92vh; border-radius: var(--radius) var(--radius) 0 0; }
+  .panel {
+    margin: 0;
+    width: 100%;
+    max-width: none;
+    height: 100%;
+    max-height: 100%;
+    border: none;
+    border-radius: 0;
+  }
   .drawer { width: 100% !important; }
+  /* Confirm 是短确认（无表单）：保持居中卡片，不要铺满整屏看着像页面级弹层 */
+  .panel.sm {
+    margin: auto 12px;
+    height: auto;
+    max-height: 86vh;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding-top: 0;
+  }
   .foot { position: sticky; bottom: 0; }
+  /* iOS 安全区：底部按钮不被 Home 指示条挡住 */
+  .foot { padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px)); }
+  .head { padding-top: calc(12px + env(safe-area-inset-top, 0px)); }
 }
