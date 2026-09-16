@@ -79,7 +79,8 @@ def main() -> int:
             q = parse_qs(urlparse(page.url).query)
             has_locator = any(k in q for k in ("filing", "adjust", "expense"))
             record("通知点击带定位参数落到审批对象", has_locator, page.url)
-            page.wait_for_timeout(1200)
+            # 等表格真正渲染出命中行再断言（深链是从通知面板跳过来的，数据还在路上）
+            page.wait_for_selector("tr[data-target-id]", timeout=15000)
             hits = page.locator("tr.row-target").count()
             record("审批页高亮命中行", hits > 0, f"row-target={hits}")
             page.screenshot(path=f"{SHOT}/02-approvals-target.png")
@@ -97,7 +98,7 @@ def main() -> int:
         )
         if exp["expense"]:
             page.goto(f"{BASE}/approvals?expense={exp['expense']}", wait_until="networkidle")
-            page.wait_for_timeout(1500)
+            page.wait_for_selector(f'tr[data-target-id="{exp["expense"]}"]', timeout=15000)
             hit = page.locator(f'tr[data-target-id="{exp["expense"]}"]').count()
             hl = page.locator(f'tr[data-target-id="{exp["expense"]}"].row-target').count()
             record("支出待办深链定位并高亮", hit > 0 and hl > 0, f"id={exp['expense']} 命中={hit} 高亮={hl}")
@@ -106,7 +107,8 @@ def main() -> int:
             record("存在待审批支出", False, "无 pending expense")
 
         page.goto(f"{BASE}/approvals?adjust={exp['adjust'] or 1}", wait_until="networkidle")
-        page.wait_for_timeout(1500)
+        if exp["adjust"]:
+            page.wait_for_selector(f'tr[data-target-id="{exp["adjust"]}"].row-target', timeout=15000)
         record(
             "预算调整深链定位",
             bool(exp["adjust"]) and page.locator(f'tr[data-target-id="{exp["adjust"]}"].row-target').count() > 0,
@@ -335,7 +337,8 @@ def main() -> int:
         detail_link = page.locator('[role="dialog"] a:has-text("打开完整档案")')
         if detail_link.count():
             detail_link.first.click()
-            page.wait_for_timeout(2200)
+            # 跳到详情路由需要等服务端组件就绪，不用固定 sleep（否则会把慢当成错）
+            page.wait_for_url(re.compile(r"/projects/\d+"), timeout=15000)
         path = page.url
         record("进入项目详情", bool(re.search(r"/projects/\d+", path)), path)
         page.screenshot(path=f"{SHOT}/20-flow-project-detail.png")
