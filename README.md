@@ -4,14 +4,14 @@ Next.js 14（前端）+ FastAPI（后端）+ SQLite（单文件库）实现的 M
 
 ## 启动
 
-后端（端口 8000）：
+后端（端口 8001）：
 
 ```bash
 cd api
 export PYTHONPATH=$(cd .. && pwd)
 alembic upgrade head        # 首次：建表
 python3 -m api.seed         # 首次：种子数据（幂等，可重复执行）
-uvicorn api.main:app --port 8000
+uvicorn api.main:app --port 8001
 ```
 
 前端（端口 3001）：
@@ -146,7 +146,7 @@ python3 -m pytest -q        # 30 项，覆盖鉴权/状态机/越权/加权/预�
 ## 启动方式二：Docker（未实机验证）
 
 ```bash
-docker compose up --build     # api:8000 / web:3001，数据落在命名卷 pm-data
+docker compose up --build     # api:8001 / web:3001，数据落在命名卷 pm-data
 ```
 
 ## 运维
