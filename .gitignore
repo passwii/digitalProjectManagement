@@ -20,3 +20,6 @@ data/
 
 # os
 .DS_Store
+
+# visual brainstorming
+.superpowers/
