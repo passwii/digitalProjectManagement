@@ -1,5 +1,6 @@
 """Stage4：高频索引复查补齐。"""
 from alembic import op
+import sqlalchemy as sa
 
 revision = "0002_hot_indexes"
 down_revision = "0001_initial"
@@ -8,10 +9,9 @@ depends_on = None
 
 
 def _add_index(name, table, cols):
-    try:
+    existing = {i["name"] for i in sa.inspect(op.get_bind()).get_indexes(table)}
+    if name not in existing:
         op.create_index(name, table, cols)
-    except Exception:
-        pass  # 已存在/旧库兼容
 
 
 def upgrade():
@@ -34,7 +34,6 @@ def downgrade():
                  ("ix_milestones_proj_status", "milestones"),
                  ("ix_expenses_proj_subject", "expenses"), ("ix_expenses_proj_status", "expenses"),
                  ("ix_budgets_proj_subject", "budgets")]:
-        try:
+        existing = {i["name"] for i in sa.inspect(op.get_bind()).get_indexes(t)}
+        if n in existing:
             op.drop_index(n, table_name=t)
-        except Exception:
-            pass
