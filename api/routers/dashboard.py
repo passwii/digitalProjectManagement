@@ -27,14 +27,22 @@ def _visible(db: Session, user: User) -> list[Project]:
     return q.all()
 
 
-def healthy(progress: float, rate: float, overdue: int, stagnant_days: int,
-            status: str) -> str:
-    """健康度：bad（逾期/停滞/超支）> risk（临近预警）> ok > closed。"""
+def healthy(status: str, rate: float, overdue: int, stagnant_days: int,
+            mile_overdue: int = 0, mile_near: int = 0) -> str:
+    """项目健康度分级：
+
+    bad  超支 / 逾期任务≥3 / 停滞≥14 天 / 有里程碑逾期
+    risk 有逾期任务 / 停滞≥7 天 / 执行率≥80% / 有里程碑临近
+    ok   其余
+    注意：停滞只对「进行中」项目有意义，其他状态不参与判定（避免已完工项目误判）。
+    """
     if status in ("cancelled", "archived"):
         return "closed"
-    if overdue > 0 or stagnant_days >= 14 or rate > 1:
+    if not (status == "doing"):
+        stagnant_days = 0
+    if rate > 1 or overdue >= 3 or stagnant_days >= 14 or mile_overdue > 0:
         return "bad"
-    if stagnant_days >= 7 or rate >= 0.8:
+    if overdue >= 1 or stagnant_days >= 7 or rate >= 0.8 or mile_near > 0:
         return "risk"
     return "ok"
 
@@ -140,12 +148,19 @@ def summary(db: Session = Depends(get_db), user: User = Depends(get_current_user
 
     # 里程碑临近/逾期
     miles = db.query(Milestone).filter(Milestone.project_id.in_(pids), Milestone.status == "open").all() if pids else []
-    near_milestones = [
-        m for m in miles
-        if m.plan_date and not m.actual_date and (m.plan_date - today).days <= 3
-    ]
+    near_miles_by_project: dict[int, int] = {}
+    overdue_miles_by_project: dict[int, int] = {}
+    for m in miles:
+        if not m.plan_date or m.actual_date:
+            continue
+        left = (m.plan_date - today).days
+        if left < 0:
+            overdue_miles_by_project[m.project_id] = overdue_miles_by_project.get(m.project_id, 0) + 1
+        elif left <= 3:
+            near_miles_by_project[m.project_id] = near_miles_by_project.get(m.project_id, 0) + 1
+    near_milestones = [m for m in miles if m.plan_date and not m.actual_date and (m.plan_date - today).days <= 3]
 
-    # 项目健康度列表（进行中优先）
+    # 项目健康度列表（异常优先）
     def health_row(p: Project):
         b = budget_map.get(p.id, 0)
         s = spent_map.get(p.id, 0)
@@ -157,7 +172,11 @@ def summary(db: Session = Depends(get_db), user: User = Depends(get_current_user
                 "progress": p.progress or 0, "plan_end": p.plan_end.isoformat() if p.plan_end else None,
                 "budget": round(b, 2), "spent": round(s, 2), "rate": rate,
                 "overdue_tasks": od, "stagnant_days": sd,
-                "health": healthy(p.progress or 0, rate, od, sd, p.status)}
+                "milestone_overdue": overdue_miles_by_project.get(p.id, 0),
+                "milestone_near": near_miles_by_project.get(p.id, 0),
+                "health": healthy(p.status, rate, od, sd,
+                                  overdue_miles_by_project.get(p.id, 0),
+                                  near_miles_by_project.get(p.id, 0))}
 
     health = [health_row(p) for p in projects]
     health.sort(key=lambda x: ({"bad": 0, "risk": 1, "ok": 2, "closed": 3}[x["health"]], -x["progress"]))
