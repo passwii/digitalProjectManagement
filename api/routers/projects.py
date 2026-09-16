@@ -6,9 +6,10 @@ from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from sqlalchemy import or_, text
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from ..core.audit import write_audit
+from ..core.audit import commit_audited, write_audit
 from ..core.database import ROOT, get_db, parse_date
 from ..core.deps import get_current_user
 from ..core.paging import DEFAULT_PAGE_SIZE, paginate
@@ -246,18 +247,30 @@ def create_project(body: ProjectIn, db: Session = Depends(get_db),
             if filing_on:
                 # 立项审批人 = 管理员（唯一审批角色），申请人收到结果通知即可
                 from ..core.notify import approval_recipients, push_many
+                from ..core.timeline import ACTION_SUBMIT, KIND_PROJECT_FILING
+                from ..core.timeline import record as record_timeline
+                record_timeline(db, KIND_PROJECT_FILING, p.id, ACTION_SUBMIT,
+                                from_status="draft", to_status="pending",
+                                project_id=p.id, actor_id=user.id)
                 push_many(db, approval_recipients(db), "approval",
                           f"立项审批待处理：{p.name}",
                           f"编号 {p.code}，预算 {p.budget_total}",
                           ref_type="project", ref_id=p.id, project_id=p.id,
                           dedup_key=f"filing-request:{p.id}")
-            db.commit()
+            db.flush()
+            commit_audited(db, user.id, "create_project", "projects", p.id, p.code)
             break
+        except HTTPException:
+            db.rollback()
+            raise
+        except IntegrityError:   # 编号唯一索引冲突 → 重试取号
+            db.rollback()
+            continue
         except Exception:
             db.rollback()
+            raise
     else:
         raise HTTPException(500, "编号生成冲突，请重试")
-    write_audit(db, user.id, "create_project", "projects", p.id, p.code)
     return _p(db.query(Project).filter_by(id=p.id).first())
 
 
@@ -297,8 +310,7 @@ def update_project(pid: int, body: dict, db: Session = Depends(get_db),
                 db.add(ProjectMember(project_id=pid, user_id=uid))
         db.add(ProjectChange(project_id=pid, field="member_ids", old="", new=str(body["member_ids"]),
                              by_id=user.id, at=now))
-    db.commit()
-    write_audit(db, user.id, "update_project", "projects", pid, str(list(body.keys())))
+    commit_audited(db, user.id, "update_project", "projects", pid, str(list(body.keys())))
     return _p(p)
 
 
@@ -307,7 +319,7 @@ def change_status(pid: int, body: dict, db: Session = Depends(get_db),
                   user: User = Depends(get_current_user)):
     p = _get(db, pid, user, write=True)
     to = body.get("status", "")
-    reason = body.get("reason", "")
+    reason = str(body.get("reason", "") or "")
     if to not in (TRANSITIONS.get(p.status, set())):
         raise HTTPException(400, f"不允许从 {p.status} 流转到 {to}")
     if to == "archived" and not is_admin(user) and p.owner_id != user.id:
@@ -316,10 +328,20 @@ def change_status(pid: int, body: dict, db: Session = Depends(get_db),
         raise HTTPException(403, "仅管理员可解归档")
     old = p.status
     p.status = to
+    now = datetime.now(timezone.utc)
     db.add(ProjectChange(project_id=pid, field="status", old=old, new=to,
-                         by_id=user.id, at=datetime.now(timezone.utc)))
-    db.commit()
-    write_audit(db, user.id, "project_status", "projects", pid, f"{old}->{to} {reason}")
+                         by_id=user.id, at=now))
+    # 立项审批的最终状态也进时间线（申请人可查「谁在什么时候批/驳了什么」）
+    if old in ("pending", "draft") and to in ("filed", "cancelled"):
+        from ..core.timeline import (ACTION_APPROVE, ACTION_REJECT, ACTION_SUBMIT,
+                                     KIND_PROJECT_FILING, record as record_timeline)
+        record_timeline(db, KIND_PROJECT_FILING, pid, ACTION_SUBMIT, from_status="draft",
+                        to_status="pending", project_id=pid, actor_id=p.owner_id)
+        record_timeline(db, KIND_PROJECT_FILING, pid,
+                        ACTION_APPROVE if to == "filed" else ACTION_REJECT,
+                        from_status="pending", to_status=to, project_id=pid,
+                        actor_id=user.id, reason=reason)
+    commit_audited(db, user.id, "project_status", "projects", pid, f"{old}->{to} {reason}")
     return _p(p)
 
 
@@ -349,30 +371,47 @@ def upload(pid: int, file: UploadFile = File(...), db: Session = Depends(get_db)
     fp.write_bytes(data)
     a = Attachment(project_id=pid, filename=file.filename, path=str(fp),
                    size=len(data), content_type=file.content_type or "",
-                   uploaded_by=user.id, uploaded_at=datetime.now(timezone.utc))
+                   uploaded_by=user.id, uploaded_at=datetime.now(timezone.utc),
+                   ref_type="", ref_id=None)
     db.add(a)
-    db.commit()
-    write_audit(db, user.id, "upload_attachment", "attachments", a.id, file.filename)
+    db.flush()
+    commit_audited(db, user.id, "upload_attachment", "attachments", a.id, file.filename)
     return {"id": a.id, "filename": a.filename, "size": a.size}
 
 
 @router.get("/{pid}/attachments")
 def list_attachments(pid: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """项目附件列表（只含项目级附件）。
+
+    支出凭证（`ref_type="expense"`）挂在同一张表上，必须按 `ref_type` 排除，
+    否则项目附件列表会泄漏支出单据的凭证文件名与上传人。
+    """
     _get(db, pid, user)
+    rows = db.query(Attachment).filter(
+        Attachment.project_id == pid,
+        or_(Attachment.ref_type == "", Attachment.ref_type.is_(None)),
+    ).all()
     return [{"id": a.id, "filename": a.filename, "size": a.size,
              "uploaded_by": a.uploaded_by,
              "uploaded_at": a.uploaded_at.isoformat() if a.uploaded_at else None}
-            for a in db.query(Attachment).filter_by(project_id=pid).all()]
+            for a in rows]
 
 
 @router.get("/{pid}/attachments/{aid}/download")
 def download_attachment(pid: int, aid: int, db: Session = Depends(get_db),
                         user: User = Depends(get_current_user)):
-    """附件下载：校验项目可见性 + 附件归属，防越权取件。"""
+    """附件下载：校验项目可见性 + 附件归属，防越权取件。
+
+    只允许项目级附件；支出凭证要经 `/expenses/{id}/vouchers/{aid}/download` 取，
+    以保证「支出可见性」与「凭证可见性」永远同源。
+    """
     from urllib.parse import quote
 
     _get(db, pid, user)
-    a = db.query(Attachment).filter_by(id=aid, project_id=pid).first()
+    a = db.query(Attachment).filter(
+        Attachment.id == aid, Attachment.project_id == pid,
+        or_(Attachment.ref_type == "", Attachment.ref_type.is_(None)),
+    ).first()
     if not a:
         raise HTTPException(404, "附件不存在")
     fp = Path(a.path)
@@ -390,21 +429,24 @@ def download_attachment(pid: int, aid: int, db: Session = Depends(get_db),
 @router.delete("/{pid}/attachments/{aid}")
 def delete_attachment(pid: int, aid: int, db: Session = Depends(get_db),
                       user: User = Depends(get_current_user)):
-    """删除附件：项目可写者或上传者本人，同时清理磁盘文件。"""
+    """删除附件：项目可写者或上传者本人，同时清理磁盘文件。只限项目级附件。"""
     _get(db, pid, user, write=True)
-    a = db.query(Attachment).filter_by(id=aid, project_id=pid).first()
+    a = db.query(Attachment).filter(
+        Attachment.id == aid, Attachment.project_id == pid,
+        or_(Attachment.ref_type == "", Attachment.ref_type.is_(None)),
+    ).first()
     if not a:
         raise HTTPException(404, "附件不存在")
     if a.uploaded_by != user.id and not is_admin(user):
         raise HTTPException(403, "仅上传者或管理员可删除附件")
     try:
         Path(a.path).unlink(missing_ok=True)
-    except Exception:
+    except OSError:
         pass
     name = a.filename
     db.delete(a)
-    db.commit()
-    write_audit(db, user.id, "delete_attachment", "attachments", aid, name)
+    db.flush()
+    commit_audited(db, user.id, "delete_attachment", "attachments", aid, name)
     return {"ok": True}
 
 
@@ -494,16 +536,28 @@ class FollowupIn(BaseModel):
     remind_at: datetime | None = None
 
 
+FOLLOWUP_METHODS = {"电话", "会议", "现场", "邮件", "其他"}
+FOLLOWUP_STATES = ("pending", "done", "ignored")
+
+
 @router.get("/{pid}/followups")
 def list_followups(pid: int, user_id: int = 0, date_from: str = "", date_to: str = "",
-                   sort: str = "-id", page: int = 1, size: int = DEFAULT_PAGE_SIZE,
+                   remind_state: str = "", sort: str = "-id", page: int = 1,
+                   size: int = DEFAULT_PAGE_SIZE,
                    db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    """跟进列表：按人/时间筛 + 统一分页信封（默认 `-id`，最新在前）。
-    remind 定时扫描见 core.jobs.due_followups，每 10min。"""
+    """跟进列表：按人/时间/提醒状态筛 + 统一分页信封（默认 `-id`，最新在前）。
+
+    `remind_state` 区分跟进提醒的可追踪状态（pending 待处理 / done 已通知或已处理 / ignored 已忽略），
+    remind 定时扫描见 `core.jobs.due_followups`，每 10min。
+    """
     _get(db, pid, user)
+    if remind_state and remind_state not in FOLLOWUP_STATES:
+        raise HTTPException(400, f"remind_state 须为 {list(FOLLOWUP_STATES)} 之一，收到 {remind_state!r}")
     q = db.query(Followup).filter_by(project_id=pid)
     if user_id:
         q = q.filter_by(user_id=user_id)
+    if remind_state:
+        q = q.filter(Followup.remind_state == remind_state)
     df, dt = parse_date(date_from or None), parse_date(date_to or None)
     if df:
         q = q.filter(or_(Followup.happened_at.is_(None),
@@ -515,8 +569,13 @@ def list_followups(pid: int, user_id: int = 0, date_from: str = "", date_to: str
     def _f(f: Followup):
         return {"id": f.id, "user_id": f.user_id, "method": f.method, "content": f.content,
                 "next_step": f.next_step,
-                "happened_at": f.happened_at.isoformat() if f.happened_at else None,
-                "remind_at": f.remind_at.isoformat() if f.remind_at else None}
+                "remind_at": f.remind_at.isoformat() if f.remind_at else None,
+                "remind_state": f.remind_state or "none",
+                "reminded_at": f.reminded_at.isoformat() if f.reminded_at else None,
+                "handled_at": f.handled_at.isoformat() if f.handled_at else None,
+                "handled_by": f.handled_by,
+                "handle_note": f.handle_note or "",
+                "happened_at": f.happened_at.isoformat() if f.happened_at else None}
 
     return paginate(q, page=page, size=size, allowed=FOLLOWUP_SORTS,
                     default_sort="-id", sort=sort, map_row=_f)
@@ -525,15 +584,23 @@ def list_followups(pid: int, user_id: int = 0, date_from: str = "", date_to: str
 @router.post("/{pid}/followups")
 def create_followup(pid: int, body: FollowupIn, db: Session = Depends(get_db),
                     user: User = Depends(get_current_user)):
+    """新建跟进：带 remind_at 时初始为 pending（待提醒），否则为 none（不参与提醒）。"""
     _get(db, pid, user, write=True)
+    method = str(body.method or "").strip()
+    if method and method not in FOLLOWUP_METHODS:
+        raise HTTPException(400, f"跟进方式须为 {sorted(FOLLOWUP_METHODS)} 之一，收到 {method!r}")
+    if body.remind_at is not None and body.happened_at and body.remind_at < body.happened_at:
+        raise HTTPException(400, "提醒时间不能早于跟进时间")
     f = Followup(project_id=pid, user_id=user.id,
                  happened_at=body.happened_at or datetime.now(timezone.utc),
-                 method=body.method, content=body.content,
-                 next_step=body.next_step, remind_at=body.remind_at)
+                 method=method, content=body.content,
+                 next_step=body.next_step, remind_at=body.remind_at,
+                 remind_state="pending" if body.remind_at else "none",
+                 created_at=datetime.now(timezone.utc))
     db.add(f)
-    db.commit()
-    write_audit(db, user.id, "create_followup", "followups", f.id, str(pid))
-    return {"id": f.id}
+    db.flush()
+    commit_audited(db, user.id, "create_followup", "followups", f.id, str(pid))
+    return {"id": f.id, "remind_state": f.remind_state}
 
 
 def _followup(db: Session, pid: int, fid: int, user: User):
@@ -550,17 +617,55 @@ def update_followup(pid: int, fid: int, body: FollowupIn, db: Session = Depends(
                     user: User = Depends(get_current_user)):
     _get(db, pid, user, write=True)
     f = _followup(db, pid, fid, user)
+    method = body.method or f.method
+    if method and method not in FOLLOWUP_METHODS:
+        raise HTTPException(400, f"跟进方式须为 {sorted(FOLLOWUP_METHODS)} 之一，收到 {method!r}")
+    new_remind = body.remind_at
+    if new_remind is not None and (body.happened_at or f.happened_at) \
+            and new_remind < (body.happened_at or f.happened_at):
+        raise HTTPException(400, "提醒时间不能早于跟进时间")
     f.happened_at = body.happened_at or f.happened_at
-    f.method = body.method or f.method
+    f.method = method
     f.content = body.content
     f.next_step = body.next_step
-    f.remind_at = body.remind_at
-    db.commit()
-    write_audit(db, user.id, "update_followup", "followups", fid, f"project={pid}")
-    return {"id": f.id, "content": f.content, "next_step": f.next_step,
-            "method": f.method,
+    f.remind_at = new_remind
+    # 提醒时间被（重新）设定时回到「待提醒」；被清空时退出提醒队列
+    if new_remind is None:
+        f.remind_state = "none"
+        f.reminded_at, f.handled_at, f.handled_by, f.handle_note = None, None, None, ""
+    elif f.remind_state in ("none", None):
+        f.remind_state = "pending"
+        f.reminded_at, f.handled_at, f.handled_by, f.handle_note = None, None, None, ""
+    commit_audited(db, user.id, "update_followup", "followups", fid, f"project={pid}")
+    return {"id": f.id, "content": f.content, "next_step": f.next_step, "method": f.method,
+            "remind_state": f.remind_state or "none",
             "happened_at": f.happened_at.isoformat() if f.happened_at else None,
             "remind_at": f.remind_at.isoformat() if f.remind_at else None}
+
+
+@router.post("/{pid}/followups/{fid}/remind")
+def handle_followup_remind(pid: int, fid: int, body: dict, db: Session = Depends(get_db),
+                           user: User = Depends(get_current_user)):
+    """处理跟进提醒（记录人或管理员）：标记已处理/已忽略，或重新打开为待处理。
+
+    这是「跟进到期通知可追踪」的写入端：处理状态与处理人、时间、备注一并落库，
+    避免同一到期跟进反复出现在提醒队列里。
+    """
+    from ..core.jobs import handle_followup
+
+    _get(db, pid, user, write=True)
+    f = _followup(db, pid, fid, user)
+    state = str(body.get("state", "done") or "done")
+    if state not in FOLLOWUP_STATES:
+        raise HTTPException(400, f"state 须为 {list(FOLLOWUP_STATES)} 之一，收到 {state!r}")
+    if not f.remind_at:
+        raise HTTPException(400, "该跟进没有设置提醒时间，无需处理提醒")
+    handle_followup(db, f, state, user.id, str(body.get("note", "") or ""))
+    commit_audited(db, user.id, "handle_followup_remind", "followups", fid,
+                   f"state={state} project={pid}")
+    return {"id": f.id, "remind_state": f.remind_state,
+            "handled_at": f.handled_at.isoformat() if f.handled_at else None,
+            "handled_by": f.handled_by, "handle_note": f.handle_note or ""}
 
 
 @router.delete("/{pid}/followups/{fid}")
@@ -569,8 +674,8 @@ def delete_followup(pid: int, fid: int, db: Session = Depends(get_db),
     _get(db, pid, user, write=True)
     f = _followup(db, pid, fid, user)
     db.delete(f)
-    db.commit()
-    write_audit(db, user.id, "delete_followup", "followups", fid, f"project={pid}")
+    db.flush()
+    commit_audited(db, user.id, "delete_followup", "followups", fid, f"project={pid}")
     return {"ok": True}
 
 

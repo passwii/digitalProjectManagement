@@ -101,6 +101,10 @@ class Attachment(Base):
     content_type = Column(String(128), default="")
     uploaded_by = Column(Integer, ForeignKey("users.id"), nullable=True)
     uploaded_at = Column(DateTime, default=_now)
+    # 归属对象（Stage 4A）：空 = 项目级附件；ref_type="expense" + ref_id = 支出凭证
+    ref_type = Column(String(32), default="")
+    ref_id = Column(Integer, nullable=True)
+    __table_args__ = (Index("ix_attachments_ref", "ref_type", "ref_id"),)
 
 
 class Followup(Base):
@@ -114,6 +118,12 @@ class Followup(Base):
     next_step = Column(Text, default="")
     remind_at = Column(DateTime, nullable=True, index=True)
     created_at = Column(DateTime, default=_now)
+    # 跟进提醒的可追踪状态（Stage 4A）：pending 待处理 / done 已处理 / dismissed 已忽略
+    remind_state = Column(String(16), default="pending", index=True)
+    reminded_at = Column(DateTime, nullable=True, index=True)
+    handled_at = Column(DateTime, nullable=True)
+    handled_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+    handle_note = Column(Text, default="")
 
 
 class Milestone(Base):
@@ -185,6 +195,9 @@ class BudgetAdjust(Base):
     status = Column(String(16), default="pending")  # pending/approved/rejected
     by_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     approved_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+    # 审批意见与决策时间（Stage 4A）：申请人可查的状态变化来源
+    decision_reason = Column(Text, default="")
+    decided_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=_now)
 
 
@@ -200,9 +213,33 @@ class Expense(Base):
     # approved已通过/pending待审批/rejected已驳回/exception特批通过
     by_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     approved_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+    # 审批意见与决策时间（Stage 4A）：驳回原因对申请人可见，重新提交后清空
+    decision_reason = Column(Text, default="")
+    decided_at = Column(DateTime, nullable=True)
+    resubmit_count = Column(Integer, default=0)
     created_at = Column(DateTime, default=_now)
     __table_args__ = (Index("ix_expenses_proj_subject", "project_id", "subject"),
                       Index("ix_expenses_proj_status", "project_id", "status"))
+
+
+class ApprovalRecord(Base):
+    """审批时间线（Stage 4A）：支出 / 预算调整 / 立项的统一状态变化留痕。
+
+    每条记录 = 一次状态变化（提交、重提、通过、驳回、特批），带申请人、决策人、意见与时间，
+    使「申请人可查的状态变化」不依赖审计日志（审计面向管理员，本表面向业务当事人）。
+    """
+    __tablename__ = "approval_records"
+    id = Column(Integer, primary_key=True)
+    kind = Column(String(32), nullable=False, index=True)   # expense/budget_adjust/project_filing
+    ref_id = Column(Integer, nullable=False, index=True)
+    project_id = Column(Integer, ForeignKey("projects.id", ondelete="CASCADE"), nullable=True, index=True)
+    action = Column(String(32), default="")                 # submit/resubmit/approve/reject/exception
+    from_status = Column(String(16), default="")
+    to_status = Column(String(16), default="")
+    actor_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    reason = Column(Text, default="")
+    created_at = Column(DateTime, default=_now, index=True)
+    __table_args__ = (Index("ix_approval_records_ref", "kind", "ref_id", "id"),)
 
 
 class AuditLog(Base):
@@ -257,5 +294,10 @@ class Notification(Base):
     project_id = Column(Integer, ForeignKey("projects.id"), nullable=True, index=True)
     dedup_key = Column(String(128), index=True)    # 去重：同 key 同日不重复推送
     read_at = Column(DateTime, nullable=True, index=True)
+    # 处理状态（Stage 4A）：pending 待处理 / done 已处理 / ignored 已忽略
+    state = Column(String(16), default="pending", index=True)
+    handled_at = Column(DateTime, nullable=True)
+    handled_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+    handle_note = Column(Text, default="")
     created_at = Column(DateTime, default=_now, index=True)
     __table_args__ = (Index("ix_notif_user_read", "user_id", "read_at"),)

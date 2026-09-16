@@ -153,6 +153,80 @@ u.pwd_hash=hash_password('admin123456'); u.must_change_pwd=False; db.commit(); p
 > 过去在省略分页参数时返回**裸数组**（部分接口只在显式传 `page` 时才回信封），现在**一律返回信封**；
 > 消费方统一用 `unwrapPaged`（`web/lib/api.ts`）取值即可。
 
+## 进度 / 成本 / 审批 / 通知闭环契约（Stage 4A，2026-09-16 定稿）
+
+补齐「每个状态都有来源、去向和审计记录」，实现见 `api/core/validation.py`、`api/core/timeline.py`、
+`api/core/audit.py`、`api/core/notify.py`、`api/core/jobs.py`。
+
+### 服务端入参校验（非法请求零副作用）
+
+所有校验都在**任何写库动作之前**完成，失败返回 `400` + 中文原因，且不留下部分修改：
+
+| 对象 | 规则 |
+|---|---|
+| 任务 | 名称非空（≤128 字）；权重 **>0** 且有限；计划开始 ≤ 计划结束；任务计划区间须落在项目计划区间内；父任务须同项目且层级 ≤5；前置任务须同项目且不成环；状态仅限 `todo/doing/paused/done` 的合法流转 |
+| 进度填报 | `0 ≤ progress ≤ 100`；`remaining_days` 0—3650；**前置任务未完成时不得报 100% 或置 `done`** |
+| 支出 | 科目须在 `人工/采购/外包/差旅/其他` 内；金额 **>0** 且有限（拒绝 `NaN`/`Infinity`）；支出日期不早于项目计划开始、距今不超过 1 年 |
+| 预算 / 调整 | 金额 ≥0（调整需与现值不同）；期间开始 ≤ 结束且落在项目计划起止内；科目白名单 |
+| 通知 | `page`/`size` 边界；`state`/`type` 白名单 |
+
+`NaN` / `Infinity` 是被显式拒绝的：JSON 里它们能被解析成 `float('nan')`，一旦落库会让后续所有金额比较静默为 `False`。
+
+### 进度填报历史不可覆盖
+
+`/progress-logs` **只有 POST 与 GET**（`PATCH`/`DELETE` 返回 `405`）；任务上的 `progress` 是「最新填报快照」，
+任何进度变化都会**追加**一条 log。因此 `progress` 永远可由 log 序列复现，不存在历史被直接改写的路径。
+
+### 支出闭环：凭证 / 驳回重提 / 审批意见
+
+- **凭证附件**（`attachments.ref_type='expense'` + `ref_id`）：
+  `POST /expenses/{id}/vouchers`（上传，`pdf/docx/xlsx/png/jpg/jpeg`，≤20MB）、
+  `GET /expenses/{id}/vouchers`、`GET /expenses/{id}/vouchers/{aid}/download`、
+  `DELETE /expenses/{id}/vouchers/{aid}`（上传者本人或管理员）。
+  ⚠️ **凭证与项目附件互不串门**：`GET /projects/{id}/attachments` 只回项目级附件，项目附件下载/删除入口也拒绝支出凭证（反之亦然）。
+- **驳回后重新提交**：`POST /expenses/{id}/resubmit`，仅「已驳回」且申请人本人（或管理员）可用；可同时修正
+  科目/金额/日期/说明；成功后回到 `pending`、`resubmit_count` +1，**驳回意见保留在时间线里不被覆盖**。
+- **审批意见**：支出行直接带 `decision_reason` / `decided_at` / `approved_by` / `resubmit_count` /
+  `can_resubmit`，列表即可看到驳回原因；`reject` 与 `exception` **意见/理由必填**。
+- **申请人可查的时间线**：`GET /expenses/{id}/timeline`（非管理员可查自己可见的支出）、
+  `GET /budget-adjusts/{id}/timeline`（申请人可查），管理员另有 `GET /approvals/{kind}/{id}/timeline`。
+  时间线写在 `approval_records`（kind=expense/budget_adjust/project_filing），含 `action` / `from_status → to_status` /
+  `actor_id` / `reason` / `created_at`；`action` 取值：`submit`/`resubmit`/`approve`/`reject`/`exception`/`auto_approve`。
+- **自动生效不冒充人工审批**：预算审批开关关闭时系统自动生效，走 `auto_approve` 且 `approved_by` 留空。
+- **筛选**：`GET /expenses?mine=1`、`GET /budget-adjusts?mine=1` 供申请人自查单据。
+
+### 通知：可定位引用 + 可追踪处理状态 + 去重窗口
+
+- **引用三元组**：每条通知都带 `ref_type` / `ref_id` / `project_id`；`ref_type` 白名单
+  `project/task/milestone/expense/budget_adjust/followup`（白名单外降级为空，不写入无法解析的引用）。
+- **跳转链接**：响应额外回 `link`（服务端给出唯一跳转路径）与 `ref_complete`，前端不必自猜规则；
+  `GET /notifications/{id}` 另回 `ref_available`（引用对象已删除/不可见时为 `false`），供「对象不存在」的兜底提示。
+  `link` 形如 `/progress?project_id=1&task_id=2`、`/costs?project_id=1&expense_id=5`、`/approvals?budget_adjust_id=3`。
+- **处理状态**：`state` = `pending` 待处理 / `done` 已处理 / `ignored` 已忽略，配 `handled_at` / `handled_by` / `handle_note`。
+  `POST /notifications/{id}/handle`（单条）、`POST /notifications/handle-all`（批量，支持 `type` 限定）；
+  列表支持 `?state=` / `?type=` 筛选，`/notifications/count` 同时回 `unread` 与 `pending`。
+- **去重窗口**：`notify_dedup_days`（默认 1 天）——**时间窗口**而非自然日切分，跨零点不会立刻重推同一到期记录；
+  去重键含引用 id（如 `overdue_task:12`），不同任务/里程碑/支出/跟进互不影响。置 0 = 关闭去重。
+  `GET /notifications/dedup/config` 可读当前窗口（便于解释「为什么同一条预警没有重复出现」）。
+- **跟进提醒可追踪**：`followups.remind_state` = `pending`（待提醒）/ `done`（已通知或已处理）/ `ignored` / `none`（无提醒时间）。
+  到期扫描**只取未推送过的**，推送后自动标记 `done` + `reminded_at`，同一到期记录不会重复灌入；
+  处理入口 `POST /projects/{id}/followups/{fid}/remind`。
+- **四类预警的引用**：逾期任务 → `task`；里程碑临近 → `milestone`；项目停滞 → `project`；
+  预算预警 → `project`（去重键仍按 `项目:科目` 区分）。
+
+### 审计：关键写操作与业务变更原子提交
+
+- 关键写路径（任务/支出/预算调整/审批决策/特批/项目状态流转/成员/参数/用户）统一用
+  `core.audit.commit_audited()`：**业务行 + 时间线 + 通知 + 审计行同一次 commit**。
+  审计写失败 → 整体回滚 + `500`（`审计写入失败，本次操作已回滚，请重试或联系管理员`），**绝不静默当成功**。
+- `write_audit()` 保留给「业务已提交、审计作为独立后续动作」的场景（登录/下载/导出），失败同样抛 `500`。
+
+### 审批中心
+
+`GET /approvals/pending` 每类待办各一次 COUNT + 一次取当页，项目名/科目名/申请人名**批量映射**（无 N+1）；
+新增可选 `kind`（`project_filing`/`budget_adjust`/`expense`）只看一类，但 `totals` 仍给全量口径。
+`decide` 入口的 `expense` 分支补充了超预算校验（与 `/expenses/{id}/approve` 同口径：超预算必须走特批或先调预算）。
+
 ## 性能（已实测，2000 项目规模）
 
 列表分页与查询边界的 P95 实测（临时 sqlite 库 + 真实 ASGI 请求路径，每接口采样 30 次，含鉴权与序列化）：
@@ -195,10 +269,16 @@ python3 scripts/seed_perf.py 0 --clean     # 清理压测数据
 
 ```bash
 cd /Users/damon/DamonProjects/digitalProjectManagement
-python3 -m pytest -q        # 37 项，覆盖鉴权/状态机/越权/加权/预警/拦截/审批/通知/软删除/检索/分页，
-                            # Stage 1 的管理员全局范围、非管理员管理/审批接口 403、软删除项目边界（第 25—30 项），
-                            # 以及 Stage 3A 的列表分页/排序/查询边界契约（第 31—37 项：统一信封、非法 page/size/sort 400、
-                            # 越界翻页空 items、排序稳定性、筛选组合与越权项目查询、最小字段选择器、审批待办有界）
+python3 -m pytest -q        # 62 项：
+                            #  · tests/test_mvp.py 40 项——鉴权/状态机/越权/加权/预警/拦截/审批/通知/软删除/检索/分页，
+                            #    Stage 1 管理员全局范围与非管理员 403（第 25—30 项）、Stage 3A 列表契约（第 31—37 项）、
+                            #    演示数据开关（第 38—40 项）
+                            #  · tests/test_stage4a_closure.py 22 项——Stage 4A：非法任务/支出/预算入参零副作用、
+                            #    校验失败不留部分修改、依赖一致性与父子同项目、填报历史只可追加、
+                            #    凭证往返与「不串门」、驳回重提与意见/时间线、特批理由必填、
+                            #    预算调整决策与自动生效不冒充人工、四类预警可复现、去重窗口、
+                            #    通知处理状态与 link/ref_available、跟进提醒不重复、
+                            #    审批中心全局规则/kind/totals、审计失败不静默当成功
 ```
 
 ## 已知限制
@@ -208,6 +288,9 @@ python3 -m pytest -q        # 37 项，覆盖鉴权/状态机/越权/加权/预�
   500 条时会低估；需要精确总数/分页的选择器场景请用 `GET /projects/options`（走 LIKE，`total` 准确）
 - 字典类接口（`/meta/users`、`/meta/depts`）为「一次取回本地映射」设计，服务端硬上限 500 行；超出请用 `/meta/users/search`
 - 列表筛选/分页未写入 URL，刷新会丢筛选条件（Stage 3B 前端处理）
+- Stage 4A 新增的 `link` / `state` / `can_resubmit` / `decision_reason` 等字段后端已就绪，
+  但前端 Stage 4B 尚未消费（通知跳转目前仍由 `web/components/ui/Bell.tsx` 自行拼路径，
+  建议改用服务端返回的 `link`，避免两处跳转规则漂移）
 - 前端 token 存 localStorage + 非 httpOnly cookie（供 middleware 鉴权），生产建议改服务端 httpOnly
 - `docker-compose.yml` 已提供但未在本机实跑（无 docker 环境）
 

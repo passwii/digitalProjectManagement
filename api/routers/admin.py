@@ -9,7 +9,7 @@ from pydantic import BaseModel
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from ..core.audit import write_audit
+from ..core.audit import commit_audited, write_audit
 from ..core.database import get_db
 from ..core.deps import get_current_user
 from ..core.paging import DEFAULT_PAGE_SIZE, paginate
@@ -79,8 +79,7 @@ def create_user(body: UserIn, db: Session = Depends(get_db), user: User = Depend
         r = db.query(Role).filter_by(code=code).first()
         if r:
             db.add(UserRole(user_id=u.id, role_id=r.id))
-    db.commit()
-    write_audit(db, user.id, "create_user", "users", u.id, body.username)
+    commit_audited(db, user.id, "create_user", "users", u.id, body.username)
     return _u(db.query(User).filter_by(id=u.id).first())
 
 
@@ -105,8 +104,7 @@ def update_user(uid: int, body: dict, db: Session = Depends(get_db),
                 db.add(UserRole(user_id=uid, role_id=r.id))
     if body.get("status") == "active":
         u.failed_count, u.locked_until = 0, None
-    db.commit()
-    write_audit(db, user.id, "update_user", "users", uid, str(body.keys()))
+    commit_audited(db, user.id, "update_user", "users", uid, str(sorted(body.keys())))
     return _u(u)
 
 
@@ -132,8 +130,7 @@ def set_demo_data_flag(body: dict, db: Session = Depends(get_db),
 
     on = bool(body.get("on", False))
     set_demo_data(db, on)
-    db.commit()
-    write_audit(db, user.id, "toggle_demo_data", "sys_params", 0,
+    commit_audited(db, user.id, "toggle_demo_data", "sys_params", 0,
                 "demo_data_on=1" if on else "demo_data_on=0")
     return {"on": demo_data_on(db)}
 
@@ -159,7 +156,8 @@ def create_dict(body: dict, db: Session = Depends(get_db), user: User = Depends(
     _admin(user)
     d = Dict(type=body["type"], code=body["code"], label=body.get("label", ""), sort=body.get("sort", 0))
     db.add(d)
-    db.commit()
+    db.flush()
+    commit_audited(db, user.id, "create_dict", "dicts", d.id, f"{body['type']}:{body['code']}")
     return {"id": d.id}
 
 
@@ -178,8 +176,7 @@ def set_params(body: dict, db: Session = Depends(get_db), user: User = Depends(g
             p.value = str(v)
         else:
             db.add(SysParam(key=k, value=str(v)))
-    db.commit()
-    write_audit(db, user.id, "set_params", "sys_params", "", str(list(body.keys())))
+    commit_audited(db, user.id, "set_params", "sys_params", "", str(sorted(body.keys())))
     return {"ok": True}
 
 
