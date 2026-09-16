@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { errText, notificationsApi, type Notification } from "@/lib/api";
+import { useMenus } from "@/lib/useMeta";
 import { fmtDateTime } from "@/lib/labels";
 import s from "./Bell.module.css";
 
@@ -16,18 +17,24 @@ const TYPE_LABEL: Record<string, string> = {
   expense: "支出",
 };
 
-function hrefOf(n: Notification): string | null {
+/** 通知跳转：审批类通知对管理员指向审批中心，对申请人指向自己的业务页面（不再是必然 403 的审批中心） */
+function hrefOf(n: Notification, isAdmin: boolean): string | null {
+  const costs = `/costs${n.project_id ? `?project_id=${n.project_id}` : ""}`;
   if (n.ref_type === "task" && n.project_id) return `/progress?project_id=${n.project_id}`;
   if (n.ref_type === "milestone" && n.project_id) return `/progress?project_id=${n.project_id}`;
-  if (n.ref_type === "expense") return `/costs${n.project_id ? `?project_id=${n.project_id}` : ""}`;
-  if (n.ref_type === "budget_adjust") return `/approvals`;
-  if (n.type === "approval") return "/approvals";
+  if (n.ref_type === "expense") return costs;
+  if (n.ref_type === "budget_adjust") return isAdmin ? "/approvals" : costs;
+  if (n.type === "approval") {
+    if (isAdmin) return "/approvals";
+    return n.project_id ? `/projects/${n.project_id}` : null;
+  }
   if (n.project_id) return `/projects/${n.project_id}`;
   return null;
 }
 
 export default function Bell() {
   const router = useRouter();
+  const { isAdmin } = useMenus();
   const [open, setOpen] = useState(false);
   const [unread, setUnread] = useState(0);
   const [items, setItems] = useState<Notification[]>([]);
@@ -66,8 +73,18 @@ export default function Bell() {
     function onDown(e: MouseEvent) {
       if (boxRef.current && !boxRef.current.contains(e.target as Node)) setOpen(false);
     }
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") {
+        setOpen(false);
+        (boxRef.current?.querySelector("button") as HTMLElement | null)?.focus();
+      }
+    }
     document.addEventListener("mousedown", onDown);
-    return () => document.removeEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
   }, [open, loadList]);
 
   async function openItem(n: Notification) {
@@ -80,7 +97,7 @@ export default function Bell() {
         /* 忽略 */
       }
     }
-    const href = hrefOf(n);
+    const href = hrefOf(n, isAdmin);
     if (href) {
       setOpen(false);
       router.push(href);
@@ -130,11 +147,13 @@ export default function Bell() {
               </button>
             ))}
           </div>
-          <div className={s.foot}>
-            <button className={s.link} onClick={() => { setOpen(false); router.push("/approvals"); }}>
-              前往审批中心 →
-            </button>
-          </div>
+          {isAdmin && (
+            <div className={s.foot}>
+              <button className={s.link} onClick={() => { setOpen(false); router.push("/approvals"); }}>
+                前往审批中心 →
+              </button>
+            </div>
+          )}
         </div>
       )}
     </div>

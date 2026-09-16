@@ -36,6 +36,36 @@
 .collapsed .wsName .label { display: none; }
 
 .nav { flex: 1; padding: 8px; display: flex; flex-direction: column; gap: 2px; overflow-y: auto; }
+
+/* 管理与审批分组标题（仅管理员菜单里出现） */
+.navGroupLabel {
+  display: block;
+  padding: 10px 12px 4px;
+  font-size: 11px; font-weight: 600; letter-spacing: 0.06em;
+  color: var(--ink-3);
+  border-top: 1px solid var(--line-soft);
+  margin-top: 6px;
+}
+.collapsed .navGroupLabel { text-align: center; padding: 8px 0 2px; letter-spacing: 0; }
+
+/* 权限同步失败：降级提示 + 重试 */
+.navError {
+  margin: 0 8px 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--line-warn);
+  background: var(--warn-bg);
+  color: var(--warn);
+  border-radius: var(--radius);
+  font-size: 12px; line-height: 1.5;
+}
+.navError span { display: block; margin-bottom: 6px; }
+.navRetry {
+  height: 24px; padding: 0 8px; font-size: 12px;
+  background: var(--card); color: var(--warn);
+  border: 1px solid var(--line-warn); border-radius: var(--radius);
+}
+.navRetry:hover { border-color: var(--warn); }
+.collapsed .navError { display: none; }
 .navLink {
   position: relative;
   display: flex; align-items: center; gap: 10px;
@@ -118,6 +148,9 @@
   .collapsed .wsName .label, .collapsed .navLink .label { display: inline; }
   .nav { flex-direction: row; overflow-x: auto; padding: 8px 12px; }
   .navLink { flex: 0 0 auto; }
+  .navGroupLabel { display: none; }
+  .navError { margin: 0 12px 10px; }
+  .collapsed .navError { display: block; }
   .navLink.active::before { display: none; }
   .sideFoot { display: flex; align-items: center; gap: 10px; }
   .collapsed .userMeta, .collapsed .logoutBtn { display: block; }

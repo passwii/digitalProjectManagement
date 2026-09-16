@@ -1,7 +1,9 @@
 "use client";
-// 元数据（用户/部门）全局缓存 + hook，供各页做 id→名称映射
-import { useEffect, useState } from "react";
-import { metaApi, authApi, type Dept, type Me, type UserOption } from "./api";
+// 元数据（用户/部门）全局缓存 + hook，供各页做 id→名称映射。
+// 权限单一入口：`/meta/me/menus`（useMenus）返回可见菜单与 is_admin / can_approve，
+// 页面不再各自硬编码角色判断（Stage 1 契约：管理员是唯一管理与审批角色）。
+import { useCallback, useEffect, useState } from "react";
+import { errText, metaApi, authApi, type Dept, type Me, type MenuResp, type UserOption } from "./api";
 
 interface Meta {
   users: UserOption[];
@@ -29,7 +31,7 @@ export function loadMeta(): Promise<Meta> {
 let meCache: Me | null = null;
 let meInflight: Promise<Me> | null = null;
 
-/** 当前用户（全局缓存），用于按钮级权限：roles.includes("admin") */
+/** 当前用户（全局缓存）：仅用于身份展示（姓名/角色名），权限判定请用 useMenus */
 export function loadMe(): Promise<Me> {
   if (meCache) return Promise.resolve(meCache);
   if (!meInflight) {
@@ -61,14 +63,105 @@ export function useMe() {
   return {
     me,
     roles: codes,
-    isAdmin: codes.includes("admin"),
-    isCostAdmin: codes.includes("cost_admin"),
-    isExec: codes.includes("executive"),
+    roleNames: me?.roles.map((r) => r.name) ?? [],
     displayName: me?.real_name || me?.username || "",
   };
 }
 
-export function useMeta() {  const [meta, setMeta] = useState<Meta>(cache ?? { users: [], depts: [] });
+// ---------------- 权限单一入口：/meta/me/menus ----------------
+
+let menusCache: MenuResp | null = null;
+let menusInflight: Promise<MenuResp> | null = null;
+
+/** 可见菜单 + 管理/审批资格（全局缓存，登录会话内只请求一次） */
+export function loadMenus(): Promise<MenuResp> {
+  if (menusCache) return Promise.resolve(menusCache);
+  if (!menusInflight) {
+    menusInflight = metaApi
+      .menus()
+      .then((m) => {
+        menusCache = m;
+        return m;
+      })
+      .finally(() => {
+        menusInflight = null;
+      });
+  }
+  return menusInflight;
+}
+
+/** 退出登录时清空缓存，避免换账号后残留上一用户的菜单与权限 */
+export function clearMetaCache() {
+  cache = null;
+  inflight = null;
+  meCache = null;
+  meInflight = null;
+  menusCache = null;
+  menusInflight = null;
+}
+
+export interface MenuState {
+  /** 后端返回的可见菜单（不含恒可见的工作台） */
+  menus: { key: string; label: string; href: string }[];
+  roles: string[];
+  isAdmin: boolean;
+  /** 与列表行内 can_decide / 决策接口同一判定 */
+  canApprove: boolean;
+  loading: boolean;
+  error: string;
+  reload: () => void;
+}
+
+/**
+ * 权限 hook：所有导航与管理/审批按钮的显示条件都取这里。
+ * · loading 期间 isAdmin/canApprove 均为 false —— 未确认权限前不展示管理入口；
+ * · error 时页面应展示可重试的加载失败，而不是“无权限”。
+ */
+export function useMenus(): MenuState {
+  const [data, setData] = useState<MenuResp | null>(menusCache);
+  const [loading, setLoading] = useState(!menusCache);
+  const [error, setError] = useState("");
+  const [nonce, setNonce] = useState(0);
+
+  useEffect(() => {
+    let alive = true;
+    // 已有缓存（同一会话内其他组件先拉到）时不再闪一次骨架；reload() 会清缓存后进入 loading
+    if (!menusCache) setLoading(true);
+    setError("");
+    loadMenus()
+      .then((m) => {
+        if (alive) setData(m);
+      })
+      .catch((e) => {
+        if (alive) setError(errText(e));
+      })
+      .finally(() => {
+        if (alive) setLoading(false);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [nonce]);
+
+  const reload = useCallback(() => {
+    menusCache = null;
+    setLoading(true);
+    setNonce((n) => n + 1);
+  }, []);
+
+  return {
+    menus: data?.menus ?? [],
+    roles: data?.roles ?? [],
+    isAdmin: !!data?.is_admin,
+    canApprove: !!data?.can_approve,
+    loading,
+    error,
+    reload,
+  };
+}
+
+export function useMeta() {
+  const [meta, setMeta] = useState<Meta>(cache ?? { users: [], depts: [] });
   useEffect(() => {
     let alive = true;
     loadMeta()

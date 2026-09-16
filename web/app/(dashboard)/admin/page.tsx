@@ -5,11 +5,12 @@ import {
   adminApi, errText, projectsApi,
   type AdminUser, type AuditLog, type DictItem,
 } from "@/lib/api";
-import { useMeta } from "@/lib/useMeta";
+import { useMeta, useMenus } from "@/lib/useMeta";
 import { fmtDateTime } from "@/lib/labels";
 import Badge from "@/components/ui/Badge";
 import Empty from "@/components/ui/Empty";
 import Pagination from "@/components/ui/Pagination";
+import { LoadingBlock, LoadFailed, NoAccess } from "@/components/ui/PageState";
 import { Confirm, Drawer } from "@/components/ui/Modal";
 import { useToast } from "@/components/ui/Toast";
 import DictDialog from "./DictDialog";
@@ -29,12 +30,41 @@ interface BinItem {
 }
 
 export default function AdminPage() {
+  // 系统管理属于管理与审批面：非管理员不拉取数据（避免整页 403 报错），并给出明确说明
+  const { isAdmin, loading: permsLoading, error: permsError, reload } = useMenus();
+
+  if (permsLoading) return <LoadingBlock kpis={0} />;
+  if (permsError) return <LoadFailed message={permsError} onRetry={reload} />;
+  if (!isAdmin) {
+    return (
+      <div>
+        <div className="page-head">
+          <h1>系统管理<span className="sub">管理员全局管理</span></h1>
+        </div>
+        <NoAccess
+          title="系统管理仅管理员可用"
+          hint={
+            <>
+              当前账号不属于管理员，无法查看用户、角色、字典、参数、审计日志与回收站。
+              <br />
+              需要调整权限或恢复项目时，请联系管理员处理。
+            </>
+          }
+        />
+      </div>
+    );
+  }
+  return <AdminInner />;
+}
+
+function AdminInner() {
   const { deptName } = useMeta();
   const toast = useToast();
 
   const [tab, setTab] = useState<Tab>("用户");
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [roles, setRoles] = useState<{ id: number; code: string; name: string }[]>([]);
@@ -55,6 +85,7 @@ export default function AdminPage() {
 
   const load = useCallback(async () => {
     setErr("");
+    setLoading(true);
     try {
       if (tab === "用户") {
         const [u, r] = await Promise.all([adminApi.users(1, 100), adminApi.roles()]);
@@ -77,6 +108,8 @@ export default function AdminPage() {
       }
     } catch (e) {
       setErr(errText(e));
+    } finally {
+      setLoading(false);
     }
   }, [tab, logPage, logAction]);
 
@@ -104,6 +137,11 @@ export default function AdminPage() {
       <div className="tabs">
         {TABS.map((t) => <button key={t} className={tab === t ? "active" : ""} onClick={() => setTab(t)}>{t}</button>)}
       </div>
+
+      {loading ? (
+        <LoadingBlock kpis={0} label="加载管理数据…" />
+      ) : (
+        <>
 
       {tab === "用户" && (
         users.length === 0 ? (
@@ -276,6 +314,9 @@ export default function AdminPage() {
             </tbody>
           </table>
         )
+      )}
+
+        </>
       )}
 
       <UserDialog

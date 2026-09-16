@@ -6,7 +6,7 @@ import {
   errText, projectsApi,
   type Attachment, type Followup, type Project, type ProjectChange,
 } from "@/lib/api";
-import { useMeta } from "@/lib/useMeta";
+import { useMeta, useMenus } from "@/lib/useMeta";
 import {
   PROJECT_FLOW, fmtDate, fmtDateTime, fmtMoney, projectStatusLabel, projectTone,
 } from "@/lib/labels";
@@ -27,6 +27,8 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
   const { id } = use(params);
   const pid = Number(id);
   const { userName, deptName } = useMeta();
+  // 解归档仅管理员：按钮显示条件取后端菜单契约
+  const { isAdmin } = useMenus();
   const toast = useToast();
 
   const [tab, setTab] = useState<Tab>("基本");
@@ -111,7 +113,10 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
   if (err && !project) return <div className="err-banner">{err}</div>;
   if (!project) return <p className="muted">加载中…</p>;
 
-  const nextStatuses = PROJECT_FLOW[project.status] ?? [];
+  const nextStatuses = (PROJECT_FLOW[project.status] ?? []).filter(
+    // archived → doing（解归档）仅管理员可操作
+    (to) => !(project.status === "archived" && to === "doing" && !isAdmin)
+  );
 
   return (
     <div>
@@ -171,6 +176,9 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
               ) : (
                 <button key={to} className="btn-ghost" disabled={busy} onClick={() => changeStatus(to)}>→ {projectStatusLabel(to)}</button>
               )
+            )}
+            {project.status === "archived" && !isAdmin && nextStatuses.length === 0 && (
+              <span className="muted" style={{ fontSize: 12 }}>项目已归档且为只读，解除归档需管理员操作。</span>
             )}
           </div>
         </div>
