@@ -90,3 +90,46 @@ def visible_project_condition(user):
         exists().where((ProjectMember.project_id == Project.id) &
                        (ProjectMember.user_id == user.id)),
     )
+
+
+def active_projects(db):
+    """未软删除项目查询基座：普通业务列表与写入一律基于 active 项目。
+
+    软删除项目只能通过回收站（`/projects/recycle-bin/list`）查看、通过恢复接口回到正常业务。
+    """
+    return db.query(Project).filter(Project.deleted_at.is_(None))
+
+
+def get_active_project(db, pid: int, user=None, write: bool = False,
+                       msg: str = "项目不存在") -> Project:
+    """按 id 取一个未软删除项目；不存在或已软删除 → 404（默认 msg 可覆盖）。
+
+    传 user 时附带参与人读/写校验（admin 全局放行）。子表接口（预算/支出/里程碑/任务/填报）
+    的项目边界统一走这里，避免各自 `filter_by(id=...)` 漏掉软删除与可见性。
+    """
+    p = active_projects(db).filter(Project.id == pid).first()
+    if not p:
+        raise HTTPException(404, msg)
+    if user is not None:
+        check_project_access(user, p, write=write)
+    return p
+
+
+def visible_project_ids(db, user):
+    """「可见 + 未软删除」的项目 id 子查询，供子表列表下推过滤。
+
+    用法：`q.filter(Expense.project_id.in_(visible_project_ids(db, user)))`。
+    列表接口在没有指定 project_id 时一律用它收口，避免跨项目数据泄露与软删除项目回流。
+    """
+    from sqlalchemy import select
+
+    stmt = select(Project.id).where(Project.deleted_at.is_(None))
+    cond = visible_project_condition(user)
+    if cond is not None:
+        stmt = stmt.where(cond)
+    return stmt
+
+
+def visible_project_id_list(db, user) -> set[int]:
+    """「可见 + 未软删除」项目 id 集合（需要在 Python 侧做集合判断的场景，如跨项目任务列表）。"""
+    return {pid for (pid,) in db.execute(visible_project_ids(db, user)).all()}

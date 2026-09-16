@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from ..core.audit import write_audit
 from ..core.database import get_db, parse_date
 from ..core.deps import get_current_user
+from ..core.rbac import get_active_project, visible_project_id_list, visible_project_ids
 from ..models import ProgressLog, Project, Task, User
 
 router = APIRouter(prefix="", tags=["tasks"])
@@ -25,12 +26,8 @@ def _t(t: Task):
 
 
 def _project(db: Session, pid: int, user: User, write=False) -> Project:
-    from ..core.rbac import check_project_access
-    p = db.query(Project).filter_by(id=pid).first()
-    if not p:
-        raise HTTPException(404, "项目不存在")
-    check_project_access(user, p, write=write)
-    return p
+    """子表接口的项目边界：未软删除 + 参与人校验（软删除项目一律 404）。"""
+    return get_active_project(db, pid, user, write=write)
 
 
 def _check_cycle(db: Session, task_id: int | None, predecessor_id: int | None, project_id: int):
@@ -67,14 +64,8 @@ def list_tasks(project_id: int = 0, status: str = "",
     if project_id:
         # 已鉴权过该项目，直接返回（避免逐任务重复查询：原 N+1 热点）
         return [_t(t) for t in rows]
-    # 跨项目查询：一次性取可见项目集合，避免逐行 _project()
-    from ..core.rbac import visible_project_condition
-
-    vis = visible_project_condition(user)
-    vq = db.query(Project.id)
-    if vis is not None:
-        vq = vq.filter(vis)
-    visible = {pid for (pid,) in vq.all()}
+    # 跨项目查询：一次性取「可见 + 未软删除」项目集合，避免逐行 _project()
+    visible = visible_project_id_list(db, user)
     return [_t(t) for t in rows if t.project_id in visible]
 
 
@@ -162,12 +153,19 @@ class LogIn(BaseModel):
 @router.get("/progress-logs")
 def list_logs(task_id: int = 0, project_id: int = 0,
               db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """填报历史：task_id / project_id 均需可见；两者都不传时只返回可见且未软删除项目的记录。"""
     q = db.query(ProgressLog).order_by(ProgressLog.id.desc())
     if task_id:
+        t = db.query(Task).filter_by(id=task_id).first()
+        if not t:
+            raise HTTPException(404, "任务不存在")
+        _project(db, t.project_id, user)
         q = q.filter_by(task_id=task_id)
     if project_id:
         _project(db, project_id, user)
         q = q.filter_by(project_id=project_id)
+    if not task_id and not project_id:
+        q = q.filter(ProgressLog.project_id.in_(visible_project_ids(db, user)))
     return [{"id": l.id, "task_id": l.task_id, "project_id": l.project_id,
              "user_id": l.user_id, "progress": l.progress, "note": l.note,
              "remaining_days": l.remaining_days,
@@ -183,7 +181,7 @@ def create_log(body: LogIn, db: Session = Depends(get_db),
     _project(db, t.project_id, user, write=True)
     # 成员只能报自己的任务（管理员/负责人除外）
     from ..core.rbac import is_admin
-    p = db.query(Project).filter_by(id=t.project_id).first()
+    p = get_active_project(db, t.project_id)
     if not is_admin(user) and p.owner_id != user.id and t.owner_id != user.id:
         raise HTTPException(403, "只能填报自己的任务")
     if not (0 <= body.progress <= 100):

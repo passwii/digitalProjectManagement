@@ -18,20 +18,27 @@ from ..core.audit import write_audit
 from ..core.database import get_db
 from ..core.deps import get_current_user
 from ..core.notify import push
-from ..core.rbac import can_approve, require_admin
-from ..models import Budget, BudgetAdjust, Expense, Project, ProjectChange, User
+from ..core.rbac import can_approve, get_active_project, require_admin
+from ..models import (Budget, BudgetAdjust, Expense, Project, ProjectChange,
+                      User)
 
 router = APIRouter(prefix="/approvals", tags=["approvals"])
 
 
 @router.get("/pending")
 def pending(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    """管理员审批中心：全局三类待办聚合（跨部门、跨项目，仅排除已软删除项目）。"""
+    """管理员审批中心：全局三类待办聚合（跨部门、跨项目，仅含未软删除项目的记录）。"""
     require_admin(user)
+    from sqlalchemy import select
+
+    active = select(Project.id).where(Project.deleted_at.is_(None))
     filings = db.query(Project).filter(Project.status == "pending",
                                        Project.deleted_at.is_(None)).all()
-    adjusts = db.query(BudgetAdjust).filter_by(status="pending").all()
-    expenses = db.query(Expense).filter_by(status="pending").all()
+    # 软删除项目的调整单/支出不进待办（与决策入口的 active 边界一致）
+    adjusts = db.query(BudgetAdjust).filter(BudgetAdjust.status == "pending",
+                                            BudgetAdjust.project_id.in_(active)).all()
+    expenses = db.query(Expense).filter(Expense.status == "pending",
+                                        Expense.project_id.in_(active)).all()
 
     def filing_row(p: Project):
         return {"kind": "project_filing", "id": p.id, "project_id": p.id, "code": p.code,
@@ -98,7 +105,8 @@ def decide(kind: str, aid: int, body: dict, db: Session = Depends(get_db),
         a = db.query(BudgetAdjust).filter_by(id=aid).first()
         if not a or a.status != "pending":
             raise HTTPException(404, "调整单不存在或已处理")
-        p = db.query(Project).filter_by(id=a.project_id).first()
+        # 决策边界：软删除项目的调整单不可处理
+        p = get_active_project(db, a.project_id, msg="项目已删除，调整单不可处理")
         a.status = "approved" if approve else "rejected"
         a.approved_by = user.id
         if approve:
@@ -121,6 +129,8 @@ def decide(kind: str, aid: int, body: dict, db: Session = Depends(get_db),
             raise HTTPException(404, "支出不存在")
         if e.status != "pending":
             raise HTTPException(400, "该支出不在待审批状态")
+        # 决策边界：软删除项目的支出不可处理
+        get_active_project(db, e.project_id, msg="项目已删除，该支出不可处理")
         # approve=true 走常规通过；驳回/特批另见 /decide 与 /exception
         if approve:
             e.status = "approved"
@@ -148,6 +158,7 @@ def exception_by_center(eid: int, body: dict, db: Session = Depends(get_db),
         raise HTTPException(404, "支出不存在")
     if e.status not in ("pending", "rejected"):
         raise HTTPException(400, "仅待审批或已驳回的支出可特批")
+    get_active_project(db, e.project_id, msg="项目已删除，该支出不可处理")
     e.status = "exception"
     push(db, e.by_id, "approval", f"支出特批放行：{e.subject} {e.amount}",
          str(body.get("reason", "")), ref_type="expense", ref_id=e.id,
