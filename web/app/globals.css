@@ -258,6 +258,17 @@ tr:hover .row-actions { display: inline-flex; }
   margin-bottom: 12px;
 }
 
+/* 宽表格在窄屏内横向滚动，避免整页横向溢出（BLF-1095） */
+.table-scroll {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* 项目选择器在筛选条内自适应占满剩余宽度 */
+.picker-grow { flex: 1 1 auto; min-width: 0; }
+
 .linklike {
   background: none;
   border: none;
