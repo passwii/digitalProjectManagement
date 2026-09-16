@@ -1,9 +1,9 @@
 "use client";
 
-import { Suspense, useCallback, useMemo, useState } from "react";
+import { Suspense, useCallback, useState } from "react";
 import {
-  MAX_PAGE_SIZE, budgetsApi, buildQuery, errText, expensesApi, unwrapPaged,
-  type Budget, type Expense,
+  DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE, budgetsApi, buildQuery, errText, expensesApi, reportsApi,
+  unwrapPaged, type Budget, type Expense,
 } from "@/lib/api";
 import { useAsyncData } from "@/lib/useAsyncData";
 import { urlInt, useUrlState } from "@/lib/useUrlState";
@@ -22,8 +22,15 @@ import BudgetDialog from "./BudgetDialog";
 import ExpenseActions, { type ExpenseAct } from "./ExpenseActions";
 import ExpenseDialog from "./ExpenseDialog";
 
-// 当前项目 / 支出筛选 / 分页写入 URL（BLF-1095）
-const URL_DEFAULTS = { project_id: "", status: "", page: "1", size: "20" };
+// 当前项目 / 支出筛选与分页 / 预算分页写入 URL（BLF-1095）
+const URL_DEFAULTS = {
+  project_id: "",
+  status: "",
+  page: "1",
+  size: "20",
+  bpage: "1",
+  bsize: "20",
+};
 
 export default function CostsPage() {
   return (
@@ -44,7 +51,9 @@ function CostsInner() {
   const [url, setUrl] = useUrlState(URL_DEFAULTS, { pageKey: "page" });
   const pid = url.project_id;
   const page = urlInt(url.page, 1);
-  const size = urlInt(url.size, 20, { max: 100 });
+  const size = urlInt(url.size, DEFAULT_PAGE_SIZE, { max: MAX_PAGE_SIZE });
+  const bpage = urlInt(url.bpage, 1);
+  const bsize = urlInt(url.bsize, DEFAULT_PAGE_SIZE, { max: MAX_PAGE_SIZE });
 
   const { userName } = useMeta();
   const { canApprove } = useMenus();
@@ -55,53 +64,44 @@ function CostsInner() {
 
   const { data, loading, firstLoad, error, reload } = useAsyncData(
     async (signal) => {
-      const [b, x, p] = await Promise.all([
+      const [b, x, p, r] = await Promise.all([
         // Stage 3A：一律回分页信封（用 unwrapPaged 兼容旧裸数组）
-        budgetsApi.list(Number(pid), { size: MAX_PAGE_SIZE }, signal),
-        // page/size 先按 Stage 3 契约下发；后端仍返回裸数组时前端本地切片，双向兼容
-        expensesApi.list(buildQuery({ project_id: pid, page, size }), signal),
-        // 待审批数：单独取总条数，避免只统计当前页
-        expensesApi.list(buildQuery({ project_id: pid, status: "pending", page: 1, size: 1 }), signal),
+        budgetsApi.list(Number(pid), { page: bpage, size: bsize }, signal),
+        // 状态筛选**必须进请求参数**：只有服务端过滤才能给出正确的 total 与页码
+        expensesApi.list(buildQuery({ project_id: pid, status: url.status, page, size }), signal),
+        // 待审批数：单独取服务端总数，避免只统计当前页 / 当前筛选
+        expensesApi.list(buildQuery({ project_id: pid, status: "pending", page: 1, size: 1 }), signal),        // KPI 口径：服务端按项目×科目聚合，不受预算分页截断影响
+        reportsApi.cost(buildQuery({ project_id: pid }), signal),
       ]);
       const paged = unwrapPaged<Expense>(x);
       const budgetPage = unwrapPaged<Budget>(b);
       const pendingPage = unwrapPaged<Expense>(p);
+      const rows = r.items ?? [];
       return {
         budgets: budgetPage.items,
         budgetsTotal: budgetPage.total,
         expenses: paged.items,
-        serverPaged: paged.paged,
         serverTotal: paged.total,
-        pendingTotal: pendingPage.paged ? pendingPage.total : null,
+        pendingTotal: pendingPage.paged ? pendingPage.total : pendingPage.items.length,
+        kpiBudget: rows.reduce((s, row) => s + row.budget, 0),
+        kpiSpent: rows.reduce((s, row) => s + row.spent, 0),
       };
     },
-    [pid, page, size],
+    [pid, page, size, bpage, bsize, url.status],
     { enabled: !!pid, resetOnDepChange: true },
   );
 
   const budgets: Budget[] = data?.budgets ?? [];
   const budgetsTotal = data?.budgetsTotal ?? budgets.length;
-  const allExpenses: Expense[] = data?.expenses ?? [];
+  // 支出列表即服务端结果，不再在当页本地过滤
+  const expenses: Expense[] = data?.expenses ?? [];
+  const expTotal = data?.serverTotal ?? 0;
 
-  // 支出筛选：后端支持则服务端过滤，否则前端过滤后再分页
-  const filtered = useMemo(
-    () => (url.status ? allExpenses.filter((x) => x.status === url.status) : allExpenses),
-    [allExpenses, url.status],
-  );
-  const serverPaged = !!data?.serverPaged;
-  const expenses = serverPaged ? filtered : filtered.slice((page - 1) * size, page * size);
-  const expTotal = serverPaged
-    ? url.status
-      ? filtered.length
-      : data?.serverTotal ?? filtered.length
-    : filtered.length;
-
-  const totalBudget = budgets.reduce((s, b) => s + b.amount, 0);
-  const totalSpent = budgets.reduce((s, b) => s + b.spent, 0);
+  const totalBudget = data?.kpiBudget ?? 0;
+  const totalSpent = data?.kpiSpent ?? 0;
   const totalRate = totalBudget ? totalSpent / totalBudget : 0;
-  const pending = allExpenses.filter((x) => x.status === "pending");
-  // 服务端能给出精确总数时优先用服务端值（当前页可能不含全部待审批）
-  const pendingTotal = data?.pendingTotal ?? pending.length;
+  // 待审批总数：服务端 status=pending 的 total（旧后端不支持才能退回当页计数）
+  const pendingTotal = data?.pendingTotal ?? 0;
 
   const [budgetOpen, setBudgetOpen] = useState(false);
   const [editingBudget, setEditingBudget] = useState<Budget | null>(null);
@@ -142,6 +142,9 @@ function CostsInner() {
   const scopeText = [url.status ? `状态=${EXPENSE_STATUS[url.status] ?? url.status}` : ""]
     .filter(Boolean)
     .join(" · ");
+
+  // 预算表分页说明（KPI 为服务端聚合口径，与本页行数无关）
+  const budgetScopeText = budgetsTotal > budgets.length ? "KPI 为服务端全量口径" : undefined;
 
   // 项目范围探测中：先出骨架，避免“暂无可参与项目”误闪
   if (probing) return <LoadingBlock kpis={0} label="加载项目范围…" />;
@@ -193,7 +196,7 @@ function CostsInner() {
           <span className="muted" style={{ fontSize: 13, flex: "none" }}>项目</span>
           <ProjectPicker
             value={pid}
-            onChange={(id) => setUrl({ project_id: id, status: "" }, { history: "push" })}
+            onChange={(id) => setUrl({ project_id: id, status: "", page: 1, bpage: 1 }, { history: "push" })}
             ariaLabel="选择项目"
             placeholder="搜索名称 / 编号 / 客户…"
             className="picker-grow"
@@ -220,6 +223,9 @@ function CostsInner() {
             <div className="kpi"><div className="k">可用余额</div><div className="v mono">{fmtMoney(totalBudget - totalSpent)}</div></div>
             <div className="kpi"><div className="k">执行率</div><div className="v mono">{fmtPct(totalRate)}</div><ProgressBar value={totalRate * 100} /></div>
           </div>
+          <p className="muted tiny" style={{ marginTop: -4, marginBottom: 12 }}>
+            预算合计 / 已支出 / 执行率由服务端按项目×科目聚合（全量口径，与下方列表分页无关）。
+          </p>
 
           <h2 className="section-title">预算执行</h2>
           {budgets.length === 0 ? (
@@ -255,10 +261,21 @@ function CostsInner() {
               </table>
             </div>
           )}
-          {budgetsTotal > budgets.length && (
-            <div className="muted tiny" style={{ marginBottom: 16 }}>
-              共 {budgetsTotal} 条科目预算，当前显示前 {budgets.length} 条
-            </div>
+          {budgetsTotal > 0 && (
+            <Pagination
+              page={bpage}
+              size={bsize}
+              total={budgetsTotal}
+              loading={loading}
+              scopeText={budgetScopeText}
+              ariaLabel="预算执行分页"
+              onChange={(next) =>
+                setUrl(
+                  { bpage: String(next.page), bsize: String(next.size) },
+                  { history: next.page === bpage ? "replace" : "push" },
+                )
+              }
+            />
           )}
 
           <h2 className="section-title">支出记录{pendingTotal > 0 && <span className="sub mono">{pendingTotal} 待审批</span>}</h2>
@@ -269,7 +286,8 @@ function CostsInner() {
               <select
                 style={{ width: 160 }}
                 value={url.status}
-                onChange={(e) => setUrl({ status: e.target.value })}
+                // 离散筛选：push 进历史（后退可回到上一个筛选）；pageKey 自动把 page 归 1
+                onChange={(e) => setUrl({ status: e.target.value }, { history: "push" })}
                 aria-label="按支出状态筛选"
               >
                 <option value="">全部状态</option>
@@ -279,7 +297,7 @@ function CostsInner() {
               </select>
             </label>
             {url.status && (
-              <button type="button" className="btn-ghost" style={{ height: 32, width: "auto" }} onClick={() => setUrl({ status: "" })}>
+              <button type="button" className="btn-ghost" style={{ height: 32, width: "auto" }} onClick={() => setUrl({ status: "" }, { history: "push" })}>
                 清除筛选
               </button>
             )}
@@ -321,7 +339,12 @@ function CostsInner() {
                 loading={loading}
                 scopeText={scopeText}
                 ariaLabel="支出记录分页"
-                onChange={(next) => setUrl({ page: String(next.page), size: String(next.size) })}
+                onChange={(next) =>
+                  setUrl(
+                    { page: String(next.page), size: String(next.size) },
+                    { history: next.page === page ? "replace" : "push" },
+                  )
+                }
               />
             </>
           )}

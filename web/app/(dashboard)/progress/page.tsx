@@ -2,17 +2,18 @@
 
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import {
-  MAX_PAGE_SIZE, buildQuery, errText, milestonesApi, projectsApi, reportsApi, tasksApi, unwrapPaged,
-  type Milestone, type Task, type Warnings,
+  DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE, buildQuery, errText, milestonesApi, projectsApi, reportsApi,
+  tasksApi, unwrapPaged, type Milestone, type Task, type Warnings,
 } from "@/lib/api";
 import { useAsyncData } from "@/lib/useAsyncData";
-import { useUrlState } from "@/lib/useUrlState";
+import { urlInt, useUrlState } from "@/lib/useUrlState";
 import { useProjectsProbe } from "@/lib/useProjects";
 import { useMeta } from "@/lib/useMeta";
 import { TASK_STATUS, TASK_STATUS_ORDER, fmtDate, isOverdueTask, taskStatusLabel, taskTone } from "@/lib/labels";
 import Badge from "@/components/ui/Badge";
 import Avatar from "@/components/ui/Avatar";
 import Empty from "@/components/ui/Empty";
+import Pagination from "@/components/ui/Pagination";
 import ProjectPicker from "@/components/ui/ProjectPicker";
 import { LoadingBlock, LoadFailed } from "@/components/ui/PageState";
 import ProgressBar from "@/components/ui/ProgressBar";
@@ -30,8 +31,15 @@ const VIEWS: { code: View; label: string }[] = [
   { code: "gantt", label: "甘特图" },
 ];
 
-// 当前项目与视图模式写入 URL：链接可分享，刷新/后退不丢状态
-const URL_DEFAULTS = { project_id: "", view: "list" };
+// 当前项目 / 视图模式 / 任务分页 / 里程碑分页写入 URL：链接可分享，刷新/后退不丢状态
+const URL_DEFAULTS = {
+  project_id: "",
+  view: "list",
+  page: "1",
+  size: "20",
+  mpage: "1",
+  msize: "20",
+};
 
 export default function ProgressPage() {
   return (
@@ -51,6 +59,11 @@ export default function ProgressPage() {
 function ProgressInner() {
   const [url, setUrl] = useUrlState(URL_DEFAULTS);
   const pid = url.project_id;
+  // 任务与里程碑各自独立分页：真实翻页，不再单页截断
+  const page = urlInt(url.page, 1);
+  const size = urlInt(url.size, DEFAULT_PAGE_SIZE, { max: MAX_PAGE_SIZE });
+  const mpage = urlInt(url.mpage, 1);
+  const msize = urlInt(url.msize, DEFAULT_PAGE_SIZE, { max: MAX_PAGE_SIZE });
   const view: View = (VIEWS.find((v) => v.code === url.view)?.code ?? "list") as View;
 
   const { userName } = useMeta();
@@ -62,14 +75,14 @@ function ProgressInner() {
   const { data, loading, firstLoad, error, reload } = useAsyncData(
     async (signal) => {
       const [t, m, w, pg] = await Promise.all([
-        // 任务：显式下发 size=服务端上限，避免默认 20 条静默截断（>100 条时页面给出范围提示）
-        tasksApi.list(buildQuery({ project_id: pid, size: MAX_PAGE_SIZE }), signal),
+        // 任务：真实分页（page/size 来自 URL），不再单页截断
+        tasksApi.list(buildQuery({ project_id: pid, page, size }), signal),
         // Stage 3A：一律回分页信封（用 unwrapPaged 兼容旧裸数组）
-        milestonesApi.list(Number(pid), { size: MAX_PAGE_SIZE }, signal),
+        milestonesApi.list(Number(pid), { page: mpage, size: msize }, signal),
         // 预警是辅助信息：失败不影响任务/里程碑展示
-        reportsApi.warnings().catch(() => null),
-        // 加权进度：由服务端在**全量任务**上计算（本地按当前页算会在任务被截断时失真）
-        projectsApi.progress(Number(pid)).catch(() => null),
+        reportsApi.warnings(signal).catch(() => null),
+        // 加权进度：由服务端在**全量任务**上计算（本地按当前页算会在任务被分页时失真）
+        projectsApi.progress(Number(pid), signal).catch(() => null),
       ]);
       const taskPage = unwrapPaged<Task>(t);
       const milestonePage = unwrapPaged<Milestone>(m);
@@ -83,16 +96,28 @@ function ProgressInner() {
         serverTaskCount: pg?.task_count ?? null,
       };
     },
-    [pid],
+    [pid, page, size, mpage, msize],
     { enabled: !!pid, resetOnDepChange: true },
   );
 
   const tasks = data?.tasks ?? [];
-  const taskTotal = data?.serverTaskCount ?? data?.tasksTotal ?? tasks.length;
-  const tasksTruncated = taskTotal > tasks.length;
+  const tasksTotal = data?.tasksTotal ?? tasks.length;
+  const taskTotal = data?.serverTaskCount ?? tasksTotal;
   const miles: Milestone[] = data?.miles ?? [];
   const milesTotal = data?.milesTotal ?? miles.length;
   const warns = data?.warns ?? null;
+
+  // 分页派生值集中计算：页码收敛 + 当前页范围，供范围提示与父/前置任务候选说明复用
+  const range = useMemo(() => {
+    const pages = Math.max(1, Math.ceil(tasksTotal / Math.max(size, 1)));
+    const safePage = Math.min(Math.max(page, 1), pages);
+    return {
+      pages,
+      safePage,
+      from: tasksTotal === 0 ? 0 : (safePage - 1) * size + 1,
+      to: Math.min(safePage * size, tasksTotal),
+    };
+  }, [tasksTotal, size, page]);
 
   const [taskOpen, setTaskOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
@@ -119,7 +144,13 @@ function ProgressInner() {
     setMilestoneOpen(false);
   }, [pid]);
 
-  const myOverdue = tasks.filter(isOverdueTask);
+  // 逾期统计：优先用服务端预警（`/reports/warnings` 在全量可见任务上算，不受当前页影响）；
+  // 预警接口失败时才退化到当前页估算，并在横幅上标注口径。
+  const pageOverdue = tasks.filter(isOverdueTask);
+  const overdueWarns = warns?.overdue_tasks.filter((x) => String(x.project_id) === pid) ?? [];
+  const overdueEstimated = !warns;
+  const overdueCount = warns ? overdueWarns.length : pageOverdue.length;
+  const overdueNames = warns ? overdueWarns.map((x) => x.name) : pageOverdue.map((t) => t.name);
   const nearMiles = warns?.milestones.filter((x) => String(x.project_id) === pid) ?? [];
   const stagnant = warns?.stagnant_projects.find((x) => String(x.project_id) === pid);
 
@@ -167,6 +198,7 @@ function ProgressInner() {
             <button
               className="btn-ghost"
               disabled={busy || loading}
+              title="按服务端全量任务重算加权进度并留痕"
               onClick={() =>
                 setConfirm({
                   title: "确认项目进度？",
@@ -198,7 +230,7 @@ function ProgressInner() {
           <span className="muted" style={{ fontSize: 13, flex: "none" }}>项目</span>
           <ProjectPicker
             value={pid}
-            onChange={(id) => setUrl({ project_id: id }, { history: "push" })}
+            onChange={(id) => setUrl({ project_id: id, page: 1, mpage: 1 }, { history: "push" })}
             ariaLabel="选择项目"
             placeholder="搜索名称 / 编号 / 客户…"
             className="picker-grow"
@@ -228,12 +260,13 @@ function ProgressInner() {
         <LoadingBlock kpis={0} label="加载任务与里程碑…" />
       ) : (
         <>
-          {(myOverdue.length > 0 || nearMiles.length > 0 || stagnant) && (
+          {(overdueCount > 0 || nearMiles.length > 0 || stagnant) && (
             <div className="warn-banner">
-              {myOverdue.length > 0 && (
+              {overdueCount > 0 && (
                 <div>
-                  逾期任务 {myOverdue.length} 个：{myOverdue.map((t) => t.name).join("、")}
-                  {tasksTruncated && <span className="tiny">（仅统计当前显示的 {tasks.length} 条）</span>}
+                  逾期任务 {overdueCount} 个：{overdueNames.slice(0, 6).join("、")}
+                  {overdueNames.length > 6 && ` 等 ${overdueNames.length} 个`}
+                  {overdueEstimated && <span className="tiny">（预警接口不可用，按当前显示范围估算）</span>}
                 </div>
               )}
               {nearMiles.length > 0 && <div>里程碑临近/逾期 {nearMiles.length} 个：{nearMiles.map((m) => m.name).join("、")}</div>}
@@ -241,9 +274,10 @@ function ProgressInner() {
             </div>
           )}
 
-          {tasksTruncated && (
+          {range.pages > 1 && (
             <div className="muted tiny" role="status" style={{ marginBottom: 8 }}>
-              共 {taskTotal} 条任务，当前显示前 {tasks.length} 条（列表 / 看板 / 甘特图均基于当前显示范围）
+              列表 / 看板 / 甘特图展示的都是当前页任务（第 {range.safePage}/{range.pages} 页，第 {range.from}-{range.to} 条）；
+              翻页或调整每页条数可查看其余任务。页头加权进度与逾期统计为服务端全量口径。
             </div>
           )}
 
@@ -329,6 +363,25 @@ function ProgressInner() {
 
           {view === "gantt" && <Gantt tasks={tasks} />}
 
+          {tasksTotal > 0 && (
+            <div style={{ marginTop: 4 }}>
+              <Pagination
+                page={page}
+                size={size}
+                total={tasksTotal}
+                loading={loading}
+                scopeText="任务"
+                ariaLabel="任务列表分页"
+                onChange={(next) =>
+                  setUrl(
+                    { page: String(next.page), size: String(next.size) },
+                    { history: next.page === page ? "replace" : "push" },
+                  )
+                }
+              />
+            </div>
+          )}
+
           <div className="card" style={{ marginTop: 16 }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10, gap: 8, flexWrap: "wrap" }}>
               <h3 className="section-title" style={{ margin: 0 }}>里程碑</h3>
@@ -390,10 +443,21 @@ function ProgressInner() {
                 </table>
               </div>
             )}
-            {milesTotal > miles.length && (
-              <div className="muted tiny" style={{ marginTop: 8 }}>
-                共 {milesTotal} 条里程碑，当前显示前 {miles.length} 条
-              </div>
+            {milesTotal > 0 && (
+              <Pagination
+                page={mpage}
+                size={msize}
+                total={milesTotal}
+                loading={loading}
+                scopeText="里程碑"
+                ariaLabel="里程碑分页"
+                onChange={(next) =>
+                  setUrl(
+                    { mpage: String(next.page), msize: String(next.size) },
+                    { history: next.page === mpage ? "replace" : "push" },
+                  )
+                }
+              />
             )}
           </div>
 
@@ -403,6 +467,11 @@ function ProgressInner() {
             projectId={Number(pid)}
             task={editingTask}
             tasks={tasks}
+            taskScopeNote={
+              range.pages > 1
+                ? `候选仅含当前页任务（第 ${range.from}-${range.to} 条，共 ${tasksTotal} 条）；要选其他任务请先翻到对应页`
+                : undefined
+            }
             onSaved={() => { toast.ok(editingTask ? "任务已保存" : "任务已创建"); reload(); }}
           />
 

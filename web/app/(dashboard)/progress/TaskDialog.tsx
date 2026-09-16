@@ -40,6 +40,7 @@ export default function TaskDialog({
   projectId,
   task,
   tasks,
+  taskScopeNote,
   onSaved,
 }: {
   open: boolean;
@@ -47,6 +48,8 @@ export default function TaskDialog({
   projectId: number;
   task: Task | null;
   tasks: Task[];
+  /** 父/前置任务候选只覆盖当前显示范围时的说明（任务已分页） */
+  taskScopeNote?: string;
   onSaved: () => void;
 }) {
   const { users } = useMeta();
@@ -125,13 +128,13 @@ export default function TaskDialog({
         <Field label="权重" error={form.errors.weight} hint="加权进度按权重折算">
           <input value={form.values.weight} onChange={(e) => form.set("weight", e.target.value)} inputMode="decimal" />
         </Field>
-        <Field label="父任务" hint="最多 5 级">
+        <Field label="父任务" hint={taskScopeNote ?? "最多 5 级"}>
           <select value={form.values.parent_id} onChange={(e) => form.set("parent_id", e.target.value)}>
             <option value="">无（作为一级任务）</option>
             {others.map((t) => <option key={t.id} value={t.id}>{t.level > 1 ? "└ " : ""}{t.name}</option>)}
           </select>
         </Field>
-        <Field label="前置任务" hint="存在环会被后端拦截">
+        <Field label="前置任务" hint={taskScopeNote ? `存在环会被后端拦截 · ${taskScopeNote}` : "存在环会被后端拦截"}>
           <select value={form.values.predecessor_id} onChange={(e) => form.set("predecessor_id", e.target.value)}>
             <option value="">无</option>
             {others.map((t) => <option key={t.id} value={t.id}>{t.name}（{t.progress}%）</option>)}

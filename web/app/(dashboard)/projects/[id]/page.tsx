@@ -3,15 +3,17 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import {
-  MAX_PAGE_SIZE, buildQuery, errText, projectsApi, unwrapPaged,
+  DEFAULT_PAGE_SIZE, buildQuery, errText, projectsApi, unwrapPaged,
   type Attachment, type Followup, type Project, type ProjectChange,
 } from "@/lib/api";
+import { isAbortError } from "@/lib/useAsyncData";
 import { useMeta, useMenus } from "@/lib/useMeta";
 import {
   PROJECT_FLOW, fmtDate, fmtDateTime, fmtMoney, projectStatusLabel, projectTone,
 } from "@/lib/labels";
 import Badge from "@/components/ui/Badge";
 import Empty from "@/components/ui/Empty";
+import Pagination from "@/components/ui/Pagination";
 import ProgressBar from "@/components/ui/ProgressBar";
 import { Confirm } from "@/components/ui/Modal";
 import { useToast } from "@/components/ui/Toast";
@@ -40,6 +42,11 @@ export default function ProjectDetailPage({ params }: { params: { id: string } }
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [followups, setFollowups] = useState<Followup[]>([]);
   const [followTotal, setFollowTotal] = useState(0);
+  // 跟进子列表真实分页（详情页 Tab 状态不进 URL，用局部状态即可）
+  const [followPage, setFollowPage] = useState(1);
+  const [followSize, setFollowSize] = useState(DEFAULT_PAGE_SIZE);
+  // 增删跟进后按当前页重取（页码越界由 Pagination 的边界收敛回到合法页）
+  const [followTick, setFollowTick] = useState(0);
 
   const [editOpen, setEditOpen] = useState(false);
   const [followOpen, setFollowOpen] = useState(false);
@@ -58,24 +65,37 @@ export default function ProjectDetailPage({ params }: { params: { id: string } }
 
   useEffect(() => { loadProject(); }, [loadProject]);
 
-  const loadTab = useCallback(async () => {
+  const loadTab = useCallback(async (signal?: AbortSignal) => {
     try {
-      if (tab === "变更") setChanges(await projectsApi.changes(pid));
-      if (tab === "附件") setAttachments(await projectsApi.attachments(pid));
+      if (tab === "变更") setChanges(await projectsApi.changes(pid, signal));
+      if (tab === "附件") setAttachments(await projectsApi.attachments(pid, signal));
       if (tab === "跟进") {
         // Stage 3A：跟进列表一律回分页信封（unwrapPaged 兼容旧裸数组）
         const page = unwrapPaged<Followup>(
-          await projectsApi.followups(pid, buildQuery({ size: MAX_PAGE_SIZE })),
+          await projectsApi.followups(
+            pid,
+            buildQuery({ page: followPage, size: followSize, sort: "-id" }),
+            signal,
+          ),
         );
         setFollowups(page.items);
         setFollowTotal(page.total);
       }
     } catch (e) {
+      // 主动取消 / 组件卸载：不写任何状态（避免迟到响应覆盖当前 Tab）
+      if (isAbortError(e)) return;
       setErr(errText(e));
     }
-  }, [tab, pid]);
+  }, [tab, pid, followPage, followSize]);
 
-  useEffect(() => { loadTab(); }, [loadTab]);
+  const reloadFollows = useCallback(() => setFollowTick((t) => t + 1), []);
+
+  // 切 Tab / 切项目 / 离开详情时取消上一个请求，并用序号丢弃迟到响应
+  useEffect(() => {
+    const ac = new AbortController();
+    loadTab(ac.signal);
+    return () => ac.abort();
+  }, [loadTab, followTick]);
 
   async function changeStatus(to: string) {
     setBusy(true);
@@ -286,11 +306,6 @@ export default function ProjectDetailPage({ params }: { params: { id: string } }
             <Empty title="暂无跟进记录" hint="记录每次沟通，并可设置到期提醒。" />
           ) : (
             <>
-              {followTotal > followups.length && (
-                <div className="muted tiny" style={{ marginBottom: 8 }}>
-                  共 {followTotal} 条跟进，当前显示最近 {followups.length} 条
-                </div>
-              )}
               <ul className="timeline">
               {followups.map((f) => (
                 <li key={f.id}>
@@ -317,11 +332,7 @@ export default function ProjectDetailPage({ params }: { params: { id: string } }
                           run: async () => {
                             await projectsApi.deleteFollowup(pid, f.id);
                             toast.ok("跟进记录已删除");
-                            const page = unwrapPaged<Followup>(
-                              await projectsApi.followups(pid, buildQuery({ size: MAX_PAGE_SIZE })),
-                            );
-                            setFollowups(page.items);
-                            setFollowTotal(page.total);
+                            reloadFollows();
                           },
                         })
                       }
@@ -332,6 +343,18 @@ export default function ProjectDetailPage({ params }: { params: { id: string } }
                 </li>
               ))}
               </ul>
+              <Pagination
+                page={followPage}
+                size={followSize}
+                total={followTotal}
+                loading={busy}
+                scopeText="跟进记录"
+                ariaLabel="跟进记录分页"
+                onChange={(next) => {
+                  setFollowPage(next.page);
+                  setFollowSize(next.size);
+                }}
+              />
             </>
           )}
         </div>

@@ -96,10 +96,18 @@ function ApprovalsInner() {
   }
 
   const d = data;
-  const nothing = d && d.total === 0;
-  // Stage 3A：每类待办服务端最多返回 limit 条，totals 是真实总数 → 明确提示未展示的部分
+  // Stage 3A：每类待办服务端最多返回 limit 条，`totals` 是三类**真实总数**。
+  // 优先消费 totals；旧后端（无 totals）时退回 `total` 兼容字段。
+  const totals = d?.totals;
+  const perCategory = totals
+    ? [totals.project_filings, totals.budget_adjusts, totals.expenses]
+    : [d?.project_filings.length ?? 0, d?.budget_adjusts.length ?? 0, d?.expenses.length ?? 0];
+  const grandTotal = totals
+    ? perCategory.reduce((s, n) => s + n, 0)
+    : d?.total ?? 0;
   const shownCount = d ? d.project_filings.length + d.budget_adjusts.length + d.expenses.length : 0;
-  const hiddenCount = d ? Math.max(0, d.total - shownCount) : 0;
+  const hiddenCount = d ? Math.max(0, grandTotal - shownCount) : 0;
+  const nothing = d && grandTotal === 0;
 
   return (
     <div>
@@ -124,15 +132,21 @@ function ApprovalsInner() {
       ) : (
         <>
           <div className="kpi-row">
-            <div className="kpi"><div className="k">待处理总数</div><div className="v mono">{d?.total ?? 0}</div></div>
-            <div className="kpi"><div className="k">立项审批</div><div className="v mono">{d?.project_filings.length ?? 0}</div></div>
-            <div className="kpi"><div className="k">预算调整</div><div className="v mono">{d?.budget_adjusts.length ?? 0}</div></div>
-            <div className="kpi"><div className="k">支出审批</div><div className="v mono">{d?.expenses.length ?? 0}</div></div>
+            <div className="kpi"><div className="k">待处理总数</div><div className="v mono">{grandTotal}</div></div>
+            <div className="kpi"><div className="k">立项审批</div><div className="v mono">{perCategory[0]}</div></div>
+            <div className="kpi"><div className="k">预算调整</div><div className="v mono">{perCategory[1]}</div></div>
+            <div className="kpi"><div className="k">支出审批</div><div className="v mono">{perCategory[2]}</div></div>
           </div>
 
           {hiddenCount > 0 && (
             <div className="muted tiny" role="status" style={{ marginBottom: 8 }}>
               还有 {hiddenCount} 条待办未展示（每类最多显示前 {d?.limit ?? 200} 条，处理后可用「刷新」继续）
+            </div>
+          )}
+
+          {!totals && (shownCount > 0) && (
+            <div className="muted tiny" role="status" style={{ marginBottom: 8 }}>
+              当前后端未返回各类待办真实总数（Stage 3A 的 `totals`），上方数字为已加载条数。
             </div>
           )}
 

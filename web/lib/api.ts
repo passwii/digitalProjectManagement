@@ -20,13 +20,17 @@ export function saveSession(access: string, refresh: string) {
   document.cookie = `pm_access_token=${access}; path=/; max-age=${2 * 3600}`;
 }
 
+/** 会话失效后的登录页跳转目标：站内固定路径，不接受任何外部输入 */
+const LOGIN_PATH = "/login";
+
 export function clearSession() {
   localStorage.removeItem(TOKEN_KEY);
   localStorage.removeItem(REFRESH_KEY);
   document.cookie = "pm_access_token=; path=/; max-age=0";
-  if (typeof window !== "undefined" && window.location.pathname !== "/login") {
-    window.location.href = "/login";
-  }
+  if (typeof window === "undefined") return;
+  // 固定站内路径 + 同源解析：目标不可被外部输入影响，无开放重定向风险
+  if (window.location.pathname === LOGIN_PATH) return;
+  window.location.assign(new URL(LOGIN_PATH, window.location.origin).toString());
 }
 
 /** 把后端 HTTP 错误转成可直接展示的中文文案 */
@@ -70,10 +74,19 @@ async function request<T>(path: string, init: RequestInit = {}, raw = false): Pr
     const body = await res.text().catch(() => "");
     throw new Error(`API ${res.status}: ${body || res.statusText}`);
   }
-  if (raw) return res as unknown as T;
+  if (raw) {
+    // SAFETY: `raw` 只用于下载/二进制路径，调用方按泛型 T 自行解释响应体，这里不做运行时校验
+    return res as unknown as T;
+  }
   if (res.status === 204) return undefined as T;
   const text = await res.text();
-  return (text ? JSON.parse(text) : undefined) as T;
+  if (!text) return undefined as T;
+  try {
+    return JSON.parse(text) as T;
+  } catch {
+    // 后端异常时可能返回 HTML/纯文本错误页：给出可读文案，不把 SyntaxError 泄漏到 UI
+    throw new Error(`API 返回了非 JSON 响应：${text.slice(0, 120)}`);
+  }
 }
 
 /** GET：可选传 AbortSignal，快速切换筛选/项目时取消过期请求（BLF-1095） */
@@ -390,8 +403,8 @@ export const projectsApi = {
     apiGet<RecycleBinItem[] | Paged<RecycleBinItem>>(`/projects/recycle-bin/list${q}`, signal),
   status: (id: number, status: string, reason = "") =>
     apiPost<Project>(`/projects/${id}/status`, { status, reason }),
-  changes: (id: number) => apiGet<ProjectChange[]>(`/projects/${id}/changes`),
-  attachments: (id: number) => apiGet<Attachment[]>(`/projects/${id}/attachments`),
+  changes: (id: number, signal?: AbortSignal) => apiGet<ProjectChange[]>(`/projects/${id}/changes`, signal),
+  attachments: (id: number, signal?: AbortSignal) => apiGet<Attachment[]>(`/projects/${id}/attachments`, signal),
   upload: (id: number, file: File) => {
     const fd = new FormData();
     fd.append("file", file);
@@ -408,8 +421,8 @@ export const projectsApi = {
   updateFollowup: (id: number, fid: number, body: Record<string, unknown>) =>
     apiPatch<Record<string, unknown>>(`/projects/${id}/followups/${fid}`, body),
   deleteFollowup: (id: number, fid: number) => apiDelete<{ ok: boolean }>(`/projects/${id}/followups/${fid}`),
-  progress: (id: number) =>
-    apiGet<{ project_id: number; progress: number; task_count: number }>(`/projects/${id}/progress`),
+  progress: (id: number, signal?: AbortSignal) =>
+    apiGet<{ project_id: number; progress: number; task_count: number }>(`/projects/${id}/progress`, signal),
   confirmProgress: (id: number) =>
     apiPost<{ progress: number; task_count: number; confirmed_at: string }>(`/projects/${id}/progress/confirm`),
 };
@@ -505,7 +518,7 @@ export function unwrapPaged<T>(
 
 export const reportsApi = {
   cost: (q = "", signal?: AbortSignal) => apiGet<{ items: CostRow[]; note: string; total?: number }>(`/reports/cost${q}`, signal),
-  warnings: () => apiGet<Warnings>("/reports/warnings"),
+  warnings: (signal?: AbortSignal) => apiGet<Warnings>("/reports/warnings", signal),
   exportCost: (q = "") => downloadFile(`/reports/cost/export${q}`, "cost_report.xlsx"),
 };
 
