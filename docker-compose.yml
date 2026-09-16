@@ -46,3 +46,4 @@ services:
 
 volumes:
   pm-data:
+    name: "${DATA_VOLUME:-pm-data}"

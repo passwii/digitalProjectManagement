@@ -321,6 +321,7 @@ sqlite:////app/data/app.db
 
 ```dotenv
 DATABASE_URL=postgresql+psycopg://oa_user:change_me@host.docker.internal:5432/oa_platform
+DATA_VOLUME=pm-pg-data
 CORS_ORIGINS=http://localhost:3001,http://127.0.0.1:3001
 ```
 
