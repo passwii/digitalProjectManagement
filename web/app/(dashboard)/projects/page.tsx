@@ -2,7 +2,7 @@
 
 import { Suspense, useState } from "react";
 import Link from "next/link";
-import { buildQuery, errText, projectsApi, type Project } from "@/lib/api";
+import { buildQuery, demoApi, errText, projectsApi, type Project } from "@/lib/api";
 import { useAsyncData } from "@/lib/useAsyncData";
 import { urlInt, useUrlState, useUrlText } from "@/lib/useUrlState";
 import { useMeta, useMenus } from "@/lib/useMeta";
@@ -50,7 +50,7 @@ export default function ProjectsPage() {
 function ProjectsInner() {
   const { users, depts, userName, deptName } = useMeta();
   // 删除（软删除）与解归档仅管理员：显示条件取后端菜单契约
-  const { isAdmin } = useMenus();
+  const { isAdmin, demoOn, canToggleDemo, reload: reloadMenus } = useMenus();
   const toast = useToast();
 
   const [url, setUrl] = useUrlState(URL_DEFAULTS, { pageKey: "page" });
@@ -83,6 +83,7 @@ function ProjectsInner() {
   const [confirmFlow, setConfirmFlow] = useState<{ p: Project; to: string } | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Project | null>(null);
   const [busy, setBusy] = useState(false);
+  const [demoBusy, setDemoBusy] = useState(false);
 
   const statusOptions = Object.entries(PROJECT_STATUS).map(([code, label]) => ({ code, label }));
   const DESTRUCTIVE = new Set(["cancelled", "archived", "done"]);
@@ -94,6 +95,22 @@ function ProjectsInner() {
   ]
     .filter(Boolean)
     .join(" · ");
+
+  async function toggleDemo(next: boolean) {
+    setDemoBusy(true);
+    try {
+      const r = await demoApi.set(next);
+      toast.ok(r.on ? "已显示演示数据" : "已隐藏演示数据");
+      // 菜单缓存里的 demo_on 决定列表口径：切完要重载权限上下文，再刷新列表
+      reloadMenus();
+      setUrl({ page: 1 });
+      reload();
+    } catch (e) {
+      toast.err(errText(e));
+    } finally {
+      setDemoBusy(false);
+    }
+  }
 
   async function changeStatus(p: Project, to: string) {
     setBusy(true);
@@ -118,6 +135,21 @@ function ProjectsInner() {
           {data && <span className="sub mono">{total} 个项目</span>}
         </h1>
         <div className="actions">
+          {canToggleDemo && (
+            <label
+              className="demo-switch"
+              title={demoOn ? "当前包含演示数据，点此全站隐藏" : "当前不含演示数据，点此显示"}
+            >
+              <input
+                type="checkbox"
+                checked={demoOn}
+                disabled={demoBusy}
+                onChange={(e) => toggleDemo(e.target.checked)}
+              />
+              <span className="demo-switch-track" aria-hidden />
+              <span className="demo-switch-text">显示演示数据</span>
+            </label>
+          )}
           <button
             className="btn-primary"
             style={{ width: "auto" }}
@@ -127,6 +159,15 @@ function ProjectsInner() {
           </button>
         </div>
       </div>
+
+      {demoOn && (
+        <div
+          className="warn-banner"
+          style={{ background: "var(--brand-soft)", borderColor: "var(--line-blue)", color: "var(--brand)" }}
+        >
+          当前正在显示<b>演示数据</b>（工作台与报表统计同样包含），关闭开关即可全站隐藏。
+        </div>
+      )}
 
       {error && <LoadFailed message={error} onRetry={reload} />}
 
@@ -171,7 +212,13 @@ function ProjectsInner() {
         <div className="card">
           <Empty
             title={hasFilter ? "没有匹配的项目" : "暂无项目"}
-            hint={hasFilter ? "换个筛选条件，或清除筛选后重试。" : "点击右上角新建第一个项目。"}
+            hint={
+              hasFilter
+                ? "换个筛选条件，或清除筛选后重试。"
+                : canToggleDemo && !demoOn
+                ? "点击右上角新建第一个项目，或打开「显示演示数据」查看演示数据。"
+                : "点击右上角新建第一个项目。"
+            }
           />
         </div>
       ) : (

@@ -63,8 +63,15 @@ def can_read_project(user, project, db=None) -> bool:
     return user.id in member_ids(project)
 
 
-def check_project_access(user, project, write: bool = False) -> None:
-    """读：可见即可；写：管理员或项目参与人。"""
+def check_project_access(user, project, write: bool = False, db=None,
+                         hidden_msg: str = "项目不存在") -> None:
+    """读：可见即可；写：管理员或项目参与人。
+
+    传 db 时额外执行演示数据门禁：演示开关关闭时，演示项目视为不存在（404），
+    与列表/统计口径保持一致，避免「列表里看不到、直接访问 URL 却能打开」。
+    """
+    if db is not None and is_demo_hidden(project, db):
+        raise HTTPException(404, hidden_msg)
     if is_admin(user):
         return
     if not can_read_project(user, project):
@@ -92,6 +99,56 @@ def visible_project_condition(user):
     )
 
 
+DEMO_PARAM_KEY = "demo_data_on"
+
+
+def demo_data_on(db) -> bool:
+    """演示数据开关：系统参数 demo_data_on（0=隐藏，1=显示）。缺省视为隐藏。"""
+    if db is None:
+        return False
+    from ..models import SysParam
+
+    row = db.query(SysParam).filter_by(key=DEMO_PARAM_KEY).first()
+    return bool(row and row.value == "1")
+
+
+def set_demo_data(db, on: bool) -> bool:
+    """写入开关值（调用方负责鉴权与提交）。"""
+    from ..models import SysParam
+
+    row = db.query(SysParam).filter_by(key=DEMO_PARAM_KEY).first()
+    value = "1" if on else "0"
+    if row:
+        row.value = value
+    else:
+        db.add(SysParam(key=DEMO_PARAM_KEY, value=value, desc="演示数据开关 0隐藏/1显示"))
+    return on
+
+
+def is_demo_hidden(project, db) -> bool:
+    """该项目当前是否因演示开关关闭而应视为隐藏。"""
+    return bool(getattr(project, "is_demo", False)) and not demo_data_on(db)
+
+
+def project_scope_condition(user, db=None):
+    """可见项目范围 = 权限范围 ∩ 演示数据开关。
+
+    返回 None 表示无任何过滤（管理员 + 演示开关打开）。
+    开关关闭时演示项目在全站（列表/工作台/报表/预警/任务）一并排除，保证统计口径一致。
+    """
+    from sqlalchemy import and_
+
+    conds = []
+    vis = visible_project_condition(user)
+    if vis is not None:
+        conds.append(vis)
+    if db is not None and not demo_data_on(db):
+        conds.append(Project.is_demo.is_(False))
+    if not conds:
+        return None
+    return and_(*conds)
+
+
 def active_projects(db):
     """未软删除项目查询基座：普通业务列表与写入一律基于 active 项目。
 
@@ -110,6 +167,8 @@ def get_active_project(db, pid: int, user=None, write: bool = False,
     p = active_projects(db).filter(Project.id == pid).first()
     if not p:
         raise HTTPException(404, msg)
+    if is_demo_hidden(p, db):
+        raise HTTPException(404, msg)   # 演示数据已隐藏，按不存在处理
     if user is not None:
         check_project_access(user, p, write=write)
     return p
@@ -124,7 +183,7 @@ def visible_project_ids(db, user):
     from sqlalchemy import select
 
     stmt = select(Project.id).where(Project.deleted_at.is_(None))
-    cond = visible_project_condition(user)
+    cond = project_scope_condition(user, db)   # 含演示数据开关
     if cond is not None:
         stmt = stmt.where(cond)
     return stmt

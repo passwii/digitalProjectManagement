@@ -65,6 +65,8 @@ class Project(Base):
     # draft草稿/filed已立项/doing进行中/paused暂停/done已完成/archived已归档/cancelled已取消
     progress = Column(Float, default=0)
     deleted_at = Column(DateTime, nullable=True, index=True)  # 软删除（Stage 2）
+    # 演示数据标记：由 scripts/seed_mock.py 写入；受系统参数 demo_data_on 控制是否显示
+    is_demo = Column(Boolean, default=False, index=True)
     created_by = Column(Integer, ForeignKey("users.id"), nullable=True)
     created_at = Column(DateTime, default=_now)
     updated_at = Column(DateTime, default=_now, onupdate=_now)

@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 from ..core.costs import PASS
 from ..core.database import get_db
 from ..core.deps import get_current_user
-from ..core.rbac import can_approve, visible_project_condition
+from ..core.rbac import can_approve, is_admin, project_scope_condition
 from ..models import (Budget, BudgetAdjust, Expense, Milestone, Notification,
                       ProgressLog, Project, ProjectMember, Task, User)
 
@@ -21,7 +21,7 @@ router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 def _visible(db: Session, user: User) -> list[Project]:
     """可见项目（过滤软删除 + 权限下推 SQL）。"""
     q = db.query(Project).filter(Project.deleted_at.is_(None))
-    vis = visible_project_condition(user)
+    vis = project_scope_condition(user, db)
     if vis is not None:
         q = q.filter(vis)
     return q.all()
@@ -58,7 +58,11 @@ def summary(db: Session = Depends(get_db), user: User = Depends(get_current_user
 
     # 我参与的项目（成员或负责人）
     my_ids = {m.project_id for m in db.query(ProjectMember).filter_by(user_id=user.id).all()}
-    my_projects = [p for p in projects if p.id in my_ids or p.owner_id == user.id]
+    # 管理员的数据范围是「全局」，不依赖成员关系；若仍按成员统计会恒为 0，与看板其余数字自相矛盾
+    if is_admin(user):
+        my_projects = list(projects)
+    else:
+        my_projects = [p for p in projects if p.id in my_ids or p.owner_id == user.id]
 
     # 逾期任务（一次取全量后按 project 分组，避免逐项目查询）
     tasks = db.query(Task).filter(Task.project_id.in_(pids)).all() if pids else []

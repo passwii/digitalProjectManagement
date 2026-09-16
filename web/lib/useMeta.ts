@@ -107,6 +107,10 @@ export interface MenuState {
   isAdmin: boolean;
   /** 与列表行内 can_decide / 决策接口同一判定 */
   canApprove: boolean;
+  /** 演示数据开关是否打开（决定列表是否包含演示数据） */
+  demoOn: boolean;
+  /** 当前用户是否可切换演示开关（仅管理员） */
+  canToggleDemo: boolean;
   loading: boolean;
   error: string;
   reload: () => void;
@@ -154,6 +158,8 @@ export function useMenus(): MenuState {
     roles: data?.roles ?? [],
     isAdmin: !!data?.is_admin,
     canApprove: !!data?.can_approve,
+    demoOn: !!data?.demo_on,
+    canToggleDemo: !!data?.can_toggle_demo,
     loading,
     error,
     reload,

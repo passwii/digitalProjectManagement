@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from ..core.audit import write_audit
@@ -13,7 +14,7 @@ from ..core.database import get_db
 from ..core.deps import get_current_user
 from ..core.rbac import require_admin
 from ..core.security import hash_password
-from ..models import AuditLog, Dict, Role, SysParam, User, UserRole
+from ..models import AuditLog, Dict, Project, Role, SysParam, User, UserRole
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -92,6 +93,34 @@ def update_user(uid: int, body: dict, db: Session = Depends(get_db),
     db.commit()
     write_audit(db, user.id, "update_user", "users", uid, str(body.keys()))
     return _u(u)
+
+
+@router.get("/demo-data")
+def get_demo_data(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """演示数据开关状态 + 数据量概览（仅管理员）。"""
+    _admin(user)
+    from ..core.rbac import demo_data_on
+
+    total = db.query(func.count(Project.id)).filter(Project.is_demo.is_(True)).scalar() or 0
+    hidden_deleted = db.query(func.count(Project.id)).filter(
+        Project.is_demo.is_(True), Project.deleted_at.isnot(None)).scalar() or 0
+    return {"on": demo_data_on(db), "demo_projects": int(total),
+            "demo_projects_deleted": int(hidden_deleted)}
+
+
+@router.put("/demo-data")
+def set_demo_data_flag(body: dict, db: Session = Depends(get_db),
+                       user: User = Depends(get_current_user)):
+    """打开/关闭演示数据展示（仅管理员，全局生效）。"""
+    _admin(user)
+    from ..core.rbac import demo_data_on, set_demo_data
+
+    on = bool(body.get("on", False))
+    set_demo_data(db, on)
+    db.commit()
+    write_audit(db, user.id, "toggle_demo_data", "sys_params", 0,
+                "demo_data_on=1" if on else "demo_data_on=0")
+    return {"on": demo_data_on(db)}
 
 
 @router.get("/roles")

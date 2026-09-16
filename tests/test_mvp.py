@@ -832,3 +832,73 @@ def test_soft_deleted_project_child_records_excluded(client, db):
     assert client.get("/api/v1/dashboard/summary", headers=ha).json()["kpi"]["pending_approvals"] == 2
     client.put("/api/v1/admin/params", headers=ha,
                json={"budget_approval_on": "0", "expense_approval_on": "0"})
+
+
+# ============ 演示数据开关（demo_data_on）============
+
+def _mk_demo_project(client, db, name="DemoProj"):
+    """直接落库一个 is_demo=True 的项目（模拟 seed_mock 写入的演示数据）。"""
+    from api.models import Project
+    s = db()
+    try:
+        p = Project(code="PJ-2026-9001", name=name, type="研发", status="doing",
+                    plan_start=date(2026, 1, 1), plan_end=date(2026, 12, 31),
+                    budget_total=1000, is_demo=True)
+        s.add(p)
+        s.commit()
+        return p.id
+    finally:
+        s.close()
+
+
+def _set_demo(client, h, on):
+    return client.put("/api/v1/admin/demo-data", headers=h, json={"on": on})
+
+
+# 25. 开关默认关闭：演示数据在列表/看板/报表/预警/直连五处一并隐藏
+def test_demo_data_hidden_by_default(client, db):
+    ha = login(client, "admin")
+    pid = _mk_demo_project(client, db)
+    # 默认（seed 未写入开关时）视为隐藏
+    assert client.get("/api/v1/admin/demo-data", headers=ha).json()["on"] is False
+    assert client.get("/api/v1/projects", headers=ha).json()["total"] == 0
+    assert client.get("/api/v1/dashboard/summary", headers=ha).json()["kpi"]["my_projects"] == 0
+    assert client.get("/api/v1/dashboard/summary", headers=ha).json()["health"] == []
+    assert client.get("/api/v1/reports/cost", headers=ha).json()["items"] == []
+    assert client.get(f"/api/v1/projects/{pid}", headers=ha).status_code == 404
+    # 子表写入也应被拦（项目按不存在处理）
+    assert client.post("/api/v1/expenses", headers=ha, json={
+        "project_id": pid, "subject": "人工", "amount": 10}).status_code == 404
+
+
+# 26. 打开开关：演示数据恢复可见，且工作台「我的项目」对管理员不再恒为 0
+def test_demo_data_toggle_on(client, db):
+    ha = login(client, "admin")
+    pid = _mk_demo_project(client, db, "DemoToggle")
+    assert _set_demo(client, ha, True).json()["on"] is True
+    assert client.get("/api/v1/projects", headers=ha).json()["total"] == 1
+    assert client.get(f"/api/v1/projects/{pid}", headers=ha).status_code == 200
+    s = client.get("/api/v1/dashboard/summary", headers=ha).json()
+    assert s["kpi"]["my_projects"] == 1
+    assert len(s["health"]) == 1
+    # 关闭后重新隐藏
+    assert _set_demo(client, ha, False).json()["on"] is False
+    assert client.get("/api/v1/projects", headers=ha).json()["total"] == 0
+
+
+# 27. 非管理员不能切换开关，但能读到状态；非演示数据不受开关影响
+def test_demo_data_permission_and_scope(client, db):
+    ha = login(client, "admin")
+    p = mkproject(client, ha, "RealProj")          # 非演示项目
+    _mk_demo_project(client, db, "DemoScope")
+    hp = login(client, "pm")
+
+    assert client.get("/api/v1/projects", headers=ha).json()["total"] == 1   # 只剩真实项目
+    assert client.get(f"/api/v1/projects/{p['id']}", headers=ha).status_code == 200
+    assert client.put("/api/v1/admin/demo-data", headers=hp, json={"on": True}).status_code == 403
+    assert client.get("/api/v1/admin/demo-data", headers=hp).status_code == 403
+    menus = client.get("/api/v1/meta/me/menus", headers=hp).json()
+    assert menus["demo_on"] is False and menus["can_toggle_demo"] is False
+    # 打开开关后真实项目仍可见，演示项目一并可见
+    _set_demo(client, ha, True)
+    assert client.get("/api/v1/projects", headers=ha).json()["total"] == 2
