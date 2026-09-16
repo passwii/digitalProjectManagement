@@ -37,15 +37,16 @@ def dicts(type: str = "", db: Session = Depends(get_db),
 
 
 @router.get("/me/menus")
-def menus(user: User = Depends(get_current_user)):
+def menus(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     """按角色返回可见菜单，供前端做单一入口控制（避免硬编码多套角色判断）。
 
     契约（Stage 1 收敛）：
       · 管理员 = 唯一管理与审批角色 → 额外拿到「审批中心」「系统管理」入口，且 can_approve=true。
       · 非管理员不返回管理与审批入口；直接请求管理与审批接口会稳定拿到 403。
       · role 字段保留为未来扩展结构；readonly 恒为 false（高层只读规则已取消）。
+    另附演示数据开关状态：所有登录用户都需知道当前是否展示演示数据，仅管理员可切换。
     """
-    from ..core.rbac import ROLE_ADMIN, can_approve, role_codes
+    from ..core.rbac import ROLE_ADMIN, can_approve, demo_data_on, role_codes
     codes = role_codes(user)
     admin = ROLE_ADMIN in codes
     items = [
@@ -58,4 +59,5 @@ def menus(user: User = Depends(get_current_user)):
         items.append({"key": "approvals", "label": "审批中心", "href": "/approvals"})
         items.append({"key": "admin", "label": "系统管理", "href": "/admin"})
     return {"roles": sorted(codes), "is_admin": admin, "can_approve": can_approve(user),
-            "menus": items, "readonly": False}
+            "menus": items, "readonly": False,
+            "demo_on": demo_data_on(db), "can_toggle_demo": admin}

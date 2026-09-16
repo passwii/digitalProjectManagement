@@ -30,6 +30,7 @@ PARAMS = {
     "milestone_warn_days": ("3", "里程碑到期预警天数"),
     "stagnant_days": ("7", "项目停滞无填报天数"),
     "project_approval_on": ("0", "立项审批开关 0关/1开"),
+    "demo_data_on": ("0", "演示数据开关 0隐藏/1显示"),
 }
 
 

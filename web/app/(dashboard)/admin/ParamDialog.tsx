@@ -14,6 +14,7 @@ export const PARAM_LABELS: Record<string, string> = {
   expense_approval_on: "支出审批开关（0关/1开）",
   milestone_warn_days: "里程碑预警天数",
   stagnant_days: "项目停滞无填报天数",
+  demo_data_on: "演示数据开关（0隐藏/1显示）",
 };
 
 export const PARAM_HINTS: Record<string, string> = {
@@ -24,6 +25,7 @@ export const PARAM_HINTS: Record<string, string> = {
   expense_approval_on: "1 = 支出需审批后才计入执行；超预算时转为待审批",
   milestone_warn_days: "里程碑计划日期前 N 天开始预警",
   stagnant_days: "项目连续 N 天无进度填报则判为停滞",
+  demo_data_on: "1=在项目台账等页面显示演示数据；0=全站隐藏（含工作台与报表统计）",
 };
 
 export default function ParamDialog({

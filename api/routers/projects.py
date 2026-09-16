@@ -11,10 +11,10 @@ from sqlalchemy.orm import Session
 from ..core.audit import write_audit
 from ..core.database import ROOT, get_db, parse_date
 from ..core.deps import get_current_user
-from ..core.rbac import can_read_project, check_project_access, is_admin, require_admin
+from ..core.rbac import (can_read_project, check_project_access, is_admin,
+                         project_scope_condition, require_admin)
 from ..models import (Attachment, Followup, Project, ProjectChange,
                       ProjectMember, SysParam, Task, User)
-from ..core.rbac import visible_project_condition
 
 router = APIRouter(prefix="/projects", tags=["projects"])
 
@@ -55,7 +55,7 @@ def _get(db: Session, pid: int, user: User, write=False) -> Project:
     p = db.query(Project).filter_by(id=pid, deleted_at=None).first()
     if not p:
         raise HTTPException(404, "项目不存在")
-    check_project_access(user, p, write=write)
+    check_project_access(user, p, write=write, db=db)
     return p
 
 
@@ -136,7 +136,7 @@ def list_projects(name: str = "", code: str = "", status: str = "", owner_id: in
     if dt:
         q = q.filter(or_(Project.plan_start.is_(None), Project.plan_start <= dt))
     # 权限过滤下推 SQL（Stage 5）：不再 q.all() 后 Python 全量过滤
-    vis = visible_project_condition(user)
+    vis = project_scope_condition(user, db)
     if vis is not None:
         q = q.filter(vis)
     total = q.count()

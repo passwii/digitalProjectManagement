@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { errText, projectsApi, type Project } from "@/lib/api";
+import { demoApi, errText, projectsApi, type Project } from "@/lib/api";
 import { useMeta, useMenus } from "@/lib/useMeta";
 import {
   PROJECT_FLOW, PROJECT_STATUS, fmtDate, fmtMoney,
@@ -23,7 +23,7 @@ const SIZE = 20;
 export default function ProjectsPage() {
   const { users, depts, userName, deptName } = useMeta();
   // 删除（软删除）与解归档仅管理员：显示条件取后端菜单契约
-  const { isAdmin } = useMenus();
+  const { isAdmin, demoOn, canToggleDemo, reload: reloadMenus } = useMenus();
   const toast = useToast();
 
   const [items, setItems] = useState<Project[]>([]);
@@ -42,6 +42,7 @@ export default function ProjectsPage() {
   const [confirmFlow, setConfirmFlow] = useState<{ p: Project; to: string } | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Project | null>(null);
   const [busy, setBusy] = useState(false);
+  const [demoBusy, setDemoBusy] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -87,6 +88,22 @@ export default function ProjectsPage() {
     }
   }
 
+  async function toggleDemo(next: boolean) {
+    setDemoBusy(true);
+    try {
+      const r = await demoApi.set(next);
+      toast.ok(r.on ? "已显示演示数据" : "已隐藏演示数据");
+      // 菜单缓存里的 demo_on 决定列表口径，切换后需重载权限上下文再刷新列表
+      reloadMenus();
+      setPage(1);
+      await load();
+    } catch (e) {
+      toast.err(errText(e));
+    } finally {
+      setDemoBusy(false);
+    }
+  }
+
   return (
     <div>
       <div className="page-head">
@@ -95,6 +112,21 @@ export default function ProjectsPage() {
           <span className="sub mono">{total} 个项目</span>
         </h1>
         <div className="actions">
+          {canToggleDemo && (
+            <label
+              className="demo-switch"
+              title={demoOn ? "当前包含演示数据，点此隐藏" : "当前不含演示数据，点此显示"}
+            >
+              <input
+                type="checkbox"
+                checked={demoOn}
+                disabled={demoBusy}
+                onChange={(e) => toggleDemo(e.target.checked)}
+              />
+              <span className="demo-switch-track" aria-hidden />
+              <span className="demo-switch-text">显示演示数据</span>
+            </label>
+          )}
           <button
             className="btn-primary"
             style={{ width: "auto" }}
@@ -104,6 +136,12 @@ export default function ProjectsPage() {
           </button>
         </div>
       </div>
+
+      {demoOn && (
+        <div className="warn-banner" style={{ background: "var(--brand-soft)", borderColor: "var(--line-blue)", color: "var(--brand)" }}>
+          当前正在显示<b>演示数据</b>（工作台与报表统计同样包含），关闭开关即可全站隐藏。
+        </div>
+      )}
 
       {err && <div className="err-banner">{err}</div>}
 
@@ -122,7 +160,16 @@ export default function ProjectsPage() {
       {loading ? (
         <p className="muted">加载中…</p>
       ) : items.length === 0 ? (
-        <div className="card"><Empty title="暂无项目" hint="换个筛选条件，或新建第一个项目。" /></div>
+        <div className="card">
+          <Empty
+            title="暂无项目"
+            hint={
+              canToggleDemo && !demoOn
+                ? "换个筛选条件、新建项目，或打开右上角「显示演示数据」查看演示数据。"
+                : "换个筛选条件，或新建第一个项目。"
+            }
+          />
+        </div>
       ) : (
         <>
           <table className="grid">

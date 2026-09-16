@@ -209,6 +209,8 @@ def add_attachment(db, pid: int, filename: str, by_id: int, days_ago: int,
 
 
 def new_project(db, code_n: int, **kw) -> Project:
+    """创建演示项目：统一打上 is_demo 标记，供「演示数据开关」控制显示。"""
+    kw.setdefault("is_demo", True)
     p = Project(code=f"{CODE_PREFIX}{code_n:03d}", **kw)
     db.add(p)
     db.flush()
@@ -514,7 +516,9 @@ def seed(db) -> dict:
 
 def clean(db) -> int:
     """只清理示例数据（编号 PJ-YYYY-9xxx + 示例用户 + 其附件文件）。"""
-    rows = db.query(Project).filter(Project.code.like(f"{CODE_PREFIX}%")).all()
+    from sqlalchemy import or_
+    rows = db.query(Project).filter(
+        or_(Project.is_demo.is_(True), Project.code.like(f"{CODE_PREFIX}%"))).all()
     pids = [p.id for p in rows]
     removed_files = 0
     if pids:
@@ -571,7 +575,7 @@ def main() -> None:
             clean(db)
             return
 
-        exists = db.query(Project).filter(Project.code.like(f"{CODE_PREFIX}%")).count()
+        exists = db.query(Project).filter(Project.is_demo.is_(True)).count()
         if exists and not args.reset:
             print(f"检测到已有 {exists} 个示例项目；如需重建请加 --reset")
             return
@@ -600,6 +604,12 @@ def main() -> None:
         for username, real_name, dept, roles in USERS:
             print(f"  {username:<12} {real_name:<6} {dept:<6} {'/'.join(roles):<24} {scope.get(username, '')}")
         print("  审批中心与系统管理仅管理员可用 → 用 demo_admin 演示（不影响你自己的 admin 密码）")
+        print()
+        from api.core.rbac import demo_data_on
+        state = "已显示" if demo_data_on(db) else "当前隐藏"
+        print(f"演示数据开关：{state}")
+        print("  · 打开：项目台账页头「显示演示数据」开关，或 系统管理 → 参数 → demo_data_on")
+        print("  · 直连：PUT /api/v1/admin/demo-data {\"on\": true}（仅管理员）")
         print()
         print("建议验收路径：/dashboard → /projects → 项目详情四个 Tab → /progress → /costs → /approvals → 顶栏铃铛")
     finally:

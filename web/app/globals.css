@@ -353,6 +353,48 @@ tr:hover .row-actions { display: inline-flex; }
 @keyframes skelShine { 0% { background-position: 100% 50%; } 100% { background-position: 0 50%; } }
 @media (prefers-reduced-motion: reduce) { .skel { animation: none; } }
 
+/* 演示数据开关（项目台账页头） */
+.demo-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--card);
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--ink-2);
+  user-select: none;
+}
+.demo-switch:hover { border-color: var(--brand); color: var(--brand); }
+.demo-switch input { position: absolute; opacity: 0; pointer-events: none; }
+.demo-switch-track {
+  position: relative;
+  width: 30px;
+  height: 16px;
+  border-radius: 8px;
+  background: var(--line-strong, #d4cdbd);
+  transition: background var(--motion);
+  flex: none;
+}
+.demo-switch-track::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #fff;
+  transition: transform var(--motion);
+}
+.demo-switch input:checked + .demo-switch-track { background: var(--brand); }
+.demo-switch input:checked + .demo-switch-track::after { transform: translateX(14px); }
+.demo-switch input:disabled + .demo-switch-track { opacity: 0.6; }
+.demo-switch input:focus-visible + .demo-switch-track { box-shadow: 0 0 0 2px var(--brand-soft); }
+
 /* ---------- motion ---------- */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { transition: none !important; animation: none !important; }

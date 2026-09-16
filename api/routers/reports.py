@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 from ..core.costs import PASS, budget_total, execution, spent
 from ..core.database import get_db
 from ..core.deps import get_current_user
-from ..core.rbac import can_read_project, visible_project_condition
+from ..core.rbac import can_read_project, project_scope_condition
 from ..models import Budget, Department, Expense, Milestone, ProgressLog, Project, SysParam, Task, User
 
 router = APIRouter(prefix="/reports", tags=["reports"])
@@ -20,7 +20,7 @@ def _visible_projects(db: Session, user: User):
     """报表取数用的可见项目：只选需要的列（避免加载全量 ORM 对象），权限下推 SQL。"""
     q = db.query(Project.id, Project.code, Project.name, Project.dept_id) \
         .filter(Project.deleted_at.is_(None))
-    vis = visible_project_condition(user)
+    vis = project_scope_condition(user, db)
     if vis is not None:
         q = q.filter(vis)
     return q.all()
@@ -28,7 +28,7 @@ def _visible_projects(db: Session, user: User):
 
 def _visible_project_ids(db: Session, user: User) -> list[int]:
     q = db.query(Project.id).filter(Project.deleted_at.is_(None))
-    vis = visible_project_condition(user)
+    vis = project_scope_condition(user, db)
     if vis is not None:
         q = q.filter(vis)
     return [pid for (pid,) in q.all()]
@@ -128,7 +128,7 @@ def warnings(db: Session = Depends(get_db), user: User = Depends(get_current_use
     from ..core.jobs import compute_warnings
     # 预警只需 id/name/status，避免加载全量 ORM 对象
     q = db.query(Project).filter(Project.deleted_at.is_(None))
-    vis = visible_project_condition(user)
+    vis = project_scope_condition(user, db)
     if vis is not None:
         q = q.filter(vis)
     return compute_warnings(db, q.all())

@@ -141,6 +141,10 @@ export interface MenuResp {
   can_approve: boolean;
   menus: { key: string; label: string; href: string }[];
   readonly: boolean;
+  /** 演示数据开关当前状态（所有登录用户可读） */
+  demo_on: boolean;
+  /** 是否可切换演示开关（仅管理员） */
+  can_toggle_demo: boolean;
 }
 export interface Project {
   id: number;
@@ -384,6 +388,18 @@ export interface AuditLog {
   ip: string;
   created_at: string | null;
 }
+
+/** 演示数据开关（全局，仅管理员可切换） */
+export interface DemoDataState {
+  on: boolean;
+  demo_projects: number;
+  demo_projects_deleted: number;
+}
+
+export const demoApi = {
+  get: () => apiGet<DemoDataState>("/admin/demo-data"),
+  set: (on: boolean) => apiPut<{ on: boolean }>("/admin/demo-data", { on }),
+};
 
 export const adminApi = {
   users: (page = 1, size = 50) => apiGet<{ total: number; items: AdminUser[] }>(`/admin/users?page=${page}&size=${size}`),
