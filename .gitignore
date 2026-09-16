@@ -10,6 +10,9 @@ node_modules/
 .next/
 out/
 *.tsbuildinfo
+.env
+.env.*
+!.env.docker.example
 .env.local
 
 # sqlite 数据与备份
