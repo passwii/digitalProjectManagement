@@ -23,3 +23,6 @@ data/
 
 # visual brainstorming
 .superpowers/
+
+# isolated worktrees
+.worktrees/
