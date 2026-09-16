@@ -514,8 +514,8 @@ def test_non_admin_management_and_approval_403(client, db):
     bid = client.post("/api/v1/budgets", headers=h,
                       json={"project_id": p["id"], "subject": "人工", "amount": 1000,
                             "period_start": "2026-01-01", "period_end": "2026-12-31"}).json()["id"]
-    adj = client.post(f"/api/v1/budgets/{bid}", headers=h,
-                      json={"amount": 2000, "reason": "追加"}).json()
+    adj = client.patch(f"/api/v1/budgets/{bid}", headers=h,
+                       json={"amount": 2000, "reason": "追加"}).json()
     assert adj["status"] == "pending"
     aid = adj["id"]
     eid = client.post("/api/v1/expenses", headers=h,
@@ -599,11 +599,7 @@ def test_admin_global_scope_and_approval_consistency(client, db):
     assert r.status_code == 200 and r.json()["status"] == "filed"
 
     # 非管理员：列表不可见（403），决策同样 403 —— 不存在「按钮可见但接口拒绝」
-    for name in ("pm", "otherpm-not-login", "outsider"):
-        if name == "otherpm-not-login":
-            hh = hother
-        else:
-            hh = login(client, name)
+    for hh in (login(client, "pm"), hother, login(client, "outsider")):
         assert client.get("/api/v1/approvals/pending", headers=hh).status_code == 403
     assert client.post(f"/api/v1/approvals/project_filing/{p['id']}/decide", headers=hother,
                        json={"approve": True}).status_code == 403
