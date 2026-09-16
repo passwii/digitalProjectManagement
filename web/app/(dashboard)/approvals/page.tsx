@@ -6,10 +6,10 @@ import {
   approvalsApi, errText,
   type PendingAdjust, type PendingApprovals, type PendingExpense, type PendingFilings,
 } from "@/lib/api";
-import { useMeta } from "@/lib/useMeta";
+import { useMeta, useMenus } from "@/lib/useMeta";
 import { fmtDate, fmtMoney } from "@/lib/labels";
-import Badge from "@/components/ui/Badge";
 import Empty from "@/components/ui/Empty";
+import { LoadingBlock, LoadFailed, NoAccess } from "@/components/ui/PageState";
 import { Confirm } from "@/components/ui/Modal";
 import { useToast } from "@/components/ui/Toast";
 
@@ -23,6 +23,35 @@ type Decision = {
 };
 
 export default function ApprovalsPage() {
+  // 审批中心属于管理与审批面：非管理员不拉取数据，也不会看到必然 403 的按钮
+  const { isAdmin, loading: permsLoading, error: permsError, reload } = useMenus();
+
+  if (permsLoading) return <LoadingBlock kpis={4} />;
+  if (permsError) return <LoadFailed message={permsError} onRetry={reload} />;
+  if (!isAdmin) {
+    return (
+      <div>
+        <div className="page-head">
+          <h1>审批中心<span className="sub">管理员全局管理与审批</span></h1>
+        </div>
+        <NoAccess
+          title="审批中心仅管理员可用"
+          hint={
+            <>
+              当前账号不属于管理员，无法查看或处理立项、预算调整与支出审批。
+              <br />
+              项目负责人与项目成员仍可在项目台账、进度跟进、成本支出中继续参与业务，审批结果会通过通知告知您。
+            </>
+          }
+          extra={<Link className="btn-ghost" href="/costs">前往成本支出</Link>}
+        />
+      </div>
+    );
+  }
+  return <ApprovalsInner />;
+}
+
+function ApprovalsInner() {
   const { userName } = useMeta();
   const toast = useToast();
   const [data, setData] = useState<PendingApprovals | null>(null);
@@ -74,7 +103,7 @@ export default function ApprovalsPage() {
       <div className="page-head">
         <h1>
           审批中心
-          <span className="sub">立项审批 / 预算调整 / 支出审批 统一待办</span>
+          <span className="sub">管理员全局管理与审批 · 立项 / 预算调整 / 支出 统一待办</span>
         </h1>
         <div className="actions no-print">
           <button className="btn-ghost" onClick={load}>刷新</button>
@@ -84,7 +113,7 @@ export default function ApprovalsPage() {
       {err && <div className="err-banner">{err}</div>}
 
       {loading ? (
-        <p className="muted">加载中…</p>
+        <LoadingBlock kpis={4} />
       ) : nothing ? (
         <div className="card">
           <Empty title="没有待处理事项" hint="立项、预算调整、支出审批通过后会自动出现在这里。" />
@@ -119,7 +148,7 @@ export default function ApprovalsPage() {
                             className="btn-ghost"
                             style={{ height: 26, lineHeight: "24px", padding: "0 8px", fontSize: 12 }}
                             disabled={!p.can_decide}
-                            title={p.can_decide ? undefined : "仅项目负责人或管理员可审批"}
+                            title={p.can_decide ? undefined : "仅管理员可审批"}
                             onClick={() => setDecision({ kind: "project_filing", id: p.project_id, approve: true, title: `通过立项「${p.name}」？`, text: "通过后项目状态变为「已立项」，可开始排期。" })}
                           >
                             通过
@@ -163,7 +192,7 @@ export default function ApprovalsPage() {
                             className="btn-ghost"
                             style={{ height: 26, lineHeight: "24px", padding: "0 8px", fontSize: 12 }}
                             disabled={!a.can_decide}
-                            title={a.can_decide ? undefined : "仅成本管理员或管理员可审批"}
+                            title={a.can_decide ? undefined : "仅管理员可审批"}
                             onClick={() => setDecision({ kind: "budget_adjust", id: a.id, approve: true, title: `通过预算调整（${a.subject}）？`, text: `${fmtMoney(a.old_amount)} → ${fmtMoney(a.new_amount)}，通过后立即生效并留痕。` })}
                           >
                             通过
@@ -207,7 +236,7 @@ export default function ApprovalsPage() {
                             className="btn-ghost"
                             style={{ height: 26, lineHeight: "24px", padding: "0 8px", fontSize: 12 }}
                             disabled={!e.can_decide}
-                            title={e.can_decide ? undefined : "仅成本管理员或管理员可审批"}
+                            title={e.can_decide ? undefined : "仅管理员可审批"}
                             onClick={() => setDecision({ kind: "expense", id: e.id, approve: true, title: `通过支出 ${fmtMoney(e.amount)} 元？`, text: "通过后计入预算执行。" })}
                           >
                             通过

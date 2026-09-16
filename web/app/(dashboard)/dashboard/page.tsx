@@ -7,11 +7,12 @@ import {
   ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from "recharts";
 import { dashboardApi, errText, type DashboardSummary, type Weekly } from "@/lib/api";
-import { useMe, useMeta } from "@/lib/useMeta";
+import { useMe, useMeta, useMenus } from "@/lib/useMeta";
 import { fmtDate, fmtMoney, fmtPct, fmtDateTime, projectStatusLabel } from "@/lib/labels";
 import Badge from "@/components/ui/Badge";
 import Empty from "@/components/ui/Empty";
 import ProgressBar from "@/components/ui/ProgressBar";
+import { LoadingBlock } from "@/components/ui/PageState";
 
 const SUBJECT_COLORS = ["#2b5cff", "#0e7490", "#15803d", "#b45309", "#6d28d9"];
 
@@ -30,7 +31,9 @@ const HEALTH_TONE: Record<string, "done" | "warn" | "danger" | "paused"> = {
 
 export default function DashboardPage() {
   const { userName, deptName } = useMeta();
-  const { me, displayName, roles } = useMe();
+  const { me, displayName } = useMe();
+  // 审批入口与管理/审批权限均以后端菜单契约为准，不再自行拼角色判断
+  const { isAdmin } = useMenus();
   const [data, setData] = useState<DashboardSummary | null>(null);
   const [weekly, setWeekly] = useState<Weekly | null>(null);
   const [err, setErr] = useState("");
@@ -52,8 +55,8 @@ export default function DashboardPage() {
 
   useEffect(() => { load(); }, [load]);
 
-  if (loading) return <p className="muted">加载中…</p>;
-  if (err) return <div className="err-banner">{err}</div>;
+  if (loading) return <LoadingBlock kpis={4} />;
+  if (err) return <div className="err-banner" role="alert">{err}</div>;
   if (!data) return null;
 
   const k = data.kpi;
@@ -66,22 +69,31 @@ export default function DashboardPage() {
           工作台
           <span className="sub">
             {displayName || "当前用户"} 视角
-            {roles.length > 0 && <span className="mono"> · {roles.join("/")}</span>}
+            <span className="mono">
+              {" · "}
+              {isAdmin ? "管理员 · 全局管理与审批" : "普通用户 · 项目参与"}
+            </span>
           </span>
         </h1>
         <div className="actions no-print">
           <button className="btn-ghost" onClick={load}>刷新</button>
           <Link className="btn-ghost" href="/reports">成本报表</Link>
-          <Link className="btn-primary" href="/approvals" style={{ display: "inline-flex", alignItems: "center", padding: "0 14px" }}>
-            待审批 {k.pending_approvals}
-          </Link>
+          {isAdmin && (
+            <Link className="btn-primary" href="/approvals" style={{ display: "inline-flex", alignItems: "center", padding: "0 14px" }}>
+              待审批 {k.pending_approvals}
+            </Link>
+          )}
         </div>
       </div>
 
       <div className="kpi-row">
         <div className="kpi"><div className="k">我的项目</div><div className="v mono">{k.my_projects}</div><div className="tiny">进行中 {k.active_projects}</div></div>
         <div className="kpi"><div className="k">逾期任务</div><div className="v mono" style={k.overdue_tasks > 0 ? { color: "var(--danger)" } : undefined}>{k.overdue_tasks}</div><div className="tiny">我负责 {k.my_overdue_tasks}</div></div>
-        <div className="kpi"><div className="k">待我审批</div><div className="v mono" style={k.pending_approvals > 0 ? { color: "var(--warn)" } : undefined}>{k.pending_approvals}</div><div className="tiny">未读通知 {k.unread_notifications}</div></div>
+        {isAdmin ? (
+          <div className="kpi"><div className="k">待我审批</div><div className="v mono" style={k.pending_approvals > 0 ? { color: "var(--warn)" } : undefined}>{k.pending_approvals}</div><div className="tiny">未读通知 {k.unread_notifications}</div></div>
+        ) : (
+          <div className="kpi"><div className="k">未读通知</div><div className="v mono">{k.unread_notifications}</div><div className="tiny">审批结果会通过通知告知您</div></div>
+        )}
         <div className="kpi"><div className="k">{k.month} 支出</div><div className="v mono">{fmtMoney(k.month_spent)}</div><div className="tiny">累计执行率 {fmtPct(k.total_rate)}</div></div>
       </div>
 

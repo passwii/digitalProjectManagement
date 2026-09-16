@@ -135,6 +135,10 @@ export interface DictItem {
 }
 export interface MenuResp {
   roles: string[];
+  /** 是否管理员（后端 /meta/me/menus 契约）：唯一管理与审批角色 */
+  is_admin: boolean;
+  /** 是否可审批：当前契约下与 is_admin 等价（列表 can_decide 同一判定） */
+  can_approve: boolean;
   menus: { key: string; label: string; href: string }[];
   readonly: boolean;
 }

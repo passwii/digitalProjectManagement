@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { errText, projectsApi, type Project } from "@/lib/api";
-import { useMe, useMeta } from "@/lib/useMeta";
+import { useMeta, useMenus } from "@/lib/useMeta";
 import {
   PROJECT_FLOW, PROJECT_STATUS, fmtDate, fmtMoney,
   projectStatusLabel, projectTone,
@@ -22,7 +22,8 @@ const SIZE = 20;
 
 export default function ProjectsPage() {
   const { users, depts, userName, deptName } = useMeta();
-  const { isAdmin } = useMe();
+  // 删除（软删除）与解归档仅管理员：显示条件取后端菜单契约
+  const { isAdmin } = useMenus();
   const toast = useToast();
 
   const [items, setItems] = useState<Project[]>([]);
@@ -256,24 +257,40 @@ export default function ProjectsPage() {
               <div><dt>项目简介</dt><dd>{detail.description || "-"}</dd></div>
             </dl>
 
-            {(PROJECT_FLOW[detail.status] ?? []).length > 0 && (
-              <div style={{ marginTop: 16 }}>
-                <div className="muted" style={{ fontSize: 12, marginBottom: 8 }}>状态流转（操作留痕）</div>
-                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                  {(PROJECT_FLOW[detail.status] ?? []).map((to) =>
-                    DESTRUCTIVE.has(to) ? (
-                      <button key={to} className="btn-ghost" onClick={() => setConfirmFlow({ p: detail, to })}>
-                        → {projectStatusLabel(to)}
-                      </button>
-                    ) : (
-                      <button key={to} className="btn-ghost" disabled={busy} onClick={() => changeStatus(detail, to)}>
-                        → {projectStatusLabel(to)}
-                      </button>
-                    )
+            {(() => {
+              // 解归档（archived → doing）仅管理员可操作，非管理员不展示必然 403 的按钮
+              const flow = (PROJECT_FLOW[detail.status] ?? []).filter(
+                (to) => !(detail.status === "archived" && to === "doing" && !isAdmin)
+              );
+              if (flow.length === 0) {
+                return detail.status === "archived" && !isAdmin ? (
+                  <div className="muted" style={{ fontSize: 12, marginTop: 16 }}>
+                    项目已归档且为只读，解除归档需管理员操作。
+                  </div>
+                ) : null;
+              }
+              return (
+                <div style={{ marginTop: 16 }}>
+                  <div className="muted" style={{ fontSize: 12, marginBottom: 8 }}>状态流转（操作留痕）</div>
+                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                    {flow.map((to) =>
+                      DESTRUCTIVE.has(to) ? (
+                        <button key={to} className="btn-ghost" onClick={() => setConfirmFlow({ p: detail, to })}>
+                          → {projectStatusLabel(to)}
+                        </button>
+                      ) : (
+                        <button key={to} className="btn-ghost" disabled={busy} onClick={() => changeStatus(detail, to)}>
+                          → {projectStatusLabel(to)}
+                        </button>
+                      )
+                    )}
+                  </div>
+                  {detail.status === "archived" && !isAdmin && (
+                    <div className="muted" style={{ fontSize: 12, marginTop: 8 }}>解除归档需管理员操作。</div>
                   )}
                 </div>
-              </div>
-            )}
+              );
+            })()}
           </>
         )}
       </Drawer>
