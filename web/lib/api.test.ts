@@ -63,7 +63,7 @@ test("bad credentials do not clear session or navigate", async (t) => {
   };
   t.after(browser.restore);
 
-  const { UnauthorizedError, authApi } = await import("./api.ts");
+  const { UnauthorizedError, authApi } = await import("./api");
   await assert.rejects(() => authApi.login("admin", "wrong"), UnauthorizedError);
   await new Promise((resolve) => setImmediate(resolve));
 
@@ -80,7 +80,7 @@ test("clearSession on login removes legacy artifacts without server logout", asy
   };
   t.after(browser.restore);
 
-  const { clearSession } = await import("./api.ts");
+  const { clearSession } = await import("./api");
   await clearSession();
 
   assert.deepEqual(browser.removed, ["pm_access_token", "pm_refresh_token"]);

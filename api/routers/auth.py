@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 from ..core.audit import write_audit
 from ..core.config import settings
 from ..core.cookies import (bearer_token_from_request, clear_auth_cookies,
-                            set_auth_cookies)
+                            same_origin_or_same_site_request, set_auth_cookies)
 from ..core.database import get_db
 from ..core.deps import get_current_user
 from ..core.security import (create_access_token, create_refresh_token,
@@ -116,6 +116,8 @@ def _valid_session_user(db: Session, tokens: tuple[tuple[str, str], ...]) -> Use
 
 @router.post("/logout")
 def logout(request: Request, response: Response, db: Session = Depends(get_db)):
+    if not same_origin_or_same_site_request(request):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "跨站登出请求被拒绝")
     access = bearer_token_from_request(request)
     if not access:
         access = request.cookies.get(settings.access_cookie_name, "")

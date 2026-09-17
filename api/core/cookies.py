@@ -1,5 +1,6 @@
 """认证 Cookie 与 CSRF 双提交校验。"""
 import secrets
+from urllib.parse import urlsplit
 
 from fastapi import Request, Response
 
@@ -79,3 +80,26 @@ def csrf_header_valid(request: Request) -> bool:
     cookie = request.cookies.get(settings.csrf_cookie_name, "")
     header = request.headers.get("x-csrf-token", "")
     return bool(cookie and header) and secrets.compare_digest(cookie, header)
+
+
+def same_origin_or_same_site_request(request: Request) -> bool:
+    """允许同站浏览器请求与无来源元数据的旧客户端，拒绝明确的跨站请求。"""
+    fetch_site = request.headers.get("sec-fetch-site", "").strip().lower()
+    if fetch_site == "cross-site":
+        return False
+    if fetch_site in {"same-origin", "same-site"}:
+        return True
+
+    origin = request.headers.get("origin", "").strip()
+    if not origin:
+        return True
+    try:
+        parsed = urlsplit(origin)
+    except ValueError:
+        return False
+    request_host = request.headers.get("host", request.url.netloc).strip().lower()
+    return (
+        parsed.scheme.lower() in {"http", "https"}
+        and bool(parsed.netloc)
+        and parsed.netloc.lower() == request_host
+    )
