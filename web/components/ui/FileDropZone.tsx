@@ -22,7 +22,7 @@ import {
   filesFromPaste,
   filesFromTransfer,
   isFileDrag,
-  partitionFiles,
+  partitionForZone,
   shouldHandlePaste,
 } from "@/lib/uploadZone";
 // 条目类型与状态迁移的唯一来源：hook 与组件共用同一份定义，避免两处漂移
@@ -42,7 +42,13 @@ export interface FileDropZoneProps {
   items?: readonly UploadItem[];
   /** 整体禁用（例如父级提交中）。 */
   disabled?: boolean;
-  /** 允许一次选多个文件。 */
+  /**
+   * 允许一次收多个文件。
+   *
+   * 注意这是**组件级**语义，覆盖点击选择 / 拖拽 / 粘贴三条路径：
+   * 仅靠原生 `<input multiple>` 只约束点击选择，拖拽与粘贴会绕过它
+   * （历史上 `multiple={false}` 的入口拖入多个文件时静默只上传第一个）。
+   */
   multiple?: boolean;
   variant?: "dropzone" | "button";
   /** 主文案 / 按钮文案。 */
@@ -83,13 +89,15 @@ export default function FileDropZone({
 
   const accept = acceptFor(extensions);
 
-  /** 统一入口：合法文件交给调用方，非法文件一定给出可读提示。 */
+  /**
+   * 统一入口：合法文件交给调用方，非法或超量的文件一定给出可读提示。
+   *
+   * 决策全在 `partitionForZone`（纯函数、有单测），组件只负责渲染拒绝行。
+   */
   const submit = useCallback(
     (files: File[]) => {
       if (!files.length) return;
-      // 本地预检（类型 / 体积）复用 uploadZone 的同一份判断，避免两套阈值；
-      // 不静默丢弃：每个被拒文件都带一条可展示的原因。
-      const { accepted, rejected } = partitionFiles(files, extensions);
+      const { accepted, rejected } = partitionForZone(files, extensions, multiple);
       if (rejected.length) {
         setLocalRejected((prev) => [
           ...prev,
@@ -98,7 +106,7 @@ export default function FileDropZone({
       }
       if (accepted.length) onFiles(accepted);
     },
-    [extensions, onFiles],
+    [extensions, multiple, onFiles],
   );
 
   const openPicker = useCallback(() => {
