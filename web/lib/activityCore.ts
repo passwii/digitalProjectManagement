@@ -25,3 +25,7 @@ export function activityLabel(records: ActivityRecord[]): string {
   if (records.length === 1) return records[0].label;
   return `${records[0].label}等 ${records.length} 项`;
 }
+
+export function routeActivityKey(pathname: string, search: string): string {
+  return search ? `${pathname}?${search}` : pathname;
+}
