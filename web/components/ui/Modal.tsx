@@ -2,11 +2,20 @@
 // 通用弹层：Dialog（居中）/ Drawer（右侧）/ Confirm（确认）。
 // 统一处理 Esc 关闭、焦点锁定、滚动锁定、脏数据二次确认、移动端全屏。
 import { createPortal } from "react-dom";
-import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { AnimatePresence, m, useReducedMotion } from "framer-motion";
+import { MODAL_BODY_ATTR, MODAL_CLOSE_ATTR, resolveInitialFocus } from "@/lib/modalFocus";
 import st from "./Modal.module.css";
 
 type Size = "sm" | "md" | "lg";
+
+/**
+ * 弹层结构标记（值取自 `lib/modalFocus` 的常量，避免属性名两处各写一份而漂移）：
+ *   · `CLOSE_MARK` —— 标在关闭按钮上，初始聚焦要跳过它；
+ *   · `BODY_MARK`  —— 标在正文区上，初始聚焦优先在其中找表单控件。
+ */
+const CLOSE_MARK = { [MODAL_CLOSE_ATTR]: "true" };
+const BODY_MARK = { [MODAL_BODY_ATTR]: "true" };
 
 function useModalBehavior({
   open,
@@ -42,7 +51,19 @@ function useModalBehavior({
     requestCloseRef.current = requestClose;
   }, [requestClose]);
 
-  useEffect(() => {
+  /** 初始聚焦的落点：正文里第一个表单控件，其次弹层内其余非 chrome 控件。 */
+  const focusInitial = useCallback((panel: HTMLElement) => {
+    const target = resolveInitialFocus(panel) as HTMLElement | null;
+    // `panel` 兜底必须保留：Confirm 这类没有可聚焦控件的弹层不能丢掉焦点。
+    (target ?? panel).focus();
+  }, []);
+
+  // 捕获「打开前的焦点」，供关闭后归还（handleExitComplete 用）。
+  //
+  // 必须是 layout effect，且必须排在下面那次初始聚焦**之前**：两者若同处一轮，
+  // 先跑聚焦的话 document.activeElement 已是我们自己聚焦的正文控件，
+  // 于是「关闭后归还触发元素」就会把焦点还给弹层内部的元素。
+  useLayoutEffect(() => {
     if (!open) {
       setAskDiscard(false);
       return;
@@ -51,6 +72,45 @@ function useModalBehavior({
     wasOpenRef.current = true;
     restoreRef.current = document.activeElement;
   }, [open]);
+
+  // 初始聚焦：**同步**做，不留等待窗口。
+  //
+  // 依赖里必须带 `mounted`：弹层经 createPortal 在 `mounted` 变 true 之后才真正
+  // 挂到 DOM 上，首次提交时 panelRef 还是 null。旧实现靠 setTimeout(30) 把查找
+  // 推迟到 portal 挂载之后，所以「延迟」在当时同时承担了「等挂载」与「聚焦」两件事；
+  // 现在把等挂载交给依赖表达，聚焦本身不再需要等待。
+  //
+  // BLF-1123：这里原本是 `setTimeout(..., 30)`，造成两个症状：
+  //   ① 选择器是并集（`…, button, …`）而 header 里的关闭按钮在 DOM 序上先于 body，
+  //      `querySelector` 取到的首个匹配就是关闭叉叉；
+  //   ② 更要紧的是**时序**：弹层挂载后的 30ms 内焦点还没落到正文，用户若已开始输入
+  //      （含中文输入法的拼音首字母），定时器再把焦点抢走会打断输入法组合，
+  //      把首字母以裸小写拉丁字母上屏 —— 即「首个输入键出小写字母」。
+  //      两者同源但**不是**同一个修复：只把落点改对、保留 30ms 延迟，症状②依旧复现
+  //      （真实 Chromium 实测，见 PR 说明）。
+  useLayoutEffect(() => {
+    if (!open || !mounted) return;
+    const panel = panelRef.current;
+    if (!panel) return;
+    // 用户已经自己把焦点放进弹层（抢在挂载前点进字段）就不要抢走；
+    // StrictMode 的二次调用也靠这条守卫短路。
+    const active = document.activeElement;
+    if (active && panel.contains(active)) return;
+    focusInitial(panel);
+
+    // 延迟兜底：仅当「焦点还没落进弹层」时才补一次，用于个别浏览器
+    // 在挂载动画期间丢弃同步 focus() 的情况。
+    //
+    // 与旧实现的本质区别是它**永不抢走用户已在弹层内的焦点**，
+    // 因此不可能再中断输入法组合；主路径是上面那次同步聚焦，本条只是保险。
+    const timer = window.setTimeout(() => {
+      if (!openRef.current || panelRef.current !== panel) return;
+      const current = document.activeElement;
+      if (current && panel.contains(current)) return;
+      focusInitial(panel);
+    }, 30);
+    return () => window.clearTimeout(timer);
+  }, [open, mounted, focusInitial]);
 
   const handleExitComplete = useCallback(() => {
     const element = restoreRef.current as HTMLElement | null;
@@ -72,15 +132,6 @@ function useModalBehavior({
       document.body.style.overflow = "hidden";
     }
 
-    const t = setTimeout(() => {
-      const panel = panelRef.current;
-      if (!panel) return;
-      const first = panel.querySelector<HTMLElement>(
-        "input:not([type=hidden]), select, textarea, button, [href], [tabindex]:not([tabindex='-1'])"
-      );
-      (first ?? panel).focus();
-    }, 30);
-
     function onKey(e: KeyboardEvent) {
       if (e.key === "Escape") {
         e.stopPropagation();
@@ -90,6 +141,8 @@ function useModalBehavior({
       if (e.key !== "Tab") return;
       const panel = panelRef.current;
       if (!panel) return;
+      // 与初始聚焦用的选择器刻意分开：这一条表达的是「Tab 顺序」——
+      // 关闭按钮是合法的 Tab 落点（只在**初始**聚焦时才排除），且这里要逐项过滤 disabled。
       const nodes = Array.from(
         panel.querySelectorAll<HTMLElement>(
           "input:not([type=hidden]):not([disabled]), select:not([disabled]), textarea:not([disabled]), button:not([disabled]), [href], [tabindex]:not([tabindex='-1'])"
@@ -109,7 +162,6 @@ function useModalBehavior({
 
     document.addEventListener("keydown", onKey, true);
     return () => {
-      clearTimeout(t);
       document.removeEventListener("keydown", onKey, true);
     };
   }, [open]);
@@ -192,13 +244,13 @@ export function Dialog({
           >
             <header className={st.head}>
               <h2 id={titleId} className={st.title}>{title}</h2>
-              <button className={st.close} onClick={requestClose} aria-label="关闭">
+              <button className={st.close} {...CLOSE_MARK} onClick={requestClose} aria-label="关闭">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true">
                   <path d="M6 6l12 12M18 6L6 18" />
                 </svg>
               </button>
             </header>
-            <div className={st.body}>{children}</div>
+            <div className={st.body} {...BODY_MARK}>{children}</div>
             {footer && <footer className={st.foot}>{footer}</footer>}
             {askDiscard && (
               <DiscardConfirm onKeep={() => setAskDiscard(false)} onDiscard={() => { setAskDiscard(false); onClose(); }} />
@@ -260,13 +312,13 @@ export function Drawer({ open, onClose, title, children, footer, width = 480, di
           >
             <header className={st.head}>
               <h2 id={titleId} className={st.title}>{title}</h2>
-              <button className={st.close} onClick={requestClose} aria-label="关闭">
+              <button className={st.close} {...CLOSE_MARK} onClick={requestClose} aria-label="关闭">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true">
                   <path d="M6 6l12 12M18 6L6 18" />
                 </svg>
               </button>
             </header>
-            <div className={st.body}>{children}</div>
+            <div className={st.body} {...BODY_MARK}>{children}</div>
             {footer && <footer className={st.foot}>{footer}</footer>}
             {askDiscard && (
               <DiscardConfirm onKeep={() => setAskDiscard(false)} onDiscard={() => { setAskDiscard(false); onClose(); }} />
@@ -338,13 +390,13 @@ export function Confirm({
           >
             <header className={st.head}>
               <h2 id={titleId} className={st.title}>{title}</h2>
-              <button className={st.close} onClick={requestClose} aria-label="关闭" disabled={loading}>
+              <button className={st.close} {...CLOSE_MARK} onClick={requestClose} aria-label="关闭" disabled={loading}>
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true">
                   <path d="M6 6l12 12M18 6L6 18" />
                 </svg>
               </button>
             </header>
-            {(text || children) && <div className={st.body}>{text}{children}</div>}
+            {(text || children) && <div className={st.body} {...BODY_MARK}>{text}{children}</div>}
             <footer className={st.foot}>
               <button className="btn-ghost" onClick={requestClose} disabled={loading}>{cancelText}</button>
               <button
