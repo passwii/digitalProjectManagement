@@ -6,6 +6,7 @@ const PUBLIC_PATHS = ["/login", "/change-password"];
 export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
   const token = req.cookies.get("pm_access_token")?.value;
+  const recoveringLogout = req.nextUrl.searchParams.get("logged_out") === "1";
 
   if (pathname === "/") {
     const url = req.nextUrl.clone();
@@ -19,7 +20,7 @@ export function middleware(req: NextRequest) {
     url.pathname = "/login";
     return NextResponse.redirect(url);
   }
-  if (pathname === "/login" && token) {
+  if (pathname === "/login" && token && !recoveringLogout) {
     const url = req.nextUrl.clone();
     url.pathname = "/dashboard";
     return NextResponse.redirect(url);
