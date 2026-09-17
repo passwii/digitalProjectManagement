@@ -86,7 +86,7 @@ interface NavItem {
   icon?: React.ReactNode;
 }
 
-export default function DashboardLayout({ children }: { children: React.ReactNode }) {
+function DashboardShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const [collapsed, setCollapsed] = useState(false);
@@ -148,8 +148,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   }
 
   return (
-    <ToastProvider>
-    <MotionProvider>
+    <>
     <a className="skip-link" href="#main-content">跳到主要内容</a>
     <div className={`${s.shell} ${collapsed ? s.collapsed : ""}`}>
       <aside className={s.sidebar}>
@@ -175,7 +174,21 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 )}
                 <Link
                   href={n.href}
-                  onClick={() => startNavigation(n.label)}
+                  onClick={(event) => {
+                    if (
+                      event.defaultPrevented ||
+                      event.metaKey ||
+                      event.ctrlKey ||
+                      event.shiftKey ||
+                      event.altKey ||
+                      event.currentTarget.target === "_blank" ||
+                      event.currentTarget.hasAttribute("download") ||
+                      active
+                    ) {
+                      return;
+                    }
+                    startNavigation(n.label, n.href);
+                  }}
                   className={`${s.navLink} ${active ? s.active : ""}`}
                   title={n.label}
                   aria-current={active ? "page" : undefined}
@@ -238,7 +251,16 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </main>
       </div>
     </div>
-    </MotionProvider>
+    </>
+  );
+}
+
+export default function DashboardLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <ToastProvider>
+      <MotionProvider>
+        <DashboardShell>{children}</DashboardShell>
+      </MotionProvider>
     </ToastProvider>
   );
 }

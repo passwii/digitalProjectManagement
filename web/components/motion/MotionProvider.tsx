@@ -5,27 +5,30 @@ import { LazyMotion, domAnimation } from "framer-motion";
 import { usePathname } from "next/navigation";
 import { ActivityProvider, useActivity } from "@/lib/useActivity";
 
-interface NavigationActivityContextValue {
-  startNavigation: (label?: string) => () => void;
+export interface NavigationActivityContextValue {
+  startNavigation: (label?: string, href?: string) => () => void;
 }
 
-export const NavigationActivityContext = createContext<NavigationActivityContextValue | null>(null);
-
-const fallback: NavigationActivityContextValue = {
-  startNavigation: () => () => {},
-};
+export const NavigationActivityContext = createContext<NavigationActivityContextValue | undefined>(undefined);
 
 export function useNavigationActivity(): NavigationActivityContextValue {
-  return useContext(NavigationActivityContext) ?? fallback;
+  const context = useContext(NavigationActivityContext);
+  if (!context) {
+    throw new Error("useNavigationActivity must be used within MotionProvider");
+  }
+  return context;
 }
 
 function NavigationActivity({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const lastPathnameRef = useRef<string | null>(null);
-  const pendingNavigationRef = useRef(new Set<() => void>());
+  const pendingNavigationRef = useRef(new Map<() => void, string>());
   const { beginActivity } = useActivity();
 
-  const startNavigation = useCallback((label = "页面加载中") => {
+  const startNavigation = useCallback((label = "页面加载中", href?: string) => {
+    const target = href
+      ? new URL(href, window.location.origin).pathname
+      : pathname;
     const finishActivity = beginActivity({ label, scope: "navigation" });
     let finished = false;
     let timer = 0;
@@ -39,30 +42,33 @@ function NavigationActivity({ children }: { children: React.ReactNode }) {
       finishActivity();
     };
     timer = window.setTimeout(finish, 10_000);
-    pendingNavigationRef.current.add(finish);
+    pendingNavigationRef.current.set(finish, target);
     return finish;
-  }, [beginActivity]);
+  }, [beginActivity, pathname]);
 
   useEffect(() => {
-    if (lastPathnameRef.current === null) {
-      lastPathnameRef.current = pathname;
+    const previousPathname = lastPathnameRef.current;
+    lastPathnameRef.current = pathname;
+    if (previousPathname === null || previousPathname === pathname) {
       return;
     }
-    if (lastPathnameRef.current === pathname) return;
-
     const pending = pendingNavigationRef.current;
-    if (pending.size > 0) {
-      pending.forEach((finish) => finish());
-    } else {
+    let matched = false;
+    pending.forEach((target, finish) => {
+      if (target === pathname) {
+        matched = true;
+        finish();
+      }
+    });
+    if (!matched) {
       const finish = startNavigation();
       finish();
     }
-    lastPathnameRef.current = pathname;
   }, [pathname, startNavigation]);
 
   useEffect(
     () => () => {
-      pendingNavigationRef.current.forEach((finish) => finish());
+      pendingNavigationRef.current.forEach((_, finish) => finish());
       pendingNavigationRef.current.clear();
     },
     [],
