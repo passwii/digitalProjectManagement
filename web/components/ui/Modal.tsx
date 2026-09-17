@@ -40,7 +40,6 @@ function useModalBehavior({
 
   useEffect(() => {
     if (!open) {
-      wasOpenRef.current = false;
       setAskDiscard(false);
       return;
     }
@@ -53,6 +52,7 @@ function useModalBehavior({
     const element = restoreRef.current as HTMLElement | null;
     if (element && typeof element.focus === "function") element.focus();
     restoreRef.current = null;
+    wasOpenRef.current = false;
   }, []);
 
   useEffect(() => {
@@ -138,6 +138,7 @@ export function Dialog({
 }: DialogProps) {
   const { mounted, panelRef, requestClose, askDiscard, setAskDiscard, handleExitComplete } = useModalBehavior({ open, onRequestClose: onClose, dirty });
   const reduced = useReducedMotion();
+  const closing = !open;
   const titleId = useId();
   if (!mounted) return null;
 
@@ -150,6 +151,8 @@ export function Dialog({
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: reduced ? 0 : 0.12 }}
+          style={{ pointerEvents: closing ? "none" : undefined }}
+          aria-hidden={closing || undefined}
           onMouseDown={() => maskClosable && requestClose()}
         >
           <m.div
@@ -199,6 +202,7 @@ export interface DrawerProps {
 export function Drawer({ open, onClose, title, children, footer, width = 480, dirty }: DrawerProps) {
   const { mounted, panelRef, requestClose, askDiscard, setAskDiscard, handleExitComplete } = useModalBehavior({ open, onRequestClose: onClose, dirty });
   const reduced = useReducedMotion();
+  const closing = !open;
   const titleId = useId();
   if (!mounted) return null;
 
@@ -211,6 +215,8 @@ export function Drawer({ open, onClose, title, children, footer, width = 480, di
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: reduced ? 0 : 0.12 }}
+          style={{ pointerEvents: closing ? "none" : undefined }}
+          aria-hidden={closing || undefined}
           onMouseDown={requestClose}
         >
           <m.aside
@@ -272,6 +278,7 @@ export function Confirm({
     onRequestClose: handleRequestClose,
   });
   const reduced = useReducedMotion();
+  const closing = !open;
   const titleId = useId();
   if (!mounted) return null;
 
@@ -284,6 +291,8 @@ export function Confirm({
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: reduced ? 0 : 0.12 }}
+          style={{ pointerEvents: closing ? "none" : undefined }}
+          aria-hidden={closing || undefined}
           onMouseDown={requestClose}
         >
           <m.div
