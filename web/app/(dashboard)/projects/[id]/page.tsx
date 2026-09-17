@@ -9,6 +9,7 @@ import {
 } from "@/lib/api";
 import { useMeta } from "@/lib/useMeta";
 import { expenseStatusLabel, expenseTone, fmtDate, fmtDateTime, fmtMoney } from "@/lib/labels";
+import { CONTRACT_ATTACHMENT_ACCEPT } from "@/lib/uploadLimits";
 import Badge from "@/components/ui/Badge";
 import Empty from "@/components/ui/Empty";
 import { LoadingBlock } from "@/components/ui/PageState";
@@ -296,7 +297,7 @@ function ProjectDetail({ pid }: { pid: number }) {
               <input
                 type="file"
                 multiple
-                accept=".pdf,.docx,.xlsx,.png,.jpg,.jpeg"
+                accept={CONTRACT_ATTACHMENT_ACCEPT}
                 disabled={busy}
                 onChange={(e) => { uploadContract(e.target.files); e.target.value = ""; }}
               />

@@ -10,6 +10,7 @@ import {
 } from "@/lib/api";
 import { useMeta } from "@/lib/useMeta";
 import { useForm } from "@/lib/useForm";
+import { ATTACHMENT_HINT, CONTACT_ATTACHMENT_ACCEPT } from "@/lib/uploadLimits";
 import { Confirm, Drawer } from "@/components/ui/Modal";
 import Field from "@/components/ui/Field";
 import { useToast } from "@/components/ui/Toast";
@@ -536,7 +537,7 @@ export default function ContactDrawer({
               <div className="form-section-head">
                 <div>
                   <h3>证件与合同附件</h3>
-                  <p>支持 PDF / Word / Excel / 图片，单个文件不超过 20MB。</p>
+                  <p>{ATTACHMENT_HINT}。</p>
                 </div>
               </div>
               {!contact ? (
@@ -558,7 +559,7 @@ export default function ContactDrawer({
                       {uploading ? "上传中…" : "上传附件"}
                       <input
                         type="file"
-                        accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg"
+                        accept={CONTACT_ATTACHMENT_ACCEPT}
                         disabled={uploading}
                         onChange={(e) => {
                           const file = e.target.files?.[0];

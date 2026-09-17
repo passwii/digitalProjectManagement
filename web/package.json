@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev --hostname 0.0.0.0 --port 3001",
+    "test": "tsc -p tsconfig.test.json && node --test .test-dist/lib/uploadLimits.test.js",
     "build": "next build",
     "start": "next start --hostname 0.0.0.0 --port 3001",
     "lint": "next lint"
