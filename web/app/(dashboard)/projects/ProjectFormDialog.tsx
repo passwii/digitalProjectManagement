@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { errText, projectsApi, type Attachment, type Project } from "@/lib/api";
 import { useMeta } from "@/lib/useMeta";
 import { CONTRACT_STATUSES, PROJECT_OWNERS } from "@/lib/labels";
+import { ATTACHMENT_HINT, CONTRACT_ATTACHMENT_ACCEPT } from "@/lib/uploadLimits";
 import { useForm } from "@/lib/useForm";
 import { Dialog } from "@/components/ui/Modal";
 import Field from "@/components/ui/Field";
@@ -243,7 +244,7 @@ export default function ProjectFormDialog({
                 <input
                   type="file"
                   multiple
-                  accept=".pdf,.docx,.xlsx,.png,.jpg,.jpeg"
+                  accept={CONTRACT_ATTACHMENT_ACCEPT}
                   onChange={(e) => {
                     setFiles(Array.from(e.target.files ?? []));
                     e.target.value = "";
@@ -252,7 +253,7 @@ export default function ProjectFormDialog({
                 <span className="file-drop-main">{files.length ? `已选择 ${files.length} 个文件` : "选择合同附件"}</span>
                 <span className="file-drop-sub">{files.length ? files.map((f) => f.name).join("、") : "创建项目后自动保存到合同档案"}</span>
               </label>
-              <span className="field-hint">支持 PDF / Word / Excel / 图片，单个文件不超过 20MB</span>
+              <span className="field-hint">{ATTACHMENT_HINT}</span>
             </div>
           )}
           {existing.length > 0 && (
