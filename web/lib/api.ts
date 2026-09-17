@@ -9,15 +9,27 @@ const LEGACY_TOKEN_KEY = "pm_access_token";
 const LEGACY_REFRESH_KEY = "pm_refresh_token";
 const CSRF_COOKIE = "pm_csrf_token";
 const CSRF_HEADER = "X-CSRF-Token";
+const LOGOUT_TIMEOUT_MS = 1500;
+const LEGACY_COOKIE_PATHS = ["/", "/api/v1/auth"];
 
 export function getToken(): string | null {
   return null;
 }
 
-export function saveSession(_access?: string, _refresh?: string) {
+function clearLegacySessionArtifacts() {
   if (typeof window === "undefined") return;
   localStorage.removeItem(LEGACY_TOKEN_KEY);
   localStorage.removeItem(LEGACY_REFRESH_KEY);
+  const secure = window.location.protocol === "https:" ? "; Secure" : "";
+  for (const name of [LEGACY_TOKEN_KEY, LEGACY_REFRESH_KEY]) {
+    for (const path of LEGACY_COOKIE_PATHS) {
+      document.cookie = `${name}=; Max-Age=0; Path=${path}; SameSite=Lax${secure}`;
+    }
+  }
+}
+
+export function saveSession(_access?: string, _refresh?: string) {
+  clearLegacySessionArtifacts();
 }
 
 /** 只读取非 HttpOnly 的 CSRF Cookie。 */
@@ -40,14 +52,26 @@ function csrfHeaders(method: string): Record<string, string> {
 /** 会话失效后的登录页跳转目标：站内固定路径，不接受任何外部输入 */
 const LOGIN_PATH = "/login";
 
-export function clearSession() {
-  if (typeof window !== "undefined") {
-    localStorage.removeItem(LEGACY_TOKEN_KEY);
-    localStorage.removeItem(LEGACY_REFRESH_KEY);
-  }
+export async function clearSession(): Promise<void> {
   if (typeof window === "undefined") return;
-  if (window.location.pathname === LOGIN_PATH) return;
-  window.location.assign(new URL(LOGIN_PATH, window.location.origin).toString());
+  clearLegacySessionArtifacts();
+
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), LOGOUT_TIMEOUT_MS);
+  try {
+    await fetch(`${API_BASE}/auth/logout`, {
+      method: "POST",
+      credentials: "include",
+      headers: csrfHeaders("POST"),
+      keepalive: true,
+      signal: controller.signal,
+    });
+  } catch {
+    // 登出是尽力而为：网络失败也必须离开受保护页面。
+  } finally {
+    window.clearTimeout(timeout);
+    window.location.assign(new URL(LOGIN_PATH, window.location.origin).toString());
+  }
 }
 
 let refreshPromise: Promise<boolean> | null = null;
@@ -113,14 +137,14 @@ async function request<T>(
     if ((e as { name?: string } | null)?.name === "AbortError") throw e;
     throw new NetworkError("无法连接后端");
   }
-  const authEndpoint = path === "/auth/login" || path === "/auth/refresh";
+  const authEndpoint = path === "/auth/login" || path === "/auth/refresh" || path === "/auth/logout";
   if (res.status === 401 && retry && !authEndpoint) {
     if (await refreshSession()) return request<T>(path, init, raw, false);
     clearSession();
     throw new UnauthorizedError("未登录或会话已过期");
   }
   if (res.status === 401) {
-    clearSession();
+    if (path !== "/auth/logout") clearSession();
     throw new UnauthorizedError("未登录或会话已过期");
   }
   if (!res.ok) {

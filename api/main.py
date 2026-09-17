@@ -92,7 +92,7 @@ app.add_middleware(
     expose_headers=["Content-Disposition"],
 )
 
-CSRF_EXEMPT_PATHS = {"/api/v1/auth/login"}
+CSRF_EXEMPT_PATHS = {"/api/v1/auth/login", "/api/v1/auth/logout"}
 
 
 @app.middleware("http")

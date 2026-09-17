@@ -62,7 +62,7 @@ export default function ChangePasswordPage() {
             </button>
           </form>
           <div className={st.hint}>
-            <button type="button" className="linklike" onClick={() => { clearSession(); router.push("/login"); }}>
+            <button type="button" className="linklike" onClick={clearSession}>
               退出登录
             </button>
           </div>
