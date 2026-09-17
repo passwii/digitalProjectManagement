@@ -1,6 +1,7 @@
 "use client";
 // 轻量 Toast：ToastProvider + useToast()。右上角堆叠，4s 自动消失。
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { AnimatePresence, m, useReducedMotion } from "framer-motion";
 import st from "./Toast.module.css";
 
 export type ToastKind = "ok" | "err" | "info";
@@ -22,6 +23,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   const [items, setItems] = useState<Item[]>([]);
   const seq = useRef(0);
   const timers = useRef<number[]>([]);
+  const reduced = useReducedMotion();
 
   const push = useCallback((kind: ToastKind, text: string) => {
     const id = ++seq.current;
@@ -45,24 +47,35 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
     <Ctx.Provider value={api}>
       {children}
       <div className={st.stack} role="status" aria-live="polite">
-        {items.map((t) => (
-          <div key={t.id} className={`${st.toast} ${st[t.kind]}`} role="status">
-            <span className={st.icon} aria-hidden>
-              {t.kind === "ok" ? "✓" : t.kind === "err" ? "!" : "i"}
-            </span>
-            <span className={st.text}>{t.text}</span>
-            <button
-              type="button"
-              className={st.dismiss}
-              onClick={() => setItems((p) => p.filter((x) => x.id !== t.id))}
-              aria-label="关闭提示"
+        <AnimatePresence initial={false}>
+          {items.map((t) => (
+            <m.div
+              key={t.id}
+              className={`${st.toast} ${st[t.kind]}`}
+              role="status"
+              layout={!reduced}
+              initial={reduced ? false : { opacity: 0, y: -6, scale: 0.99 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={reduced ? { opacity: 1 } : { opacity: 0, y: -4, scale: 0.99 }}
+              transition={{ duration: reduced ? 0 : 0.18 }}
             >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true">
-                <path d="M6 6l12 12M18 6L6 18" />
-              </svg>
-            </button>
-          </div>
-        ))}
+              <span className={st.icon} aria-hidden>
+                {t.kind === "ok" ? "✓" : t.kind === "err" ? "!" : "i"}
+              </span>
+              <span className={st.text}>{t.text}</span>
+              <button
+                type="button"
+                className={st.dismiss}
+                onClick={() => setItems((p) => p.filter((x) => x.id !== t.id))}
+                aria-label="关闭提示"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true">
+                  <path d="M6 6l12 12M18 6L6 18" />
+                </svg>
+              </button>
+            </m.div>
+          ))}
+        </AnimatePresence>
       </div>
     </Ctx.Provider>
   );

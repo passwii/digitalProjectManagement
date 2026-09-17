@@ -3,6 +3,7 @@
 // 统一处理 Esc 关闭、焦点锁定、滚动锁定、脏数据二次确认、移动端全屏。
 import { createPortal } from "react-dom";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { AnimatePresence, m, useReducedMotion } from "framer-motion";
 import st from "./Modal.module.css";
 
 type Size = "sm" | "md" | "lg";
@@ -16,7 +17,7 @@ function useModalBehavior({
   onRequestClose: () => void;
   dirty?: boolean;
 }) {
-  const panelRef = useRef<HTMLDivElement | null>(null);
+  const panelRef = useRef<HTMLElement | null>(null);
   const restoreRef = useRef<Element | null>(null);
   const [mounted, setMounted] = useState(false);
   const [askDiscard, setAskDiscard] = useState(false);
@@ -30,6 +31,12 @@ function useModalBehavior({
     }
     onRequestClose();
   }, [dirty, onRequestClose]);
+
+  const handleExitComplete = useCallback(() => {
+    const element = restoreRef.current as HTMLElement | null;
+    if (element && typeof element.focus === "function") element.focus();
+    restoreRef.current = null;
+  }, []);
 
   useEffect(() => {
     if (!open) {
@@ -80,12 +87,10 @@ function useModalBehavior({
       clearTimeout(t);
       document.removeEventListener("keydown", onKey, true);
       document.body.style.overflow = prevOverflow;
-      const el = restoreRef.current as HTMLElement | null;
-      if (el && typeof el.focus === "function") el.focus();
     };
   }, [open, requestClose]);
 
-  return { mounted, panelRef, requestClose, askDiscard, setAskDiscard };
+  return { mounted, panelRef, requestClose, askDiscard, setAskDiscard, handleExitComplete };
 }
 
 function DiscardConfirm({ onKeep, onDiscard }: { onKeep: () => void; onDiscard: () => void }) {
@@ -116,36 +121,52 @@ export interface DialogProps {
 export function Dialog({
   open, onClose, title, children, footer, size = "md", dirty, maskClosable = true,
 }: DialogProps) {
-  const { mounted, panelRef, requestClose, askDiscard, setAskDiscard } = useModalBehavior({ open, onRequestClose: onClose, dirty });
+  const { mounted, panelRef, requestClose, askDiscard, setAskDiscard, handleExitComplete } = useModalBehavior({ open, onRequestClose: onClose, dirty });
+  const reduced = useReducedMotion();
   const titleId = useId();
-  if (!mounted || !open) return null;
+  if (!mounted) return null;
 
   return createPortal(
-    <div className={st.overlay} onMouseDown={() => maskClosable && requestClose()}>
-      <div
-        ref={panelRef}
-        className={`${st.panel} ${st[size]}`}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby={titleId}
-        tabIndex={-1}
-        onMouseDown={(e) => e.stopPropagation()}
-      >
-        <header className={st.head}>
-          <h2 id={titleId} className={st.title}>{title}</h2>
-          <button className={st.close} onClick={requestClose} aria-label="关闭">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true">
-              <path d="M6 6l12 12M18 6L6 18" />
-            </svg>
-          </button>
-        </header>
-        <div className={st.body}>{children}</div>
-        {footer && <footer className={st.foot}>{footer}</footer>}
-        {askDiscard && (
-          <DiscardConfirm onKeep={() => setAskDiscard(false)} onDiscard={() => { setAskDiscard(false); onClose(); }} />
-        )}
-      </div>
-    </div>,
+    <AnimatePresence onExitComplete={handleExitComplete}>
+      {open && (
+        <m.div
+          className={st.overlay}
+          initial={reduced ? false : { opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: reduced ? 0 : 0.12 }}
+          onMouseDown={() => maskClosable && requestClose()}
+        >
+          <m.div
+            ref={(element) => { panelRef.current = element; }}
+            className={`${st.panel} ${st[size]}`}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby={titleId}
+            tabIndex={-1}
+            initial={reduced ? false : { opacity: 0, y: 6, scale: 0.995 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={reduced ? { opacity: 1 } : { opacity: 0, y: 4, scale: 0.995 }}
+            transition={{ duration: reduced ? 0 : 0.18 }}
+            onMouseDown={(e) => e.stopPropagation()}
+          >
+            <header className={st.head}>
+              <h2 id={titleId} className={st.title}>{title}</h2>
+              <button className={st.close} onClick={requestClose} aria-label="关闭">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true">
+                  <path d="M6 6l12 12M18 6L6 18" />
+                </svg>
+              </button>
+            </header>
+            <div className={st.body}>{children}</div>
+            {footer && <footer className={st.foot}>{footer}</footer>}
+            {askDiscard && (
+              <DiscardConfirm onKeep={() => setAskDiscard(false)} onDiscard={() => { setAskDiscard(false); onClose(); }} />
+            )}
+          </m.div>
+        </m.div>
+      )}
+    </AnimatePresence>,
     document.body
   );
 }
@@ -161,37 +182,53 @@ export interface DrawerProps {
 }
 
 export function Drawer({ open, onClose, title, children, footer, width = 480, dirty }: DrawerProps) {
-  const { mounted, panelRef, requestClose, askDiscard, setAskDiscard } = useModalBehavior({ open, onRequestClose: onClose, dirty });
+  const { mounted, panelRef, requestClose, askDiscard, setAskDiscard, handleExitComplete } = useModalBehavior({ open, onRequestClose: onClose, dirty });
+  const reduced = useReducedMotion();
   const titleId = useId();
-  if (!mounted || !open) return null;
+  if (!mounted) return null;
 
   return createPortal(
-    <div className={st.overlay} onMouseDown={requestClose}>
-      <div
-        ref={panelRef}
-        className={st.drawer}
-        style={{ width }}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby={titleId}
-        tabIndex={-1}
-        onMouseDown={(e) => e.stopPropagation()}
-      >
-        <header className={st.head}>
-          <h2 id={titleId} className={st.title}>{title}</h2>
-          <button className={st.close} onClick={requestClose} aria-label="关闭">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true">
-              <path d="M6 6l12 12M18 6L6 18" />
-            </svg>
-          </button>
-        </header>
-        <div className={st.body}>{children}</div>
-        {footer && <footer className={st.foot}>{footer}</footer>}
-        {askDiscard && (
-          <DiscardConfirm onKeep={() => setAskDiscard(false)} onDiscard={() => { setAskDiscard(false); onClose(); }} />
-        )}
-      </div>
-    </div>,
+    <AnimatePresence onExitComplete={handleExitComplete}>
+      {open && (
+        <m.div
+          className={st.overlay}
+          initial={reduced ? false : { opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: reduced ? 0 : 0.12 }}
+          onMouseDown={requestClose}
+        >
+          <m.aside
+            ref={(element) => { panelRef.current = element; }}
+            className={st.drawer}
+            style={{ width }}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby={titleId}
+            tabIndex={-1}
+            initial={reduced ? false : { x: 16, opacity: 0.6 }}
+            animate={{ x: 0, opacity: 1 }}
+            exit={reduced ? { opacity: 1 } : { x: 16, opacity: 0 }}
+            transition={{ duration: reduced ? 0 : 0.18 }}
+            onMouseDown={(e) => e.stopPropagation()}
+          >
+            <header className={st.head}>
+              <h2 id={titleId} className={st.title}>{title}</h2>
+              <button className={st.close} onClick={requestClose} aria-label="关闭">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true">
+                  <path d="M6 6l12 12M18 6L6 18" />
+                </svg>
+              </button>
+            </header>
+            <div className={st.body}>{children}</div>
+            {footer && <footer className={st.foot}>{footer}</footer>}
+            {askDiscard && (
+              <DiscardConfirm onKeep={() => setAskDiscard(false)} onDiscard={() => { setAskDiscard(false); onClose(); }} />
+            )}
+          </m.aside>
+        </m.div>
+      )}
+    </AnimatePresence>,
     document.body
   );
 }
@@ -215,45 +252,61 @@ export function Confirm({
   const handleRequestClose = useCallback(() => {
     if (!loading) onCancel();
   }, [loading, onCancel]);
-  const { mounted, panelRef, requestClose } = useModalBehavior({
+  const { mounted, panelRef, requestClose, handleExitComplete } = useModalBehavior({
     open,
     onRequestClose: handleRequestClose,
   });
+  const reduced = useReducedMotion();
   const titleId = useId();
-  if (!mounted || !open) return null;
+  if (!mounted) return null;
 
   return createPortal(
-    <div className={st.overlay} onMouseDown={requestClose}>
-      <div
-        ref={panelRef}
-        className={`${st.panel} ${st.sm}`}
-        role="alertdialog"
-        aria-modal="true"
-        aria-labelledby={titleId}
-        tabIndex={-1}
-        onMouseDown={(e) => e.stopPropagation()}
-      >
-        <header className={st.head}>
-          <h2 id={titleId} className={st.title}>{title}</h2>
-          <button className={st.close} onClick={requestClose} aria-label="关闭" disabled={loading}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true">
-              <path d="M6 6l12 12M18 6L6 18" />
-            </svg>
-          </button>
-        </header>
-        {(text || children) && <div className={st.body}>{text}{children}</div>}
-        <footer className={st.foot}>
-          <button className="btn-ghost" onClick={requestClose} disabled={loading}>{cancelText}</button>
-          <button
-            className={`btn-primary ${danger ? st.dangerBtn : ""}`}
-            onClick={onConfirm}
-            disabled={loading}
+    <AnimatePresence onExitComplete={handleExitComplete}>
+      {open && (
+        <m.div
+          className={st.overlay}
+          initial={reduced ? false : { opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: reduced ? 0 : 0.12 }}
+          onMouseDown={requestClose}
+        >
+          <m.div
+            ref={(element) => { panelRef.current = element; }}
+            className={`${st.panel} ${st.sm}`}
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby={titleId}
+            tabIndex={-1}
+            initial={reduced ? false : { opacity: 0, y: 6, scale: 0.995 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={reduced ? { opacity: 1 } : { opacity: 0, y: 4, scale: 0.995 }}
+            transition={{ duration: reduced ? 0 : 0.18 }}
+            onMouseDown={(e) => e.stopPropagation()}
           >
-            {loading ? "处理中…" : okText}
-          </button>
-        </footer>
-      </div>
-    </div>,
+            <header className={st.head}>
+              <h2 id={titleId} className={st.title}>{title}</h2>
+              <button className={st.close} onClick={requestClose} aria-label="关闭" disabled={loading}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true">
+                  <path d="M6 6l12 12M18 6L6 18" />
+                </svg>
+              </button>
+            </header>
+            {(text || children) && <div className={st.body}>{text}{children}</div>}
+            <footer className={st.foot}>
+              <button className="btn-ghost" onClick={requestClose} disabled={loading}>{cancelText}</button>
+              <button
+                className={`btn-primary ${danger ? st.dangerBtn : ""}`}
+                onClick={onConfirm}
+                disabled={loading}
+              >
+                {loading ? "处理中…" : okText}
+              </button>
+            </footer>
+          </m.div>
+        </m.div>
+      )}
+    </AnimatePresence>,
     document.body
   );
 }
