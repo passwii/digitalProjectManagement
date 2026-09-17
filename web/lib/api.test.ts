@@ -252,6 +252,74 @@ test("concurrent failed refreshes share one logout and navigation", async (t) =>
   assert.match(browser.assigned[0], /\/login\?reason=expired/);
 });
 
+test("logout waits for an in-flight refresh before clearing the session", async (t) => {
+  const browser = installBrowser("/dashboard");
+  const order = [];
+  let releaseRefresh;
+  let markRefreshStarted;
+  const refreshGate = new Promise((resolve) => {
+    releaseRefresh = resolve;
+  });
+  const refreshStarted = new Promise((resolve) => {
+    markRefreshStarted = resolve;
+  });
+  let lockTail = Promise.resolve();
+  let protectedCalls = 0;
+
+  Object.defineProperty(globalThis, "navigator", {
+    configurable: true,
+    writable: true,
+    value: {
+      onLine: true,
+      locks: {
+        request(name, callback) {
+          const result = lockTail.then(() => callback({ name, mode: "exclusive" }));
+          lockTail = result.then(() => undefined, () => undefined);
+          return result;
+        },
+      },
+    } as Navigator,
+  });
+  globalThis.fetch = async (url) => {
+    const value = String(url);
+    if (value.endsWith("/protected")) {
+      protectedCalls += 1;
+      return protectedCalls === 1
+        ? jsonResponse({ detail: "expired" }, 401)
+        : jsonResponse({ ok: true });
+    }
+    if (value.endsWith("/auth/me")) return jsonResponse({ detail: "expired" }, 401);
+    if (value.endsWith("/auth/refresh")) {
+      order.push("refresh-start");
+      markRefreshStarted();
+      await refreshGate;
+      order.push("refresh-end");
+      return jsonResponse({}, 200);
+    }
+    if (value.endsWith("/auth/logout")) {
+      order.push("logout");
+      return jsonResponse({ ok: true });
+    }
+    return jsonResponse({}, 404);
+  };
+  t.after(browser.restore);
+
+  const { apiGet, clearSession } = await import("./api");
+  const request = apiGet("/protected");
+  await refreshStarted;
+  const logout = clearSession("logout");
+  await new Promise((resolve) => setImmediate(resolve));
+  const logoutStartedEarly = order.includes("logout");
+
+  releaseRefresh();
+  await request;
+  await logout;
+
+  assert.equal(logoutStartedEarly, false);
+  assert.ok(order.indexOf("refresh-end") < order.indexOf("logout"));
+  assert.equal(browser.assigned.length, 1);
+});
+
 test("FormData replay keeps body and does not set multipart Content-Type", async (t) => {
   const browser = installBrowser("/dashboard");
   const uploadCalls = [];
