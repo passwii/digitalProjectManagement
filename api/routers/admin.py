@@ -16,7 +16,7 @@ from ..core.deps import get_current_user
 from ..core.paging import DEFAULT_PAGE_SIZE, paginate
 from ..core.rbac import require_admin
 from ..core.security import hash_password
-from ..models import AuditLog, Dict, Project, Role, SysParam, User, UserRole
+from ..models import AuditLog, ContactProfile, Dict, Project, Role, SysParam, User, UserRole
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 PHONE_RE = re.compile(r"^1\d{10}$")
@@ -84,6 +84,25 @@ def create_user(body: UserIn, db: Session = Depends(get_db), user: User = Depend
              created_at=datetime.now(timezone.utc))
     db.add(u)
     db.flush()
+    contact = db.query(ContactProfile).filter(
+        ContactProfile.user_id.is_(None),
+        ContactProfile.mobile == username,
+    ).first()
+    if contact:
+        contact.user_id = u.id
+        contact.name = contact.name or body.real_name or username
+        contact.dept_id = contact.dept_id or body.dept_id
+        contact.updated_by = user.id
+    else:
+        db.add(ContactProfile(
+            user_id=u.id,
+            name=body.real_name or username,
+            mobile=username,
+            dept_id=body.dept_id,
+            employment_type="正式",
+            employment_status="active",
+            updated_by=user.id,
+        ))
     for code in body.roles:
         r = db.query(Role).filter_by(code=code).first()
         if r:
@@ -113,6 +132,12 @@ def update_user(uid: int, body: dict, db: Session = Depends(get_db),
                 db.add(UserRole(user_id=uid, role_id=r.id))
     if body.get("status") == "active":
         u.failed_count, u.locked_until = 0, None
+    contact = db.query(ContactProfile).filter_by(user_id=uid).first()
+    if contact:
+        contact.name = u.real_name or u.username
+        contact.mobile = contact.mobile or u.username
+        contact.dept_id = u.dept_id
+        contact.updated_by = user.id
     commit_audited(db, user.id, "update_user", "users", uid, str(sorted(body.keys())))
     return _u(u)
 
