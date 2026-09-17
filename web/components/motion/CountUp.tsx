@@ -12,7 +12,7 @@ export default function CountUp({
 }) {
   const reduced = useReducedMotion();
   const previous = useRef(0);
-  const [display, setDisplay] = useState(value);
+  const [display, setDisplay] = useState(reduced ? value : 0);
 
   useEffect(() => {
     if (reduced) {

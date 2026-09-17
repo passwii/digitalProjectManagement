@@ -15,6 +15,9 @@ import ProjectPicker from "@/components/ui/ProjectPicker";
 import PageHeading from "@/components/ui/PageHeading";
 import { LoadingBlock, LoadFailed } from "@/components/ui/PageState";
 import ProgressBar from "@/components/ui/ProgressBar";
+import CountUp from "@/components/motion/CountUp";
+import MotionReveal from "@/components/motion/MotionReveal";
+import { useActivity } from "@/lib/useActivity";
 
 type View = "detail" | "summary";
 
@@ -57,6 +60,7 @@ function ReportsInner() {
   const size = urlInt(url.size, 20, { max: 100 });
   const [exporting, setExporting] = useState(false);
   const [exportErr, setExportErr] = useState("");
+  const { beginActivity } = useActivity();
 
   const query = useMemo(
     () =>
@@ -126,6 +130,7 @@ function ReportsInner() {
     .join(" · ");
 
   async function exportExcel() {
+    const finish = beginActivity({ label: "导出报表", scope: "form" });
     setExporting(true);
     setExportErr("");
     try {
@@ -134,6 +139,7 @@ function ReportsInner() {
       setExportErr(errText(e));
     } finally {
       setExporting(false);
+      finish();
     }
   }
 
@@ -208,29 +214,33 @@ function ReportsInner() {
       {error && <LoadFailed message={error} onRetry={reload} />}
       {exportErr && <LoadFailed message={`导出失败：${exportErr}`} onRetry={exportExcel} />}
 
-      <div className="kpi-row">
-        <div className="kpi"><div className="k">支出总额</div><div className="v mono">{fmtMoney(totalSpent)}</div></div>
-        <div className="kpi"><div className="k">涉及项目</div><div className="v mono">{new Set(rows.map((r) => r.project_id)).size}</div></div>
-        <div className="kpi"><div className="k">涉及人员</div><div className="v mono">{byPersonRows.length}</div></div>
-        <div className="kpi"><div className="k">明细条数</div><div className="v mono">{rows.length}</div></div>
-      </div>
-      {warns && (warns.overdue_tasks.length + warns.stagnant_projects.length + (warns.followup_due?.length ?? 0) > 0) && (
-        <div className="warn-banner">
-          <b>预警</b>
-          <span className="tiny" style={{ marginLeft: 8 }}>逾期任务 {warns.overdue_tasks.length} · 停滞项目 {warns.stagnant_projects.length} · 跟进到期 {warns.followup_due?.length ?? 0}</span>
-          <ul style={{ margin: "6px 0 0", paddingLeft: 18, fontSize: 13 }}>
-            {warns.stagnant_projects.slice(0, 3).map((s) => (
-              <li key={s.project_id}>项目「{s.name}」已 {s.days_no_log} 天无进度填报</li>
-            ))}
-            {(warns.followup_due ?? []).slice(0, 3).map((f) => (
-              <li key={f.followup_id}>跟进提醒到期：{f.content || "（无内容）"} · {userName(f.user_id)}</li>
-            ))}
-          </ul>
+      <MotionReveal>
+        <div className="kpi-row">
+          <div className="kpi"><div className="k">支出总额</div><div className="v"><CountUp value={totalSpent} format={fmtMoney} /></div></div>
+          <div className="kpi"><div className="k">涉及项目</div><div className="v"><CountUp value={new Set(rows.map((r) => r.project_id)).size} /></div></div>
+          <div className="kpi"><div className="k">涉及人员</div><div className="v"><CountUp value={byPersonRows.length} /></div></div>
+          <div className="kpi"><div className="k">明细条数</div><div className="v"><CountUp value={rows.length} /></div></div>
         </div>
+      </MotionReveal>
+      {warns && (warns.overdue_tasks.length + warns.stagnant_projects.length + (warns.followup_due?.length ?? 0) > 0) && (
+        <MotionReveal>
+          <div className="warn-banner">
+            <b>预警</b>
+            <span className="tiny" style={{ marginLeft: 8 }}>逾期任务 {warns.overdue_tasks.length} · 停滞项目 {warns.stagnant_projects.length} · 跟进到期 {warns.followup_due?.length ?? 0}</span>
+            <ul style={{ margin: "6px 0 0", paddingLeft: 18, fontSize: 13 }}>
+              {warns.stagnant_projects.slice(0, 3).map((s) => (
+                <li key={s.project_id}>项目「{s.name}」已 {s.days_no_log} 天无进度填报</li>
+              ))}
+              {(warns.followup_due ?? []).slice(0, 3).map((f) => (
+                <li key={f.followup_id}>跟进提醒到期：{f.content || "（无内容）"} · {userName(f.user_id)}</li>
+              ))}
+            </ul>
+          </div>
+        </MotionReveal>
       )}
 
       {view === "detail" ? (
-        <>
+        <MotionReveal>
           <h2 className="section-title">明细（项目 × 人员）</h2>
           {firstLoad ? (
             <LoadingBlock kpis={0} label="加载明细…" />
@@ -270,9 +280,9 @@ function ReportsInner() {
               />
             </>
           )}
-        </>
+        </MotionReveal>
       ) : (
-        <div className="split" style={{ marginTop: 16 }}>
+        <MotionReveal className="split" delay={0.04}>
           <div>
             <h2 className="section-title">按人员汇总</h2>
             {firstLoad ? (
@@ -319,7 +329,7 @@ function ReportsInner() {
               </div>
             )}
           </div>
-        </div>
+        </MotionReveal>
       )}
 
     </div>

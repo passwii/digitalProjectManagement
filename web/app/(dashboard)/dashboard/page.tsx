@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
+import { useReducedMotion } from "framer-motion";
 import {
   CartesianGrid, Cell, Legend, Line, LineChart, Pie, PieChart,
   ResponsiveContainer, Tooltip, XAxis, YAxis,
@@ -15,6 +16,9 @@ import Empty from "@/components/ui/Empty";
 import ProgressBar from "@/components/ui/ProgressBar";
 import { LoadingBlock } from "@/components/ui/PageState";
 import PageHeading from "@/components/ui/PageHeading";
+import CountUp from "@/components/motion/CountUp";
+import MotionStagger from "@/components/motion/MotionStagger";
+import { useActivity } from "@/lib/useActivity";
 
 const SUBJECT_COLORS = ["#1677FF", "#5B8DEF", "#7C5CFC", "#2C9C69", "#D48806"];
 
@@ -23,12 +27,15 @@ export default function DashboardPage() {
   const { me } = useMe();
   // 审批入口与管理/审批权限均以后端菜单契约为准，不再自行拼角色判断
   const { isAdmin } = useMenus();
+  const { beginActivity } = useActivity();
+  const reduced = useReducedMotion();
   const [data, setData] = useState<DashboardSummary | null>(null);
   const [weekly, setWeekly] = useState<Weekly | null>(null);
   const [err, setErr] = useState("");
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
+    const finish = beginActivity({ label: "刷新工作台", scope: "content" });
     setLoading(true);
     setErr("");
     try {
@@ -39,8 +46,9 @@ export default function DashboardPage() {
       setErr(errText(e));
     } finally {
       setLoading(false);
+      finish();
     }
-  }, []);
+  }, [beginActivity]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -69,15 +77,16 @@ export default function DashboardPage() {
         }
       />
 
+      <MotionStagger>
       <div className="kpi-row">
-        <div className="kpi"><div className="k">我的项目</div><div className="v mono">{k.my_projects}</div><div className="tiny">进行中 {k.active_projects}</div></div>
-        <div className="kpi"><div className="k">逾期任务</div><div className="v mono" style={k.overdue_tasks > 0 ? { color: "var(--danger)" } : undefined}>{k.overdue_tasks}</div><div className="tiny">我负责 {k.my_overdue_tasks}</div></div>
+        <div className="kpi"><div className="k">我的项目</div><div className="v"><CountUp value={k.my_projects} /></div><div className="tiny">进行中 <CountUp value={k.active_projects} /></div></div>
+        <div className="kpi"><div className="k">逾期任务</div><div className="v" style={k.overdue_tasks > 0 ? { color: "var(--danger)" } : undefined}><CountUp value={k.overdue_tasks} /></div><div className="tiny">我负责 <CountUp value={k.my_overdue_tasks} /></div></div>
         {isAdmin ? (
-          <div className="kpi"><div className="k">待我审批</div><div className="v mono" style={k.pending_approvals > 0 ? { color: "var(--warn)" } : undefined}>{k.pending_approvals}</div><div className="tiny">未读通知 {k.unread_notifications}</div></div>
+          <div className="kpi"><div className="k">待我审批</div><div className="v" style={k.pending_approvals > 0 ? { color: "var(--warn)" } : undefined}><CountUp value={k.pending_approvals} /></div><div className="tiny">未读通知 <CountUp value={k.unread_notifications} /></div></div>
         ) : (
-          <div className="kpi"><div className="k">未读通知</div><div className="v mono">{k.unread_notifications}</div><div className="tiny">审批结果会通过通知告知您</div></div>
+          <div className="kpi"><div className="k">未读通知</div><div className="v"><CountUp value={k.unread_notifications} /></div><div className="tiny">审批结果会通过通知告知您</div></div>
         )}
-        <div className="kpi"><div className="k">{k.month} 支出</div><div className="v mono">{fmtMoney(k.month_spent)}</div><div className="tiny">按已通过支出统计</div></div>
+        <div className="kpi"><div className="k">{k.month} 支出</div><div className="v"><CountUp value={k.month_spent} format={fmtMoney} /></div><div className="tiny">按已通过支出统计</div></div>
       </div>
       <div className="split">
         <div className="card">
@@ -93,7 +102,8 @@ export default function DashboardPage() {
                   <YAxis tick={{ fontSize: 12, fill: "#8993a4" }} axisLine={false} tickLine={false} width={64}
                     tickFormatter={(v) => (Number(v) >= 10000 ? `${Math.round(Number(v) / 10000)}万` : String(v))} />
                   <Tooltip formatter={(v) => [`${fmtMoney(Number(v))} 元`, "支出"]} contentStyle={{ fontSize: 12, borderRadius: 6, border: "1px solid #e3e6eb" }} />
-                  <Line type="monotone" dataKey="spent" stroke="#1677FF" strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 5 }} name="支出" />
+                  <Line type="monotone" dataKey="spent" stroke="#1677FF" strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 5 }} name="支出"
+                    isAnimationActive={!reduced} animationDuration={500} animationBegin={0} />
                 </LineChart>
               </ResponsiveContainer>
             </div>
@@ -108,7 +118,8 @@ export default function DashboardPage() {
             <div style={{ width: "100%", height: 220 }}>
               <ResponsiveContainer>
                 <PieChart>
-                  <Pie data={data.by_subject} dataKey="spent" nameKey="subject" innerRadius={42} outerRadius={64} paddingAngle={2}>
+                  <Pie data={data.by_subject} dataKey="spent" nameKey="subject" innerRadius={42} outerRadius={64} paddingAngle={2}
+                    isAnimationActive={!reduced} animationDuration={500} animationBegin={80}>
                     {data.by_subject.map((s, i) => (
                       <Cell key={s.subject} fill={SUBJECT_COLORS[i % SUBJECT_COLORS.length]} />
                     ))}
@@ -155,7 +166,7 @@ export default function DashboardPage() {
         <div>
           <h2 className="section-title">
             本周动态
-            {weekly && <span className="sub">近 7 天填报 <span className="mono">{weekly.log_count}</span> 条</span>}
+            {weekly && <span className="sub">近 7 天填报 <CountUp value={weekly.log_count} /> 条</span>}
           </h2>
           <div className="card">
             {!weekly || (weekly.progress_logs.length === 0 && weekly.overdue.length === 0 && weekly.due_soon.length === 0) ? (
@@ -207,6 +218,7 @@ export default function DashboardPage() {
           </p>
         </div>
       </div>
+      </MotionStagger>
     </div>
   );
 }
