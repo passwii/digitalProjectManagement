@@ -25,6 +25,24 @@ npm run build && npx next start --port 3001
 
 打开 http://localhost:3001/login
 
+## 认证会话配置
+
+开发环境默认使用 `dev-secret-change-me` 和 HTTP Cookie。生产环境必须设置：
+
+```bash
+export APP_ENV=production
+export APP_SECRET='至少32字符的随机密钥'
+export COOKIE_SECURE=1
+```
+
+登录成功后，后端设置：
+
+- `pm_access_token`：HttpOnly access Cookie。
+- `pm_refresh_token`：HttpOnly refresh Cookie，Path 限制为 `/api/v1/auth`。
+- `pm_csrf_token`：JavaScript 可读 CSRF Cookie。
+
+前端写请求自动发送 `X-CSRF-Token`，token 不再写入 localStorage。
+
 ## 演示数据开关（全站生效）
 
 `scripts/seed_mock.py` 写入的演示数据带 `is_demo` 标记。系统参数 `demo_data_on` 控制是否展示：
@@ -195,7 +213,7 @@ python3 scripts/seed_perf.py 0 --clean     # 清理压测数据
 
 ```bash
 cd /Users/damon/DamonProjects/digitalProjectManagement
-python3 -m pytest -q        # 37 项，覆盖鉴权/状态机/越权/加权/预警/拦截/审批/通知/软删除/检索/分页，
+python3 -m pytest -q        # 58 项，覆盖鉴权/状态机/越权/加权/预警/拦截/审批/通知/软删除/检索/分页/认证配置，
                             # Stage 1 的管理员全局范围、非管理员管理/审批接口 403、软删除项目边界（第 25—30 项），
                             # 以及 Stage 3A 的列表分页/排序/查询边界契约（第 31—37 项：统一信封、非法 page/size/sort 400、
                             # 越界翻页空 items、排序稳定性、筛选组合与越权项目查询、最小字段选择器、审批待办有界）
@@ -208,7 +226,6 @@ python3 -m pytest -q        # 37 项，覆盖鉴权/状态机/越权/加权/预�
   500 条时会低估；需要精确总数/分页的选择器场景请用 `GET /projects/options`（走 LIKE，`total` 准确）
 - 字典类接口（`/meta/users`、`/meta/depts`）为「一次取回本地映射」设计，服务端硬上限 500 行；超出请用 `/meta/users/search`
 - 列表筛选/分页未写入 URL，刷新会丢筛选条件（Stage 3B 前端处理）
-- 前端 token 存 localStorage + 非 httpOnly cookie（供 middleware 鉴权），生产建议改服务端 httpOnly
 - `docker-compose.yml` 已提供但未在本机实跑（无 docker 环境）
 
 ## 启动方式二：Docker（未实机验证）
@@ -228,7 +245,6 @@ python3 -m api.core.jobs    # 跟进到期扫描（建议 cron 每 10 分钟）
 
 - 数据库为 SQLite（`data/app.db`，路径固定相对项目根，与启动目录无关），PG 不在本期范围。备份为文件级拷贝，部署时确保 `data/` 落在持久卷。
 - CORS 默认放行 `localhost:3000/3001`，可用环境变量 `CORS_ORIGINS` 覆盖。
-- 前端 token 存 localStorage + 非 httpOnly cookie（供 middleware 鉴权），生产环境建议改由服务端下发 httpOnly cookie。
 ---
 
 ## Review 2026-09-16：从 MVP 到可推广的推进建议
@@ -246,9 +262,9 @@ python3 -m api.core.jobs    # 跟进到期扫描（建议 cron 每 10 分钟）
 
 ### P0：先修再扩
 
-- **生产密钥不能有默认值**：`api/core/security.py` 当前在缺少 `APP_SECRET` 时回退到 `dev-secret-change-me`。生产启动应在缺失或过短时拒绝启动，并区分开发配置；同时补充密钥轮换策略。
+- **生产密钥与 Cookie 会话**：生产启动在缺少 `APP_SECRET` 或密钥短于 32 字符时拒绝启动，并默认启用 Secure Cookie；后续需补充密钥轮换策略。
 - **附件路径存在安全和可靠性风险**：`api/routers/projects.py` 直接使用上传文件名拼路径。应生成服务端文件名、限制文件名字符、校验最终路径位于项目附件目录，并将“数据库记录 + 文件写入失败回滚”设计成一致流程。
-- **登录防护只按用户计数**：连续错误锁定用户，但没有 IP/账号组合限流；refresh token 可长期重复使用且未轮换。上线前至少增加请求速率限制、refresh 轮换/吊销和 cookie 策略。
+- **登录防护仍只按用户计数**：连续错误锁定用户，但没有 IP/账号组合限流；refresh 轮换/吊销与 Cookie + CSRF 会话已实现。上线前仍需增加请求速率限制。
 - ~~**权限规则需先定稿**~~（**已定稿，2026-09-16**）：项目负责人、成本管理员、高层都不再是审批人。已确认边界为「单一管理员、全局可见、全局可操作、管理员统一审批」，并已落成后端契约（`api/core/rbac.py` 的 `require_admin` / `can_approve`）与接口测试（`tests/test_mvp.py` 第 25—28 项），见上文「登录与权限」中的权限边界契约。
 - **所有领域输入仍需服务端约束**：例如任务更新允许直接写 `progress/status`，管理员参数可写入任意 key，字典新增没有重复/空值校验。前端校验只能改善体验，不能承担安全边界。
 - **审计不能吞异常**：`write_audit` 捕获所有异常后只 rollback，业务调用方仍可能以为审计成功。关键操作应在事务边界内可靠写入，失败时明确阻止操作或进入可观测的告警路径。
