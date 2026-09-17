@@ -21,6 +21,10 @@ import ProgressBar from "@/components/ui/ProgressBar";
 import { Confirm, Dialog } from "@/components/ui/Modal";
 import { useToast } from "@/components/ui/Toast";
 import PageHeading from "@/components/ui/PageHeading";
+import CountUp from "@/components/motion/CountUp";
+import MotionReveal from "@/components/motion/MotionReveal";
+import MotionStagger from "@/components/motion/MotionStagger";
+import { useActivity } from "@/lib/useActivity";
 import ExpenseActions, { type ExpenseAct } from "./ExpenseActions";
 import ExpenseDialog from "./ExpenseDialog";
 
@@ -49,6 +53,7 @@ function CostsInner() {
   const { canApprove } = useMenus();
   const { noteFor } = useApprovalNotes();
   const toast = useToast();
+  const { beginActivity } = useActivity();
   const { hasProjects, probing, probeError, reloadProbe } = useProjectsProbe();
   const [expenseOpen, setExpenseOpen] = useState(false);
   const [resubmitOf, setResubmitOf] = useState<Expense | null>(null);
@@ -98,17 +103,22 @@ function CostsInner() {
 
   const onExpenseAct = useCallback(({ kind, expense }: ExpenseAct) => {
     const run = async (reason: string) => {
-      if (kind === "approve") {
-        await expensesApi.approve(expense.id);
-        toast.ok("已审批通过");
-      } else if (kind === "reject") {
-        await approvalsApi.decide("expense", expense.id, false, reason || "不符合报销要求");
-        toast.ok("已驳回，经办人可在支出列表查看意见");
-      } else {
-        await approvalsApi.exception(expense.id, reason || "超预算特批");
-        toast.ok("已特批放行");
+      const finish = beginActivity({ label: "处理支出审批", scope: "form" });
+      try {
+        if (kind === "approve") {
+          await expensesApi.approve(expense.id);
+          toast.ok("已审批通过");
+        } else if (kind === "reject") {
+          await approvalsApi.decide("expense", expense.id, false, reason || "不符合报销要求");
+          toast.ok("已驳回，经办人可在支出列表查看意见");
+        } else {
+          await approvalsApi.exception(expense.id, reason || "超预算特批");
+          toast.ok("已特批放行");
+        }
+        reload();
+      } finally {
+        finish();
       }
-      reload();
     };
     setConfirmReason("");
     setConfirmReasonErr("");
@@ -131,7 +141,7 @@ function CostsInner() {
             run: (reason) => run(reason),
           },
     );
-  }, [reload, toast]);
+  }, [beginActivity, reload, toast]);
 
   if (probing) return <LoadingBlock kpis={0} label="加载项目范围…" />;
   if (probeError) return <LoadFailed message={probeError} onRetry={reloadProbe} />;
@@ -153,6 +163,7 @@ function CostsInner() {
         }
       />
 
+      <MotionReveal delay={0.04}>
       <div className="toolbar-card">
         <label className="toolbar-field">
           <span>项目</span>
@@ -165,6 +176,7 @@ function CostsInner() {
           />
         </label>
       </div>
+      </MotionReveal>
 
       {error && <LoadFailed message={error} onRetry={reload} />}
 
@@ -176,28 +188,30 @@ function CostsInner() {
         <LoadingBlock kpis={3} label="加载支出数据…" />
       ) : (
         <>
+          <MotionStagger>
           <div className="kpi-row">
             <div className="kpi">
               <div className="k">项目预算</div>
-              <div className="v mono">{fmtMoney(budget)}</div>
+              <div className="v"><CountUp value={budget} format={fmtMoney} /></div>
               <div className="kpi-foot">来自项目档案</div>
             </div>
             <div className="kpi">
               <div className="k">累计支出</div>
-              <div className="v mono">{fmtMoney(spent)}</div>
+              <div className="v"><CountUp value={spent} format={fmtMoney} /></div>
               <div className="kpi-foot">仅统计项目关联支出</div>
             </div>
             <div className="kpi">
               <div className="k">预算余额</div>
-              <div className="v mono">{fmtMoney(budget - spent)}</div>
+              <div className="v"><CountUp value={budget - spent} format={fmtMoney} /></div>
               <ProgressBar value={Math.min(rate * 100, 100)} tone={rate >= 0.8 ? "warn" : "brand"} />
             </div>
             <div className="kpi">
               <div className="k">待审批</div>
-              <div className="v mono">{pendingTotal}</div>
+              <div className="v"><CountUp value={pendingTotal} /></div>
               <div className="kpi-foot">管理员审批后计入正式支出</div>
             </div>
           </div>
+          </MotionStagger>
 
           <div className="section-head">
             <div>
@@ -220,7 +234,7 @@ function CostsInner() {
               <Empty title={url.status ? "该状态下暂无支出" : "暂无支出"} hint="点击右上角「+ 支出」开始登记。" />
             </div>
           ) : (
-            <>
+            <MotionReveal delay={0.08}>
               <div className="table-scroll">
                 <table className="grid" aria-busy={loading}>
                   <thead>
@@ -266,7 +280,7 @@ function CostsInner() {
                 ariaLabel="支出记录分页"
                 onChange={(next) => setUrl({ page: String(next.page), size: String(next.size) })}
               />
-            </>
+            </MotionReveal>
           )}
         </>
       )}

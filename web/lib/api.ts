@@ -1,4 +1,7 @@
 // API 封装：base + token 注入 + 401 跳登录。字段与后端 api/routers/*.py 对齐。
+import { beginTrackedActivity } from "./activityBus";
+import { uploadPercent, type UploadProgress } from "./uploadZone";
+
 export const API_BASE =
   process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8001/api/v1";
 
@@ -89,17 +92,142 @@ async function request<T>(path: string, init: RequestInit = {}, raw = false): Pr
   }
 }
 
+function trackedMutation<T>(label: string, run: () => Promise<T>): Promise<T> {
+  const finish = beginTrackedActivity({ label, scope: "form" });
+  return run().finally(finish);
+}
+
+/** 主动取消（组件卸载 / 关闭弹层）用的错误：`name` 与 fetch 的 AbortError 对齐，调用方可统一静默。 */
+export class UploadAbortedError extends Error {
+  override name = "AbortError";
+}
+
+/**
+ * 上传进度回调的类型由 `uploadZone` 定义（无 DOM 依赖，便于纯逻辑模块引用）；
+ * 这里重导出，调用方从 `@/lib/api` 取类型的老写法仍然可用。
+ */
+export type { UploadProgress };
+
+/**
+ * 带进度的上传通道：`fetch` 无法上报「已发出多少字节」，改用 `XMLHttpRequest`
+ * 的 `upload.onprogress`。
+ *
+ * 这是全站附件的唯一上传实现，各调用点只需在 `uploadProgress` 上更新自己的 UI，
+ * 不要再各写一遍 XHR。
+ *
+ * 约定：
+ *   · 鉴权头、401 清会话、错误文案展开都与 {@link request} 保持一致，调用方拿到的
+ *     错误类型不变（`UnauthorizedError` / `NetworkError` / `Error`）；
+ *   · `trackedMutation` 的活动追踪保留——成功、失败、取消三条路径都会 `finish()`，
+ *     顶部全局活动条不会因改写而失效；
+ *   · `signal.aborted` 时在途请求立即 `abort()`，`promise` 以 `UploadAbortedError` 收场。
+ */
+export function apiUploadWithProgress<T>(
+  path: string,
+  form: FormData,
+  options: { signal?: AbortSignal; onProgress?: (progress: UploadProgress) => void } = {},
+): Promise<T> {
+  const { signal, onProgress } = options;
+  return trackedMutation(
+    "上传中",
+    () =>
+      new Promise<T>((resolve, reject) => {
+        if (signal?.aborted) {
+          reject(new UploadAbortedError("上传已取消"));
+          return;
+        }
+
+        const xhr = new XMLHttpRequest();
+        const token = getToken();
+
+        const cleanup = () => signal?.removeEventListener("abort", onAbort);
+        function onAbort() {
+          xhr.abort();
+        }
+
+        xhr.open("POST", `${API_BASE}${path}`);
+        if (token) xhr.setRequestHeader("Authorization", `Bearer ${token}`);
+        // 不手动设置 Content-Type：交给浏览器补 multipart boundary。
+
+        if (onProgress) {
+          xhr.upload.onprogress = (event) => {
+            onProgress({
+              loaded: event.loaded,
+              total: event.total,
+              percent: uploadPercent(event.loaded, event.total, event.lengthComputable),
+            });
+          };
+        }
+
+        xhr.onload = () => {
+          cleanup();
+          if (xhr.status === 401) {
+            clearSession();
+            reject(new UnauthorizedError("未登录或会话已过期"));
+            return;
+          }
+          const text = xhr.responseText;
+          if (xhr.status < 200 || xhr.status >= 300) {
+            reject(new Error(`API ${xhr.status}: ${text || xhr.statusText}`));
+            return;
+          }
+          if (xhr.status === 204 || !text) {
+            resolve(undefined as T);
+            return;
+          }
+          try {
+            resolve(JSON.parse(text) as T);
+          } catch {
+            reject(new Error(`API 返回了非 JSON 响应：${text.slice(0, 120)}`));
+          }
+        };
+
+        xhr.onerror = () => {
+          cleanup();
+          reject(new NetworkError("无法连接后端"));
+        };
+
+        xhr.onabort = () => {
+          cleanup();
+          reject(new UploadAbortedError("上传已取消"));
+        };
+
+        xhr.ontimeout = () => {
+          cleanup();
+          reject(new NetworkError("上传超时"));
+        };
+
+        signal?.addEventListener("abort", onAbort, { once: true });
+        xhr.send(form);
+      }),
+  );
+}
+
 /** GET：可选传 AbortSignal，快速切换筛选/项目时取消过期请求（BLF-1095） */
 export const apiGet = <T>(path: string, signal?: AbortSignal) => request<T>(path, { signal });
 export const apiPost = <T>(path: string, body?: unknown) =>
-  request<T>(path, { method: "POST", body: body === undefined ? undefined : JSON.stringify(body) });
+  trackedMutation("提交中", () =>
+    request<T>(path, { method: "POST", body: body === undefined ? undefined : JSON.stringify(body) }),
+  );
 export const apiPut = <T>(path: string, body: unknown) =>
-  request<T>(path, { method: "PUT", body: JSON.stringify(body) });
+  trackedMutation("保存中", () => request<T>(path, { method: "PUT", body: JSON.stringify(body) }));
 export const apiPatch = <T>(path: string, body: unknown) =>
-  request<T>(path, { method: "PATCH", body: JSON.stringify(body) });
-export const apiDelete = <T>(path: string) => request<T>(path, { method: "DELETE" });
-export const apiUpload = <T>(path: string, form: FormData) =>
-  request<T>(path, { method: "POST", body: form });
+  trackedMutation("保存中", () => request<T>(path, { method: "PATCH", body: JSON.stringify(body) }));
+export const apiDelete = <T>(path: string) =>
+  trackedMutation("删除中", () => request<T>(path, { method: "DELETE" }));
+
+/** 上传入口的可选参数：取消信号 + 进度回调（两者都可缺省）。 */
+export type UploadOptions = {
+  signal?: AbortSignal;
+  onProgress?: (progress: UploadProgress) => void;
+};
+
+/**
+ * 上传（带进度）。保留原 `apiUpload` 名字与签名前缀，各 api 命名空间无需改动调用方式，
+ * 只需按需补上第三个 `options`。
+ */
+export const apiUpload = <T>(path: string, form: FormData, options?: UploadOptions) =>
+  apiUploadWithProgress<T>(path, form, options);
 
 /** 拼查询串：null/undefined/空串自动跳过（筛选项与分页参数共用） */
 export function buildQuery(params: Record<string, string | number | null | undefined>): string {
@@ -137,16 +265,21 @@ let optionsSupported: boolean | null = null;
 
 /** 导出下载：附 token 拉 blob 后触发浏览器下载 */
 export async function downloadFile(path: string, filename: string) {
-  const res = await request<Response>(path, {}, true);
-  const blob = await res.blob();
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  URL.revokeObjectURL(url);
+  const finish = beginTrackedActivity({ label: "下载中", scope: "form" });
+  try {
+    const res = await request<Response>(path, {}, true);
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  } finally {
+    finish();
+  }
 }
 
 /** 需要鉴权的文件转浏览器对象 URL（用于图片预览，调用方负责 revokeObjectURL）。 */
@@ -485,11 +618,11 @@ export const projectsApi = {
       `/projects/${id}/attachments${refType ? `?ref_type=${encodeURIComponent(refType)}` : ""}`,
       signal,
     ),
-  upload: (id: number, file: File, refType = "") => {
+  upload: (id: number, file: File, refType = "", options?: UploadOptions) => {
     const fd = new FormData();
     fd.append("file", file);
     if (refType) fd.append("ref_type", refType);
-    return apiUpload<Attachment>(`/projects/${id}/attachments`, fd);
+    return apiUpload<Attachment>(`/projects/${id}/attachments`, fd, options);
   },
   downloadAttachment: (id: number, aid: number, filename: string) =>
     downloadFile(`/projects/${id}/attachments/${aid}/download`, filename),
@@ -665,11 +798,11 @@ export const contactsApi = {
       `/contacts/${id}/attachments${category ? `?category=${encodeURIComponent(category)}` : ""}`,
       signal,
     ),
-  upload: (id: number, category: ContactAttachmentCategory, file: File) => {
+  upload: (id: number, category: ContactAttachmentCategory, file: File, options?: UploadOptions) => {
     const fd = new FormData();
     fd.append("category", category);
     fd.append("file", file);
-    return apiUpload<ContactAttachment>(`/contacts/${id}/attachments`, fd);
+    return apiUpload<ContactAttachment>(`/contacts/${id}/attachments`, fd, options);
   },
   downloadAttachment: (id: number, aid: number, filename: string) =>
     downloadFile(`/contacts/${id}/attachments/${aid}/download`, filename),

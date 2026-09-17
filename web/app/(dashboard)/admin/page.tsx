@@ -16,6 +16,8 @@ import { LoadingBlock, LoadFailed, NoAccess } from "@/components/ui/PageState";
 import { Confirm, Drawer } from "@/components/ui/Modal";
 import { useToast } from "@/components/ui/Toast";
 import PageHeading from "@/components/ui/PageHeading";
+import MotionTabs from "@/components/motion/MotionTabs";
+import { useActivity } from "@/lib/useActivity";
 import DictDialog from "./DictDialog";
 import ParamDialog, { PARAM_LABELS } from "./ParamDialog";
 import UserDialog from "./UserDialog";
@@ -80,6 +82,7 @@ export default function AdminPage() {
 function AdminInner() {
   const { deptName } = useMeta();
   const toast = useToast();
+  const { beginActivity } = useActivity();
   const [url, setUrl] = useUrlState(URL_DEFAULTS, { pageKey: false });
   const tab: Tab = (TABS.find((t) => t === url.tab) ?? "用户") as Tab;
   const userPage = urlInt(url.upage, 1);
@@ -170,18 +173,11 @@ function AdminInner() {
 
       {active.error && <LoadFailed message={active.error} onRetry={active.reload} />}
 
-      <div className="tabs">
-        {TABS.map((t) => (
-          <button
-            key={t}
-            className={tab === t ? "active" : ""}
-            aria-current={tab === t ? "page" : undefined}
-            onClick={() => setUrl({ tab: t }, { history: "push" })}
-          >
-            {t}
-          </button>
-        ))}
-      </div>
+      <MotionTabs
+        items={TABS.map((item) => ({ id: item, label: item }))}
+        active={tab}
+        onChange={(next) => setUrl({ tab: next }, { history: "push" })}
+      >
 
       {tab === "用户" && (
         users.firstLoad ? (
@@ -414,6 +410,7 @@ function AdminInner() {
           </>
         )
       )}
+      </MotionTabs>
 
       <UserDialog
         open={userOpen}
@@ -460,6 +457,7 @@ function AdminInner() {
         okText="确认"
         onConfirm={async () => {
           if (!confirm) return;
+          const finish = beginActivity({ label: "更新系统配置", scope: "form" });
           setBusy(true);
           try {
             await confirm.run();
@@ -468,6 +466,7 @@ function AdminInner() {
           } finally {
             setBusy(false);
             setConfirm(null);
+            finish();
           }
         }}
         onCancel={() => setConfirm(null)}

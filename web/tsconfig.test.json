@@ -12,5 +12,6 @@
     "outDir": ".test-dist",
     "rootDir": "."
   },
-  "include": ["lib/uploadLimits.ts", "lib/uploadLimits.test.ts"]
+  "include": ["lib/**/*.test.ts"],
+  "exclude": ["lib/activityCore.test.ts", "lib/**/*.vitest.test.ts"]
 }

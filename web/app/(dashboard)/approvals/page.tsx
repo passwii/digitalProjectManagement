@@ -15,6 +15,10 @@ import { LoadingBlock, LoadFailed, NoAccess } from "@/components/ui/PageState";
 import { Confirm } from "@/components/ui/Modal";
 import { useToast } from "@/components/ui/Toast";
 import PageHeading from "@/components/ui/PageHeading";
+import CountUp from "@/components/motion/CountUp";
+import MotionReveal from "@/components/motion/MotionReveal";
+import MotionStagger from "@/components/motion/MotionStagger";
+import { useActivity } from "@/lib/useActivity";
 
 type Decision = {
   kind: string;
@@ -64,6 +68,7 @@ function ApprovalsInner() {
 
   const { userName } = useMeta();
   const toast = useToast();
+  const { beginActivity } = useActivity();
   const [data, setData] = useState<PendingApprovals | null>(null);
   const [err, setErr] = useState("");
   const [loading, setLoading] = useState(true);
@@ -72,10 +77,12 @@ function ApprovalsInner() {
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState("");
   const loadSeq = useRef(0);
+  const hasLoadedRef = useRef(false);
 
   const load = useCallback(async () => {
+    const finish = beginActivity({ label: "刷新审批待办", scope: "content" });
     const id = ++loadSeq.current;
-    const first = data === null;
+    const first = !hasLoadedRef.current;
     if (first) setLoading(true);
     setErr("");
     try {
@@ -86,10 +93,13 @@ function ApprovalsInner() {
       if (loadSeq.current !== id) return;
       setErr(errText(e));
     } finally {
-      if (loadSeq.current === id) setLoading(false);
+      if (loadSeq.current === id) {
+        hasLoadedRef.current = true;
+        setLoading(false);
+      }
+      finish();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [beginActivity]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -98,6 +108,7 @@ function ApprovalsInner() {
 
   async function submitDecision() {
     if (!decision) return;
+    const finish = beginActivity({ label: "处理审批", scope: "form" });
     setBusy(true);
     try {
       if (decision.exception) {
@@ -113,6 +124,7 @@ function ApprovalsInner() {
       setBusy(false);
       setDecision(null);
       setReason("");
+      finish();
     }
   }
 
@@ -173,12 +185,14 @@ function ApprovalsInner() {
         </div>
       ) : (
         <>
+          <MotionStagger>
           <div className="kpi-row">
-            <div className="kpi"><div className="k">待处理总数</div><div className="v mono">{grandTotal}</div></div>
-            <div className="kpi"><div className="k">立项审批</div><div className="v mono">{perCategory[0]}</div></div>
-            <div className="kpi"><div className="k">预算调整</div><div className="v mono">{perCategory[1]}</div></div>
-            <div className="kpi"><div className="k">支出审批</div><div className="v mono">{perCategory[2]}</div></div>
+            <div className="kpi"><div className="k">待处理总数</div><div className="v"><CountUp value={grandTotal} /></div></div>
+            <div className="kpi"><div className="k">立项审批</div><div className="v"><CountUp value={perCategory[0]} /></div></div>
+            <div className="kpi"><div className="k">预算调整</div><div className="v"><CountUp value={perCategory[1]} /></div></div>
+            <div className="kpi"><div className="k">支出审批</div><div className="v"><CountUp value={perCategory[2]} /></div></div>
           </div>
+          </MotionStagger>
 
           {hiddenCount > 0 && (
             <div className="muted tiny" role="status" style={{ marginBottom: 8 }}>
@@ -193,7 +207,7 @@ function ApprovalsInner() {
           )}
 
           {(d?.project_filings.length ?? 0) > 0 && (
-            <>
+            <MotionReveal>
               <h2 className="section-title">立项审批</h2>
               <div className="table-scroll">
                 <table className="grid" style={{ marginBottom: 16 }} aria-busy={loading}>
@@ -238,11 +252,11 @@ function ApprovalsInner() {
                   </tbody>
                 </table>
               </div>
-            </>
+            </MotionReveal>
           )}
 
           {(d?.budget_adjusts.length ?? 0) > 0 && (
-            <>
+            <MotionReveal delay={0.04}>
               <h2 className="section-title">预算调整</h2>
               <div className="table-scroll">
                 <table className="grid" style={{ marginBottom: 16 }} aria-busy={loading}>
@@ -285,11 +299,11 @@ function ApprovalsInner() {
                   </tbody>
                 </table>
               </div>
-            </>
+            </MotionReveal>
           )}
 
           {(d?.expenses.length ?? 0) > 0 && (
-            <>
+            <MotionReveal delay={0.08}>
               <h2 className="section-title">支出审批</h2>
               <div className="table-scroll">
                 <table className="grid" aria-busy={loading}>
@@ -339,7 +353,7 @@ function ApprovalsInner() {
                   </tbody>
                 </table>
               </div>
-            </>
+            </MotionReveal>
           )}
         </>
       )}

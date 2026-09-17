@@ -4,10 +4,12 @@ import { useEffect, useState } from "react";
 import { errText, projectsApi, type Attachment, type Project } from "@/lib/api";
 import { useMeta } from "@/lib/useMeta";
 import { CONTRACT_STATUSES, PROJECT_OWNERS } from "@/lib/labels";
-import { ATTACHMENT_HINT, CONTRACT_ATTACHMENT_ACCEPT } from "@/lib/uploadLimits";
+import { ATTACHMENT_HINT, CONTRACT_ATTACHMENT_EXTENSIONS } from "@/lib/uploadLimits";
 import { useForm } from "@/lib/useForm";
+import { useUploadQueue } from "@/lib/useUploadQueue";
 import { Dialog } from "@/components/ui/Modal";
 import Field from "@/components/ui/Field";
+import FileDropZone from "@/components/ui/FileDropZone";
 
 interface FormValues {
   name: string;
@@ -65,6 +67,7 @@ export default function ProjectFormDialog({
   const [files, setFiles] = useState<File[]>([]);
   const [existing, setExisting] = useState<Attachment[]>([]);
   const [saving, setSaving] = useState(false);
+  const uploads = useUploadQueue();
 
   const form = useForm<FormValues>(toValues(project), {
     name: { required: "项目名称不能为空", max: 60, label: "项目名称" },
@@ -85,6 +88,7 @@ export default function ProjectFormDialog({
     form.reset(toValues(project));
     setFiles([]);
     setFormErr("");
+    uploads.reset();
     if (project) {
       projectsApi
         .attachments(project.id, "contract")
@@ -95,6 +99,13 @@ export default function ProjectFormDialog({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, project?.id]);
+
+  // 弹层关闭即中止在途上传：避免「关掉弹层还在传」
+  useEffect(() => {
+    if (!open) uploads.abort();
+    // 只依赖 abort（稳定引用）：依赖整个 uploads 对象会在每次进度更新时重跑
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, uploads.abort]);
 
   async function submit() {
     if (!form.validate()) return;
@@ -119,8 +130,16 @@ export default function ProjectFormDialog({
       const saved = isEdit
         ? await projectsApi.update(project!.id, payload)
         : await projectsApi.create(payload as Partial<Project>);
-      for (const file of files) {
-        await projectsApi.upload(saved.id, file, "contract");
+      // 合同附件逐个上传并显示进度；单个失败不阻断其余文件
+      if (files.length) {
+        const result = await uploads.start(files, (file, options) =>
+          projectsApi.upload(saved.id, file, "contract", options),
+        );
+        if (result.aborted) return;
+        if (result.failed) {
+          setFormErr(`${result.failed} 个附件上传失败，请查看列表中的失败原因后重试`);
+          return;
+        }
       }
       onSaved(saved, !isEdit);
       form.reset();
@@ -240,20 +259,45 @@ export default function ProjectFormDialog({
           {form.values.contract_status === "已签订" && (
             <div className="field span-2">
               <span className="field-label">合同附件</span>
-              <label className="file-drop">
-                <input
-                  type="file"
-                  multiple
-                  accept={CONTRACT_ATTACHMENT_ACCEPT}
-                  onChange={(e) => {
-                    setFiles(Array.from(e.target.files ?? []));
-                    e.target.value = "";
-                  }}
-                />
-                <span className="file-drop-main">{files.length ? `已选择 ${files.length} 个文件` : "选择合同附件"}</span>
-                <span className="file-drop-sub">{files.length ? files.map((f) => f.name).join("、") : "创建项目后自动保存到合同档案"}</span>
-              </label>
+              <FileDropZone
+                extensions={CONTRACT_ATTACHMENT_EXTENSIONS}
+                items={uploads.items}
+                disabled={saving}
+                label={files.length ? `已选择 ${files.length} 个文件` : "选择合同附件"}
+                hint={
+                  files.length
+                    ? "可继续点击或拖拽追加文件"
+                    : "点击选择，或把文件拖到这里；也可直接粘贴截图"
+                }
+                onFiles={(picked) =>
+                  setFiles((prev) => [
+                    ...prev,
+                    // 同名同体积视为同一份，避免拖拽与选择器重复入队
+                    ...picked.filter(
+                      (f) => !prev.some((x) => x.name === f.name && x.size === f.size),
+                    ),
+                  ])
+                }
+              />
               <span className="field-hint">{ATTACHMENT_HINT}</span>
+              {files.length > 0 && (
+                <ul className="pending-file-list">
+                  {files.map((file, index) => (
+                    <li key={`${file.name}-${file.size}-${index}`}>
+                      <span className="pending-file-name" title={file.name}>{file.name}</span>
+                      <button
+                        type="button"
+                        className="linklike danger-link"
+                        onClick={() =>
+                          setFiles((prev) => prev.filter((_, i) => i !== index))
+                        }
+                      >
+                        移除
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
           )}
           {existing.length > 0 && (
