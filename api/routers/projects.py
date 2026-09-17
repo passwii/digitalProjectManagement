@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 from ..core.audit import commit_audited, write_audit
 from ..core.database import ROOT, get_db, parse_date
 from ..core.deps import get_current_user
+from ..core.limits import MAX_ATTACHMENT_SIZE, read_within_limit
 from ..core.paging import DEFAULT_PAGE_SIZE, paginate
 from ..core.rbac import (
     check_project_access,
@@ -60,7 +61,8 @@ TRANSITIONS = {
 }
 ALLOWED_EXT = {".pdf", ".docx", ".xlsx", ".png", ".jpg", ".jpeg"}
 CONTRACT_STATUSES = {"已签订", "未签订"}
-MAX_SIZE = 20 * 1024 * 1024
+# 体积上限与超限文案统一来自 core.limits（前端单一来源为 web/lib/uploadLimits.ts）
+MAX_SIZE = MAX_ATTACHMENT_SIZE
 
 
 def _p(p: Project):
@@ -415,9 +417,8 @@ def upload(pid: int, file: UploadFile = File(...), ref_type: str = Form(""),
     ext = Path(file.filename or "").suffix.lower()
     if ext not in ALLOWED_EXT:
         raise HTTPException(400, f"仅允许 {sorted(ALLOWED_EXT)}")
-    data = file.file.read()
-    if len(data) > MAX_SIZE:
-        raise HTTPException(400, "单文件最大 20MB")
+    # 有界读取：超限在读完 limit+1 字节时就 400，不会把无界数据读进内存
+    data = read_within_limit(file, MAX_SIZE)
     if ref_type not in ("", "contract"):
         raise HTTPException(400, "附件类型不支持")
     d = ROOT / "data" / "files" / str(pid) / (ref_type or "project")

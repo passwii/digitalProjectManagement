@@ -2,9 +2,6 @@
 import io
 from datetime import date, timedelta
 
-import pytest
-
-
 PASSWORDS = {"admin": "admin123456", "cost": "cost123456", "outsider": "out123456",
              "exec": "exec123456", "deptm": "deptm123456"}
 
@@ -270,7 +267,13 @@ def test_set_members(client, db):
     h = login(client, "pm")
     p = mkproject(client, h, "PMem")
     from api.models import User
-    other = db().query(User).filter_by(username="cost").first().id
+    session = db()
+    try:
+        other = session.query(User).filter_by(username="cost").first().id
+    finally:
+        # 必须关闭：db() 返回的是裸 sessionmaker，未关闭会留下 idle-in-transaction
+        # 连接，阻塞 fixture 收尾的 DROP SCHEMA，导致整套用例挂死。
+        session.close()
     r = client.put(f"/api/v1/projects/{p['id']}/members", headers=h, json={"user_ids": [other]})
     assert r.status_code == 200, r.text
     members = set(r.json()["member_ids"])

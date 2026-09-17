@@ -15,6 +15,7 @@ from sqlalchemy.orm import Session
 from ..core.audit import commit_audited, write_audit
 from ..core.database import ROOT, get_db
 from ..core.deps import get_current_user
+from ..core.limits import MAX_ATTACHMENT_SIZE, read_within_limit
 from ..core.paging import DEFAULT_PAGE_SIZE, paginate
 from ..core.rbac import require_admin
 from ..models import Attachment, ContactProfile, Department, User
@@ -29,7 +30,8 @@ ATTACHMENT_CATEGORIES = {
     "id_card", "education", "degree", "professional_cert", "labor_contract", "other",
 }
 ALLOWED_EXT = {".pdf", ".doc", ".docx", ".xls", ".xlsx", ".png", ".jpg", ".jpeg"}
-MAX_SIZE = 20 * 1024 * 1024
+# 体积上限与超限文案统一来自 core.limits（前端单一来源为 web/lib/uploadLimits.ts）
+MAX_SIZE = MAX_ATTACHMENT_SIZE
 ID_CARD_RE = re.compile(r"^(?:\d{15}|\d{17}[\dXx])$")
 EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
@@ -494,9 +496,8 @@ def upload_attachment(cid: int, file: UploadFile = File(...),
     ext = Path(original).suffix.lower()
     if ext not in ALLOWED_EXT:
         raise HTTPException(400, f"仅允许 {sorted(ALLOWED_EXT)}")
-    data = file.file.read(MAX_SIZE + 1)
-    if len(data) > MAX_SIZE:
-        raise HTTPException(400, "单文件最大 20MB")
+    # 有界读取：超限在读完 limit+1 字节时就 400，不会把无界数据读进内存
+    data = read_within_limit(file, MAX_SIZE)
 
     directory = ROOT / "data" / "files" / "contacts" / str(cid) / category
     directory.mkdir(parents=True, exist_ok=True)
