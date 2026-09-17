@@ -16,7 +16,7 @@
 - **Layered Modular Monolith**：当前不拆微服务，按身份、项目、进度、成本、审批、通知、通讯录、审计等限界上下文组织模块，降低分布式事务与跨服务治理成本。
 - **Transactional Consistency**：关键业务变更、审批时间线、通知和审计记录尽量落在同一事务边界内。
 - **System of Record**：PostgreSQL 是业务事实源；文件对象、通知和报表均是围绕该事实源构建的数据面或派生产物。
-- **Control Plane / Data Plane Separation** `[目标]`：数据库保存附件元数据和权限决策，S3/Cloudflare R2 保存二进制对象；API 负责控制面，对象存储负责数据面。
+- **Control Plane / Data Plane Separation** `[目标]`：数据库保存附件元数据和权限决策，Cloudflare R2（S3-compatible API）保存二进制对象；API 负责控制面，对象存储负责数据面。
 - **Incremental Evolution**：优先偿还一致性、安全和可观测性债务，再根据真实负载拆分服务，不提前引入无收益的分布式复杂度。
 
 ### 1.2 领域边界
@@ -51,10 +51,8 @@ flowchart LR
 flowchart LR
     API["FastAPI Control Plane"] --> DB[("PostgreSQL Metadata")]
     API --> SP["StorageProvider Abstraction"]
-    SP --> S3["AWS S3"]
-    SP --> R2["Cloudflare R2"]
+    SP --> R2["Cloudflare R2<br/>S3-Compatible Object Storage"]
     API -->|"短期 Presigned URL"| B["Browser"]
-    B -.->|"GET / PUT 对象"| S3
     B -.->|"GET / PUT 对象"| R2
 ```
 
@@ -199,7 +197,7 @@ PostgreSQL 是整个系统的 **System of Record**。预算审批、支出状态
 
 ---
 
-## 5. 对象存储架构：S3 / Cloudflare R2
+## 5. 对象存储架构：Cloudflare R2（S3 兼容）
 
 ### 5.1 `[现状]` 本地文件系统
 
@@ -214,7 +212,7 @@ PostgreSQL 是整个系统的 **System of Record**。预算审批、支出状态
 
 ### 5.2 `[目标]` 存储抽象
 
-引入供应商无关的 `StorageProvider`，将 PostgreSQL 定义为 **Attachment Control Plane**，将 S3/R2 定义为 **Binary Data Plane**。
+引入供应商无关的 `StorageProvider`，将 PostgreSQL 定义为 **Attachment Control Plane**，将 Cloudflare R2 定义为 **Binary Data Plane**。R2 对外提供 S3-compatible API，因此业务代码只依赖 S3 协议和配置，不依赖 Cloudflare 专有 SDK。
 
 ```python
 class StorageProvider:
@@ -229,8 +227,7 @@ class StorageProvider:
 适配器：
 
 - `LocalStorageProvider`：兼容现有机房或开发环境。
-- `S3StorageProvider`：AWS S3 及其兼容实现。
-- `R2StorageProvider`：Cloudflare R2，复用 S3 API 与签名机制。
+- `S3StorageProvider`：目标实现，通过 S3-compatible Endpoint、签名和存储桶访问 Cloudflare R2。
 
 ### 5.3 附件元数据模型
 
@@ -238,7 +235,7 @@ class StorageProvider:
 
 | 字段 | 语义 |
 |---|---|
-| `storage_backend` | `local` / `s3` / `r2` |
+| `storage_backend` | `local` / `s3`（`s3` 指向 Cloudflare R2） |
 | `bucket` | 对象存储桶 |
 | `object_key` | 与供应商解耦的对象键 |
 | `etag` | 对象存储返回的版本指纹 |
@@ -271,7 +268,7 @@ sequenceDiagram
     participant B as Browser
     participant API as FastAPI
     participant DB as PostgreSQL
-    participant OS as S3 / R2
+    participant OS as Cloudflare R2
     participant AV as Virus Scanner
 
     B->>API: Init Upload
@@ -298,25 +295,24 @@ sequenceDiagram
 
 1. API 校验用户身份、业务权限和附件状态。
 2. API 生成短期 Presigned GET URL，例如 TTL 60 秒。
-3. 浏览器直接从 S3/R2 下载，大文件不经过 FastAPI。
+3. 浏览器直接从 Cloudflare R2 下载，大文件不经过 FastAPI。
 4. API 写入 `download` 审计事件，记录对象键、操作者、资源、IP 和结果。
 5. 桶保持私有，禁止公开读；如使用 Cloudflare CDN，只允许签名或受控回源。
 
-### 5.6 S3 与 R2 决策矩阵
+### 5.6 目标实现：Cloudflare R2
 
-| 维度 | AWS S3 | Cloudflare R2 |
-|---|---|---|
-| 接口协议 | S3 原生 API | S3 兼容 API |
-| 出网成本 | 按流量计费 | 通常无出口流量费 |
-| 全球分发 | CloudFront / S3 Transfer Acceleration | Cloudflare 网络与 CDN 集成 |
-| 合规与生态 | 成熟度高、能力完整 | 成本优势强、边缘网络强 |
-| 适合场景 | 强合规、复杂生命周期、跨区域能力 | 内部系统、成本敏感、全球访问 |
+Cloudflare R2 作为唯一目标对象存储，通过 S3-compatible API 提供对象读写、版本控制、生命周期和签名访问能力。选择 R2 的核心考虑：
 
-架构上不把业务代码绑定到供应商 SDK。Bucket、Endpoint、Region、路径风格和凭据均通过配置注入：
+- 与 Cloudflare 的 DNS、TLS、WAF 和 CDN 能力天然衔接。
+- 对象出口流量成本低，适合报表、凭证和静态附件分发。
+- 通过 S3 协议接入现有工具链，不产生供应商专有 SDK 绑定。
+- 私有 Bucket + 短期 Presigned URL 可以满足内部系统的权限边界。
+
+Bucket、Endpoint、Region、路径风格和凭据均通过配置注入：
 
 ```dotenv
 STORAGE_BACKEND=s3
-S3_ENDPOINT_URL=
+S3_ENDPOINT_URL=https://<account_id>.r2.cloudflarestorage.com
 S3_REGION=auto
 S3_BUCKET=
 S3_ACCESS_KEY_ID=
@@ -455,7 +451,7 @@ flowchart TB
     ING --> API["Stateless API Replicas"]
     API --> PG[("Managed PostgreSQL + PITR")]
     API --> CACHE[("Redis / Rate Limit / Idempotency")]
-    API --> OBJ[("S3 / R2")]
+    API --> OBJ[("Cloudflare R2")]
     API --> OUTBOX[("Transactional Outbox")]
     WORKER["Worker / Scheduler"] --> OUTBOX
     WORKER --> PG
@@ -493,7 +489,7 @@ flowchart TB
 
 | 阶段 | 架构主题 | 关键交付 |
 |---|---|---|
-| Phase A | 存储解耦 | `StorageProvider`、S3/R2 Adapter、Presigned URL、元数据扩展 |
+| Phase A | 存储解耦 | `StorageProvider`、Cloudflare R2 S3-compatible Adapter、Presigned URL、元数据扩展 |
 | Phase B | 安全加固 | httpOnly 会话、Refresh 轮换、密钥管理、IP 限速、PII 加密 |
 | Phase C | 审计强化 | Correlation ID、哈希链、审计分区、WORM 锚定、SIEM 导出 |
 | Phase D | 可靠性与扩展 | Transactional Outbox、Worker、Redis、PgBouncer、读副本、PITR |
@@ -510,7 +506,7 @@ flowchart TB
 | ADR-002 | PostgreSQL 作为唯一 System of Record | 复杂审批、预算和项目关系需要强一致事务 | 数据库承担较高核心责任 |
 | ADR-003 | 前端展示权限，后端执行权限 | 防止 UI 隐藏被误当成安全边界 | 接口契约必须保持单一来源 |
 | ADR-004 | 审计与业务同事务提交 | 不允许业务成功而审计缺失 | 审计故障会阻断业务写入 |
-| ADR-005 | 附件迁移到 S3/R2 | 消除单机状态，支持版本、CDN、生命周期和成本优化 | 增加对象存储一致性与凭据治理 |
+| ADR-005 | 附件迁移到 Cloudflare R2（S3-compatible） | 消除单机状态，支持版本、CDN、生命周期和成本优化 | 增加对象存储一致性与凭据治理 |
 | ADR-006 | 管理面与业务时间线分表 | 管理员审计语义与申请人看到的业务流转语义不同 | 需要明确两张表的查询边界 |
 | ADR-007 | 软删除而不是物理删除业务聚合 | 支持回收站、审计和引用完整性 | 所有查询必须显式下推软删除条件 |
 | ADR-008 | 先做可靠的模组，再考虑服务拆分 | 避免在没有负载证据时引入分布式复杂度 | 单体发布节奏仍需纪律 |
