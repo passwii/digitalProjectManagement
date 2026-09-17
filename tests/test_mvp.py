@@ -1252,3 +1252,40 @@ def test_logout_blacklists_bearer_token_with_extra_spaces(client):
 
     me = client.get("/api/v1/auth/me", headers={"Authorization": f"Bearer {token}"})
     assert me.status_code == 401
+
+
+# 41. refresh 轮换：Cookie 刷新后旧 token 重放返回 401
+def test_refresh_rotates_and_rejects_replay(client):
+    r = client.post("/api/v1/auth/login",
+                    json={"username": "admin", "password": "admin123456"})
+    assert r.status_code == 200
+    old_refresh = client.cookies.get("pm_refresh_token")
+    csrf = client.cookies.get("pm_csrf_token")
+
+    refreshed = client.post("/api/v1/auth/refresh",
+                            headers={"X-CSRF-Token": csrf})
+    assert refreshed.status_code == 200, refreshed.text
+    new_refresh = client.cookies.get("pm_refresh_token")
+    assert new_refresh and new_refresh != old_refresh
+    csrf = client.cookies.get("pm_csrf_token")
+
+    replay = client.post(
+        "/api/v1/auth/refresh",
+        json={"refresh_token": old_refresh},
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert replay.status_code == 401
+
+
+# 42. Bearer 客户端可用请求体 refresh token，不依赖 Cookie
+def test_refresh_body_token_supports_legacy_client(client):
+    r = client.post("/api/v1/auth/login",
+                    json={"username": "admin", "password": "admin123456"})
+    refresh = r.json()["refresh_token"]
+    client.cookies.clear()
+
+    refreshed = client.post("/api/v1/auth/refresh",
+                            json={"refresh_token": refresh})
+    assert refreshed.status_code == 200
+    assert refreshed.json()["access_token"]
+    assert refreshed.json()["refresh_token"]

@@ -29,7 +29,7 @@ class LoginIn(BaseModel):
 
 
 class RefreshIn(BaseModel):
-    refresh_token: str
+    refresh_token: str | None = None
 
 
 class ChangePwdIn(BaseModel):
@@ -111,9 +111,15 @@ def logout(request: Request, response: Response, db: Session = Depends(get_db),
 
 
 @router.post("/refresh")
-def refresh(body: RefreshIn, db: Session = Depends(get_db)):
+def refresh(request: Request, response: Response, body: RefreshIn | None = None,
+            db: Session = Depends(get_db)):
+    token = body.refresh_token if body and body.refresh_token else ""
+    if not token:
+        token = request.cookies.get(settings.refresh_cookie_name, "")
+    if not token:
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "refresh 已过期")
     try:
-        payload = decode_token(body.refresh_token, kind="refresh")
+        payload = decode_token(token, kind="refresh")
     except ValueError:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "refresh 已过期")
     if db.query(TokenBlacklist).filter_by(jti=payload.get("jti")).first():
@@ -121,7 +127,22 @@ def refresh(body: RefreshIn, db: Session = Depends(get_db)):
     user = db.query(User).filter_by(id=int(payload["sub"])).first()
     if not user or user.status != "active":
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "账号不可用")
-    return {"access_token": create_access_token(str(user.id)), "token_type": "bearer"}
+
+    db.add(TokenBlacklist(
+        jti=payload["jti"],
+        user_id=user.id,
+        expires_at=datetime.fromtimestamp(payload["exp"], tz=timezone.utc),
+    ))
+    access = create_access_token(str(user.id))
+    rotated = create_refresh_token(str(user.id))
+    db.commit()
+
+    set_auth_cookies(response, access, rotated)
+    return {
+        "access_token": access,
+        "refresh_token": rotated,
+        "token_type": "bearer",
+    }
 
 
 @router.post("/change-password")
