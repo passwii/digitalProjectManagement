@@ -33,6 +33,50 @@ class User(Base):
     roles = relationship("Role", secondary="user_roles", back_populates="users")
 
 
+class ContactProfile(Base):
+    """通讯录花名册：人员主数据，可选关联一个系统登录账号。"""
+    __tablename__ = "contact_profiles"
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"),
+                     nullable=True, unique=True, index=True)
+    name = Column(String(64), nullable=False, default="")
+    mobile = Column(String(32), default="")
+    dept_id = Column(Integer, ForeignKey("departments.id"), nullable=True, index=True)
+    employee_no = Column(String(32), unique=True, nullable=True, index=True)
+    position = Column(String(64), default="")
+    manager_id = Column(Integer, ForeignKey("contact_profiles.id"), nullable=True, index=True)
+    employment_type = Column(String(32), default="正式")
+    employment_status = Column(String(16), default="active", index=True)
+    hire_date = Column(Date, nullable=True)
+    regular_date = Column(Date, nullable=True)
+    leave_date = Column(Date, nullable=True)
+    work_email = Column(String(128), default="")
+    office_phone = Column(String(32), default="")
+    work_location = Column(String(128), default="")
+    contract_type = Column(String(32), default="")
+    contract_start = Column(Date, nullable=True)
+    contract_end = Column(Date, nullable=True)
+    gender = Column(String(8), default="")
+    birth_date = Column(Date, nullable=True)
+    id_card_no = Column(String(32), default="")
+    native_place = Column(String(64), default="")
+    political_status = Column(String(32), default="")
+    marital_status = Column(String(16), default="")
+    address = Column(String(255), default="")
+    highest_education = Column(String(32), default="")
+    school = Column(String(128), default="")
+    major = Column(String(128), default="")
+    graduation_date = Column(Date, nullable=True)
+    degree = Column(String(32), default="")
+    emergency_contact = Column(String(64), default="")
+    emergency_relation = Column(String(32), default="")
+    emergency_phone = Column(String(32), default="")
+    remark = Column(Text, default="")
+    updated_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+    created_at = Column(DateTime, default=_now)
+    updated_at = Column(DateTime, default=_now, onupdate=_now)
+
+
 class Role(Base):
     __tablename__ = "roles"
     id = Column(Integer, primary_key=True)
@@ -108,6 +152,8 @@ class Attachment(Base):
     # 归属对象（Stage 4A）：空 = 项目级附件；ref_type="expense" + ref_id = 支出凭证
     ref_type = Column(String(32), default="")
     ref_id = Column(Integer, nullable=True)
+    # 细分分类：项目合同、支出凭证、通讯录证件/合同等共用附件表时用于前端分组
+    category = Column(String(32), default="")
     __table_args__ = (Index("ix_attachments_ref", "ref_type", "ref_id"),)
 
 

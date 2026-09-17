@@ -116,6 +116,7 @@ def menus(db: Session = Depends(get_db), user: User = Depends(get_current_user))
         {"key": "reports", "label": "支出报表", "href": "/reports"},
     ]
     if admin:
+        items.append({"key": "contacts", "label": "通讯录", "href": "/contacts"})
         items.append({"key": "approvals", "label": "审批中心", "href": "/approvals"})
         items.append({"key": "admin", "label": "系统管理", "href": "/admin"})
     return {"roles": sorted(codes), "is_admin": admin, "can_approve": can_approve(user),

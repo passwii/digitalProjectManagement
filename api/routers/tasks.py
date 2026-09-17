@@ -225,10 +225,13 @@ def update_task(tid: int, body: dict, db: Session = Depends(get_db),
         raise HTTPException(404, "任务不存在")
     p = _project(db, t.project_id, user, write=True)
 
-    unknown = set(body) - {"name", "owner_id", "plan_start", "plan_end", "weight",
-                           "status", "predecessor_id", "parent_id", "progress", "note"}
+    unknown = set(body) - {"project_id", "name", "owner_id", "plan_start", "plan_end",
+                           "weight", "status", "predecessor_id", "parent_id", "progress",
+                           "note"}
     if unknown:
         raise HTTPException(400, f"不支持的字段：{sorted(unknown)}")
+    if "project_id" in body and body["project_id"] != t.project_id:
+        raise HTTPException(400, "任务不能变更所属项目")
 
     # ---- 1) 把入参解析成候选值（不落库） ----
     new_name = _name(body["name"]) if "name" in body else t.name

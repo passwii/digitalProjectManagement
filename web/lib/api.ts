@@ -248,9 +248,70 @@ export interface Attachment {
   filename: string;
   size: number;
   ref_type?: string;
+  category?: string;
   content_type?: string;
   uploaded_by: number | null;
   uploaded_at: string | null;
+}
+
+export type ContactAttachmentCategory =
+  | "id_card"
+  | "education"
+  | "degree"
+  | "professional_cert"
+  | "labor_contract"
+  | "other";
+
+export interface ContactAttachment extends Attachment {
+  category: ContactAttachmentCategory | "";
+}
+
+export interface Contact {
+  id: number;
+  user_id: number | null;
+  username: string;
+  name: string;
+  real_name: string;
+  mobile: string;
+  dept_id: number | null;
+  dept_name: string;
+  account_status: string;
+  has_account: boolean;
+  employee_no: string;
+  position: string;
+  manager_id: number | null;
+  manager_name: string;
+  employment_type: string;
+  employment_status: "active" | "probation" | "leave";
+  hire_date: string | null;
+  regular_date: string | null;
+  leave_date: string | null;
+  work_email: string;
+  office_phone: string;
+  work_location: string;
+  contract_type: string;
+  contract_start: string | null;
+  contract_end: string | null;
+  gender: string;
+  birth_date: string | null;
+  id_card_no: string;
+  id_card_masked: string;
+  native_place: string;
+  political_status: string;
+  marital_status: string;
+  address: string;
+  highest_education: string;
+  school: string;
+  major: string;
+  graduation_date: string | null;
+  degree: string;
+  emergency_contact: string;
+  emergency_relation: string;
+  emergency_phone: string;
+  remark: string;
+  has_profile: boolean;
+  attachment_count: number;
+  updated_at: string | null;
 }
 export interface Followup {
   id: number;
@@ -585,6 +646,35 @@ export const adminApi = {
   params: (signal?: AbortSignal) => apiGet<Record<string, string>>("/admin/params", signal),
   setParams: (body: Record<string, string>) => apiPut<{ ok: boolean }>("/admin/params", body),
   logs: (q = "", signal?: AbortSignal) => apiGet<Paged<AuditLog>>(`/admin/logs${q}`, signal),
+};
+
+export const contactsApi = {
+  list: (q = "", signal?: AbortSignal) =>
+    apiGet<Paged<Contact>>(`/contacts${q}`, signal),
+  options: (keyword = "") =>
+    apiGet<{ id: number; name: string; dept_id: number | null; position: string }[]>(
+      `/contacts/options${keyword ? `?keyword=${encodeURIComponent(keyword)}` : ""}`,
+    ),
+  create: (body: Record<string, unknown>) =>
+    apiPost<Contact>("/contacts", body),
+  get: (id: number) => apiGet<Contact>(`/contacts/${id}`),
+  update: (id: number, body: Record<string, unknown>) =>
+    apiPatch<Contact>(`/contacts/${id}`, body),
+  attachments: (id: number, category: ContactAttachmentCategory | "" = "", signal?: AbortSignal) =>
+    apiGet<ContactAttachment[]>(
+      `/contacts/${id}/attachments${category ? `?category=${encodeURIComponent(category)}` : ""}`,
+      signal,
+    ),
+  upload: (id: number, category: ContactAttachmentCategory, file: File) => {
+    const fd = new FormData();
+    fd.append("category", category);
+    fd.append("file", file);
+    return apiUpload<ContactAttachment>(`/contacts/${id}/attachments`, fd);
+  },
+  downloadAttachment: (id: number, aid: number, filename: string) =>
+    downloadFile(`/contacts/${id}/attachments/${aid}/download`, filename),
+  deleteAttachment: (id: number, aid: number) =>
+    apiDelete<{ ok: boolean }>(`/contacts/${id}/attachments/${aid}`),
 };
 
 // ---------------- Stage 3：站内通知 + 审批中心 ----------------

@@ -109,6 +109,47 @@ def test_task_invalid_update_keeps_original_values(client, db):
         assert after[f] == before[f], f"{f} 被部分修改：{before[f]} -> {after[f]}"
 
 
+def test_task_update_accepts_unchanged_project_id(client):
+    """编辑进度时客户端可携带原项目 ID；归属相同应兼容，不能报不支持字段。"""
+    h = login(client, "pm")
+    p = mkproject(client, h, "P4ASameProject")
+    t = client.post("/api/v1/tasks", json={"project_id": p["id"], "name": "原进度"},
+                    headers=h).json()
+
+    r = client.patch(
+        f"/api/v1/tasks/{t['id']}",
+        json={
+            "project_id": p["id"],
+            "name": "编辑后的进度",
+            "plan_start": "2026-06-01",
+            "plan_end": "2026-06-01",
+            "weight": 1,
+        },
+        headers=h,
+    )
+
+    assert r.status_code == 200, r.text
+    assert r.json()["name"] == "编辑后的进度"
+    assert r.json()["project_id"] == p["id"]
+
+
+def test_task_update_rejects_project_change(client):
+    """兼容携带原项目 ID，但不允许借更新接口把任务移到其他项目。"""
+    h = login(client, "pm")
+    p1 = mkproject(client, h, "P4AProjectKeep")
+    p2 = mkproject(client, h, "P4AProjectMove")
+    t = client.post("/api/v1/tasks", json={"project_id": p1["id"], "name": "不迁移"},
+                    headers=h).json()
+
+    r = client.patch(f"/api/v1/tasks/{t['id']}",
+                     json={"project_id": p2["id"], "name": "被改归属"}, headers=h)
+
+    assert r.status_code == 400
+    assert r.json()["detail"] == "任务不能变更所属项目"
+    current = client.get(f"/api/v1/tasks?project_id={p1['id']}", headers=h).json()["items"][0]
+    assert current["name"] == "不迁移"
+
+
 def test_task_dependency_and_status_consistency(client, db):
     """依赖一致性：前置未完成不得置 done；父子必须同项目；跨项目前置被拒。"""
     h = login(client, "pm")

@@ -3,8 +3,8 @@ import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from .routers import (admin, approvals, auth, budgets, dashboard, expenses, meta,
-                      milestones, notifications, projects, reports, tasks)
+from .routers import (admin, approvals, auth, budgets, contacts, dashboard, expenses,
+                      meta, milestones, notifications, projects, reports, tasks)
 
 # 确保模型注册
 from . import models  # noqa: F401
@@ -83,7 +83,7 @@ app.add_middleware(
     expose_headers=["Content-Disposition"],
 )
 
-for r in (auth.router, meta.router, admin.router, projects.router, tasks.router,
+for r in (auth.router, meta.router, admin.router, contacts.router, projects.router, tasks.router,
           milestones.router, budgets.router, expenses.router, reports.router,
           notifications.router, approvals.router, dashboard.router):
     app.include_router(r, prefix="/api/v1")
