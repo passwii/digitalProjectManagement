@@ -35,6 +35,29 @@ npm run build && npx next start --port 3001
 
 打开 http://localhost:3001/login
 
+## 认证会话配置
+
+开发环境默认使用 `dev-secret-change-me` 和 HTTP Cookie。生产环境必须设置：
+
+```bash
+export APP_ENV=production
+export APP_SECRET="$(openssl rand -hex 32)"
+export COOKIE_SECURE=1
+```
+
+登录成功后，后端设置：
+
+- `pm_access_token`：HttpOnly access Cookie。
+- `pm_refresh_token`：HttpOnly refresh Cookie，Path 限制为 `/api/v1/auth`。
+- `pm_csrf_token`：JavaScript 可读 CSRF Cookie。
+- `pm_session`：HttpOnly 会话提示 Cookie，供 Next.js middleware 在 access Cookie 过期后放行受保护页面并触发刷新。
+
+前端写请求自动发送 `X-CSRF-Token`，token 不再写入 localStorage。
+
+生产环境 Web 与 API 应部署在同一 site/host（推荐同源反向代理）。CSRF Cookie 需要前端 JavaScript 读取，会话提示也需要被 Next.js middleware 看到；跨主机或仅跨子域部署时必须另行设计 Cookie Domain 与同站策略。
+
+跨标签页刷新与登出串行依赖 Web Locks API，生产环境必须使用安全上下文（HTTPS；`localhost` 开发环境例外）。浏览器不支持 Web Locks 时，前端仍用模块内队列保证同一标签页的刷新/登出并发安全，但无法协调多个标签页同时刷新。
+
 ## 演示数据开关（全站生效）
 
 `scripts/seed_mock.py` 写入的演示数据带 `is_demo` 标记。系统参数 `demo_data_on` 控制是否展示：
@@ -278,16 +301,10 @@ python3 scripts/seed_perf.py 0 --clean     # 清理压测数据
 
 ```bash
 cd /Users/damon/DamonProjects/digitalProjectManagement
-python3 -m pytest -q        # 62 项：
-                            #  · tests/test_mvp.py 40 项——鉴权/状态机/越权/加权/预警/拦截/审批/通知/软删除/检索/分页，
-                            #    Stage 1 管理员全局范围与非管理员 403（第 25—30 项）、Stage 3A 列表契约（第 31—37 项）、
-                            #    演示数据开关（第 38—40 项）
-                            #  · tests/test_stage4a_closure.py 22 项——Stage 4A：非法任务/支出/预算入参零副作用、
-                            #    校验失败不留部分修改、依赖一致性与父子同项目、填报历史只可追加、
-                            #    凭证往返与「不串门」、驳回重提与意见/时间线、特批理由必填、
-                            #    预算调整决策与自动生效不冒充人工、四类预警可复现、去重窗口、
-                            #    通知处理状态与 link/ref_available、跟进提醒不重复、
-                            #    审批中心全局规则/kind/totals、审计失败不静默当成功
+python3 -m pytest -q        # 97 项：覆盖鉴权/状态机/越权/加权/预警/拦截/审批/通知/软删除/检索/分页/认证配置。
+                            #  · tests/test_mvp.py：核心主链路、管理员全局范围、Stage 3A 列表契约、Cookie 与 CSRF。
+                            #  · tests/test_stage4a_closure.py：Stage 4A 闭环、校验、时间线、通知与去重。
+                            #  · tests/test_security_config.py：生产密钥与 Cookie 配置边界。
 ```
 
 ## 已知限制
@@ -300,7 +317,6 @@ python3 -m pytest -q        # 62 项：
 - Stage 4A 新增的 `link` / `state` / `can_resubmit` / `decision_reason` 等字段后端已就绪，
   但前端 Stage 4B 尚未消费（通知跳转目前仍由 `web/components/ui/Bell.tsx` 自行拼路径，
   建议改用服务端返回的 `link`，避免两处跳转规则漂移）
-- 前端 token 存 localStorage + 非 httpOnly cookie（供 middleware 鉴权），生产建议改服务端 httpOnly
 - Docker Compose 只定义 `api` 与 `web` 两个服务，不启动数据库容器。
 
 ## 启动方式二：Docker（仅前后端，可连接本地 PostgreSQL）
@@ -341,12 +357,11 @@ python3 -m api.core.jobs    # 跟进到期扫描（建议 cron 每 10 分钟）
 - 本地默认数据库为 SQLite（`data/app.db`）；设置 `DATABASE_URL` 后可切换 PostgreSQL，SQLite 专用 FTS 会自动降级为 LIKE。
 - Docker 仅运行前后端，不运行数据库；可连接宿主机已有 PostgreSQL。
 - CORS 默认放行 `localhost:3000/3001`，Docker 默认放行 `3001`，可用环境变量 `CORS_ORIGINS` 覆盖。
-- 前端 token 存 localStorage + 非 httpOnly cookie（供 middleware 鉴权），生产环境建议改由服务端下发 httpOnly cookie。
 ---
 
 ## Review 2026-09-16：从 MVP 到可推广的推进建议
 
-当前项目已经不是“想法草稿”，而是一个可运行的内部 MVP：后端 30 项 pytest 全部通过，前端 `next build` 通过；本地浏览器已走通登录、首次改密、工作台和核心业务页。下一步不建议继续横向堆功能，先把数据正确性、权限边界和日常闭环做成可托付的产品。
+当前项目已经不是“想法草稿”，而是一个可运行的内部 MVP：后端 97 项 pytest 全部通过，前端 `next build` 通过；本地浏览器已走通登录、首次改密、工作台和核心业务页。下一步不建议继续横向堆功能，先把数据正确性、权限边界和日常闭环做成可托付的产品。
 
 ### 先给结论
 
@@ -359,9 +374,9 @@ python3 -m api.core.jobs    # 跟进到期扫描（建议 cron 每 10 分钟）
 
 ### P0：先修再扩
 
-- **生产密钥不能有默认值**：`api/core/security.py` 当前在缺少 `APP_SECRET` 时回退到 `dev-secret-change-me`。生产启动应在缺失或过短时拒绝启动，并区分开发配置；同时补充密钥轮换策略。
+- **生产密钥与 Cookie 会话**：生产启动在缺少 `APP_SECRET` 或密钥短于 32 字符时拒绝启动，并默认启用 Secure Cookie；后续需补充密钥轮换策略。
 - **附件路径存在安全和可靠性风险**：`api/routers/projects.py` 直接使用上传文件名拼路径。应生成服务端文件名、限制文件名字符、校验最终路径位于项目附件目录，并将“数据库记录 + 文件写入失败回滚”设计成一致流程。
-- **登录防护只按用户计数**：连续错误锁定用户，但没有 IP/账号组合限流；refresh token 可长期重复使用且未轮换。上线前至少增加请求速率限制、refresh 轮换/吊销和 cookie 策略。
+- **登录防护仍只按用户计数**：连续错误锁定用户，但没有 IP/账号组合限流；refresh 轮换/吊销与 Cookie + CSRF 会话已实现。上线前仍需增加请求速率限制。
 - ~~**权限规则需先定稿**~~（**已定稿，2026-09-16**）：项目负责人、成本管理员、高层都不再是审批人。已确认边界为「单一管理员、全局可见、全局可操作、管理员统一审批」，并已落成后端契约（`api/core/rbac.py` 的 `require_admin` / `can_approve`）与接口测试（`tests/test_mvp.py` 第 25—28 项），见上文「登录与权限」中的权限边界契约。
 - **所有领域输入仍需服务端约束**：例如任务更新允许直接写 `progress/status`，管理员参数可写入任意 key，字典新增没有重复/空值校验。前端校验只能改善体验，不能承担安全边界。
 - **审计不能吞异常**：`write_audit` 捕获所有异常后只 rollback，业务调用方仍可能以为审计成功。关键操作应在事务边界内可靠写入，失败时明确阻止操作或进入可观测的告警路径。

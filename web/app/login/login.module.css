@@ -1,313 +1,34 @@
-.wrap {
-  min-height: 100vh;
-  display: grid;
-  grid-template-columns: minmax(0, 1.15fr) minmax(440px, 0.85fr);
-  background: #F3F7FD;
-}
-
-.solo {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 24px;
-}
-
-.solo .auth {
-  width: min(100%, 430px);
-  min-height: auto;
-  padding: 0;
-}
-
-.story {
-  position: relative;
-  overflow: hidden;
-  min-height: 100vh;
-  padding: 44px clamp(36px, 6vw, 92px);
-  color: #F5F9FF;
-  background: #0D2B4E;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-}
-
-.story::after {
-  content: "";
-  position: absolute;
-  width: 420px;
-  height: 420px;
-  right: -190px;
-  bottom: -160px;
-  border: 72px solid rgba(22, 119, 255, 0.18);
-  border-radius: 50%;
-}
-
-.storyGrid {
-  position: absolute;
-  inset: 0;
-  opacity: 0.16;
-  background-image:
-    linear-gradient(rgba(255,255,255,.28) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255,255,255,.28) 1px, transparent 1px);
-  background-size: 52px 52px;
-  mask-image: linear-gradient(120deg, #000 15%, transparent 82%);
-}
-
-.storyTop,
-.storyMain,
-.storyFoot {
-  position: relative;
-  z-index: 1;
-}
-
-.storyTop {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 20px;
-}
-
-.mark {
-  font-family: "Songti SC", "STSong", "Noto Serif SC", serif;
-  font-size: 20px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-}
-
-.edition {
-  font-family: var(--font-mono);
-  font-size: 11px;
-  color: rgba(220, 234, 255, 0.64);
-  letter-spacing: 0.14em;
-}
-
-.storyMain {
-  max-width: 650px;
-  padding: 48px 0;
-}
-
-.kicker {
-  margin: 0 0 18px;
-  color: #68AFFF;
-  font-family: var(--font-mono);
-  font-size: 12px;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-}
-
-.storyMain h1 {
-  margin: 0;
-  font-family: "Songti SC", "STSong", "Noto Serif SC", serif;
-  font-size: clamp(48px, 6vw, 86px);
-  font-weight: 700;
-  line-height: 1.04;
-  letter-spacing: 0.02em;
-}
-
-.storyMain h1 span {
-  display: block;
-  margin-top: 8px;
-  color: #79B8FF;
-}
-
-.storyText {
-  max-width: 500px;
-  margin: 28px 0 0;
-  color: rgba(232, 241, 255, 0.76);
-  font-size: 16px;
-  line-height: 1.85;
-}
-
-.storyFoot {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 14px;
-  max-width: 680px;
-}
-
-.storyFoot div {
-  padding-top: 14px;
-  border-top: 1px solid rgba(255,255,255,.22);
-  display: flex;
-  align-items: baseline;
-  gap: 10px;
-}
-
-.storyFoot b {
-  font-family: var(--font-mono);
-  color: #68AFFF;
-  font-size: 12px;
-}
-
-.storyFoot span {
-  color: rgba(244,249,255,.88);
-  font-size: 13px;
-  letter-spacing: 0.06em;
-}
-
-.auth {
-  min-height: 100vh;
-  padding: 36px clamp(28px, 6vw, 80px);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-}
-
-.card {
-  width: min(100%, 430px);
-  background: #fff;
-  border: 1px solid #DCE5F0;
-  border-radius: 8px;
-  padding: 34px;
-  box-shadow: 0 24px 60px rgba(23, 52, 90, 0.13);
-  animation: cardIn 360ms cubic-bezier(.2,.8,.2,1) both;
-}
-
-.cardHead {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  margin-bottom: 8px;
-}
-
-.cardBadge {
-  width: 48px;
-  height: 48px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 6px;
-  background: #0D2B4E;
-  color: #8CBCFF;
-  font-family: var(--font-mono);
-  font-size: 12px;
-  letter-spacing: .08em;
-}
-
-.cardEyebrow {
-  margin: 0 0 4px;
-  color: #5C79A0;
-  font-size: 12px;
-  font-weight: 600;
-  letter-spacing: .08em;
-}
-
-.card h2 {
-  margin: 0;
-  color: #17263B;
-  font-size: 23px;
-  line-height: 1.25;
-}
-
-.sub {
-  margin: 14px 0 24px;
-  color: #68788B;
-  font-size: 13px;
-}
-
-.field {
-  display: flex;
-  flex-direction: column;
-  gap: 7px;
-  margin-bottom: 16px;
-}
-
+.field { margin-bottom: 16px; }
 .field label {
-  color: #395673;
+  display: block;
+  margin-bottom: 6px;
+  color: var(--ink-2);
   font-size: 13px;
-  font-weight: 600;
 }
-
-.field input {
-  height: 46px;
-  padding: 0 13px;
-  border-radius: 6px;
-  border-color: #D8E2EF;
-  background: #FBFCFE;
-  font-size: 15px;
-}
-
-.field input:focus {
-  background: #fff;
-  border-color: #1677FF;
-  box-shadow: 0 0 0 3px rgba(22, 119, 255, 0.12);
-}
-
 .alert {
-  padding: 10px 12px;
-  margin: 4px 0 12px;
-  border-radius: 6px;
+  margin-top: 10px;
+  padding: 9px 12px;
+  border: 1px solid var(--line-danger);
+  border-radius: var(--radius);
+  background: var(--danger-bg);
+  color: var(--danger);
   font-size: 13px;
+  line-height: 1.5;
 }
-
-.alertErr {
-  color: #a53030;
-  background: #fff1f1;
-  border: 1px solid #f3caca;
+.notice,
+.offline {
+  margin: 0 0 16px;
+  padding: 9px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--bg);
+  color: var(--ink-2);
+  font-size: 13px;
+  line-height: 1.5;
 }
-
-.submit {
-  width: 100%;
-  height: 46px;
-  margin-top: 8px;
-  border: 0;
-  border-radius: 6px;
-  background: #1677FF;
-  color: #fff;
-  font-size: 15px;
-  font-weight: 700;
-  letter-spacing: .04em;
+.offline {
+  border-color: var(--line-danger);
+  background: var(--danger-bg);
+  color: var(--danger);
 }
-
-.submit:hover { background: #0E5FD8; }
-.submit:disabled { cursor: wait; opacity: .7; }
-
-.hint {
-  margin-top: 22px;
-  padding-top: 16px;
-  border-top: 1px solid #E7EDF5;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px 10px;
-  color: #8594A6;
-  font-size: 12px;
-}
-
-.hint b { color: #315C8F; }
-
-.copyright {
-  margin: 24px 0 0;
-  color: #8291A4;
-  font-size: 12px;
-}
-
-@keyframes cardIn {
-  from { opacity: 0; transform: translateY(12px); }
-  to { opacity: 1; transform: none; }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .card { animation: none; }
-}
-
-@media (max-width: 980px) {
-  .wrap { grid-template-columns: 1fr; }
-  .story {
-    min-height: auto;
-    padding: 28px 24px 34px;
-  }
-  .storyMain { padding: 36px 0 30px; }
-  .storyMain h1 { font-size: clamp(42px, 12vw, 64px); }
-  .storyFoot { display: none; }
-  .auth { min-height: auto; padding: 30px 18px 40px; }
-}
-
-@media (max-width: 520px) {
-  .storyTop .edition { display: none; }
-  .storyMain h1 { font-size: 40px; }
-  .storyText { font-size: 14px; }
-  .card { padding: 24px 20px; }
-  .cardBadge { width: 42px; height: 42px; }
-  .card h2 { font-size: 20px; }
-}
+.submit { margin-top: 20px; }

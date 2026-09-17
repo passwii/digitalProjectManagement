@@ -1,11 +1,16 @@
 """Stage 0：登录/登出/刷新/我。5 错锁 15min（sys_params 可配），成功失败都审计。"""
 from datetime import datetime, timedelta, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from pydantic import BaseModel
+from sqlalchemy.dialects.sqlite import insert
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from ..core.audit import write_audit
+from ..core.config import settings
+from ..core.cookies import (bearer_token_from_request, clear_auth_cookies,
+                            same_origin_or_same_site_request, set_auth_cookies)
 from ..core.database import get_db
 from ..core.deps import get_current_user
 from ..core.security import (create_access_token, create_refresh_token,
@@ -26,7 +31,7 @@ class LoginIn(BaseModel):
 
 
 class RefreshIn(BaseModel):
-    refresh_token: str
+    refresh_token: str | None = None
 
 
 class ChangePwdIn(BaseModel):
@@ -50,7 +55,8 @@ def _fail(db, user, username, ip, reason):
 
 
 @router.post("/login")
-def login(body: LoginIn, request: Request, db: Session = Depends(get_db)):
+def login(body: LoginIn, request: Request, response: Response,
+          db: Session = Depends(get_db)):
     ip = request.client.host if request.client else ""
     if not body.username or not body.password:
         raise HTTPException(400, "账号密码不能为空")
@@ -70,39 +76,102 @@ def login(body: LoginIn, request: Request, db: Session = Depends(get_db)):
     user.failed_count, user.locked_until = 0, None
     db.commit()
     access, refresh = create_access_token(str(user.id)), create_refresh_token(str(user.id))
+    set_auth_cookies(response, access, refresh)
     write_audit(db, user.id, "login", "auth", user.username, "登录成功", ip)
     return {"access_token": access, "refresh_token": refresh, "token_type": "bearer",
             "must_change_pwd": bool(user.must_change_pwd)}
 
 
-@router.post("/logout")
-def logout(request: Request, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    auth = request.headers.get("authorization", "")
-    token = auth[7:] if auth.lower().startswith("bearer ") else ""
+def _blacklist_token(db: Session, token: str, kind: str, user_id: int) -> None:
+    if not token:
+        return
     try:
-        payload = decode_token(token, kind="access")
-        db.add(TokenBlacklist(jti=payload["jti"], user_id=user.id,
-                              expires_at=datetime.fromtimestamp(payload["exp"], tz=timezone.utc)))
+        payload = decode_token(token, kind=kind)
+    except ValueError:
+        return
+    claim = insert(TokenBlacklist).values(
+        jti=payload["jti"],
+        user_id=user_id,
+        expires_at=datetime.fromtimestamp(payload["exp"], tz=timezone.utc),
+    ).on_conflict_do_nothing(index_elements=[TokenBlacklist.jti])
+    db.execute(claim)
+
+
+def _valid_session_user(db: Session, tokens: tuple[tuple[str, str], ...]) -> User | None:
+    for token, kind in tokens:
+        if not token:
+            continue
+        try:
+            payload = decode_token(token, kind=kind)
+            user_id = int(payload["sub"])
+        except (KeyError, TypeError, ValueError):
+            continue
+        if db.query(TokenBlacklist).filter_by(jti=payload.get("jti")).first():
+            continue
+        user = db.query(User).filter_by(id=user_id).first()
+        if user and user.status == "active":
+            return user
+    return None
+
+
+@router.post("/logout")
+def logout(request: Request, response: Response, db: Session = Depends(get_db)):
+    if not same_origin_or_same_site_request(request):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "跨站登出请求被拒绝")
+    access = bearer_token_from_request(request)
+    if not access:
+        access = request.cookies.get(settings.access_cookie_name, "")
+    refresh = request.cookies.get(settings.refresh_cookie_name, "")
+    user = _valid_session_user(db, ((access, "access"), (refresh, "refresh")))
+    if user:
+        _blacklist_token(db, access, "access", user.id)
+        _blacklist_token(db, refresh, "refresh", user.id)
         db.commit()
-    except Exception:
-        pass
-    write_audit(db, user.id, "logout", "auth", user.username, "登出",
-                request.client.host if request.client else "")
+        write_audit(db, user.id, "logout", "auth", user.username, "登出",
+                    request.client.host if request.client else "")
+    clear_auth_cookies(response)
     return {"ok": True}
 
 
 @router.post("/refresh")
-def refresh(body: RefreshIn, db: Session = Depends(get_db)):
+def refresh(request: Request, response: Response, body: RefreshIn | None = None,
+            db: Session = Depends(get_db)):
+    token = body.refresh_token if body and body.refresh_token else ""
+    if not token:
+        token = request.cookies.get(settings.refresh_cookie_name, "")
+    if not token:
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "refresh 已过期")
     try:
-        payload = decode_token(body.refresh_token, kind="refresh")
+        payload = decode_token(token, kind="refresh")
     except ValueError:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "refresh 已过期")
-    if db.query(TokenBlacklist).filter_by(jti=payload.get("jti")).first():
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "会话已失效")
     user = db.query(User).filter_by(id=int(payload["sub"])).first()
     if not user or user.status != "active":
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "账号不可用")
-    return {"access_token": create_access_token(str(user.id)), "token_type": "bearer"}
+
+    claim = insert(TokenBlacklist).values(
+        jti=payload["jti"],
+        user_id=user.id,
+        expires_at=datetime.fromtimestamp(payload["exp"], tz=timezone.utc),
+    ).on_conflict_do_nothing(index_elements=[TokenBlacklist.jti])
+    try:
+        if db.execute(claim).rowcount != 1:
+            db.rollback()
+            raise HTTPException(status.HTTP_401_UNAUTHORIZED, "会话已失效")
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "会话已失效")
+
+    access = create_access_token(str(user.id))
+    rotated = create_refresh_token(str(user.id))
+    db.commit()
+
+    set_auth_cookies(response, access, rotated)
+    return {
+        "access_token": access,
+        "refresh_token": rotated,
+        "token_type": "bearer",
+    }
 
 
 @router.post("/change-password")

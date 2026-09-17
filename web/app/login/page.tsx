@@ -1,34 +1,70 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { authApi, errText, saveSession } from "@/lib/api";
+import MobileAuthShell from "@/components/auth/MobileAuthShell";
+import PasswordInput from "@/components/auth/PasswordInput";
 import st from "./login.module.css";
+
+const SESSION_NOTICES: Record<string, string> = {
+  expired: "会话已过期，请重新登录。",
+  logout: "已安全退出登录。",
+  logout_failed: "未能确认服务端退出，请联网后重新登录。",
+};
+
+function loginNotice(search: string): string {
+  const params = new URLSearchParams(search);
+  const reason = params.get("reason")
+    || (params.get("logged_out") === "1" ? "logout_failed" : "");
+  return SESSION_NOTICES[reason] ?? "";
+}
 
 export default function LoginPage() {
   const router = useRouter();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
-  const [fieldErr, setFieldErr] = useState("");
+  const [usernameErr, setUsernameErr] = useState("");
+  const [passwordErr, setPasswordErr] = useState("");
   const [apiErr, setApiErr] = useState("");
+  const [notice, setNotice] = useState("");
+  const [online, setOnline] = useState(true);
   const [loading, setLoading] = useState(false);
+  const usernameRef = useRef<HTMLInputElement>(null);
+  const passwordRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    setNotice(loginNotice(window.location.search));
+    const syncNetwork = () => setOnline(navigator.onLine);
+    syncNetwork();
+    window.addEventListener("online", syncNetwork);
+    window.addEventListener("offline", syncNetwork);
+    return () => {
+      window.removeEventListener("online", syncNetwork);
+      window.removeEventListener("offline", syncNetwork);
+    };
+  }, []);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setApiErr("");
-    if (!/^1\d{10}$/.test(username.trim())) {
-      setFieldErr("请输入 11 位手机号账号");
+    if (!online) return;
+
+    const nextUsernameErr = username.trim() ? "" : "请输入账号";
+    const nextPasswordErr = password ? "" : "请输入密码";
+    setUsernameErr(nextUsernameErr);
+    setPasswordErr(nextPasswordErr);
+    if (nextUsernameErr || nextPasswordErr) {
+      if (nextUsernameErr) usernameRef.current?.focus();
+      else passwordRef.current?.focus();
       return;
     }
-    if (!password) {
-      setFieldErr("请输入密码");
-      return;
-    }
-    setFieldErr("");
+
     setLoading(true);
     try {
       const data = await authApi.login(username.trim(), password);
       saveSession(data.access_token, data.refresh_token);
+      // 首次登录强制改密（seed admin 默认 must_change_pwd=true）
       router.push(data.must_change_pwd ? "/change-password" : "/dashboard");
     } catch (err: unknown) {
       setApiErr(errText(err));
@@ -38,72 +74,69 @@ export default function LoginPage() {
   }
 
   return (
-    <main className={st.wrap}>
-      <section className={st.story}>
-        <div className={st.storyGrid} aria-hidden />
-        <div className={st.storyTop}>
-          <span className={st.mark}>数慧致科</span>
-          <span className={st.edition}>OA / PROJECT DELIVERY</span>
+    <MobileAuthShell
+      title="登录工作区"
+      subtitle="使用项目管理系统账号继续"
+      footer={
+        <>
+          首次登录需要修改密码
+          {process.env.NODE_ENV !== "production" ? (
+            <>
+              {" · 初始账号 "}
+              <span className="mono">admin / admin123456</span>
+            </>
+          ) : null}
+        </>
+      }
+    >
+      <form onSubmit={onSubmit} noValidate>
+        {notice ? (
+          <div className={st.notice} role="status">{notice}</div>
+        ) : null}
+        {!online ? (
+          <div className={st.offline} role="status">需要网络连接才能登录，请恢复网络后重试。</div>
+        ) : null}
+        <div className={st.field}>
+          <label htmlFor="username">账号</label>
+          <input
+            ref={usernameRef}
+            id="username"
+            value={username}
+            onChange={(e) => {
+              setUsername(e.target.value);
+              if (usernameErr) setUsernameErr("");
+            }}
+            placeholder="请输入账号"
+            autoComplete="username"
+            enterKeyHint="next"
+            disabled={loading}
+            aria-invalid={Boolean(usernameErr)}
+            aria-describedby={usernameErr ? "username-error" : undefined}
+          />
+          {usernameErr ? (
+            <span id="username-error" className="field-err" role="alert">{usernameErr}</span>
+          ) : null}
         </div>
-        <div className={st.storyMain}>
-          <p className={st.kicker}>Digital Project Operations</p>
-          <h1>
-            数慧致科
-            <span>OA管理平台</span>
-          </h1>
-          <p className={st.storyText}>
-            让项目台账、交付进度、合同档案与支出记录沉淀在同一套管理坐标中。
-          </p>
+        <PasswordInput
+          ref={passwordRef}
+          label="密码"
+          value={password}
+          onChange={(value) => {
+            setPassword(value);
+            if (passwordErr) setPasswordErr("");
+          }}
+          autoComplete="current-password"
+          enterKeyHint="go"
+          error={passwordErr || undefined}
+          disabled={loading}
+        />
+        {apiErr ? <div className={st.alert} role="alert">{apiErr}</div> : null}
+        <div className={st.submit}>
+          <button className="btn-primary" type="submit" disabled={loading || !online}>
+            {!online ? "需要联网" : loading ? "登录中…" : "登 录"}
+          </button>
         </div>
-        <div className={st.storyFoot}>
-          <div><b>01</b><span>统一台账</span></div>
-          <div><b>02</b><span>进度留痕</span></div>
-          <div><b>03</b><span>支出归集</span></div>
-        </div>
-      </section>
-
-      <section className={st.auth}>
-        <div className={st.card}>
-          <div className={st.cardHead}>
-            <span className={st.cardBadge}>SHZK</span>
-            <div>
-              <p className={st.cardEyebrow}>数慧致科OA管理平台</p>
-              <h2>登录管理工作台</h2>
-            </div>
-          </div>
-          <p className={st.sub}>使用管理员签发的手机号账号登录。</p>
-          <form onSubmit={onSubmit}>
-            <div className={st.field}>
-              <label htmlFor="login-phone">手机号</label>
-              <input
-                id="login-phone"
-                value={username}
-                onChange={(e) => setUsername(e.target.value.replace(/\D/g, "").slice(0, 11))}
-                placeholder="请输入 11 位手机号"
-                inputMode="numeric"
-                autoComplete="username"
-              />
-            </div>
-            <div className={st.field}>
-              <label htmlFor="login-password">密码</label>
-              <input
-                id="login-password"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="请输入登录密码"
-                autoComplete="current-password"
-              />
-            </div>
-            {fieldErr && <div className={`${st.alert} ${st.alertErr}`} role="alert">{fieldErr}</div>}
-            {apiErr && <div className={`${st.alert} ${st.alertErr}`} role="alert">{apiErr}</div>}
-            <button className={st.submit} type="submit" disabled={loading}>
-              {loading ? "正在验证…" : "进入管理平台"}
-            </button>
-          </form>
-        </div>
-        <p className={st.copyright}>数慧致科 · 项目管理系统</p>
-      </section>
-    </main>
+      </form>
+    </MobileAuthShell>
   );
 }

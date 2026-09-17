@@ -1,15 +1,16 @@
 """bcrypt 密码 + JWT（access 2h / refresh 7d）。"""
-import os
 import uuid
 from datetime import datetime, timedelta, timezone
 
 import bcrypt
 from jose import JWTError, jwt
 
-SECRET_KEY = os.getenv("APP_SECRET", "dev-secret-change-me")
+from .config import settings
+
+SECRET_KEY = settings.secret_key
 ALGORITHM = "HS256"
-ACCESS_MINUTES = 120
-REFRESH_DAYS = 7
+ACCESS_MINUTES = settings.access_minutes
+REFRESH_DAYS = settings.refresh_days
 
 
 def hash_password(raw: str) -> str:

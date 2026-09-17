@@ -1,8 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { authApi, clearSession, errText } from "@/lib/api";
+import MobileAuthShell from "@/components/auth/MobileAuthShell";
+import PasswordInput from "@/components/auth/PasswordInput";
 import st from "../login/login.module.css";
 
 export default function ChangePasswordPage() {
@@ -10,64 +12,114 @@ export default function ChangePasswordPage() {
   const [oldPwd, setOldPwd] = useState("");
   const [newPwd, setNewPwd] = useState("");
   const [confirm, setConfirm] = useState("");
-  const [err, setErr] = useState("");
+  const [oldPwdErr, setOldPwdErr] = useState("");
+  const [newPwdErr, setNewPwdErr] = useState("");
+  const [confirmErr, setConfirmErr] = useState("");
+  const [apiErr, setApiErr] = useState("");
   const [loading, setLoading] = useState(false);
+  const oldPwdRef = useRef<HTMLInputElement>(null);
+  const newPwdRef = useRef<HTMLInputElement>(null);
+  const confirmRef = useRef<HTMLInputElement>(null);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
-    setErr("");
-    if (!oldPwd || !newPwd) return setErr("原密码与新密码不能为空");
-    if (newPwd.length < 8) return setErr("新密码至少 8 位");
-    if (!/[A-Za-z]/.test(newPwd) || !/\d/.test(newPwd)) return setErr("新密码需同时包含字母与数字");
-    if (newPwd !== confirm) return setErr("两次输入的新密码不一致");
+    setApiErr("");
+
+    const nextOldPwdErr = oldPwd ? "" : "请输入原密码";
+    let nextNewPwdErr = "";
+    if (!newPwd) nextNewPwdErr = "请输入新密码";
+    else if (newPwd.length < 8) nextNewPwdErr = "新密码至少 8 位";
+    else if (!/[A-Za-z]/.test(newPwd) || !/\d/.test(newPwd)) {
+      nextNewPwdErr = "新密码需同时包含字母与数字";
+    }
+    const nextConfirmErr = newPwd === confirm ? "" : "两次输入的新密码不一致";
+
+    setOldPwdErr(nextOldPwdErr);
+    setNewPwdErr(nextNewPwdErr);
+    setConfirmErr(nextConfirmErr);
+    if (nextOldPwdErr || nextNewPwdErr || nextConfirmErr) {
+      if (nextOldPwdErr) oldPwdRef.current?.focus();
+      else if (nextNewPwdErr) newPwdRef.current?.focus();
+      else confirmRef.current?.focus();
+      return;
+    }
+
     setLoading(true);
     try {
       await authApi.changePassword(oldPwd, newPwd);
       router.push("/dashboard");
     } catch (e2) {
-      setErr(errText(e2));
+      setApiErr(errText(e2));
     } finally {
       setLoading(false);
     }
   }
 
   return (
-    <main className={`${st.wrap} ${st.solo}`}>
-      <section className={st.auth}>
-        <div className={st.card}>
-          <div className={st.cardHead}>
-            <span className={st.cardBadge}>SHZK</span>
-            <div>
-              <p className={st.cardEyebrow}>数慧致科OA管理平台</p>
-              <h2>首次登录 · 修改密码</h2>
-            </div>
-          </div>
-          <p className={st.sub}>为保障账号安全，请设置新密码后继续。</p>
-          <form onSubmit={onSubmit}>
-            <div className={st.field}>
-              <label htmlFor="old-password">原密码</label>
-              <input id="old-password" type="password" value={oldPwd} onChange={(e) => setOldPwd(e.target.value)} placeholder="请输入原密码" autoComplete="current-password" />
-            </div>
-            <div className={st.field}>
-              <label htmlFor="new-password">新密码</label>
-              <input id="new-password" type="password" value={newPwd} onChange={(e) => setNewPwd(e.target.value)} placeholder="至少 8 位，含字母与数字" autoComplete="new-password" />
-            </div>
-            <div className={st.field}>
-              <label htmlFor="confirm-password">确认新密码</label>
-              <input id="confirm-password" type="password" value={confirm} onChange={(e) => setConfirm(e.target.value)} placeholder="再次输入新密码" autoComplete="new-password" />
-            </div>
-            {err && <div className={`${st.alert} ${st.alertErr}`} role="alert">{err}</div>}
-            <button className={st.submit} type="submit" disabled={loading}>
-              {loading ? "提交中…" : "确认修改"}
-            </button>
-          </form>
-          <div className={st.hint}>
-            <button type="button" className="linklike" onClick={() => { clearSession(); router.push("/login"); }}>
-              退出登录
-            </button>
-          </div>
+    <MobileAuthShell
+      title="设置新密码"
+      subtitle="为保障账号安全，请完成首次改密"
+      footer={
+        <button
+          type="button"
+          className="linklike"
+          onClick={async () => {
+            await clearSession();
+          }}
+        >
+          退出登录
+        </button>
+      }
+    >
+      <form onSubmit={onSubmit} noValidate>
+        <PasswordInput
+          ref={oldPwdRef}
+          label="原密码"
+          value={oldPwd}
+          onChange={(value) => {
+            setOldPwd(value);
+            if (oldPwdErr) setOldPwdErr("");
+          }}
+          autoComplete="current-password"
+          enterKeyHint="next"
+          error={oldPwdErr || undefined}
+          disabled={loading}
+        />
+        <PasswordInput
+          ref={newPwdRef}
+          label="新密码"
+          value={newPwd}
+          onChange={(value) => {
+            setNewPwd(value);
+            if (newPwdErr) setNewPwdErr("");
+            if (confirmErr) setConfirmErr("");
+          }}
+          autoComplete="new-password"
+          enterKeyHint="next"
+          error={newPwdErr || undefined}
+          hint="至少 8 位，同时包含字母与数字"
+          disabled={loading}
+        />
+        <PasswordInput
+          ref={confirmRef}
+          label="确认新密码"
+          value={confirm}
+          onChange={(value) => {
+            setConfirm(value);
+            if (confirmErr) setConfirmErr("");
+          }}
+          autoComplete="new-password"
+          enterKeyHint="done"
+          error={confirmErr || undefined}
+          disabled={loading}
+        />
+        {apiErr ? <div className={st.alert} role="alert">{apiErr}</div> : null}
+        <div className={st.submit}>
+          <button className="btn-primary" type="submit" disabled={loading}>
+            {loading ? "提交中…" : "确认修改"}
+          </button>
         </div>
-      </section>
-    </main>
+      </form>
+    </MobileAuthShell>
   );
 }

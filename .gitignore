@@ -23,3 +23,9 @@ data/
 
 # os
 .DS_Store
+
+# visual brainstorming
+.superpowers/
+
+# isolated worktrees
+.worktrees/
