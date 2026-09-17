@@ -19,6 +19,8 @@ function useModalBehavior({
 }) {
   const panelRef = useRef<HTMLElement | null>(null);
   const restoreRef = useRef<Element | null>(null);
+  const wasOpenRef = useRef(false);
+  const requestCloseRef = useRef(onRequestClose);
   const [mounted, setMounted] = useState(false);
   const [askDiscard, setAskDiscard] = useState(false);
 
@@ -32,6 +34,21 @@ function useModalBehavior({
     onRequestClose();
   }, [dirty, onRequestClose]);
 
+  useEffect(() => {
+    requestCloseRef.current = requestClose;
+  }, [requestClose]);
+
+  useEffect(() => {
+    if (!open) {
+      wasOpenRef.current = false;
+      setAskDiscard(false);
+      return;
+    }
+    if (wasOpenRef.current) return;
+    wasOpenRef.current = true;
+    restoreRef.current = document.activeElement;
+  }, [open]);
+
   const handleExitComplete = useCallback(() => {
     const element = restoreRef.current as HTMLElement | null;
     if (element && typeof element.focus === "function") element.focus();
@@ -40,10 +57,8 @@ function useModalBehavior({
 
   useEffect(() => {
     if (!open) {
-      setAskDiscard(false);
       return;
     }
-    restoreRef.current = document.activeElement;
     const prevOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
 
@@ -59,7 +74,7 @@ function useModalBehavior({
     function onKey(e: KeyboardEvent) {
       if (e.key === "Escape") {
         e.stopPropagation();
-        requestClose();
+        requestCloseRef.current();
         return;
       }
       if (e.key !== "Tab") return;
@@ -88,7 +103,7 @@ function useModalBehavior({
       document.removeEventListener("keydown", onKey, true);
       document.body.style.overflow = prevOverflow;
     };
-  }, [open, requestClose]);
+  }, [open]);
 
   return { mounted, panelRef, requestClose, askDiscard, setAskDiscard, handleExitComplete };
 }

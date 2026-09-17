@@ -1,7 +1,7 @@
 "use client";
 // 轻量 Toast：ToastProvider + useToast()。右上角堆叠，4s 自动消失。
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
-import { AnimatePresence, m, useReducedMotion } from "framer-motion";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import st from "./Toast.module.css";
 
 export type ToastKind = "ok" | "err" | "info";
@@ -49,7 +49,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
       <div className={st.stack} role="status" aria-live="polite">
         <AnimatePresence initial={false}>
           {items.map((t) => (
-            <m.div
+            <motion.div
               key={t.id}
               className={`${st.toast} ${st[t.kind]}`}
               role="status"
@@ -73,7 +73,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
                   <path d="M6 6l12 12M18 6L6 18" />
                 </svg>
               </button>
-            </m.div>
+            </motion.div>
           ))}
         </AnimatePresence>
       </div>
