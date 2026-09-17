@@ -7,6 +7,7 @@
   overflow: hidden;
   transform-origin: left center;
   pointer-events: none;
+  z-index: 1;
 }
 
 .track {

@@ -8,7 +8,8 @@ import { clearMetaCache, useMenus } from "@/lib/useMeta";
 import Avatar from "@/components/ui/Avatar";
 import Bell from "@/components/ui/Bell";
 import { ToastProvider } from "@/components/ui/Toast";
-import MotionProvider from "@/components/motion/MotionProvider";
+import ActivityBar from "@/components/motion/ActivityBar";
+import MotionProvider, { useNavigationActivity } from "@/components/motion/MotionProvider";
 import s from "@/components/ui/Shell.module.css";
 
 /**
@@ -91,6 +92,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [collapsed, setCollapsed] = useState(false);
   const [me, setMe] = useState<Me | null>(null);
   const { menus, isAdmin, loading: permsLoading, error: permsError, reload: reloadMenus } = useMenus();
+  const { startNavigation } = useNavigationActivity();
 
   const current = Object.keys(CRUMB).find((k) => pathname === k || pathname.startsWith(k + "/"));
   const today = new Date().toISOString().slice(0, 10);
@@ -173,6 +175,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 )}
                 <Link
                   href={n.href}
+                  onClick={() => startNavigation(n.label)}
                   className={`${s.navLink} ${active ? s.active : ""}`}
                   title={n.label}
                   aria-current={active ? "page" : undefined}
@@ -226,6 +229,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               </span>
             </div>
           </div>
+          <ActivityBar />
         </header>
         <main className={s.content} id="main-content" tabIndex={-1}>
           <div className={s.contentInner}>

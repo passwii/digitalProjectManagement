@@ -2,10 +2,12 @@
 
 import { AnimatePresence, m, useReducedMotion } from "framer-motion";
 import { useEffect, useState } from "react";
+import { useActivity } from "@/lib/useActivity";
 import styles from "./ActivityBar.module.css";
 
-export default function ActivityBar({ active, label }: { active: boolean; label: string }) {
+export default function ActivityBar() {
   const reduced = useReducedMotion();
+  const { active, label } = useActivity();
   const [visible, setVisible] = useState(active);
   const [completing, setCompleting] = useState(false);
   const [lastLabel, setLastLabel] = useState(label);

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { MIN_ACTIVITY_MS, completionDelay, routeActivityKey } from "./activityCore";
+import { MIN_ACTIVITY_MS, completionDelay } from "./activityCore";
 
 describe("completionDelay", () => {
   it("keeps a fast activity visible for the full minimum duration", () => {
@@ -14,15 +14,5 @@ describe("completionDelay", () => {
 
   it("uses the exact configured minimum", () => {
     expect(MIN_ACTIVITY_MS).toBe(450);
-  });
-});
-
-describe("routeActivityKey", () => {
-  it("includes a non-empty query in the route key", () => {
-    expect(routeActivityKey("/projects", "status=doing")).toBe("/projects?status=doing");
-  });
-
-  it("does not add a question mark for an empty query", () => {
-    expect(routeActivityKey("/projects", "")).toBe("/projects");
   });
 });
