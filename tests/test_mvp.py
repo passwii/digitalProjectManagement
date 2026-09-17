@@ -1224,3 +1224,15 @@ def test_bearer_write_remains_compatible(client):
     r = client.post("/api/v1/auth/logout", json={},
                     headers={"Authorization": f"Bearer {token}"})
     assert r.status_code == 200
+
+
+# 41. 空 Bearer 不能让 Cookie 会话绕过 CSRF
+def test_empty_bearer_does_not_bypass_cookie_csrf(client):
+    login = client.post("/api/v1/auth/login",
+                        json={"username": "admin", "password": "admin123456"})
+    assert login.status_code == 200
+
+    r = client.post("/api/v1/auth/change-password",
+                    headers={"Authorization": "Bearer "},
+                    json={"old_password": "admin123456", "new_password": "admin1234567"})
+    assert r.status_code == 403

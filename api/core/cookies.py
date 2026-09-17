@@ -63,9 +63,16 @@ def clear_auth_cookies(response: Response) -> None:
     )
 
 
+def bearer_token_from_request(request: Request) -> str:
+    authorization = request.headers.get("authorization", "")
+    scheme, _, token = authorization.partition(" ")
+    if scheme.lower() != "bearer":
+        return ""
+    return token.strip()
+
+
 def request_uses_cookie_auth(request: Request) -> bool:
-    has_bearer = request.headers.get("authorization", "").lower().startswith("bearer ")
-    return bool(request.cookies.get(settings.access_cookie_name)) and not has_bearer
+    return bool(request.cookies.get(settings.access_cookie_name)) and not bearer_token_from_request(request)
 
 
 def csrf_header_valid(request: Request) -> bool:
