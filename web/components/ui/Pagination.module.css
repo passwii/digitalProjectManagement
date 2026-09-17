@@ -12,7 +12,27 @@
 .info b { color: var(--ink); }
 .info { min-width: 0; }
 .scope { margin-left: 6px; color: var(--ink-3); }
-.busy { margin-left: 8px; color: var(--brand); }
+.busy {
+  margin-left: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--brand);
+}
+.busyDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--brand);
+  animation: busyPulse 900ms ease-in-out infinite;
+}
+@keyframes busyPulse {
+  0%, 100% { opacity: .35; transform: scale(.8); }
+  50% { opacity: 1; transform: scale(1); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .busyDot { animation: none; opacity: .8; }
+}
 
 .right { display: inline-flex; align-items: center; gap: 6px; }
 

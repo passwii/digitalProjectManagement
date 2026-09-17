@@ -22,7 +22,6 @@
   background: var(--card);
   box-shadow: var(--shadow-float);
   font-size: 13px;
-  animation: toastIn 160ms ease-out;
 }
 
 .icon {
@@ -64,11 +63,6 @@
 
 .info { border-color: var(--line-blue); }
 .info .icon { background: var(--brand); }
-
-@keyframes toastIn {
-  from { opacity: 0; transform: translateY(-6px); }
-  to { opacity: 1; transform: none; }
-}
 
 @media (max-width: 900px) {
   .stack { left: 12px; right: 12px; top: 52px; }

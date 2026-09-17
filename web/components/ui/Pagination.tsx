@@ -58,7 +58,12 @@ export default function Pagination({
       <span className={st.info}>
         共 <b className="mono">{total}</b> 条，当前 <span className="mono">{from}-{to}</span>
         {scopeText && <span className={st.scope}>· {scopeText}</span>}
-        {loading && <span className={st.busy}>更新中…</span>}
+        {loading && (
+          <span className={st.busy} role="status">
+            <span className={st.busyDot} aria-hidden />
+            更新中…
+          </span>
+        )}
       </span>
       <div className={st.right}>
         {showSize && (

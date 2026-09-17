@@ -3,11 +3,14 @@
 import { Fragment, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import { m, useReducedMotion } from "framer-motion";
 import { authApi, clearSession, type Me } from "@/lib/api";
 import { clearMetaCache, useMenus } from "@/lib/useMeta";
 import Avatar from "@/components/ui/Avatar";
 import Bell from "@/components/ui/Bell";
 import { ToastProvider } from "@/components/ui/Toast";
+import ActivityBar from "@/components/motion/ActivityBar";
+import MotionProvider from "@/components/motion/MotionProvider";
 import s from "@/components/ui/Shell.module.css";
 
 /**
@@ -92,12 +95,13 @@ interface NavItem {
   icon?: React.ReactNode;
 }
 
-export default function DashboardLayout({ children }: { children: React.ReactNode }) {
+function DashboardShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const [collapsed, setCollapsed] = useState(false);
   const [me, setMe] = useState<Me | null>(null);
   const { menus, isAdmin, loading: permsLoading, error: permsError, reload: reloadMenus } = useMenus();
+  const reduced = useReducedMotion();
 
   const current = Object.keys(CRUMB).find((k) => pathname === k || pathname.startsWith(k + "/"));
   const today = new Date().toISOString().slice(0, 10);
@@ -153,7 +157,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   }
 
   return (
-    <ToastProvider>
+    <>
     <a className="skip-link" href="#main-content">跳到主要内容</a>
     <div className={`${s.shell} ${collapsed ? s.collapsed : ""}`}>
       <aside className={s.sidebar}>
@@ -185,6 +189,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 >
                   {n.icon}
                   <span className={s.label}>{n.label}</span>
+                  {active && (
+                    <m.span
+                      layoutId="primary-nav-active"
+                      className={s.navActive}
+                      transition={{ duration: reduced ? 0 : 0.2, ease: [0.2, 0.72, 0.2, 1] }}
+                    />
+                  )}
                 </Link>
               </Fragment>
             );
@@ -232,14 +243,33 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               </span>
             </div>
           </div>
+          <ActivityBar />
         </header>
         <main className={s.content} id="main-content" tabIndex={-1}>
           <div className={s.contentInner}>
-            <div key={pathname} className={s.routeView}>{children}</div>
+            <m.div
+              key={pathname}
+              className={s.routeView}
+              initial={reduced ? false : { opacity: 0, y: 4 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: reduced ? 0 : 0.22, ease: [0.2, 0.72, 0.2, 1] }}
+            >
+              {children}
+            </m.div>
           </div>
         </main>
       </div>
     </div>
+    </>
+  );
+}
+
+export default function DashboardLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <ToastProvider>
+      <MotionProvider>
+        <DashboardShell>{children}</DashboardShell>
+      </MotionProvider>
     </ToastProvider>
   );
 }

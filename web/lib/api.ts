@@ -1,4 +1,6 @@
 // API 封装：base + token 注入 + 401 跳登录。字段与后端 api/routers/*.py 对齐。
+import { beginTrackedActivity } from "./activityBus";
+
 export const API_BASE =
   process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8001/api/v1";
 
@@ -89,17 +91,25 @@ async function request<T>(path: string, init: RequestInit = {}, raw = false): Pr
   }
 }
 
+function trackedMutation<T>(label: string, run: () => Promise<T>): Promise<T> {
+  const finish = beginTrackedActivity({ label, scope: "form" });
+  return run().finally(finish);
+}
+
 /** GET：可选传 AbortSignal，快速切换筛选/项目时取消过期请求（BLF-1095） */
 export const apiGet = <T>(path: string, signal?: AbortSignal) => request<T>(path, { signal });
 export const apiPost = <T>(path: string, body?: unknown) =>
-  request<T>(path, { method: "POST", body: body === undefined ? undefined : JSON.stringify(body) });
+  trackedMutation("提交中", () =>
+    request<T>(path, { method: "POST", body: body === undefined ? undefined : JSON.stringify(body) }),
+  );
 export const apiPut = <T>(path: string, body: unknown) =>
-  request<T>(path, { method: "PUT", body: JSON.stringify(body) });
+  trackedMutation("保存中", () => request<T>(path, { method: "PUT", body: JSON.stringify(body) }));
 export const apiPatch = <T>(path: string, body: unknown) =>
-  request<T>(path, { method: "PATCH", body: JSON.stringify(body) });
-export const apiDelete = <T>(path: string) => request<T>(path, { method: "DELETE" });
+  trackedMutation("保存中", () => request<T>(path, { method: "PATCH", body: JSON.stringify(body) }));
+export const apiDelete = <T>(path: string) =>
+  trackedMutation("删除中", () => request<T>(path, { method: "DELETE" }));
 export const apiUpload = <T>(path: string, form: FormData) =>
-  request<T>(path, { method: "POST", body: form });
+  trackedMutation("上传中", () => request<T>(path, { method: "POST", body: form }));
 
 /** 拼查询串：null/undefined/空串自动跳过（筛选项与分页参数共用） */
 export function buildQuery(params: Record<string, string | number | null | undefined>): string {
@@ -137,16 +147,21 @@ let optionsSupported: boolean | null = null;
 
 /** 导出下载：附 token 拉 blob 后触发浏览器下载 */
 export async function downloadFile(path: string, filename: string) {
-  const res = await request<Response>(path, {}, true);
-  const blob = await res.blob();
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  URL.revokeObjectURL(url);
+  const finish = beginTrackedActivity({ label: "下载中", scope: "form" });
+  try {
+    const res = await request<Response>(path, {}, true);
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  } finally {
+    finish();
+  }
 }
 
 /** 需要鉴权的文件转浏览器对象 URL（用于图片预览，调用方负责 revokeObjectURL）。 */

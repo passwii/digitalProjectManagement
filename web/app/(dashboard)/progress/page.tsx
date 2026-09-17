@@ -19,6 +19,8 @@ import { LoadingBlock, LoadFailed } from "@/components/ui/PageState";
 import { Confirm } from "@/components/ui/Modal";
 import { useToast } from "@/components/ui/Toast";
 import PageHeading from "@/components/ui/PageHeading";
+import MotionReveal from "@/components/motion/MotionReveal";
+import { useActivity } from "@/lib/useActivity";
 import ProgressNodeDialog from "./ProgressNodeDialog";
 
 const URL_DEFAULTS = {
@@ -44,6 +46,7 @@ function ProgressInner() {
   const target = parseTarget(url.task);
   const { userName } = useMeta();
   const toast = useToast();
+  const { beginActivity } = useActivity();
   const { hasProjects, probing, probeError, reloadProbe } = useProjectsProbe();
   const [nodeOpen, setNodeOpen] = useState(false);
   const [editing, setEditing] = useState<Task | null>(null);
@@ -62,6 +65,7 @@ function ProgressInner() {
 
   async function remove() {
     if (!removeTarget) return;
+    const finish = beginActivity({ label: "删除进度记录", scope: "form" });
     setBusy(true);
     try {
       await tasksApi.remove(removeTarget.id);
@@ -72,6 +76,7 @@ function ProgressInner() {
       toast.err(errText(e));
     } finally {
       setBusy(false);
+      finish();
     }
   }
 
@@ -95,6 +100,7 @@ function ProgressInner() {
         }
       />
 
+      <MotionReveal delay={0.04}>
       <div className="toolbar-card">
         <label className="toolbar-field">
           <span>项目</span>
@@ -107,19 +113,20 @@ function ProgressInner() {
           />
         </label>
       </div>
+      </MotionReveal>
 
       {error && <LoadFailed message={error} onRetry={reload} />}
 
       {!hasProjects ? (
-        <div className="card"><Empty title="暂无可参与的项目" hint="项目创建或加入后，可在这里记录关键进度。" /></div>
+        <MotionReveal><div className="card"><Empty title="暂无可参与的项目" hint="项目创建或加入后，可在这里记录关键进度。" /></div></MotionReveal>
       ) : !pid ? (
-        <div className="card"><Empty title="请先选择项目" hint="选择项目后查看和添加进度节点。" /></div>
+        <MotionReveal><div className="card"><Empty title="请先选择项目" hint="选择项目后查看和添加进度节点。" /></div></MotionReveal>
       ) : firstLoad ? (
         <LoadingBlock kpis={0} label="加载进度记录…" />
       ) : tasks.length === 0 ? (
         <div className="card"><Empty title="暂无进度" hint="点击右上角「添加进度」，记录节点时间和关键内容。" /></div>
       ) : (
-        <>
+        <MotionReveal delay={0.08}>
           <div className="table-scroll">
             <table className="grid" aria-busy={loading}>
               <thead>
@@ -166,7 +173,7 @@ function ProgressInner() {
             ariaLabel="进度记录分页"
             onChange={(next) => setUrl({ page: String(next.page), size: String(next.size) })}
           />
-        </>
+        </MotionReveal>
       )}
 
       <ProgressNodeDialog

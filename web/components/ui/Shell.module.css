@@ -73,6 +73,7 @@
 }
 .navLink {
   position: relative;
+  z-index: 0;
   min-height: 42px;
   padding: 0 12px;
   display: flex;
@@ -84,6 +85,19 @@
   font-weight: 500;
   transition: color 140ms ease, background 140ms ease, transform 90ms ease;
 }
+.navLink > svg,
+.navLink > .label {
+  position: relative;
+  z-index: 1;
+}
+.navActive {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  border-radius: 6px;
+  background: rgba(22, 119, 255, .20);
+  box-shadow: inset 3px 0 0 #68AEFF;
+}
 .navLink svg { flex: none; opacity: .82; }
 .navLink:hover {
   color: #fff;
@@ -92,8 +106,8 @@
 }
 .navLink.active {
   color: #fff;
-  background: rgba(22, 119, 255, .20);
-  box-shadow: inset 3px 0 0 #68AEFF;
+  background: transparent;
+  box-shadow: none;
 }
 .navLink.active svg { color: #8CBCFF; opacity: 1; }
 .navLink:active { transform: translateY(1px) scale(.995); }
@@ -232,12 +246,6 @@
 }
 .routeView {
   min-width: 0;
-  animation: route-enter 260ms cubic-bezier(.2, .72, .2, 1) both;
-  transform-origin: 50% 0;
-}
-@keyframes route-enter {
-  from { opacity: 0; transform: translateY(6px); }
-  to { opacity: 1; transform: translateY(0); }
 }
 .pageTitleRow {
   display: flex;
@@ -278,7 +286,7 @@
     padding: 0 12px;
   }
   .collapsed .navLink .label { display: inline; }
-  .navLink.active { box-shadow: inset 0 -2px 0 #68AEFF; }
+  .navActive { box-shadow: inset 0 -2px 0 #68AEFF; }
   .navGroupLabel,
   .sideFoot,
   .navError { display: none; }
@@ -307,8 +315,4 @@
 @media (max-width: 520px) {
   .brandText b { font-size: 15px; }
   .crumb { max-width: 210px; }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .routeView { animation: none; }
 }
