@@ -80,6 +80,7 @@
 - Create: `web/components/motion/ActivityBar.module.css`
 - Create: `web/components/motion/MotionProvider.tsx`
 - Modify: `web/app/(dashboard)/layout.tsx`
+- Modify: `web/app/globals.css`
 
 **Interfaces:**
 - Produces: `MIN_ACTIVITY_MS = 450`
@@ -394,7 +395,24 @@ Create `web/components/motion/ActivityBar.module.css`:
 }
 ```
 
-- [ ] **Step 8: 实现 MotionProvider 与点击监听**
+- [ ] **Step 8: 增加 Motion token**
+
+Modify `web/app/globals.css`:
+
+```css
+:root {
+  --motion-fast: 160ms;
+  --motion-base: 220ms;
+  --motion-exit: 140ms;
+  --motion-number: 420ms;
+  --motion-chart: 500ms;
+  --ease-console: cubic-bezier(.2, .72, .2, 1);
+}
+```
+
+Do not remove the old `.routeView` animation in this task; Task 3 owns that change.
+
+- [ ] **Step 9: 实现 MotionProvider 与点击监听**
 
 Create `web/components/motion/MotionProvider.tsx`:
 
@@ -462,7 +480,7 @@ export default function MotionProvider({ children }: { children: React.ReactNode
 }
 ```
 
-- [ ] **Step 9: 挂载 Provider**
+- [ ] **Step 10: 挂载 Provider**
 
 Modify `web/app/(dashboard)/layout.tsx`:
 
@@ -479,7 +497,7 @@ import MotionProvider from "@/components/motion/MotionProvider";
 
 Expected: root dashboard still renders, no hydration warning.
 
-- [ ] **Step 10: 验证并提交**
+- [ ] **Step 11: 验证并提交**
 
 Run:
 
@@ -495,7 +513,7 @@ Expected: 3 tests PASS and Next.js build succeeds.
 git add web/package.json web/package-lock.json web/vitest.config.ts \
   web/lib/activityCore.ts web/lib/activityCore.test.ts web/lib/useActivity.tsx \
   web/components/motion/ActivityBar.tsx web/components/motion/ActivityBar.module.css \
-  web/components/motion/MotionProvider.tsx web/app/\(dashboard\)/layout.tsx
+  web/components/motion/MotionProvider.tsx web/app/\(dashboard\)/layout.tsx web/app/globals.css
 git commit -m "feat(motion): 添加全局加载活动基础层"
 ```
 
@@ -509,7 +527,6 @@ git commit -m "feat(motion): 添加全局加载活动基础层"
 - Create: `web/components/motion/CountUp.tsx`
 - Create: `web/components/motion/MotionTabs.tsx`
 - Modify: `web/components/ui/PageHeading.tsx`
-- Modify: `web/app/globals.css`
 
 **Interfaces:**
 - Consumes: Framer Motion `m`, `AnimatePresence`, `useReducedMotion`
@@ -518,24 +535,7 @@ git commit -m "feat(motion): 添加全局加载活动基础层"
 - Produces: `<CountUp value: number format?: (value: number) => string />`
 - Produces: `<MotionTabs items active onChange>{children}</MotionTabs>`
 
-- [ ] **Step 1: 增加 Motion token**
-
-Modify `web/app/globals.css`:
-
-```css
-:root {
-  --motion-fast: 160ms;
-  --motion-base: 220ms;
-  --motion-exit: 140ms;
-  --motion-number: 420ms;
-  --motion-chart: 500ms;
-  --ease-console: cubic-bezier(.2, .72, .2, 1);
-}
-```
-
-Remove the old `.routeView` animation only in Task 3; do not remove it here.
-
-- [ ] **Step 2: 实现 MotionReveal**
+- [ ] **Step 1: 实现 MotionReveal**
 
 Create `web/components/motion/MotionReveal.tsx`:
 
@@ -567,7 +567,7 @@ export default function MotionReveal({
 }
 ```
 
-- [ ] **Step 3: 实现 MotionStagger**
+- [ ] **Step 2: 实现 MotionStagger**
 
 Create `web/components/motion/MotionStagger.tsx`:
 
@@ -602,7 +602,7 @@ export default function MotionStagger({ children }: { children: React.ReactNode 
 }
 ```
 
-- [ ] **Step 4: 实现 CountUp**
+- [ ] **Step 3: 实现 CountUp**
 
 Create `web/components/motion/CountUp.tsx`:
 
@@ -642,7 +642,7 @@ export default function CountUp({
 }
 ```
 
-- [ ] **Step 5: 实现 MotionTabs**
+- [ ] **Step 4: 实现 MotionTabs**
 
 Create `web/components/motion/MotionTabs.tsx`:
 
@@ -707,7 +707,7 @@ export default function MotionTabs<T extends string>({
 }
 ```
 
-- [ ] **Step 6: 让 PageHeading 统一入场**
+- [ ] **Step 5: 让 PageHeading 统一入场**
 
 Modify `web/components/ui/PageHeading.tsx` to wrap the existing root in `MotionReveal`:
 
@@ -721,7 +721,7 @@ import MotionReveal from "@/components/motion/MotionReveal";
 
 Expected: all existing pages receive the same heading entrance without page-specific code.
 
-- [ ] **Step 7: 构建验证并提交**
+- [ ] **Step 6: 构建验证并提交**
 
 Run:
 
@@ -735,7 +735,7 @@ Expected: build succeeds.
 ```bash
 git add web/components/motion/MotionReveal.tsx web/components/motion/MotionStagger.tsx \
   web/components/motion/CountUp.tsx web/components/motion/MotionTabs.tsx \
-  web/components/ui/PageHeading.tsx web/app/globals.css
+  web/components/ui/PageHeading.tsx
 git commit -m "feat(motion): 添加页面与数据动效基础组件"
 ```
 
