@@ -53,6 +53,8 @@ export function useAsyncData<T>(
 
   useEffect(() => {
     if (!enabled) {
+      // 让禁用前启动的请求响应失效；cleanup/abort 仍负责结束它自己的 activity。
+      ++seqRef.current;
       setLoading(false);
       setError("");
       lastDepRef.current = depKey;

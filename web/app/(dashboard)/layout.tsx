@@ -255,7 +255,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
         </header>
         <main className={s.content} id="main-content" tabIndex={-1}>
           <div className={s.contentInner}>
-            <AnimatePresence mode="wait" initial={false}>
+            <AnimatePresence mode="popLayout" initial={false}>
               <m.div
                 key={pathname}
                 className={s.routeView}
