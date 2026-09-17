@@ -634,30 +634,39 @@ td.num, th.num { text-align: right; }
 }
 .form-grid { gap: 14px 18px; }
 
-.file-drop {
-  min-height: 82px;
-  padding: 14px;
+/* 上传区样式已随 FileDropZone 组件走（web/components/ui/FileDropZone.module.css）；
+   原先的 .file-drop / .btn-file 裸 input 写法已被组件取代，不再保留。 */
+
+/* 新建项目弹层里待上传文件清单（提交前可逐个移除） */
+.pending-file-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  justify-content: center;
   gap: 4px;
-  border: 1px dashed #b9ceca;
+  border: 1px solid var(--line);
   border-radius: var(--radius);
-  background: #f8fbfa;
-  text-align: center;
-  cursor: pointer;
+  overflow: hidden;
+  background: var(--card);
 }
-.file-drop:hover { border-color: var(--brand); background: var(--brand-soft); }
-.file-drop input,
-.btn-file input { display: none; }
-.file-drop-main { color: var(--brand); font-size: 13px; font-weight: 700; }
-.file-drop-sub { max-width: 100%; color: var(--ink-3); font-size: 11px; overflow-wrap: anywhere; }
-.btn-file {
-  display: inline-flex;
+.pending-file-list li {
+  min-height: 34px;
+  padding: 6px 10px;
+  display: flex;
   align-items: center;
-  justify-content: center;
-  cursor: pointer;
+  gap: 10px;
+  border-bottom: 1px solid var(--line-soft);
+  font-size: 12px;
+}
+.pending-file-list li:last-child { border-bottom: 0; }
+.pending-file-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--ink);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .attachment-list {
