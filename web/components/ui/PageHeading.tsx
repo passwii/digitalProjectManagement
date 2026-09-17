@@ -1,4 +1,5 @@
 import st from "./PageHeading.module.css";
+import MotionReveal from "@/components/motion/MotionReveal";
 
 export default function PageHeading({
   title,
@@ -10,12 +11,12 @@ export default function PageHeading({
   actions?: React.ReactNode;
 }) {
   return (
-    <div className={st.head}>
+    <MotionReveal className={st.head}>
       <div className={st.copy}>
         <h1 className={st.title}>{title}</h1>
         {description && <p className={st.description}>{description}</p>}
       </div>
       {actions && <div className={`${st.actions} no-print`}>{actions}</div>}
-    </div>
+    </MotionReveal>
   );
 }
