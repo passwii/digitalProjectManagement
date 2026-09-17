@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { authApi, clearSession, errText } from "@/lib/api";
+import MobileAuthShell from "@/components/auth/MobileAuthShell";
+import PasswordInput from "@/components/auth/PasswordInput";
 import st from "../login/login.module.css";
 
 export default function ChangePasswordPage() {
@@ -32,42 +34,52 @@ export default function ChangePasswordPage() {
   }
 
   return (
-    <main className={`${st.wrap} ${st.solo}`}>
-      <section className={st.auth}>
-        <div className={st.card}>
-          <div className={st.cardHead}>
-            <span className={st.cardBadge}>SHZK</span>
-            <div>
-              <p className={st.cardEyebrow}>数慧致科OA管理平台</p>
-              <h2>首次登录 · 修改密码</h2>
-            </div>
-          </div>
-          <p className={st.sub}>为保障账号安全，请设置新密码后继续。</p>
-          <form onSubmit={onSubmit}>
-            <div className={st.field}>
-              <label htmlFor="old-password">原密码</label>
-              <input id="old-password" type="password" value={oldPwd} onChange={(e) => setOldPwd(e.target.value)} placeholder="请输入原密码" autoComplete="current-password" />
-            </div>
-            <div className={st.field}>
-              <label htmlFor="new-password">新密码</label>
-              <input id="new-password" type="password" value={newPwd} onChange={(e) => setNewPwd(e.target.value)} placeholder="至少 8 位，含字母与数字" autoComplete="new-password" />
-            </div>
-            <div className={st.field}>
-              <label htmlFor="confirm-password">确认新密码</label>
-              <input id="confirm-password" type="password" value={confirm} onChange={(e) => setConfirm(e.target.value)} placeholder="再次输入新密码" autoComplete="new-password" />
-            </div>
-            {err && <div className={`${st.alert} ${st.alertErr}`} role="alert">{err}</div>}
-            <button className={st.submit} type="submit" disabled={loading}>
-              {loading ? "提交中…" : "确认修改"}
-            </button>
-          </form>
-          <div className={st.hint}>
-            <button type="button" className="linklike" onClick={clearSession}>
-              退出登录
-            </button>
-          </div>
+    <MobileAuthShell
+      title="设置新密码"
+      subtitle="为保障账号安全，请完成首次改密"
+      footer={
+        <button
+          type="button"
+          className="linklike"
+          onClick={() => {
+            clearSession();
+            router.push("/login");
+          }}
+        >
+          退出登录
+        </button>
+      }
+    >
+      <form onSubmit={onSubmit} noValidate>
+        <PasswordInput
+          label="原密码"
+          value={oldPwd}
+          onChange={setOldPwd}
+          autoComplete="current-password"
+          disabled={loading}
+        />
+        <PasswordInput
+          label="新密码"
+          value={newPwd}
+          onChange={setNewPwd}
+          autoComplete="new-password"
+          hint="至少 8 位，同时包含字母与数字"
+          disabled={loading}
+        />
+        <PasswordInput
+          label="确认新密码"
+          value={confirm}
+          onChange={setConfirm}
+          autoComplete="new-password"
+          disabled={loading}
+        />
+        {err ? <div className={st.alert} role="alert">{err}</div> : null}
+        <div className={st.submit}>
+          <button className="btn-primary" type="submit" disabled={loading}>
+            {loading ? "提交中…" : "确认修改"}
+          </button>
         </div>
-      </section>
-    </main>
+      </form>
+    </MobileAuthShell>
   );
 }
