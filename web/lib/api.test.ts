@@ -51,7 +51,7 @@ function installBrowser(pathname = "/login") {
   };
 }
 
-test("bad credentials do not clear session or navigate", async (t) => {
+test("bad credentials display the backend detail without clearing session or navigating", async (t) => {
   const browser = installBrowser("/login");
   const calls = [];
   globalThis.fetch = async (url, init) => {
@@ -63,11 +63,19 @@ test("bad credentials do not clear session or navigate", async (t) => {
   };
   t.after(browser.restore);
 
-  const { UnauthorizedError, authApi } = await import("./api");
-  await assert.rejects(() => authApi.login("admin", "wrong"), UnauthorizedError);
+  const { authApi, errText } = await import("./api");
+  let error: unknown;
+  try {
+    await authApi.login("admin", "wrong");
+  } catch (e) {
+    error = e;
+  }
   await new Promise((resolve) => setImmediate(resolve));
 
+  assert.equal(errText(error), "用户名或密码错误");
   assert.equal(calls.length, 1);
+  assert.deepEqual(browser.removed, []);
+  assert.deepEqual(browser.cookieWrites, []);
   assert.deepEqual(browser.assigned, []);
 });
 
