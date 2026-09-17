@@ -4,6 +4,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
 
 from .config import settings
+from .cookies import bearer_token_from_request
 from .database import get_db
 from .security import decode_token
 
@@ -21,9 +22,7 @@ def get_current_user(
 ):
     from ..models import TokenBlacklist, User
 
-    token = cred.credentials if cred and cred.credentials else request.cookies.get(
-        settings.access_cookie_name
-    )
+    token = bearer_token_from_request(request) or request.cookies.get(settings.access_cookie_name)
     if not token:
         raise _unauth("未登录")
 
