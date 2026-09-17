@@ -147,8 +147,8 @@ async function request<T>(
     clearSession();
     throw new UnauthorizedError("未登录或会话已过期");
   }
-  if (res.status === 401) {
-    if (path !== "/auth/login" && path !== "/auth/logout") clearSession();
+  if (res.status === 401 && path !== "/auth/login") {
+    if (path !== "/auth/logout") clearSession();
     throw new UnauthorizedError("未登录或会话已过期");
   }
   if (!res.ok) {
