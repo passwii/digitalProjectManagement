@@ -41,7 +41,7 @@ npm run build && npx next start --port 3001
 
 ```bash
 export APP_ENV=production
-export APP_SECRET='至少32字符的随机密钥'
+export APP_SECRET="$(openssl rand -hex 32)"
 export COOKIE_SECURE=1
 ```
 
@@ -50,8 +50,11 @@ export COOKIE_SECURE=1
 - `pm_access_token`：HttpOnly access Cookie。
 - `pm_refresh_token`：HttpOnly refresh Cookie，Path 限制为 `/api/v1/auth`。
 - `pm_csrf_token`：JavaScript 可读 CSRF Cookie。
+- `pm_session`：HttpOnly 会话提示 Cookie，供 Next.js middleware 在 access Cookie 过期后放行受保护页面并触发刷新。
 
 前端写请求自动发送 `X-CSRF-Token`，token 不再写入 localStorage。
+
+生产环境 Web 与 API 应部署在同一 site/host（推荐同源反向代理）。CSRF Cookie 需要前端 JavaScript 读取，会话提示也需要被 Next.js middleware 看到；跨主机或仅跨子域部署时必须另行设计 Cookie Domain 与同站策略。
 
 ## 演示数据开关（全站生效）
 

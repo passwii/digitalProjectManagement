@@ -40,6 +40,14 @@ def set_auth_cookies(response: Response, access_token: str, refresh_token: str) 
         httponly=False,
         **common,
     )
+    response.set_cookie(
+        settings.session_cookie_name,
+        "1",
+        max_age=settings.refresh_days * 24 * 60 * 60,
+        path="/",
+        httponly=True,
+        **common,
+    )
     return csrf_token
 
 
@@ -58,6 +66,12 @@ def clear_auth_cookies(response: Response) -> None:
     )
     response.delete_cookie(
         settings.csrf_cookie_name,
+        path="/",
+        secure=settings.cookie_secure,
+        samesite=settings.cookie_samesite,
+    )
+    response.delete_cookie(
+        settings.session_cookie_name,
         path="/",
         secure=settings.cookie_secure,
         samesite=settings.cookie_samesite,

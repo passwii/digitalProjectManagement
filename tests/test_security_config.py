@@ -1,6 +1,6 @@
 import pytest
 
-from api.core.config import load_settings
+from api.core.config import DEV_SECRET, load_settings
 
 
 def test_development_uses_local_defaults(monkeypatch):
@@ -34,6 +34,14 @@ def test_production_rejects_short_secret(monkeypatch):
         load_settings()
 
 
+def test_production_rejects_dev_secret_with_dedicated_error(monkeypatch):
+    monkeypatch.setenv("APP_ENV", "production")
+    monkeypatch.setenv("APP_SECRET", DEV_SECRET)
+
+    with pytest.raises(RuntimeError, match="开发 APP_SECRET"):
+        load_settings()
+
+
 def test_production_enables_secure_cookie(monkeypatch):
     monkeypatch.setenv("APP_ENV", "production")
     monkeypatch.setenv("APP_SECRET", "x" * 32)
@@ -52,3 +60,27 @@ def test_cookie_secure_can_be_overridden_for_staging_http(monkeypatch):
     settings = load_settings()
 
     assert settings.cookie_secure is False
+
+
+@pytest.mark.parametrize("raw", ["true", "TRUE", "1", "yes", "on"])
+def test_cookie_secure_accepts_explicit_true_values(monkeypatch, raw):
+    monkeypatch.setenv("APP_ENV", "development")
+    monkeypatch.setenv("COOKIE_SECURE", raw)
+
+    assert load_settings().cookie_secure is True
+
+
+@pytest.mark.parametrize("raw", ["false", "FALSE", "0", "no", "off"])
+def test_cookie_secure_accepts_explicit_false_values(monkeypatch, raw):
+    monkeypatch.setenv("APP_ENV", "development")
+    monkeypatch.setenv("COOKIE_SECURE", raw)
+
+    assert load_settings().cookie_secure is False
+
+
+def test_cookie_secure_rejects_unknown_non_empty_value(monkeypatch):
+    monkeypatch.setenv("APP_ENV", "development")
+    monkeypatch.setenv("COOKIE_SECURE", "sometimes")
+
+    with pytest.raises(RuntimeError, match="COOKIE_SECURE"):
+        load_settings()
