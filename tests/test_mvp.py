@@ -1268,7 +1268,16 @@ def test_logout_without_valid_session_clears_auth_cookies(client, state):
 
     for name, value in request_cookies.items():
         client.cookies.set(name, value)
-    response = client.post("/api/v1/auth/logout")
+
+    logout_headers = {}
+    if settings.access_cookie_name in request_cookies:
+        denied = client.post("/api/v1/auth/logout")
+        assert denied.status_code == 403, denied.text
+        csrf = "recovery-csrf"
+        client.cookies.set(settings.csrf_cookie_name, csrf)
+        logout_headers["X-CSRF-Token"] = csrf
+
+    response = client.post("/api/v1/auth/logout", headers=logout_headers)
     assert response.status_code == 200, response.text
 
     set_cookie = response.headers.get_list("set-cookie")

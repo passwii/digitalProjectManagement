@@ -55,22 +55,26 @@ const LOGIN_PATH = "/login";
 export async function clearSession(): Promise<void> {
   if (typeof window === "undefined") return;
   clearLegacySessionArtifacts();
+  if (window.location.pathname === LOGIN_PATH) return;
 
   const controller = new AbortController();
   const timeout = window.setTimeout(() => controller.abort(), LOGOUT_TIMEOUT_MS);
+  let logoutCompleted = false;
   try {
-    await fetch(`${API_BASE}/auth/logout`, {
+    const response = await fetch(`${API_BASE}/auth/logout`, {
       method: "POST",
       credentials: "include",
       headers: csrfHeaders("POST"),
       keepalive: true,
       signal: controller.signal,
     });
+    logoutCompleted = response.ok;
   } catch {
     // 登出是尽力而为：网络失败也必须离开受保护页面。
   } finally {
     window.clearTimeout(timeout);
-    window.location.assign(new URL(LOGIN_PATH, window.location.origin).toString());
+    const target = logoutCompleted ? LOGIN_PATH : `${LOGIN_PATH}?logged_out=1`;
+    window.location.assign(new URL(target, window.location.origin).toString());
   }
 }
 
@@ -144,7 +148,7 @@ async function request<T>(
     throw new UnauthorizedError("未登录或会话已过期");
   }
   if (res.status === 401) {
-    if (path !== "/auth/logout") clearSession();
+    if (path !== "/auth/login" && path !== "/auth/logout") clearSession();
     throw new UnauthorizedError("未登录或会话已过期");
   }
   if (!res.ok) {
