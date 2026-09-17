@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { authApi, errText, saveSession } from "@/lib/api";
+import MobileAuthShell from "@/components/auth/MobileAuthShell";
+import PasswordInput from "@/components/auth/PasswordInput";
 import st from "./login.module.css";
 
 export default function LoginPage() {
@@ -36,41 +38,49 @@ export default function LoginPage() {
   }
 
   return (
-    <main className={st.wrap}>
-      <div className={st.card}>
-        <div className={st.brand}>
-          <span className={st.dot} />
-          <span className={st.name}>项目管理工作区</span>
+    <MobileAuthShell
+      title="登录工作区"
+      subtitle="使用项目管理系统账号继续"
+      footer={
+        <>
+          首次登录需要修改密码
+          {process.env.NODE_ENV !== "production" ? (
+            <>
+              {" · 初始账号 "}
+              <span className="mono">admin / admin123456</span>
+            </>
+          ) : null}
+        </>
+      }
+    >
+      <form onSubmit={onSubmit} noValidate>
+        <div className={st.field}>
+          <label htmlFor="username">账号</label>
+          <input
+            id="username"
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+            placeholder="请输入账号"
+            autoComplete="username"
+            enterKeyHint="next"
+            disabled={loading}
+          />
         </div>
-        <p className={st.sub}>效率控制台 · 请登录后继续</p>
-        <form onSubmit={onSubmit}>
-          <div className={st.field}>
-            <label>账号<input
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              placeholder="请输入账号"
-              autoComplete="username"
-            /></label>
-          </div>
-          <div className={st.field}>
-            <label>密码<input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="请输入密码"
-              autoComplete="current-password"
-            /></label>
-          </div>
-          {fieldErr && <div className={`${st.alert} ${st.alertErr}`} role="alert">{fieldErr}</div>}
-          {apiErr && <div className={`${st.alert} ${st.alertErr}`} role="alert">{apiErr}</div>}
-          <div className={st.submit}>
-            <button className="btn-primary" type="submit" disabled={loading}>
-              {loading ? "登录中…" : "登 录"}
-            </button>
-          </div>
-        </form>
-        <div className={st.hint}>回车直接登录 · 初始账号 <span className="mono">admin / admin123456</span>（首次登录需改密）</div>
-      </div>
-    </main>
+        <PasswordInput
+          label="密码"
+          value={password}
+          onChange={setPassword}
+          autoComplete="current-password"
+          disabled={loading}
+        />
+        {fieldErr ? <div className={st.alert} role="alert">{fieldErr}</div> : null}
+        {apiErr ? <div className={st.alert} role="alert">{apiErr}</div> : null}
+        <div className={st.submit}>
+          <button className="btn-primary" type="submit" disabled={loading}>
+            {loading ? "登录中…" : "登 录"}
+          </button>
+        </div>
+      </form>
+    </MobileAuthShell>
   );
 }
