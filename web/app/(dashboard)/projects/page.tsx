@@ -19,6 +19,7 @@ import TableToolbar from "@/components/ui/TableToolbar";
 import { Confirm, Drawer } from "@/components/ui/Modal";
 import { useToast } from "@/components/ui/Toast";
 import PageHeading from "@/components/ui/PageHeading";
+import MotionReveal from "@/components/motion/MotionReveal";
 import ProjectFormDialog from "./ProjectFormDialog";
 
 const SIZE_OPTIONS = [15, 50, 100];
@@ -128,16 +129,19 @@ function ProjectsInner() {
       />
 
       {demoOn && (
+        <MotionReveal>
         <div
           className="warn-banner"
           style={{ background: "var(--brand-soft)", borderColor: "var(--line-blue)", color: "var(--brand)" }}
         >
           当前正在显示<b>演示数据</b>（工作台与报表统计同样包含），关闭开关即可全站隐藏。
         </div>
+        </MotionReveal>
       )}
 
       {error && <LoadFailed message={error} onRetry={reload} />}
 
+      <MotionReveal delay={0.04}>
       <TableToolbar>
         <input
           value={qDraft}
@@ -172,6 +176,7 @@ function ProjectsInner() {
           </button>
         )}
       </TableToolbar>
+      </MotionReveal>
 
       {firstLoad ? (
         <LoadingBlock kpis={0} label="加载项目台账…" />
@@ -187,7 +192,7 @@ function ProjectsInner() {
           />
         </div>
       ) : (
-        <>
+        <MotionReveal delay={0.08}>
           <div className="table-scroll">
             <table className="grid project-table" aria-busy={loading}>
               <colgroup>
@@ -277,7 +282,7 @@ function ProjectsInner() {
               )
             }
           />
-        </>
+        </MotionReveal>
       )}
 
       {/* 新建 / 编辑弹窗 */}

@@ -14,6 +14,8 @@ import Empty from "@/components/ui/Empty";
 import { LoadingBlock } from "@/components/ui/PageState";
 import { Dialog } from "@/components/ui/Modal";
 import { useToast } from "@/components/ui/Toast";
+import MotionTabs from "@/components/motion/MotionTabs";
+import { useActivity } from "@/lib/useActivity";
 import ProjectFormDialog from "../ProjectFormDialog";
 import ProgressNodeDialog from "../../progress/ProgressNodeDialog";
 import ExpenseDialog from "../../costs/ExpenseDialog";
@@ -40,6 +42,7 @@ function ProjectDetail({ pid }: { pid: number }) {
   const search = useSearchParams();
   const { userName } = useMeta();
   const toast = useToast();
+  const { beginActivity } = useActivity();
   const [tab, setTab] = useState<Tab>(() => parseTab(search.get("tab")));
   const [project, setProject] = useState<Project | null>(null);
   const [content, setContent] = useState("");
@@ -69,6 +72,7 @@ function ProjectDetail({ pid }: { pid: number }) {
   }, [pid]);
 
   const loadAll = useCallback(async () => {
+    const finish = beginActivity({ label: "加载项目档案", scope: "content" });
     setLoading(true);
     setErr("");
     try {
@@ -106,8 +110,9 @@ function ProjectDetail({ pid }: { pid: number }) {
       setErr(errText(e));
     } finally {
       setLoading(false);
+      finish();
     }
-  }, [objectUrlFor, pid]);
+  }, [beginActivity, objectUrlFor, pid]);
 
   useEffect(() => { loadAll(); }, [loadAll]);
   useEffect(() => () => previewUrlsRef.current.forEach(URL.revokeObjectURL), []);
@@ -120,6 +125,7 @@ function ProjectDetail({ pid }: { pid: number }) {
     if (!project || !hydratedRef.current) return;
     if (content === (project.description || "")) return;
     const timer = window.setTimeout(async () => {
+      const finish = beginActivity({ label: "保存项目白板", scope: "form" });
       setSaveState("saving");
       try {
         const saved = await projectsApi.update(pid, { description: content });
@@ -127,10 +133,12 @@ function ProjectDetail({ pid }: { pid: number }) {
         setSaveState("saved");
       } catch {
         setSaveState("error");
+      } finally {
+        finish();
       }
     }, 900);
     return () => window.clearTimeout(timer);
-  }, [content, pid, project]);
+  }, [beginActivity, content, pid, project]);
 
   function selectTab(next: Tab) {
     setTab(next);
@@ -140,6 +148,7 @@ function ProjectDetail({ pid }: { pid: number }) {
   }
 
   async function uploadAsset(file: File) {
+    const finish = beginActivity({ label: "上传项目素材", scope: "form" });
     setBusy(true);
     try {
       await projectsApi.upload(pid, file);
@@ -149,11 +158,13 @@ function ProjectDetail({ pid }: { pid: number }) {
       toast.err(errText(e));
     } finally {
       setBusy(false);
+      finish();
     }
   }
 
   async function uploadContract(files: FileList | null) {
     if (!files?.length) return;
+    const finish = beginActivity({ label: "上传合同附件", scope: "form" });
     setBusy(true);
     try {
       for (const file of Array.from(files)) {
@@ -165,18 +176,23 @@ function ProjectDetail({ pid }: { pid: number }) {
       toast.err(errText(e));
     } finally {
       setBusy(false);
+      finish();
     }
   }
 
   async function download(a: Attachment) {
+    const finish = beginActivity({ label: "下载附件", scope: "form" });
     try {
       await projectsApi.downloadAttachment(pid, a.id, a.filename);
     } catch (e) {
       toast.err(errText(e));
+    } finally {
+      finish();
     }
   }
 
   async function removeAsset(a: Attachment) {
+    const finish = beginActivity({ label: "移除项目素材", scope: "form" });
     setBusy(true);
     try {
       await projectsApi.deleteAttachment(pid, a.id);
@@ -186,6 +202,7 @@ function ProjectDetail({ pid }: { pid: number }) {
       toast.err(errText(e));
     } finally {
       setBusy(false);
+      finish();
     }
   }
 
@@ -223,11 +240,11 @@ function ProjectDetail({ pid }: { pid: number }) {
 
       {err && <div className="err-banner">{err}</div>}
 
-      <div className="tabs detail-tabs">
-        {TABS.map((t) => (
-          <button key={t} className={tab === t ? "active" : ""} onClick={() => selectTab(t)}>{t}</button>
-        ))}
-      </div>
+      <MotionTabs
+        items={TABS.map((item) => ({ id: item, label: item }))}
+        active={tab}
+        onChange={selectTab}
+      >
 
       {tab === "白板" && (
         <section className="whiteboard-shell">
@@ -417,6 +434,7 @@ function ProjectDetail({ pid }: { pid: number }) {
           )}
         </section>
       )}
+      </MotionTabs>
 
       <ProjectFormDialog
         open={editOpen}
