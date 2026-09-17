@@ -3,6 +3,8 @@ from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from pydantic import BaseModel
+from sqlalchemy.dialects.sqlite import insert
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from ..core.audit import write_audit
@@ -122,17 +124,23 @@ def refresh(request: Request, response: Response, body: RefreshIn | None = None,
         payload = decode_token(token, kind="refresh")
     except ValueError:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "refresh 已过期")
-    if db.query(TokenBlacklist).filter_by(jti=payload.get("jti")).first():
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "会话已失效")
     user = db.query(User).filter_by(id=int(payload["sub"])).first()
     if not user or user.status != "active":
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "账号不可用")
 
-    db.add(TokenBlacklist(
+    claim = insert(TokenBlacklist).values(
         jti=payload["jti"],
         user_id=user.id,
         expires_at=datetime.fromtimestamp(payload["exp"], tz=timezone.utc),
-    ))
+    ).on_conflict_do_nothing(index_elements=[TokenBlacklist.jti])
+    try:
+        if db.execute(claim).rowcount != 1:
+            db.rollback()
+            raise HTTPException(status.HTTP_401_UNAUTHORIZED, "会话已失效")
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "会话已失效")
+
     access = create_access_token(str(user.id))
     rotated = create_refresh_token(str(user.id))
     db.commit()

@@ -1,5 +1,6 @@
 """MVP 验收 pytest（Stage1-4）：≥10 用例，未登录 401 必测。隔离库：tmp sqlite + dependency_overrides。"""
 import io
+from threading import Barrier, Thread
 from datetime import date, timedelta
 
 import pytest
@@ -1235,3 +1236,40 @@ def test_refresh_body_token_supports_legacy_client(client):
     assert refreshed.status_code == 200
     assert refreshed.json()["access_token"]
     assert refreshed.json()["refresh_token"]
+
+
+# 43. 并发 refresh 只允许同一个 refresh token 消费一次
+def test_concurrent_refresh_consumes_token_once(client):
+    login_response = client.post(
+        "/api/v1/auth/login",
+        json={"username": "admin", "password": "admin123456"},
+    )
+    assert login_response.status_code == 200
+    refresh = login_response.json()["refresh_token"]
+    first_client = TestClient(app, raise_server_exceptions=False)
+    second_client = TestClient(app, raise_server_exceptions=False)
+    barrier = Barrier(2)
+    responses = [None, None]
+
+    def refresh_once(refresh_client, index):
+        barrier.wait()
+        responses[index] = refresh_client.post(
+            "/api/v1/auth/refresh",
+            json={"refresh_token": refresh},
+        )
+
+    threads = [
+        Thread(target=refresh_once, args=(first_client, 0)),
+        Thread(target=refresh_once, args=(second_client, 1)),
+    ]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+
+    statuses = sorted(response.status_code for response in responses)
+    assert statuses == [200, 401]
+    successful = [response for response in responses if response.status_code == 200]
+    assert len(successful) == 1
+    assert successful[0].json()["access_token"]
+    assert successful[0].json()["refresh_token"]
