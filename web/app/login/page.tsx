@@ -101,11 +101,6 @@ export default function LoginPage() {
               {loading ? "正在验证…" : "进入管理平台"}
             </button>
           </form>
-          <div className={st.hint}>
-            <span>初始管理员</span>
-            <b className="mono">15796280534</b>
-            <span>首次登录须修改密码</span>
-          </div>
         </div>
         <p className={st.copyright}>数慧致科 · 项目管理系统</p>
       </section>
