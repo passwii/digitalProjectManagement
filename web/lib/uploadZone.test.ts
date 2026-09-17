@@ -7,12 +7,15 @@ import {
   CONTACT_ATTACHMENT_EXTENSIONS,
 } from "./uploadLimits";
 import {
+  applySingleFileLimit,
   filesFromPaste,
   filesFromTransfer,
   isEditableTarget,
   isFileDrag,
   partitionFiles,
+  partitionForZone,
   shouldHandlePaste,
+  singleFileLimitReason,
   uploadPercent,
 } from "./uploadZone";
 
@@ -205,6 +208,115 @@ describe("粘贴：不得劫持页面级 paste", () => {
     const target = { tagName: "DIV" };
     assert.equal(shouldHandlePaste(target, null), false);
     assert.equal(shouldHandlePaste(target, {}), false);
+  });
+});
+
+describe("单附件入口：多文件不得静默丢弃", () => {
+  it("只放行第 1 个，其余合成一条可读提示", () => {
+    const rows = [file("a.pdf"), file("b.png"), file("c.jpg")];
+    const { accepted, rejected } = applySingleFileLimit(rows);
+    assert.deepEqual(accepted.map((f) => f.name), ["a.pdf"]);
+    assert.equal(rejected.length, 1);
+    // 提示必须说清「有几个被忽略了」，只写「不支持」等于把问题藏起来
+    assert.match(rejected[0].reason, /仅支持 1 个/);
+    assert.match(rejected[0].reason, /2/);
+  });
+
+  it("0 个 / 1 个是常态路径：不产出任何提示", () => {
+    assert.deepEqual(applySingleFileLimit([]), { accepted: [], rejected: [] });
+    const one = applySingleFileLimit([file("a.pdf")]);
+    assert.deepEqual(one.accepted.map((f) => f.name), ["a.pdf"]);
+    assert.deepEqual(one.rejected, []);
+  });
+
+  it("6 个文件只提示被忽略的 5 个，不误报总数", () => {
+    const rows = Array.from({ length: 6 }, (_, i) => file(`f${i}.pdf`));
+    const { accepted, rejected } = applySingleFileLimit(rows);
+    assert.equal(accepted.length, 1);
+    assert.match(rejected[0].reason, /其余 5 个/);
+  });
+
+  it("多文件入口不受影响：applySingleFileLimit 只在单附件路径被调用", () => {
+    // 契约断言：多文件入口走的就是 partitionFiles，7 个合规文件全部放行
+    const rows = Array.from({ length: 7 }, (_, i) => file(`f${i}.png`));
+    assert.equal(partitionFiles(rows, IMAGE_ATTACHMENT_EXTENSIONS).accepted.length, 7);
+  });
+
+  it("先切分再裁剪：类型不合法的文件不会白占唯一名额", () => {
+    // 若调用顺序反过来，这里会变成「a.exe 占了名额 → a.pdf 报超量」，
+    // 正确行为是「a.exe 报类型 → a.pdf 正常上传」
+    const rows = [file("a.exe"), file("a.pdf")];
+    const partitioned = partitionFiles(rows, CONTRACT_ATTACHMENT_EXTENSIONS);
+    const { accepted, rejected } = applySingleFileLimit(partitioned.accepted);
+    assert.deepEqual(accepted.map((f) => f.name), ["a.pdf"]);
+    assert.deepEqual(rejected, []);
+    assert.equal(partitioned.rejected.length, 1);
+    assert.match(partitioned.rejected[0].reason, /不支持的文件类型/);
+  });
+
+  it("拒绝文案由文件数推导，不硬编码数字", () => {
+    assert.match(singleFileLimitReason(1), /其余 1 个/);
+    assert.match(singleFileLimitReason(4), /其余 4 个/);
+  });
+});
+
+describe("上传区准入：单附件入口收到多文件时必须给出可读反馈", () => {
+  // 回归的是线上缺陷 BLF-1124：人员档案附件入口 multiple={false}，
+  // 但拖拽/粘贴绕过原生 input 的 multiple，调用方只取 picked[0]，
+  // 导致「拖了 3 个只传 1 个、无任何提示」。
+
+  it("multiple=false 收到 3 个合规文件：只放行 1 个，其余带提示而非静默丢弃", () => {
+    const rows = [file("身份证.png"), file("学历.pdf"), file("合同.pdf")];
+    const { accepted, rejected } = partitionForZone(rows, CONTACT_ATTACHMENT_EXTENSIONS, false);
+    assert.deepEqual(accepted.map((f) => f.name), ["身份证.png"]);
+    // 关键断言：不能是静默丢弃，必须有一条可展示的拒绝提示
+    assert.equal(rejected.length, 1);
+    assert.match(rejected[0].reason, /仅支持 1 个/);
+    assert.match(rejected[0].reason, /其余 2 个/);
+  });
+
+  it("multiple=false 收到 1 个：正常放行，不该出现任何提示", () => {
+    const { accepted, rejected } = partitionForZone([file("a.pdf")], CONTACT_ATTACHMENT_EXTENSIONS, false);
+    assert.deepEqual(accepted.map((f) => f.name), ["a.pdf"]);
+    assert.deepEqual(rejected, []);
+  });
+
+  it("multiple=false 且首个文件不合法：不合法文件不得占掉唯一名额", () => {
+    // 先校验后裁剪：a.exe 因类型被拒，a.pdf 仍应拿到那一个名额
+    const { accepted, rejected } = partitionForZone(
+      [file("a.exe"), file("a.pdf")],
+      CONTRACT_ATTACHMENT_EXTENSIONS,
+      false,
+    );
+    assert.deepEqual(accepted.map((f) => f.name), ["a.pdf"]);
+    assert.equal(rejected.length, 1);
+    assert.match(rejected[0].reason, /不支持的文件类型/);
+  });
+
+  it("multiple=false 且首个不合法 + 还有多文件：类型与超量两条提示都要出现", () => {
+    const { accepted, rejected } = partitionForZone(
+      [file("a.exe"), file("a.pdf"), file("b.pdf")],
+      CONTRACT_ATTACHMENT_EXTENSIONS,
+      false,
+    );
+    assert.deepEqual(accepted.map((f) => f.name), ["a.pdf"]);
+    assert.equal(rejected.length, 2);
+    assert.match(rejected.map((r) => r.reason).join("|"), /不支持的文件类型/);
+    assert.match(rejected.map((r) => r.reason).join("|"), /仅支持 1 个/);
+  });
+
+  it("multiple=true（另外 3 个多文件入口）行为不变：全部合规文件逐个放行", () => {
+    const rows = [file("a.pdf"), file("b.pdf"), file("c.pdf"), file("d.pdf")];
+    const { accepted, rejected } = partitionForZone(rows, CONTRACT_ATTACHMENT_EXTENSIONS, true);
+    assert.deepEqual(accepted.map((f) => f.name), ["a.pdf", "b.pdf", "c.pdf", "d.pdf"]);
+    assert.deepEqual(rejected, []);
+  });
+
+  it("multiple=true 仍逐文件独立判定：好的放行、坏的带原因，各自不互相影响", () => {
+    const rows = [file("a.pdf"), file("b.exe"), file("c.png")];
+    const { accepted, rejected } = partitionForZone(rows, CONTRACT_ATTACHMENT_EXTENSIONS, true);
+    assert.deepEqual(accepted.map((f) => f.name), ["a.pdf", "c.png"]);
+    assert.deepEqual(rejected.map((r) => r.name), ["b.exe"]);
   });
 });
 

@@ -578,6 +578,9 @@ export default function ContactDrawer({
                       label={uploading ? "上传中…" : "上传附件"}
                       ariaLabel="上传证件与合同附件"
                       onFiles={(picked) => {
+                        // 该入口是单附件语义（`multiple={false}`）：组件对点击选择 /
+                        // 拖拽 / 粘贴三条路径都已裁剪为至多 1 个，多出的文件会在上传区
+                        // 以「仅支持 1 个」提示出来，不会走到这里，因此 `[0]` 不是静默丢弃。
                         const file = picked[0];
                         if (file) upload(file);
                       }}

@@ -178,6 +178,63 @@ export function partitionFiles(
 }
 
 /**
+ * 单附件入口收到多个文件时的拒绝原因。
+ *
+ * 刻意说清「只上传了 1 个、其余被忽略」，而不是笼统一句「不支持」——
+ * 用户拖了 3 个只成功 1 个时，必须能从提示里看出去哪儿了。
+ */
+export function singleFileLimitReason(dropped: number): string {
+  return `该入口一次仅支持 1 个附件，已忽略其余 ${dropped} 个（请逐个上传）`;
+}
+
+/**
+ * 把一批文件裁剪到「单附件入口」能接受的规模，多余的带可读原因返回。
+ *
+ * 存在的原因：`multiple={false}` 只作用于隐藏的 `<input multiple>`，
+ * 也即**只约束点击选择文件对话框**；拖拽与粘贴两条路径会绕过它，
+ * 把整批文件交给 `onFiles`，调用方若只取第一个就等于静默丢弃。
+ * 本函数让这三种入口共享同一条「至多 1 个」的语义，且不静默：
+ * 只有第 1 个被放行，其余合成一条可展示的拒绝提示。
+ *
+ * 注意调用顺序：**先**按白名单/体积切分、**再**做单文件裁剪。
+ * 反过来的话，一个类型不合法的文件会白占掉唯一的名额，
+ * 而提示还会把「因类型被拒」误报成「因超量被忽略」。
+ */
+export function applySingleFileLimit(files: readonly File[]): PartitionResult {
+  if (files.length <= 1) return { accepted: [...files], rejected: [] };
+  return {
+    accepted: files.slice(0, 1),
+    rejected: [
+      { name: `其余 ${files.length - 1} 个文件`, reason: singleFileLimitReason(files.length - 1) },
+    ],
+  };
+}
+
+/**
+ * 上传区（`FileDropZone`）的准入决策：白名单/体积校验 + 单附件裁剪。
+ *
+ * 这是拖拽 / 粘贴 / 点击选择三条路径的唯一决策入口，故意做成纯函数：
+ * 组件只负责事件绑定与渲染，「`multiple={false}` 的入口收到多个文件时会发生什么」
+ * 因此可以被 node 环境的单测直接断言，而不是只能靠人工点一遍。
+ *
+ * @param multiple 是否允许一次收多个（即组件的 `multiple` prop）。
+ */
+export function partitionForZone(
+  files: readonly File[],
+  extensions: readonly string[],
+  multiple: boolean,
+  maxSize: number = MAX_ATTACHMENT_SIZE,
+): PartitionResult {
+  const partitioned = partitionFiles(files, extensions, maxSize);
+  if (multiple) return partitioned;
+  const limited = applySingleFileLimit(partitioned.accepted);
+  return {
+    accepted: limited.accepted,
+    rejected: [...partitioned.rejected, ...limited.rejected],
+  };
+}
+
+/**
  * 上传进度百分比。
  *
  * `lengthComputable === false` 或 total <= 0 时返回 `null`，表示「进度不可知」——
