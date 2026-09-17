@@ -15,4 +15,20 @@
   font-size: 13px;
   line-height: 1.5;
 }
+.notice,
+.offline {
+  margin: 0 0 16px;
+  padding: 9px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--bg);
+  color: var(--ink-2);
+  font-size: 13px;
+  line-height: 1.5;
+}
+.offline {
+  border-color: var(--line-danger);
+  background: var(--danger-bg);
+  color: var(--danger);
+}
 .submit { margin-top: 20px; }

@@ -11,6 +11,7 @@ const CSRF_COOKIE = "pm_csrf_token";
 const CSRF_HEADER = "X-CSRF-Token";
 const LOGOUT_TIMEOUT_MS = 1500;
 const LEGACY_COOKIE_PATHS = ["/", "/api/v1/auth"];
+export type SessionEndReason = "logout" | "expired";
 
 export function getToken(): string | null {
   return null;
@@ -52,7 +53,7 @@ function csrfHeaders(method: string): Record<string, string> {
 /** 会话失效后的登录页跳转目标：站内固定路径，不接受任何外部输入 */
 const LOGIN_PATH = "/login";
 
-export async function clearSession(): Promise<void> {
+export async function clearSession(reason: SessionEndReason = "logout"): Promise<void> {
   if (typeof window === "undefined") return;
   clearLegacySessionArtifacts();
   if (window.location.pathname === LOGIN_PATH) return;
@@ -73,7 +74,13 @@ export async function clearSession(): Promise<void> {
     // 登出是尽力而为：网络失败也必须离开受保护页面。
   } finally {
     window.clearTimeout(timeout);
-    const target = logoutCompleted ? LOGIN_PATH : `${LOGIN_PATH}?logged_out=1`;
+    const url = new URL(LOGIN_PATH, window.location.origin);
+    url.searchParams.set(
+      "reason",
+      logoutCompleted || reason === "expired" ? reason : "logout_failed",
+    );
+    if (!logoutCompleted) url.searchParams.set("logged_out", "1");
+    const target = `${url.pathname}${url.search}`;
     window.location.assign(new URL(target, window.location.origin).toString());
   }
 }
@@ -144,11 +151,11 @@ async function request<T>(
   const authEndpoint = path === "/auth/login" || path === "/auth/refresh" || path === "/auth/logout";
   if (res.status === 401 && retry && !authEndpoint) {
     if (await refreshSession()) return request<T>(path, init, raw, false);
-    clearSession();
+    await clearSession("expired");
     throw new UnauthorizedError("未登录或会话已过期");
   }
   if (res.status === 401 && path !== "/auth/login") {
-    if (path !== "/auth/logout") clearSession();
+    if (path !== "/auth/logout") await clearSession("expired");
     throw new UnauthorizedError("未登录或会话已过期");
   }
   if (!res.ok) {

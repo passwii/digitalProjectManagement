@@ -51,6 +51,13 @@ function installBrowser(pathname = "/login") {
   };
 }
 
+function jsonResponse(body: unknown, status = 200) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { "Content-Type": "application/json" },
+  });
+}
+
 test("bad credentials display the backend detail without clearing session or navigating", async (t) => {
   const browser = installBrowser("/login");
   const calls = [];
@@ -77,6 +84,125 @@ test("bad credentials display the backend detail without clearing session or nav
   assert.deepEqual(browser.removed, []);
   assert.deepEqual(browser.cookieWrites, []);
   assert.deepEqual(browser.assigned, []);
+});
+
+test("concurrent protected 401s share one refresh and retry each request once", async (t) => {
+  const browser = installBrowser("/dashboard");
+  const calls = [];
+  const protectedCalls = new Map();
+  let releaseRefresh;
+  const refreshGate = new Promise((resolve) => {
+    releaseRefresh = resolve;
+  });
+
+  globalThis.fetch = async (url, init = {}) => {
+    const value = String(url);
+    calls.push({ url: value, init });
+    if (value.endsWith("/auth/refresh")) {
+      await refreshGate;
+      return jsonResponse({}, 200);
+    }
+    const count = (protectedCalls.get(value) ?? 0) + 1;
+    protectedCalls.set(value, count);
+    return count === 1
+      ? jsonResponse({ detail: "expired" }, 401)
+      : jsonResponse({ value: value.endsWith("/one") ? "one" : "two" });
+  };
+  t.after(browser.restore);
+
+  const { apiGet } = await import("./api");
+  const first = apiGet<{ value: string }>("/protected/one");
+  const second = apiGet<{ value: string }>("/protected/two");
+  await new Promise((resolve) => setImmediate(resolve));
+  await new Promise((resolve) => setImmediate(resolve));
+
+  assert.equal(calls.filter((call) => call.url.endsWith("/auth/refresh")).length, 1);
+  releaseRefresh();
+
+  assert.deepEqual(await Promise.all([first, second]), [{ value: "one" }, { value: "two" }]);
+  assert.equal(protectedCalls.get("http://localhost:8001/api/v1/protected/one"), 2);
+  assert.equal(protectedCalls.get("http://localhost:8001/api/v1/protected/two"), 2);
+  assert.equal(calls.filter((call) => call.url.endsWith("/auth/refresh")).length, 1);
+});
+
+test("protected request retries after refresh only once", async (t) => {
+  const browser = installBrowser("/dashboard");
+  const calls = [];
+  globalThis.fetch = async (url) => {
+    const value = String(url);
+    calls.push(value);
+    if (value.endsWith("/auth/refresh")) return jsonResponse({}, 200);
+    if (value.endsWith("/auth/logout")) return jsonResponse({ ok: true });
+    return jsonResponse({ detail: "expired" }, 401);
+  };
+  t.after(browser.restore);
+
+  const { apiGet, UnauthorizedError } = await import("./api");
+  await assert.rejects(
+    () => apiGet("/protected"),
+    (error: unknown) => error instanceof UnauthorizedError,
+  );
+
+  assert.equal(calls.filter((url) => url.endsWith("/protected")).length, 2);
+  assert.equal(calls.filter((url) => url.endsWith("/auth/refresh")).length, 1);
+  assert.equal(calls.filter((url) => url.endsWith("/auth/logout")).length, 1);
+  assert.equal(browser.assigned.length, 1);
+  assert.match(browser.assigned[0], /\/login\?reason=expired/);
+});
+
+test("refresh failure navigates to login with expired reason without retrying request", async (t) => {
+  const browser = installBrowser("/dashboard");
+  const calls = [];
+  globalThis.fetch = async (url) => {
+    const value = String(url);
+    calls.push(value);
+    if (value.endsWith("/auth/refresh")) return jsonResponse({ detail: "expired" }, 401);
+    if (value.endsWith("/auth/logout")) return jsonResponse({ ok: true });
+    return jsonResponse({ detail: "expired" }, 401);
+  };
+  t.after(browser.restore);
+
+  const { apiGet, UnauthorizedError } = await import("./api");
+  await assert.rejects(
+    () => apiGet("/protected"),
+    (error: unknown) => error instanceof UnauthorizedError,
+  );
+
+  assert.equal(calls.filter((url) => url.endsWith("/protected")).length, 1);
+  assert.equal(calls.filter((url) => url.endsWith("/auth/refresh")).length, 1);
+  assert.equal(calls.filter((url) => url.endsWith("/auth/logout")).length, 1);
+  assert.equal(browser.assigned.length, 1);
+  assert.match(browser.assigned[0], /\/login\?reason=expired/);
+});
+
+test("FormData replay keeps body and does not set multipart Content-Type", async (t) => {
+  const browser = installBrowser("/dashboard");
+  const uploadCalls = [];
+  let uploadCount = 0;
+  globalThis.fetch = async (url, init = {}) => {
+    const value = String(url);
+    if (value.endsWith("/auth/refresh")) return jsonResponse({}, 200);
+    if (value.endsWith("/upload")) {
+      uploadCount += 1;
+      uploadCalls.push(init);
+      return uploadCount === 1
+        ? jsonResponse({ detail: "expired" }, 401)
+        : jsonResponse({ ok: true });
+    }
+    return jsonResponse({}, 404);
+  };
+  t.after(browser.restore);
+
+  const { apiUpload } = await import("./api");
+  const form = new FormData();
+  form.set("file", new Blob(["hello"]), "hello.txt");
+
+  assert.deepEqual(await apiUpload("/upload", form), { ok: true });
+  assert.equal(uploadCalls.length, 2);
+  assert.equal(uploadCalls[0].body, form);
+  assert.equal(uploadCalls[1].body, form);
+  assert.equal(new Headers(uploadCalls[0].headers).get("Content-Type"), null);
+  assert.equal(new Headers(uploadCalls[1].headers).get("Content-Type"), null);
 });
 
 test("clearSession on login removes legacy artifacts without server logout", async (t) => {

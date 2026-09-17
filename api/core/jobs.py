@@ -7,7 +7,8 @@ from datetime import date, datetime, timedelta, timezone
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from ..models import Budget, Expense, Followup, Milestone, ProgressLog, Project, SysParam, Task
+from ..models import (Budget, Expense, Followup, Milestone, ProgressLog, Project, SysParam, Task,
+                      TokenBlacklist)
 from .costs import PASS
 
 
@@ -24,6 +25,18 @@ def due_followups(db: Session, now: datetime | None = None) -> list[dict]:
     return [{"followup_id": f.id, "project_id": f.project_id, "user_id": f.user_id,
              "remind_at": f.remind_at.isoformat() if f.remind_at else None,
              "content": (f.content or "")[:200]} for f in rows]
+
+
+def purge_expired_token_blacklist(db: Session, now: datetime | None = None) -> int:
+    """删除已过期 jti，避免黑名单表随登出和 refresh 轮换无限增长。"""
+    now = now or datetime.now(timezone.utc)
+    removed = (
+        db.query(TokenBlacklist)
+        .filter(TokenBlacklist.expires_at.isnot(None), TokenBlacklist.expires_at < now)
+        .delete(synchronize_session=False)
+    )
+    db.commit()
+    return int(removed or 0)
 
 
 def compute_warnings(db: Session, projects: list[Project]) -> dict:
@@ -194,6 +207,7 @@ def main():
     from .database import SessionLocal
     db = SessionLocal()
     try:
+        print(f"expired_tokens={purge_expired_token_blacklist(db)}")
         due = due_followups(db)
         print(f"due_followups={len(due)}")
         for d in due[:20]:

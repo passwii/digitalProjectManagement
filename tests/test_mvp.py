@@ -1133,15 +1133,53 @@ def test_cookie_login_sets_secure_session_shape(client):
     access = next(c for c in cookies if c.startswith("pm_access_token="))
     refresh = next(c for c in cookies if c.startswith("pm_refresh_token="))
     csrf = next(c for c in cookies if c.startswith("pm_csrf_token="))
+    session_hint = next(c for c in cookies if c.startswith("pm_session="))
     assert "HttpOnly" in access
     assert "HttpOnly" in refresh
     assert "HttpOnly" not in csrf
+    assert "HttpOnly" in session_hint
     assert "SameSite=lax" in access
     assert "Path=/api/v1/auth" in refresh
+    assert "Path=/" in session_hint
+    assert "Max-Age=604800" in session_hint
 
     me = client.get("/api/v1/auth/me")
     assert me.status_code == 200
     assert me.json()["username"] == "admin"
+
+
+def test_refresh_renews_session_hint_cookie(client):
+    login = client.post("/api/v1/auth/login",
+                        json={"username": "admin", "password": "admin123456"})
+    assert login.status_code == 200, login.text
+    login_hint = client.cookies.get(settings.session_cookie_name)
+    csrf = client.cookies.get(settings.csrf_cookie_name)
+
+    refreshed = client.post("/api/v1/auth/refresh",
+                            headers={"X-CSRF-Token": csrf})
+    assert refreshed.status_code == 200, refreshed.text
+
+    session_hint = next(
+        c for c in refreshed.headers.get_list("set-cookie")
+        if c.startswith(f"{settings.session_cookie_name}=")
+    )
+    assert session_hint.startswith(f"{settings.session_cookie_name}=1;")
+    assert "Path=/" in session_hint
+    assert "Max-Age=604800" in session_hint
+    assert client.cookies.get(settings.session_cookie_name) == "1"
+    assert client.cookies.get(settings.session_cookie_name) == login_hint
+
+
+def test_session_hint_alone_does_not_trigger_csrf_classification(client):
+    client.cookies.set(settings.session_cookie_name, "1")
+
+    response = client.post(
+        "/api/v1/auth/change-password",
+        json={"old_password": "admin123456", "new_password": "admin1234567"},
+    )
+
+    assert response.status_code == 401, response.text
+    assert response.json()["detail"] != "CSRF 校验失败"
 
 
 # 39. Cookie 写请求缺少 CSRF 必须 403，带对 token 成功
@@ -1234,14 +1272,44 @@ def test_logout_without_valid_session_clears_auth_cookies(client, state):
             f"{settings.access_cookie_name}=",
             f"{settings.refresh_cookie_name}=",
             f"{settings.csrf_cookie_name}=",
+            f"{settings.session_cookie_name}=",
         ))
     }
     assert set(deleted) == {
         settings.access_cookie_name,
         settings.refresh_cookie_name,
         settings.csrf_cookie_name,
+        settings.session_cookie_name,
     }
     assert all("max-age=0" in header.lower() for header in deleted.values())
+
+
+def test_purge_expired_token_blacklist_removes_only_expired_rows(db):
+    from api.core.jobs import purge_expired_token_blacklist
+    from api.models import TokenBlacklist
+
+    session = db()
+    now = datetime.now(timezone.utc)
+    session.add_all([
+        TokenBlacklist(
+            jti="expired-row",
+            user_id=1,
+            expires_at=now - timedelta(minutes=1),
+        ),
+        TokenBlacklist(
+            jti="active-row",
+            user_id=1,
+            expires_at=now + timedelta(minutes=1),
+        ),
+    ])
+    session.commit()
+
+    removed = purge_expired_token_blacklist(session, now=now)
+
+    assert removed == 1
+    assert session.query(TokenBlacklist).filter_by(jti="expired-row").first() is None
+    assert session.query(TokenBlacklist).filter_by(jti="active-row").first() is not None
+    session.close()
 
 
 def test_logout_rejects_cross_site_without_clearing_cookies(client):

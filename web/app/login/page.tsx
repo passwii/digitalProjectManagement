@@ -1,11 +1,24 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { authApi, errText, saveSession } from "@/lib/api";
 import MobileAuthShell from "@/components/auth/MobileAuthShell";
 import PasswordInput from "@/components/auth/PasswordInput";
 import st from "./login.module.css";
+
+const SESSION_NOTICES: Record<string, string> = {
+  expired: "会话已过期，请重新登录。",
+  logout: "已安全退出登录。",
+  logout_failed: "未能确认服务端退出，请联网后重新登录。",
+};
+
+function loginNotice(search: string): string {
+  const params = new URLSearchParams(search);
+  const reason = params.get("reason")
+    || (params.get("logged_out") === "1" ? "logout_failed" : "");
+  return SESSION_NOTICES[reason] ?? "";
+}
 
 export default function LoginPage() {
   const router = useRouter();
@@ -14,13 +27,28 @@ export default function LoginPage() {
   const [usernameErr, setUsernameErr] = useState("");
   const [passwordErr, setPasswordErr] = useState("");
   const [apiErr, setApiErr] = useState("");
+  const [notice, setNotice] = useState("");
+  const [online, setOnline] = useState(true);
   const [loading, setLoading] = useState(false);
   const usernameRef = useRef<HTMLInputElement>(null);
   const passwordRef = useRef<HTMLInputElement>(null);
 
+  useEffect(() => {
+    setNotice(loginNotice(window.location.search));
+    const syncNetwork = () => setOnline(navigator.onLine);
+    syncNetwork();
+    window.addEventListener("online", syncNetwork);
+    window.addEventListener("offline", syncNetwork);
+    return () => {
+      window.removeEventListener("online", syncNetwork);
+      window.removeEventListener("offline", syncNetwork);
+    };
+  }, []);
+
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setApiErr("");
+    if (!online) return;
 
     const nextUsernameErr = username.trim() ? "" : "请输入账号";
     const nextPasswordErr = password ? "" : "请输入密码";
@@ -62,6 +90,12 @@ export default function LoginPage() {
       }
     >
       <form onSubmit={onSubmit} noValidate>
+        {notice ? (
+          <div className={st.notice} role="status">{notice}</div>
+        ) : null}
+        {!online ? (
+          <div className={st.offline} role="status">需要网络连接才能登录，请恢复网络后重试。</div>
+        ) : null}
         <div className={st.field}>
           <label htmlFor="username">账号</label>
           <input
@@ -98,8 +132,8 @@ export default function LoginPage() {
         />
         {apiErr ? <div className={st.alert} role="alert">{apiErr}</div> : null}
         <div className={st.submit}>
-          <button className="btn-primary" type="submit" disabled={loading}>
-            {loading ? "登录中…" : "登 录"}
+          <button className="btn-primary" type="submit" disabled={loading || !online}>
+            {!online ? "需要联网" : loading ? "登录中…" : "登 录"}
           </button>
         </div>
       </form>
