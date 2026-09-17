@@ -17,6 +17,30 @@ Next.js 14（前端）+ FastAPI（后端）+ PostgreSQL 实现的内部项目管
 本机统一使用 Docker 启动，项目根目录 `.env` 是 API、Web、数据库和密钥的共用配置来源。
 不要直接运行本机 `uvicorn`、`next dev`、`next start` 或依赖本机 Python/Node 服务。
 
+### macOS / OrbStack
+
+macOS 使用专用覆盖文件，让 API 容器通过 host 网络连接本机 PostgreSQL：
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.mac.yml up -d --build
+docker compose -f docker-compose.yml -f docker-compose.mac.yml ps
+```
+
+本机数据库默认使用 `shzk_oa`，如需覆盖连接：
+
+```bash
+LOCAL_DATABASE_URL='postgresql+psycopg://user@127.0.0.1:5432/shzk_oa' \
+  docker compose -f docker-compose.yml -f docker-compose.mac.yml up -d --build
+```
+
+停止服务：
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.mac.yml down
+```
+
+### VPS 数据库隧道
+
 ```bash
 docker compose -f docker-compose.yml -f docker-compose.local.yml up --build
 ```
@@ -322,7 +346,7 @@ python3 -m api.core.jobs    # 跟进到期扫描（建议 cron 每 10 分钟）
 
 - 本地、开发和生产的 API 均只支持 PostgreSQL，且必须显式配置 `DATABASE_URL`；不存在 SQLite 回退。
 - Docker 仅运行前后端，不运行数据库；可连接宿主机已有 PostgreSQL。
-- CORS 默认放行 `localhost:3000/3001`，Docker 默认放行 `3001`，可用环境变量 `CORS_ORIGINS` 覆盖。
+- CORS 默认放行 `localhost:3001`，Docker 默认放行 `3001`，可用环境变量 `CORS_ORIGINS` 覆盖。
 - 前端 token 存 localStorage + 非 httpOnly cookie（供 middleware 鉴权），生产环境建议改由服务端下发 httpOnly cookie。
 ---
 

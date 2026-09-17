@@ -14,6 +14,7 @@ import Empty from "@/components/ui/Empty";
 import { LoadingBlock, LoadFailed, NoAccess } from "@/components/ui/PageState";
 import { Confirm } from "@/components/ui/Modal";
 import { useToast } from "@/components/ui/Toast";
+import PageHeading from "@/components/ui/PageHeading";
 
 type Decision = {
   kind: string;
@@ -136,13 +137,15 @@ function ApprovalsInner() {
 
   return (
     <div>
-      <div className="page-head actions-only">
-        <div className="actions no-print">
-          <button className="btn-ghost" onClick={load} disabled={loading}>
+      <PageHeading
+        title="审批中心"
+        description="集中处理立项、预算调整和支出审批待办。"
+        actions={
+          <button className="btn-ghost" onClick={load} disabled={loading} aria-busy={loading}>
             {loading ? "刷新中…" : "刷新"}
           </button>
-        </div>
-      </div>
+        }
+      />
 
       {err && <div className="err-banner" role="alert">{err}</div>}
       {notice && (
@@ -211,10 +214,9 @@ function ApprovalsInner() {
                           <td className="num">{fmtMoney(p.budget_total)}</td>
                           <td className="mono tiny">{fmtDate(p.plan_start)} ~ {fmtDate(p.plan_end)}</td>
                           <td className="no-print">
-                            <span style={{ display: "inline-flex", gap: 6 }}>
+                            <span className="table-actions">
                               <button
-                                className="btn-ghost"
-                                style={{ height: 26, lineHeight: "24px", padding: "0 8px", fontSize: 12 }}
+                                className="btn-ghost btn-xs"
                                 disabled={!p.can_decide}
                                 title={p.can_decide ? undefined : "仅管理员可审批"}
                                 onClick={() => setDecision({ kind: "project_filing", id: p.project_id, approve: true, title: `通过立项「${p.name}」？`, text: "通过后项目状态变为「已立项」，可开始排期。" })}
@@ -222,8 +224,7 @@ function ApprovalsInner() {
                                 通过
                               </button>
                               <button
-                                className="btn-ghost"
-                                style={{ height: 26, lineHeight: "24px", padding: "0 8px", fontSize: 12, color: "var(--danger)", borderColor: "var(--line-danger)" }}
+                                className="btn-ghost btn-xs btn-danger-outline"
                                 disabled={!p.can_decide}
                                 onClick={() => setDecision({ kind: "project_filing", id: p.project_id, approve: false, title: `驳回立项「${p.name}」？`, text: "驳回后项目状态变为「已取消」（终态）。" })}
                               >
@@ -260,10 +261,9 @@ function ApprovalsInner() {
                           <td>{userName(a.by_id)}</td>
                           <td className="muted">{a.reason || "-"}</td>
                           <td className="no-print">
-                            <span style={{ display: "inline-flex", gap: 6 }}>
+                            <span className="table-actions">
                               <button
-                                className="btn-ghost"
-                                style={{ height: 26, lineHeight: "24px", padding: "0 8px", fontSize: 12 }}
+                                className="btn-ghost btn-xs"
                                 disabled={!a.can_decide}
                                 title={a.can_decide ? undefined : "仅管理员可审批"}
                                 onClick={() => setDecision({ kind: "budget_adjust", id: a.id, approve: true, title: `通过预算调整（${a.subject}）？`, text: `${fmtMoney(a.old_amount)} → ${fmtMoney(a.new_amount)}，通过后立即生效并留痕。` })}
@@ -271,8 +271,7 @@ function ApprovalsInner() {
                                 通过
                               </button>
                               <button
-                                className="btn-ghost"
-                                style={{ height: 26, lineHeight: "24px", padding: "0 8px", fontSize: 12, color: "var(--danger)", borderColor: "var(--line-danger)" }}
+                                className="btn-ghost btn-xs btn-danger-outline"
                                 disabled={!a.can_decide}
                                 onClick={() => setDecision({ kind: "budget_adjust", id: a.id, approve: false, title: "驳回预算调整？", text: "预算金额保持不变，申请人可在成本页看到您的审批意见。" })}
                               >
@@ -309,10 +308,9 @@ function ApprovalsInner() {
                           <td className="muted"><span className="ellipsis" title={e.note}>{e.note || "-"}</span></td>
                           <td>{userName(e.by_id)}</td>
                           <td className="no-print">
-                            <span style={{ display: "inline-flex", gap: 6 }}>
+                            <span className="table-actions">
                               <button
-                                className="btn-ghost"
-                                style={{ height: 26, lineHeight: "24px", padding: "0 8px", fontSize: 12 }}
+                                className="btn-ghost btn-xs"
                                 disabled={!e.can_decide}
                                 title={e.can_decide ? undefined : "仅管理员可审批"}
                                 onClick={() => setDecision({ kind: "expense", id: e.id, approve: true, title: `通过支出 ${fmtMoney(e.amount)} 元？`, text: "通过后计入预算执行。" })}
@@ -320,16 +318,14 @@ function ApprovalsInner() {
                                 通过
                               </button>
                               <button
-                                className="btn-ghost"
-                                style={{ height: 26, lineHeight: "24px", padding: "0 8px", fontSize: 12 }}
+                                className="btn-ghost btn-xs"
                                 disabled={!e.can_decide}
                                 onClick={() => setDecision({ kind: "expense", id: e.id, approve: false, title: "驳回该支出？", text: "经办人可在成本页看到您的审批意见，并修改后重新提交。" })}
                               >
                                 驳回
                               </button>
                               <button
-                                className="btn-ghost"
-                                style={{ height: 26, lineHeight: "24px", padding: "0 8px", fontSize: 12, color: "var(--danger)", borderColor: "var(--line-danger)" }}
+                                className="btn-ghost btn-xs btn-danger-outline"
                                 disabled={!e.can_decide}
                                 onClick={() => setDecision({ kind: "expense", id: e.id, approve: true, exception: true, title: `特批放行 ${fmtMoney(e.amount)} 元？`, text: "特批将绕过预算上限计入执行，操作写入审计日志。" })}
                               >

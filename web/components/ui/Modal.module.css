@@ -1,7 +1,7 @@
 .overlay {
   position: fixed;
   inset: 0;
-  background: rgba(15, 39, 66, 0.38);
+  background: rgba(15, 39, 66, 0.44);
   backdrop-filter: blur(3px);
   z-index: 60;
   display: flex;
@@ -15,7 +15,7 @@
   background: var(--card);
   border: 1px solid var(--line);
   border-radius: var(--radius);
-  box-shadow: 0 16px 40px rgba(23, 43, 77, 0.2);
+  box-shadow: var(--shadow-float);
   display: flex;
   flex-direction: column;
   max-height: 86vh;
@@ -34,7 +34,7 @@
   max-width: 100%;
   background: var(--card);
   border-left: 1px solid var(--line);
-  box-shadow: -12px 0 32px rgba(23, 43, 77, 0.16);
+  box-shadow: -16px 0 36px rgba(23, 43, 77, 0.18);
   display: flex;
   flex-direction: column;
   animation: slideIn 160ms ease-out;
@@ -46,37 +46,39 @@
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 12px 16px;
+  min-height: 56px;
+  padding: 12px 18px;
   border-bottom: 1px solid var(--line);
 }
-.title { margin: 0; font-size: 14px; font-weight: 600; color: var(--ink); }
+.title { min-width: 0; margin: 0; overflow: hidden; color: var(--ink); font-size: 15px; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
 .close {
   flex: none;
-  width: 28px;
-  height: 28px;
-  border: none;
-  background: none;
+  width: 32px;
+  height: 32px;
+  border: 1px solid transparent;
+  background: transparent;
   color: var(--ink-3);
   font-size: 13px;
   border-radius: var(--radius);
   line-height: 1;
 }
-.close:hover { background: var(--bg); color: var(--ink); }
+.close:hover { border-color: var(--line); background: var(--th-bg); color: var(--ink); }
 
-.body { flex: 1; overflow: auto; padding: 16px; }
+.body { flex: 1; overflow: auto; padding: 20px 18px; }
 
 .foot {
   flex: none;
   display: flex;
   justify-content: flex-end;
   gap: 8px;
-  padding: 12px 16px;
+  padding: 12px 18px;
   border-top: 1px solid var(--line);
   background: var(--th-bg);
 }
 
 .dangerBtn { background: var(--danger); border-color: var(--danger); }
 .dangerBtn:hover { background: #b91c1c; border-color: #b91c1c; }
+.dangerBtn:disabled { background: var(--danger); border-color: var(--danger); opacity: .65; }
 
 /* 内嵌二次确认（脏数据） */
 .inner {
@@ -87,7 +89,7 @@
   background: var(--card);
   border: 1px solid var(--line-warn);
   border-radius: var(--radius);
-  box-shadow: 0 8px 24px rgba(23, 43, 77, 0.16);
+  box-shadow: var(--shadow-float);
   padding: 12px 14px;
   z-index: 2;
 }

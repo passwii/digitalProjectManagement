@@ -79,6 +79,7 @@ export default function Pagination({
           disabled={loading || safePage <= 1}
           onClick={() => onChange({ page: 1, size })}
           aria-label="首页"
+          title="首页"
         >
           «
         </button>
@@ -87,6 +88,7 @@ export default function Pagination({
           className={st.btn}
           disabled={loading || safePage <= 1}
           onClick={() => onChange({ page: safePage - 1, size })}
+          aria-label="上一页"
         >
           上一页
         </button>
@@ -98,6 +100,7 @@ export default function Pagination({
           className={st.btn}
           disabled={loading || safePage >= pages}
           onClick={() => onChange({ page: safePage + 1, size })}
+          aria-label="下一页"
         >
           下一页
         </button>
@@ -107,6 +110,7 @@ export default function Pagination({
           disabled={loading || safePage >= pages}
           onClick={() => onChange({ page: pages, size })}
           aria-label="末页"
+          title="末页"
         >
           »
         </button>

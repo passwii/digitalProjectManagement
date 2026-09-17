@@ -20,6 +20,7 @@ import { LoadingBlock, LoadFailed } from "@/components/ui/PageState";
 import ProgressBar from "@/components/ui/ProgressBar";
 import { Confirm, Dialog } from "@/components/ui/Modal";
 import { useToast } from "@/components/ui/Toast";
+import PageHeading from "@/components/ui/PageHeading";
 import ExpenseActions, { type ExpenseAct } from "./ExpenseActions";
 import ExpenseDialog from "./ExpenseDialog";
 
@@ -137,17 +138,20 @@ function CostsInner() {
 
   return (
     <div>
-      <div className="page-head actions-only">
-        <div className="actions no-print">
+      <PageHeading
+        title="支出记录"
+        description="按项目登记支出，查看预算执行情况和审批状态。"
+        actions={
           <button
             className="btn-primary"
             disabled={!pid}
+            title={pid ? "登记一笔项目支出" : "请先选择项目"}
             onClick={() => { setResubmitOf(null); setExpenseOpen(true); }}
           >
             + 支出
           </button>
-        </div>
-      </div>
+        }
+      />
 
       <div className="toolbar-card">
         <label className="toolbar-field">

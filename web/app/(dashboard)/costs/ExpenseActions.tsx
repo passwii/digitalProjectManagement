@@ -9,8 +9,6 @@ export interface ExpenseAct {
   expense: Expense;
 }
 
-const BTN = { height: 26, lineHeight: "24px", padding: "0 8px", fontSize: 12 } as const;
-
 export default function ExpenseActions({
   expense,
   canApprove,
@@ -31,16 +29,15 @@ export default function ExpenseActions({
   }
 
   return (
-    <span style={{ display: "inline-flex", gap: 6 }}>
-      <button className="btn-ghost" style={BTN} onClick={() => onAct({ kind: "approve", expense })}>
+    <span className="table-actions">
+      <button className="btn-ghost btn-xs" onClick={() => onAct({ kind: "approve", expense })}>
         通过
       </button>
-      <button className="btn-ghost" style={BTN} onClick={() => onAct({ kind: "reject", expense })}>
+      <button className="btn-ghost btn-xs btn-danger-outline" onClick={() => onAct({ kind: "reject", expense })}>
         驳回
       </button>
       <button
-        className="btn-ghost"
-        style={{ ...BTN, color: "var(--danger)", borderColor: "var(--line-danger)" }}
+        className="btn-ghost btn-xs btn-danger-outline"
         onClick={() => onAct({ kind: "exception", expense })}
       >
         特批放行

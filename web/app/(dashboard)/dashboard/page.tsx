@@ -14,6 +14,7 @@ import Badge from "@/components/ui/Badge";
 import Empty from "@/components/ui/Empty";
 import ProgressBar from "@/components/ui/ProgressBar";
 import { LoadingBlock } from "@/components/ui/PageState";
+import PageHeading from "@/components/ui/PageHeading";
 
 const SUBJECT_COLORS = ["#1677FF", "#5B8DEF", "#7C5CFC", "#2C9C69", "#D48806"];
 
@@ -52,17 +53,21 @@ export default function DashboardPage() {
 
   return (
     <div>
-      <div className="page-head actions-only">
-        <div className="actions no-print">
+      <PageHeading
+        title="工作台"
+        description="快速查看项目健康度、近期动态和关键经营数据。"
+        actions={
+          <>
           <button className="btn-ghost" onClick={load}>刷新</button>
           <Link className="btn-ghost" href="/reports">支出报表</Link>
           {isAdmin && (
-            <Link className="btn-primary" href="/approvals" style={{ display: "inline-flex", alignItems: "center", padding: "0 14px" }}>
+            <Link className="btn-primary" href="/approvals">
               待审批 {k.pending_approvals}
             </Link>
           )}
-        </div>
-      </div>
+          </>
+        }
+      />
 
       <div className="kpi-row">
         <div className="kpi"><div className="k">我的项目</div><div className="v mono">{k.my_projects}</div><div className="tiny">进行中 {k.active_projects}</div></div>
@@ -103,7 +108,7 @@ export default function DashboardPage() {
             <div style={{ width: "100%", height: 220 }}>
               <ResponsiveContainer>
                 <PieChart>
-                  <Pie data={data.by_subject} dataKey="spent" nameKey="subject" innerRadius={48} outerRadius={78} paddingAngle={2}>
+                  <Pie data={data.by_subject} dataKey="spent" nameKey="subject" innerRadius={42} outerRadius={64} paddingAngle={2}>
                     {data.by_subject.map((s, i) => (
                       <Cell key={s.subject} fill={SUBJECT_COLORS[i % SUBJECT_COLORS.length]} />
                     ))}

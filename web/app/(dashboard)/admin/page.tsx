@@ -15,6 +15,7 @@ import Pagination from "@/components/ui/Pagination";
 import { LoadingBlock, LoadFailed, NoAccess } from "@/components/ui/PageState";
 import { Confirm, Drawer } from "@/components/ui/Modal";
 import { useToast } from "@/components/ui/Toast";
+import PageHeading from "@/components/ui/PageHeading";
 import DictDialog from "./DictDialog";
 import ParamDialog, { PARAM_LABELS } from "./ParamDialog";
 import UserDialog from "./UserDialog";
@@ -150,18 +151,22 @@ function AdminInner() {
 
   return (
     <div>
-      <div className="page-head actions-only">
-        <div className="actions no-print">
+      <PageHeading
+        title="系统管理"
+        description="维护用户、业务字典、系统参数、审计日志和回收站。"
+        actions={
+          <>
           {tab === "用户" && (
-            <button className="btn-primary" style={{ width: "auto" }} onClick={() => { setEditingUser(null); setUserOpen(true); }}>
+            <button className="btn-primary" onClick={() => { setEditingUser(null); setUserOpen(true); }}>
               + 新增用户
             </button>
           )}
           {tab === "字典" && (
-            <button className="btn-primary" style={{ width: "auto" }} onClick={() => setDictOpen(true)}>+ 字典项</button>
+            <button className="btn-primary" onClick={() => setDictOpen(true)}>+ 字典项</button>
           )}
-        </div>
-      </div>
+          </>
+        }
+      />
 
       {active.error && <LoadFailed message={active.error} onRetry={active.reload} />}
 
@@ -202,14 +207,13 @@ function AdminInner() {
                         />
                       </td>
                       <td className="no-print" onClick={(e) => e.stopPropagation()}>
-                        <span style={{ display: "inline-flex", gap: 6 }}>
-                          <button className="btn-ghost" style={{ height: 26, lineHeight: "24px", padding: "0 8px", fontSize: 12 }}
+                        <span className="table-actions">
+                          <button className="btn-ghost btn-xs"
                             onClick={() => { setEditingUser(u); setUserOpen(true); }}>
                             编辑
                           </button>
                           <button
-                            className="btn-ghost"
-                            style={{ height: 26, lineHeight: "24px", padding: "0 8px", fontSize: 12, color: u.status === "active" ? "var(--danger)" : undefined, borderColor: u.status === "active" ? "var(--line-danger)" : undefined }}
+                            className={`btn-ghost btn-xs ${u.status === "active" ? "btn-danger-outline" : ""}`}
                             onClick={() =>
                               setConfirm({
                                 title: u.status === "active" ? `停用用户「${u.username}」？` : `启用用户「${u.username}」？`,
@@ -296,7 +300,7 @@ function AdminInner() {
                     <td className="mono">{v}</td>
                     <td className="muted tiny">{k === "expense_approval_on" ? "1=支出需审批" : k === "budget_approval_on" ? "1=预算调整需审批" : ""}</td>
                     <td className="no-print">
-                      <button className="btn-ghost" style={{ height: 26, lineHeight: "24px", padding: "0 8px", fontSize: 12 }}
+                      <button className="btn-ghost btn-xs"
                         onClick={() => setParamEdit({ key: k, value: v })}>
                         编辑
                       </button>
@@ -311,9 +315,9 @@ function AdminInner() {
 
       {tab === "日志" && (
         <>
-          <div className="card no-print" style={{ marginBottom: 12, padding: "10px 16px" }}>
-            <label style={{ display: "flex", alignItems: "center", gap: 8, margin: 0, flexWrap: "wrap" }}>
-              <span className="muted" style={{ fontSize: 13 }}>按动作筛选</span>
+          <div className="toolbar-card no-print" style={{ display: "flex", flexWrap: "wrap" }}>
+            <label className="toolbar-field grow">
+              <span>按动作筛选</span>
               <input style={{ width: 240, maxWidth: "100%" }} value={logDraft} onChange={(e) => setLogDraft(e.target.value)} placeholder="如 login / create_project" aria-label="按动作筛选日志" />
             </label>
           </div>
@@ -378,8 +382,7 @@ function AdminInner() {
                     <td className="mono tiny">{fmtDateTime(p.deleted_at)}</td>
                     <td className="no-print">
                       <button
-                        className="btn-ghost"
-                        style={{ height: 26, lineHeight: "24px", padding: "0 8px", fontSize: 12 }}
+                        className="btn-ghost btn-xs"
                         onClick={() =>
                           setConfirm({
                             title: `恢复项目「${p.name}」？`,

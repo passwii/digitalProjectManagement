@@ -14,15 +14,14 @@
   display: flex;
   align-items: flex-start;
   gap: 8px;
-  min-width: 220px;
+  min-width: 240px;
   max-width: 360px;
-  padding: 10px 12px;
+  padding: 11px 12px;
   border-radius: var(--radius);
   border: 1px solid var(--line);
   background: var(--card);
-  box-shadow: 0 8px 24px rgba(23, 43, 77, 0.14);
+  box-shadow: var(--shadow-float);
   font-size: 13px;
-  cursor: pointer;
   animation: toastIn 160ms ease-out;
 }
 
@@ -41,6 +40,21 @@
 }
 
 .text { line-height: 1.5; word-break: break-word; }
+.dismiss {
+  flex: none;
+  width: 24px;
+  height: 24px;
+  margin: -3px -4px 0 0;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--ink-3);
+}
+.dismiss:hover { border-color: var(--line); background: var(--th-bg); color: var(--ink); }
 
 .ok { border-color: var(--line-done); }
 .ok .icon { background: var(--done); }

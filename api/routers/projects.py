@@ -100,6 +100,20 @@ def keyword_condition(keyword: str):
                 Project.client.ilike(kw), Project.description.ilike(kw)))
 
 
+def _keyword_snippet(project: Project, keyword: str) -> str:
+    """关键词命中的纯文本摘要；不返回 HTML，避免把用户输入当标记渲染。"""
+    sources = [project.description, project.name, project.client, project.code]
+    text = next((str(v) for v in sources if v and keyword.lower() in str(v).lower()), "")
+    if not text:
+        text = str(project.description or project.name or project.code or "")
+    idx = text.lower().find(keyword.lower())
+    if idx < 0:
+        return text[:80]
+    start = max(0, idx - 20)
+    end = min(len(text), idx + len(keyword) + 30)
+    return f"{'…' if start else ''}{text[start:end]}{'…' if end < len(text) else ''}"
+
+
 class ProjectIn(BaseModel):
     code: str = ""
     name: str
@@ -172,7 +186,10 @@ def list_projects(name: str = "", code: str = "", status: str = "", owner_id: in
         q = q.filter(vis)
 
     def _row(p: Project):
-        return _p(p)
+        row = _p(p)
+        if keyword:
+            row["snippet"] = _keyword_snippet(p, keyword)
+        return row
 
     return paginate(q, page=page, size=size, allowed=PROJECT_SORTS,
                     default_sort="-id", sort=sort, map_row=_row)

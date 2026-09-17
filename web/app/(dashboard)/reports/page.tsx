@@ -12,6 +12,7 @@ import { EXPENSE_PEOPLE, fmtMoney } from "@/lib/labels";
 import Empty from "@/components/ui/Empty";
 import Pagination from "@/components/ui/Pagination";
 import ProjectPicker from "@/components/ui/ProjectPicker";
+import PageHeading from "@/components/ui/PageHeading";
 import { LoadingBlock, LoadFailed } from "@/components/ui/PageState";
 import ProgressBar from "@/components/ui/ProgressBar";
 
@@ -138,13 +139,15 @@ function ReportsInner() {
 
   return (
     <div>
-      <div className="page-head actions-only">
-        <div className="actions no-print">
+      <PageHeading
+        title="支出报表"
+        description="按项目、部门、人员和月份汇总查看已通过支出。"
+        actions={
+          <>
           {VIEWS.map((v) => (
             <button
               key={v.code}
               className={view === v.code ? "btn-primary" : "btn-ghost"}
-              style={view === v.code ? { width: "auto" } : undefined}
               aria-pressed={view === v.code}
               onClick={() => setUrl({ view: v.code }, { history: "push" })}
             >
@@ -152,15 +155,16 @@ function ReportsInner() {
             </button>
           ))}
           <button className="btn-ghost" onClick={() => window.print()}>打印</button>
-          <button className="btn-primary" style={{ width: "auto" }} disabled={exporting} onClick={exportExcel}>
+          <button className="btn-primary" disabled={exporting} onClick={exportExcel} aria-busy={exporting}>
             {exporting ? "导出中…" : "导出 Excel"}
           </button>
-        </div>
-      </div>
+          </>
+        }
+      />
 
-      <div className="card no-print" style={{ marginBottom: 12, padding: "10px 16px", display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
-        <label style={{ display: "flex", alignItems: "center", gap: 6, margin: 0, flex: "0 1 300px", minWidth: 0 }}>
-          <span className="muted" style={{ fontSize: 13, flex: "none" }}>项目</span>
+      <div className="toolbar-card no-print" style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
+        <label className="toolbar-field grow">
+          <span>项目</span>
           <ProjectPicker
             value={url.project_id}
             onChange={(id) => setUrl({ project_id: id })}
@@ -171,22 +175,22 @@ function ReportsInner() {
             className="picker-grow"
           />
         </label>
-        <label style={{ display: "flex", alignItems: "center", gap: 6, margin: 0 }}>
-          <span className="muted" style={{ fontSize: 13 }}>部门</span>
+        <label className="toolbar-field">
+          <span>部门</span>
           <select style={{ width: 150 }} value={url.dept} onChange={(e) => setUrl({ dept: e.target.value })} aria-label="按部门筛选">
             <option value="">全部</option>
             {depts.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
           </select>
         </label>
-        <label style={{ display: "flex", alignItems: "center", gap: 6, margin: 0 }}>
-          <span className="muted" style={{ fontSize: 13 }}>人员</span>
+        <label className="toolbar-field">
+          <span>人员</span>
           <select style={{ width: 120 }} value={url.subject} onChange={(e) => setUrl({ subject: e.target.value })} aria-label="按人员筛选">
             <option value="">全部</option>
             {peopleOptions.map((s) => <option key={s} value={s}>{s}</option>)}
           </select>
         </label>
-        <label style={{ display: "flex", alignItems: "center", gap: 6, margin: 0 }}>
-          <span className="muted" style={{ fontSize: 13 }}>月份</span>
+        <label className="toolbar-field">
+          <span>月份</span>
           <input type="month" style={{ width: 150 }} value={url.month} onChange={(e) => setUrl({ month: e.target.value })} aria-label="按月份筛选" />
         </label>
         {hasFilter && (

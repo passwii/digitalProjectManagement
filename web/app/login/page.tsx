@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { authApi, errText, saveSession, UnauthorizedError } from "@/lib/api";
+import PasswordInput from "@/components/ui/PasswordInput";
 import st from "./login.module.css";
 
 export default function LoginPage() {
@@ -53,7 +54,7 @@ export default function LoginPage() {
           <p className={st.kicker}>Digital Project Operations</p>
           <h1>数科云办公</h1>
           <p className={st.storyText}>
-            让项目台账、交付进度、合同档案与支出记录沉淀在同一套管理坐标中。
+            复杂有章，交付有信。
           </p>
         </div>
         <div className={st.storyFoot}>
@@ -86,11 +87,10 @@ export default function LoginPage() {
             </div>
             <div className={st.field}>
               <label htmlFor="login-password">密码</label>
-              <input
+              <PasswordInput
                 id="login-password"
-                type="password"
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                onChange={setPassword}
                 placeholder="请输入登录密码"
                 autoComplete="current-password"
               />

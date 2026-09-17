@@ -28,7 +28,6 @@ export default function TableToolbar({
     <div className={st.bar}>
       <div className={st.filters}>{children}</div>
       <div className={st.right}>
-        <span className={st.density} title="密度：紧凑（固定行高 40px，本期唯一密度）">紧凑</span>
         {onExport !== undefined && (
           <button
             type="button"

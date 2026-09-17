@@ -145,8 +145,8 @@ export default function UserDialog({
                 <button
                   key={r.code}
                   type="button"
-                  className={on ? "btn-primary" : "btn-ghost"}
-                  style={{ width: "auto", height: 28, lineHeight: "26px", fontSize: 12 }}
+                  className={`${on ? "btn-primary" : "btn-ghost"} btn-xs`}
+                  aria-pressed={on}
                   onClick={() =>
                     setPicked((prev) => (prev.includes(r.code) ? prev.filter((c) => c !== r.code) : [...prev, r.code]))
                   }

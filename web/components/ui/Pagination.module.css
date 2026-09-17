@@ -16,7 +16,7 @@
 
 .right { display: inline-flex; align-items: center; gap: 6px; }
 
-.size { width: auto; height: 28px; font-size: 13px; }
+.size { width: auto; height: 32px; font-size: 13px; }
 
 @media (max-width: 640px) {
   .wrap { gap: 8px; }
@@ -25,7 +25,8 @@
 }
 
 .btn {
-  height: 28px;
+  min-width: 32px;
+  height: 32px;
   padding: 0 10px;
   border: 1px solid var(--line);
   background: var(--card);
@@ -33,7 +34,9 @@
   color: var(--ink);
   font-size: 13px;
 }
+.btn:first-child,
+.btn:last-child { padding: 0 7px; font-size: 16px; }
 .btn:hover:not(:disabled) { border-color: var(--brand); color: var(--brand); }
-.btn:disabled { color: var(--ink-3); cursor: not-allowed; }
+.btn:disabled { color: var(--ink-3); background: var(--th-bg); cursor: not-allowed; }
 
-.page { margin: 0 4px; color: var(--ink-2); }
+.page { min-width: 52px; margin: 0 4px; color: var(--ink-2); text-align: center; }

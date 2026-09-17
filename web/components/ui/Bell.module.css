@@ -2,17 +2,17 @@
 
 .bell {
   position: relative;
-  width: 32px;
-  height: 32px;
-  border: none;
-  background: none;
+  width: 34px;
+  height: 34px;
+  border: 1px solid transparent;
+  background: transparent;
   color: var(--ink-2);
   border-radius: var(--radius);
   display: inline-flex;
   align-items: center;
   justify-content: center;
 }
-.bell:hover { background: var(--bg); color: var(--ink); }
+.bell:hover { border-color: var(--line); background: var(--th-bg); color: var(--ink); }
 
 .dot {
   position: absolute;
@@ -39,7 +39,7 @@
   background: var(--card);
   border: 1px solid var(--line);
   border-radius: var(--radius);
-  box-shadow: 0 12px 32px rgba(23, 43, 77, 0.18);
+  box-shadow: var(--shadow-float);
   z-index: 40;
   animation: bellIn 120ms ease-out;
 }
@@ -48,7 +48,8 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 10px 12px;
+  min-height: 46px;
+  padding: 10px 14px;
   border-bottom: 1px solid var(--line);
   font-size: 13px;
 }
@@ -71,13 +72,14 @@
   gap: 8px;
   width: 100%;
   text-align: left;
-  padding: 9px 12px;
+  padding: 11px 14px;
   border: none;
   border-bottom: 1px solid var(--line-soft);
   background: none;
   align-items: flex-start;
 }
 .item:hover { background: var(--row-hover); }
+.item:focus-visible { position: relative; z-index: 1; outline-offset: -2px; }
 .unreadItem { background: var(--brand-soft); }
 .unreadItem:hover { background: var(--brand-soft); }
 
@@ -100,7 +102,7 @@
 
 .empty { padding: 22px 12px; text-align: center; color: var(--ink-3); font-size: 13px; }
 
-.foot { padding: 8px 12px; border-top: 1px solid var(--line); text-align: right; }
+.foot { display: flex; justify-content: flex-end; gap: 14px; padding: 9px 14px; border-top: 1px solid var(--line); text-align: right; }
 
 @keyframes bellIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
 @media (prefers-reduced-motion: reduce) { .panel { animation: none; } }

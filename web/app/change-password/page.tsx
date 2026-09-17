@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { authApi, clearSession, errText } from "@/lib/api";
+import PasswordInput from "@/components/ui/PasswordInput";
 import st from "../login/login.module.css";
 
 export default function ChangePasswordPage() {
@@ -45,15 +46,15 @@ export default function ChangePasswordPage() {
           <form onSubmit={onSubmit}>
             <div className={st.field}>
               <label htmlFor="old-password">原密码</label>
-              <input id="old-password" type="password" value={oldPwd} onChange={(e) => setOldPwd(e.target.value)} placeholder="请输入原密码" autoComplete="current-password" />
+              <PasswordInput id="old-password" value={oldPwd} onChange={setOldPwd} placeholder="请输入原密码" autoComplete="current-password" />
             </div>
             <div className={st.field}>
               <label htmlFor="new-password">新密码</label>
-              <input id="new-password" type="password" value={newPwd} onChange={(e) => setNewPwd(e.target.value)} placeholder="至少 8 位，含字母与数字" autoComplete="new-password" />
+              <PasswordInput id="new-password" value={newPwd} onChange={setNewPwd} placeholder="至少 8 位，含字母与数字" autoComplete="new-password" />
             </div>
             <div className={st.field}>
               <label htmlFor="confirm-password">确认新密码</label>
-              <input id="confirm-password" type="password" value={confirm} onChange={(e) => setConfirm(e.target.value)} placeholder="再次输入新密码" autoComplete="new-password" />
+              <PasswordInput id="confirm-password" value={confirm} onChange={setConfirm} placeholder="再次输入新密码" autoComplete="new-password" />
             </div>
             {err && <div className={`${st.alert} ${st.alertErr}`} role="alert">{err}</div>}
             <button className={st.submit} type="submit" disabled={loading}>

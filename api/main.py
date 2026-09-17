@@ -71,11 +71,8 @@ app = FastAPI(
 """,
 )
 
-# CORS：默认放行本地前端 3001（保留 3000 方便 Next dev），可用 CORS_ORIGINS 覆盖
-_default_origins = (
-    "http://localhost:3000,http://127.0.0.1:3000,"
-    "http://localhost:3001,http://127.0.0.1:3001"
-)
+# CORS：本地开发、Docker 与生产统一使用前端 3001，可用 CORS_ORIGINS 覆盖
+_default_origins = "http://localhost:3001,http://127.0.0.1:3001"
 origins = [o.strip() for o in os.getenv("CORS_ORIGINS", _default_origins).split(",") if o.strip()]
 app.add_middleware(
     CORSMiddleware,

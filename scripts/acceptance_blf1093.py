@@ -8,7 +8,7 @@
 
 用法：
     python3 scripts/acceptance_blf1093.py
-依赖：playwright（channel=chrome）、本机后端 8001、前端 3002。
+依赖：playwright（channel=chrome）、本机后端 8001、前端 3001。
 """
 from __future__ import annotations
 
@@ -19,7 +19,7 @@ import sys
 
 from playwright.sync_api import sync_playwright
 
-BASE = os.environ.get("FE_BASE", "http://127.0.0.1:3002")
+BASE = os.environ.get("FE_BASE", "http://127.0.0.1:3001")
 API = os.environ.get("API_BASE", "http://127.0.0.1:8001/api/v1")
 SHOT = os.environ.get("SHOT_DIR", "/tmp/blf1093-shots")
 USER = os.environ.get("PM_USER", "demo_admin")

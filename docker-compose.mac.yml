@@ -1,0 +1,21 @@
+# macOS / OrbStack 本机运行覆盖配置。
+# 目的：让 API 容器通过 host 网络直接访问宿主机 PostgreSQL，
+# 避免 host.docker.internal 路由到错误网段后出现「role does not exist」。
+#
+# 用法：
+#   docker compose -f docker-compose.yml -f docker-compose.mac.yml up -d --build
+#   docker compose -f docker-compose.yml -f docker-compose.mac.yml ps
+#   docker compose -f docker-compose.yml -f docker-compose.mac.yml down
+
+services:
+  api:
+    network_mode: host
+    ports: !reset []
+    environment:
+      CORS_ORIGINS: "http://localhost:3001,http://127.0.0.1:3001"
+      DATABASE_URL: "${LOCAL_DATABASE_URL:-postgresql+psycopg://damon@127.0.0.1:5432/shzk_oa}"
+
+  web:
+    build:
+      args:
+        NEXT_PUBLIC_API_BASE: "http://localhost:8001/api/v1"

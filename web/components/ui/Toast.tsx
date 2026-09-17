@@ -21,12 +21,16 @@ const Ctx = createContext<ToastApi | null>(null);
 export function ToastProvider({ children }: { children: React.ReactNode }) {
   const [items, setItems] = useState<Item[]>([]);
   const seq = useRef(0);
+  const timers = useRef<number[]>([]);
 
   const push = useCallback((kind: ToastKind, text: string) => {
     const id = ++seq.current;
     setItems((prev) => [...prev, { id, kind, text }]);
-    setTimeout(() => setItems((prev) => prev.filter((t) => t.id !== id)), 4000);
+    const timer = window.setTimeout(() => setItems((prev) => prev.filter((t) => t.id !== id)), 4500);
+    timers.current.push(timer);
   }, []);
+
+  useEffect(() => () => timers.current.forEach((timer) => window.clearTimeout(timer)), []);
 
   const api = useMemo<ToastApi>(
     () => ({
@@ -42,11 +46,21 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
       {children}
       <div className={st.stack} role="status" aria-live="polite">
         {items.map((t) => (
-          <div key={t.id} className={`${st.toast} ${st[t.kind]}`} onClick={() => setItems((p) => p.filter((x) => x.id !== t.id))}>
+          <div key={t.id} className={`${st.toast} ${st[t.kind]}`} role="status">
             <span className={st.icon} aria-hidden>
               {t.kind === "ok" ? "✓" : t.kind === "err" ? "!" : "i"}
             </span>
             <span className={st.text}>{t.text}</span>
+            <button
+              type="button"
+              className={st.dismiss}
+              onClick={() => setItems((p) => p.filter((x) => x.id !== t.id))}
+              aria-label="关闭提示"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true">
+                <path d="M6 6l12 12M18 6L6 18" />
+              </svg>
+            </button>
           </div>
         ))}
       </div>

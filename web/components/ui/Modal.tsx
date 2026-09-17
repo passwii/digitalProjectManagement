@@ -2,7 +2,7 @@
 // 通用弹层：Dialog（居中）/ Drawer（右侧）/ Confirm（确认）。
 // 统一处理 Esc 关闭、焦点锁定、滚动锁定、脏数据二次确认、移动端全屏。
 import { createPortal } from "react-dom";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import st from "./Modal.module.css";
 
 type Size = "sm" | "md" | "lg";
@@ -90,7 +90,7 @@ function useModalBehavior({
 
 function DiscardConfirm({ onKeep, onDiscard }: { onKeep: () => void; onDiscard: () => void }) {
   return (
-    <div className={st.inner} role="alertdialog" aria-label="放弃未保存的修改">
+    <div className={st.inner} role="alertdialog" aria-label="放弃未保存的修改" aria-live="assertive">
       <div className={st.innerBody}>有未保存的修改，确定关闭吗？</div>
       <div className={st.innerFoot}>
         <button className="btn-ghost" onClick={onKeep}>继续编辑</button>
@@ -117,6 +117,7 @@ export function Dialog({
   open, onClose, title, children, footer, size = "md", dirty, maskClosable = true,
 }: DialogProps) {
   const { mounted, panelRef, requestClose, askDiscard, setAskDiscard } = useModalBehavior({ open, onRequestClose: onClose, dirty });
+  const titleId = useId();
   if (!mounted || !open) return null;
 
   return createPortal(
@@ -126,12 +127,17 @@ export function Dialog({
         className={`${st.panel} ${st[size]}`}
         role="dialog"
         aria-modal="true"
+        aria-labelledby={titleId}
         tabIndex={-1}
         onMouseDown={(e) => e.stopPropagation()}
       >
         <header className={st.head}>
-          <h2 className={st.title}>{title}</h2>
-          <button className={st.close} onClick={requestClose} aria-label="关闭">✕</button>
+          <h2 id={titleId} className={st.title}>{title}</h2>
+          <button className={st.close} onClick={requestClose} aria-label="关闭">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true">
+              <path d="M6 6l12 12M18 6L6 18" />
+            </svg>
+          </button>
         </header>
         <div className={st.body}>{children}</div>
         {footer && <footer className={st.foot}>{footer}</footer>}
@@ -156,6 +162,7 @@ export interface DrawerProps {
 
 export function Drawer({ open, onClose, title, children, footer, width = 480, dirty }: DrawerProps) {
   const { mounted, panelRef, requestClose, askDiscard, setAskDiscard } = useModalBehavior({ open, onRequestClose: onClose, dirty });
+  const titleId = useId();
   if (!mounted || !open) return null;
 
   return createPortal(
@@ -166,12 +173,17 @@ export function Drawer({ open, onClose, title, children, footer, width = 480, di
         style={{ width }}
         role="dialog"
         aria-modal="true"
+        aria-labelledby={titleId}
         tabIndex={-1}
         onMouseDown={(e) => e.stopPropagation()}
       >
         <header className={st.head}>
-          <h2 className={st.title}>{title}</h2>
-          <button className={st.close} onClick={requestClose} aria-label="关闭">✕</button>
+          <h2 id={titleId} className={st.title}>{title}</h2>
+          <button className={st.close} onClick={requestClose} aria-label="关闭">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true">
+              <path d="M6 6l12 12M18 6L6 18" />
+            </svg>
+          </button>
         </header>
         <div className={st.body}>{children}</div>
         {footer && <footer className={st.foot}>{footer}</footer>}
@@ -200,7 +212,14 @@ export interface ConfirmProps {
 export function Confirm({
   open, title, text, children, okText = "确定", cancelText = "取消", danger, loading, onConfirm, onCancel,
 }: ConfirmProps) {
-  const { mounted, panelRef, requestClose } = useModalBehavior({ open, onRequestClose: onCancel });
+  const handleRequestClose = useCallback(() => {
+    if (!loading) onCancel();
+  }, [loading, onCancel]);
+  const { mounted, panelRef, requestClose } = useModalBehavior({
+    open,
+    onRequestClose: handleRequestClose,
+  });
+  const titleId = useId();
   if (!mounted || !open) return null;
 
   return createPortal(
@@ -210,16 +229,21 @@ export function Confirm({
         className={`${st.panel} ${st.sm}`}
         role="alertdialog"
         aria-modal="true"
+        aria-labelledby={titleId}
         tabIndex={-1}
         onMouseDown={(e) => e.stopPropagation()}
       >
         <header className={st.head}>
-          <h2 className={st.title}>{title}</h2>
-          <button className={st.close} onClick={requestClose} aria-label="关闭">✕</button>
+          <h2 id={titleId} className={st.title}>{title}</h2>
+          <button className={st.close} onClick={requestClose} aria-label="关闭" disabled={loading}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true">
+              <path d="M6 6l12 12M18 6L6 18" />
+            </svg>
+          </button>
         </header>
         {(text || children) && <div className={st.body}>{text}{children}</div>}
         <footer className={st.foot}>
-          <button className="btn-ghost" onClick={requestClose}>{cancelText}</button>
+          <button className="btn-ghost" onClick={requestClose} disabled={loading}>{cancelText}</button>
           <button
             className={`btn-primary ${danger ? st.dangerBtn : ""}`}
             onClick={onConfirm}

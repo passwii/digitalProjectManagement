@@ -18,6 +18,7 @@ import ProjectPicker from "@/components/ui/ProjectPicker";
 import { LoadingBlock, LoadFailed } from "@/components/ui/PageState";
 import { Confirm } from "@/components/ui/Modal";
 import { useToast } from "@/components/ui/Toast";
+import PageHeading from "@/components/ui/PageHeading";
 import ProgressNodeDialog from "./ProgressNodeDialog";
 
 const URL_DEFAULTS = {
@@ -79,17 +80,20 @@ function ProgressInner() {
 
   return (
     <div>
-      <div className="page-head actions-only">
-        <div className="actions no-print">
+      <PageHeading
+        title="进度跟踪"
+        description="记录项目关键节点，持续更新交付进展和阶段结果。"
+        actions={
           <button
             className="btn-primary"
             disabled={!pid}
+            title={pid ? "添加一条项目进度记录" : "请先选择项目"}
             onClick={() => { setEditing(null); setNodeOpen(true); }}
           >
             + 添加进度
           </button>
-        </div>
-      </div>
+        }
+      />
 
       <div className="toolbar-card">
         <label className="toolbar-field">

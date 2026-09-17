@@ -18,6 +18,7 @@ import { LoadingBlock, LoadFailed } from "@/components/ui/PageState";
 import TableToolbar from "@/components/ui/TableToolbar";
 import { Confirm, Drawer } from "@/components/ui/Modal";
 import { useToast } from "@/components/ui/Toast";
+import PageHeading from "@/components/ui/PageHeading";
 import ProjectFormDialog from "./ProjectFormDialog";
 
 const SIZE_OPTIONS = [15, 50, 100];
@@ -112,17 +113,19 @@ function ProjectsInner() {
 
   return (
     <div>
-      <div className="page-head actions-only">
-        <div className="actions">
+      <PageHeading
+        title="项目台账"
+        description="集中查看项目状态、负责人、预算与合同信息。"
+        actions={
           <button
             className="btn-primary"
-            style={{ width: "auto" }}
+            title="创建一个新的项目档案"
             onClick={() => { setEditing(null); setFormOpen(true); }}
           >
             + 新建项目
           </button>
-        </div>
-      </div>
+        }
+      />
 
       {demoOn && (
         <div
@@ -188,15 +191,15 @@ function ProjectsInner() {
           <div className="table-scroll">
             <table className="grid project-table" aria-busy={loading}>
               <colgroup>
-                <col style={{ width: 112 }} />
-                <col style={{ width: 300 }} />
-                <col style={{ width: 132 }} />
-                <col style={{ width: 180 }} />
-                <col style={{ width: 92 }} />
-                <col style={{ width: 122 }} />
-                <col style={{ width: 76 }} />
-                <col style={{ width: 96 }} />
-                <col style={{ width: 132 }} />
+                <col style={{ width: 104 }} />
+                <col style={{ width: 250 }} />
+                <col style={{ width: 104 }} />
+                <col style={{ width: 150 }} />
+                <col style={{ width: 84 }} />
+                <col style={{ width: 110 }} />
+                <col style={{ width: 70 }} />
+                <col style={{ width: 84 }} />
+                <col style={{ width: 110 }} />
               </colgroup>
               <thead>
                 <tr>
@@ -224,7 +227,7 @@ function ProjectsInner() {
                       <span className="ellipsis" title={p.name}>{p.name}</span>{" "}
                     </td>
                     <td>
-                      <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                      <span className="inline-person">
                         <Avatar name={ownerText(p)} size={22} />{ownerText(p)}
                       </span>
                     </td>
@@ -234,18 +237,16 @@ function ProjectsInner() {
                     <td className="num">{p.progress ?? 0}%</td>
                     <td><Badge status={projectStatusLabel(p.status)} tone={projectTone(p.status)} /></td>
                     <td className="no-print">
-                      <span style={{ display: "inline-flex", gap: 6 }}>
+                      <span className="table-actions">
                         <button
-                          className="btn-ghost"
-                          style={{ height: 26, lineHeight: "24px", padding: "0 8px", fontSize: 12 }}
+                          className="btn-ghost btn-xs"
                           onClick={(e) => { e.stopPropagation(); setEditing(p); setFormOpen(true); }}
                         >
                           编辑
                         </button>
                         {isAdmin && !["doing", "filed"].includes(p.status) && (
                           <button
-                            className="btn-ghost"
-                            style={{ height: 26, lineHeight: "24px", padding: "0 8px", fontSize: 12, color: "var(--danger)", borderColor: "var(--line-danger)" }}
+                            className="btn-ghost btn-xs btn-danger-outline"
                             onClick={(e) => {
                               e.stopPropagation();
                               setDeleteTarget(p);
@@ -308,7 +309,7 @@ function ProjectsInner() {
           detail && (
             <>
               <button className="btn-ghost" onClick={() => { setEditing(detail); setFormOpen(true); }}>编辑</button>
-              <Link className="btn-primary" href={`/projects/${detail.id}`} style={{ display: "inline-flex", alignItems: "center", padding: "0 16px" }}>
+              <Link className="btn-primary" href={`/projects/${detail.id}`}>
                 打开完整档案
               </Link>
             </>

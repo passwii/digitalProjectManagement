@@ -146,6 +146,13 @@ export default function ProjectPicker({
 
   useEffect(() => setActive(-1), [debouncedKeyword, page]);
 
+  useEffect(() => {
+    if (!open || active < 0) return;
+    const row = rows[active];
+    if (!row) return;
+    document.getElementById(`project-option-${row.id ?? "all"}`)?.scrollIntoView({ block: "nearest" });
+  }, [active, open, rows]);
+
   const close = useCallback((focusTrigger = false) => {
     setOpen(false);
     if (focusTrigger) triggerRef.current?.focus();
@@ -240,6 +247,10 @@ export default function ProjectPicker({
               onChange={(e) => setKeyword(e.target.value)}
               placeholder={placeholder}
               aria-label="搜索项目关键词"
+              role="combobox"
+              aria-expanded="true"
+              aria-controls="project-picker-options"
+              aria-activedescendant={active >= 0 ? `project-option-${rows[active]?.id ?? "all"}` : undefined}
               autoComplete="off"
             />
           </div>
@@ -247,7 +258,7 @@ export default function ProjectPicker({
           {error ? (
             <div className={st.state}>
               <div className={st.stateErr} role="alert">{error}</div>
-              <button type="button" className={st.retry} onClick={reload}>重试</button>
+              <button type="button" className={st.retry} onClick={reload} aria-label="重新加载项目列表">重试</button>
             </div>
           ) : firstLoad ? (
             <div className={st.loading} role="status" aria-live="polite" aria-busy="true">
@@ -262,7 +273,12 @@ export default function ProjectPicker({
               <div className={st.stateHint}>换个名称 / 编号 / 客户关键词试试</div>
             </div>
           ) : (
-            <ul className={st.list} role="listbox" aria-label="项目候选">
+            <ul
+              className={st.list}
+              id="project-picker-options"
+              role="listbox"
+              aria-label="项目候选"
+            >
               {rows.map((row, i) => (
                 <li key={row.id === null ? "__all__" : row.id}>
                   {row.section && rows[i - 1]?.section !== row.section && (
@@ -271,6 +287,7 @@ export default function ProjectPicker({
                   <button
                     type="button"
                     role="option"
+                    id={`project-option-${row.id ?? "all"}`}
                     aria-selected={row.id !== null && String(row.id) === value}
                     className={`${st.row}${i === active ? ` ${st.rowActive}` : ""}${row.id !== null && String(row.id) === value ? ` ${st.rowOn}` : ""}`}
                     onMouseEnter={() => setActive(i)}
@@ -293,10 +310,10 @@ export default function ProjectPicker({
               共 {total} 个项目 · 第 {page}/{pages} 页
             </span>
             <span className={st.footBtns}>
-              <button type="button" className={st.page} disabled={loading || page <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))}>
+              <button type="button" className={st.page} disabled={loading || page <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))} aria-label="项目上一页">
                 上一页
               </button>
-              <button type="button" className={st.page} disabled={loading || page >= pages} onClick={() => setPage((p) => p + 1)}>
+              <button type="button" className={st.page} disabled={loading || page >= pages} onClick={() => setPage((p) => p + 1)} aria-label="项目下一页">
                 下一页
               </button>
             </span>
