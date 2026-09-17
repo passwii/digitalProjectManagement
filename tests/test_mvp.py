@@ -1236,3 +1236,19 @@ def test_empty_bearer_does_not_bypass_cookie_csrf(client):
                     headers={"Authorization": "Bearer "},
                     json={"old_password": "admin123456", "new_password": "admin1234567"})
     assert r.status_code == 403
+
+
+# 42. 登出使用统一 Bearer 解析，额外空格的令牌也必须失效
+def test_logout_blacklists_bearer_token_with_extra_spaces(client):
+    login = client.post("/api/v1/auth/login",
+                        json={"username": "admin", "password": "admin123456"})
+    assert login.status_code == 200
+    token = login.json()["access_token"]
+    client.cookies.clear()
+
+    logout = client.post("/api/v1/auth/logout", json={},
+                         headers={"Authorization": f"Bearer    {token}"})
+    assert logout.status_code == 200
+
+    me = client.get("/api/v1/auth/me", headers={"Authorization": f"Bearer {token}"})
+    assert me.status_code == 401
