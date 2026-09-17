@@ -1244,6 +1244,29 @@ def test_logout_without_valid_session_clears_auth_cookies(client, state):
     assert all("max-age=0" in header.lower() for header in deleted.values())
 
 
+def test_logout_rejects_cross_site_without_clearing_cookies(client):
+    login = client.post("/api/v1/auth/login",
+                        json={"username": "admin", "password": "admin123456"})
+    assert login.status_code == 200, login.text
+    access = client.cookies.get(settings.access_cookie_name)
+    refresh = client.cookies.get(settings.refresh_cookie_name)
+    csrf = client.cookies.get(settings.csrf_cookie_name)
+
+    response = client.post(
+        "/api/v1/auth/logout",
+        headers={
+            "Sec-Fetch-Site": "cross-site",
+            "Origin": "https://evil.example",
+            "X-CSRF-Token": csrf,
+        },
+    )
+    assert response.status_code == 403, response.text
+    assert response.headers.get_list("set-cookie") == []
+    assert client.cookies.get(settings.access_cookie_name) == access
+    assert client.cookies.get(settings.refresh_cookie_name) == refresh
+    assert client.cookies.get(settings.csrf_cookie_name) == csrf
+
+
 # 41. Bearer 兼容期不要求 CSRF
 def test_bearer_write_remains_compatible(client):
     login = client.post("/api/v1/auth/login",
