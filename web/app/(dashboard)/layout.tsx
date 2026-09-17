@@ -8,6 +8,7 @@ import { clearMetaCache, useMenus } from "@/lib/useMeta";
 import Avatar from "@/components/ui/Avatar";
 import Bell from "@/components/ui/Bell";
 import { ToastProvider } from "@/components/ui/Toast";
+import MotionProvider from "@/components/motion/MotionProvider";
 import s from "@/components/ui/Shell.module.css";
 
 /**
@@ -146,6 +147,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   return (
     <ToastProvider>
+    <MotionProvider>
     <a className="skip-link" href="#main-content">跳到主要内容</a>
     <div className={`${s.shell} ${collapsed ? s.collapsed : ""}`}>
       <aside className={s.sidebar}>
@@ -232,6 +234,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </main>
       </div>
     </div>
+    </MotionProvider>
     </ToastProvider>
   );
 }

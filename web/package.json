@@ -6,9 +6,11 @@
     "dev": "next dev --hostname 0.0.0.0 --port 3001",
     "build": "next build",
     "start": "next start --hostname 0.0.0.0 --port 3001",
-    "lint": "next lint"
+    "lint": "next lint",
+    "test:motion": "vitest run lib/activityCore.test.ts"
   },
   "dependencies": {
+    "framer-motion": "^13.4.0",
     "next": "14.2.18",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
@@ -18,6 +20,7 @@
     "@types/node": "^20.16.0",
     "@types/react": "^18.3.5",
     "@types/react-dom": "^18.3.0",
-    "typescript": "^5.6.2"
+    "typescript": "^5.6.2",
+    "vitest": "^3.2.7"
   }
 }

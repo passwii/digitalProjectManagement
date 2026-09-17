@@ -35,6 +35,12 @@
   --shadow-card: 0 1px 2px rgba(23, 43, 77, 0.05), 0 8px 24px rgba(23, 43, 77, 0.035);
   --shadow-float: 0 14px 36px rgba(23, 43, 77, 0.16), 0 2px 8px rgba(23, 43, 77, 0.06);
   --motion: 140ms ease-out;
+  --motion-fast: 160ms;
+  --motion-base: 220ms;
+  --motion-exit: 140ms;
+  --motion-number: 420ms;
+  --motion-chart: 500ms;
+  --ease-console: cubic-bezier(.2, .72, .2, 1);
 }
 
 * { box-sizing: border-box; }
