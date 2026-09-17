@@ -9,6 +9,7 @@
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import { errText } from "./api";
+import { useActivity } from "./useActivity";
 
 export function isAbortError(e: unknown): boolean {
   if (e instanceof DOMException) return e.name === "AbortError";
@@ -34,6 +35,7 @@ export function useAsyncData<T>(
     resetOnDepChange = false,
   }: { enabled?: boolean; resetOnDepChange?: boolean } = {},
 ): AsyncData<T> {
+  const { beginActivity } = useActivity();
   const loaderRef = useRef(loader);
   loaderRef.current = loader;
 
@@ -63,6 +65,16 @@ export function useAsyncData<T>(
     }
     const id = ++seqRef.current;
     const ac = new AbortController();
+    const finishActivity = beginActivity({
+      label: "更新中",
+      scope: "content",
+    });
+    let finished = false;
+    const finishOnce = () => {
+      if (finished) return;
+      finished = true;
+      finishActivity();
+    };
     setLoading(true);
     setError("");
 
@@ -78,10 +90,14 @@ export function useAsyncData<T>(
       })
       .finally(() => {
         if (seqRef.current === id) setLoading(false);
+        finishOnce();
       });
 
-    return () => ac.abort();
-  }, [enabled, tick, depKey]);
+    return () => {
+      ac.abort();
+      finishOnce();
+    };
+  }, [beginActivity, enabled, tick, depKey]);
 
   const reload = useCallback(() => setTick((t) => t + 1), []);
   const setDataDirect = useCallback((next: T | null) => setData(next), []);

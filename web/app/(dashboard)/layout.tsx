@@ -3,6 +3,7 @@
 import { Fragment, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import { AnimatePresence, m, useReducedMotion } from "framer-motion";
 import { authApi, clearSession, type Me } from "@/lib/api";
 import { clearMetaCache, useMenus } from "@/lib/useMeta";
 import Avatar from "@/components/ui/Avatar";
@@ -93,6 +94,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
   const [me, setMe] = useState<Me | null>(null);
   const { menus, isAdmin, loading: permsLoading, error: permsError, reload: reloadMenus } = useMenus();
   const { startNavigation } = useNavigationActivity();
+  const reduced = useReducedMotion();
 
   const current = Object.keys(CRUMB).find((k) => pathname === k || pathname.startsWith(k + "/"));
   const today = new Date().toISOString().slice(0, 10);
@@ -195,6 +197,13 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
                 >
                   {n.icon}
                   <span className={s.label}>{n.label}</span>
+                  {active && (
+                    <m.span
+                      layoutId="primary-nav-active"
+                      className={s.navActive}
+                      transition={{ duration: reduced ? 0 : 0.2, ease: [0.2, 0.72, 0.2, 1] }}
+                    />
+                  )}
                 </Link>
               </Fragment>
             );
@@ -246,7 +255,18 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
         </header>
         <main className={s.content} id="main-content" tabIndex={-1}>
           <div className={s.contentInner}>
-            <div key={pathname} className={s.routeView}>{children}</div>
+            <AnimatePresence mode="wait" initial={false}>
+              <m.div
+                key={pathname}
+                className={s.routeView}
+                initial={reduced ? false : { opacity: 0, y: 4 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={reduced ? { opacity: 1 } : { opacity: 0, y: -4 }}
+                transition={{ duration: reduced ? 0 : 0.22, ease: [0.2, 0.72, 0.2, 1] }}
+              >
+                {children}
+              </m.div>
+            </AnimatePresence>
           </div>
         </main>
       </div>
