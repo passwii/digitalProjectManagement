@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-const browserGlobals = ["window", "document", "localStorage", "fetch"];
+const browserGlobals = ["window", "document", "localStorage", "navigator", "fetch"];
 
 function installBrowser(pathname = "/login") {
   const assigned = [];
@@ -37,6 +37,14 @@ function installBrowser(pathname = "/login") {
       removed.push(key);
     },
   };
+  Object.defineProperty(globalThis, "navigator", {
+    configurable: true,
+    writable: true,
+    value: {
+      onLine: true,
+      locks: undefined,
+    } as Navigator,
+  });
 
   return {
     assigned,
@@ -125,6 +133,47 @@ test("concurrent protected 401s share one refresh and retry each request once", 
   assert.equal(calls.filter((call) => call.url.endsWith("/auth/refresh")).length, 1);
 });
 
+test("refresh recovery takes the web lock and probes auth before refreshing", async (t) => {
+  const browser = installBrowser("/dashboard");
+  const calls = [];
+  const lockNames = [];
+  let protectedCalls = 0;
+  Object.defineProperty(globalThis, "navigator", {
+    configurable: true,
+    writable: true,
+    value: {
+      onLine: true,
+      locks: {
+        async request(name, callback) {
+          lockNames.push(name);
+          return callback({ name, mode: "exclusive" });
+        },
+      },
+    } as Navigator,
+  });
+  globalThis.fetch = async (url) => {
+    const value = String(url);
+    calls.push(value);
+    if (value.endsWith("/protected")) {
+      protectedCalls += 1;
+      return protectedCalls === 1
+        ? jsonResponse({ detail: "expired" }, 401)
+        : jsonResponse({ ok: true });
+    }
+    if (value.endsWith("/auth/me")) return jsonResponse({ username: "admin" }, 200);
+    if (value.endsWith("/auth/refresh")) return jsonResponse({}, 200);
+    return jsonResponse({}, 404);
+  };
+  t.after(browser.restore);
+
+  const { apiGet } = await import("./api");
+  assert.deepEqual(await apiGet("/protected"), { ok: true });
+  assert.deepEqual(lockNames, ["pm-auth-refresh"]);
+  assert.equal(calls.filter((url) => url.endsWith("/auth/me")).length, 1);
+  assert.equal(calls.filter((url) => url.endsWith("/auth/refresh")).length, 0);
+  assert.equal(calls.filter((url) => url.endsWith("/protected")).length, 2);
+});
+
 test("protected request retries after refresh only once", async (t) => {
   const browser = installBrowser("/dashboard");
   const calls = [];
@@ -169,6 +218,34 @@ test("refresh failure navigates to login with expired reason without retrying re
   );
 
   assert.equal(calls.filter((url) => url.endsWith("/protected")).length, 1);
+  assert.equal(calls.filter((url) => url.endsWith("/auth/refresh")).length, 1);
+  assert.equal(calls.filter((url) => url.endsWith("/auth/logout")).length, 1);
+  assert.equal(browser.assigned.length, 1);
+  assert.match(browser.assigned[0], /\/login\?reason=expired/);
+});
+
+test("concurrent failed refreshes share one logout and navigation", async (t) => {
+  const browser = installBrowser("/dashboard");
+  const calls = [];
+  globalThis.fetch = async (url) => {
+    const value = String(url);
+    calls.push(value);
+    if (value.endsWith("/auth/refresh")) return jsonResponse({ detail: "expired" }, 401);
+    if (value.endsWith("/auth/logout")) return jsonResponse({ ok: true });
+    return jsonResponse({ detail: "expired" }, 401);
+  };
+  t.after(browser.restore);
+
+  const { apiGet, UnauthorizedError } = await import("./api");
+  const results = await Promise.allSettled([
+    apiGet("/protected/one"),
+    apiGet("/protected/two"),
+  ]);
+
+  assert.ok(results.every((result) => result.status === "rejected"));
+  assert.ok(results.every((result) =>
+    result.status === "rejected" && result.reason instanceof UnauthorizedError
+  ));
   assert.equal(calls.filter((url) => url.endsWith("/auth/refresh")).length, 1);
   assert.equal(calls.filter((url) => url.endsWith("/auth/logout")).length, 1);
   assert.equal(browser.assigned.length, 1);

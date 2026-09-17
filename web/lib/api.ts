@@ -11,6 +11,7 @@ const CSRF_COOKIE = "pm_csrf_token";
 const CSRF_HEADER = "X-CSRF-Token";
 const LOGOUT_TIMEOUT_MS = 1500;
 const LEGACY_COOKIE_PATHS = ["/", "/api/v1/auth"];
+const REFRESH_LOCK = "pm-auth-refresh";
 export type SessionEndReason = "logout" | "expired";
 
 export function getToken(): string | null {
@@ -53,56 +54,93 @@ function csrfHeaders(method: string): Record<string, string> {
 /** 会话失效后的登录页跳转目标：站内固定路径，不接受任何外部输入 */
 const LOGIN_PATH = "/login";
 
+let logoutPromise: Promise<void> | null = null;
+
 export async function clearSession(reason: SessionEndReason = "logout"): Promise<void> {
   if (typeof window === "undefined") return;
   clearLegacySessionArtifacts();
   if (window.location.pathname === LOGIN_PATH) return;
+  if (logoutPromise) return logoutPromise;
 
-  const controller = new AbortController();
-  const timeout = window.setTimeout(() => controller.abort(), LOGOUT_TIMEOUT_MS);
-  let logoutCompleted = false;
-  try {
-    const response = await fetch(`${API_BASE}/auth/logout`, {
-      method: "POST",
-      credentials: "include",
-      headers: csrfHeaders("POST"),
-      keepalive: true,
-      signal: controller.signal,
-    });
-    logoutCompleted = response.ok;
-  } catch {
-    // 登出是尽力而为：网络失败也必须离开受保护页面。
-  } finally {
-    window.clearTimeout(timeout);
-    const url = new URL(LOGIN_PATH, window.location.origin);
-    url.searchParams.set(
-      "reason",
-      logoutCompleted || reason === "expired" ? reason : "logout_failed",
-    );
-    if (!logoutCompleted) url.searchParams.set("logged_out", "1");
-    const target = `${url.pathname}${url.search}`;
-    window.location.assign(new URL(target, window.location.origin).toString());
-  }
+  logoutPromise = (async () => {
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), LOGOUT_TIMEOUT_MS);
+    let logoutCompleted = false;
+    try {
+      const response = await fetch(`${API_BASE}/auth/logout`, {
+        method: "POST",
+        credentials: "include",
+        headers: csrfHeaders("POST"),
+        keepalive: true,
+        signal: controller.signal,
+      });
+      logoutCompleted = response.ok;
+    } catch {
+      // 登出是尽力而为：网络失败也必须离开受保护页面。
+    } finally {
+      window.clearTimeout(timeout);
+      const url = new URL(LOGIN_PATH, window.location.origin);
+      url.searchParams.set(
+        "reason",
+        logoutCompleted || reason === "expired" ? reason : "logout_failed",
+      );
+      if (!logoutCompleted) url.searchParams.set("logged_out", "1");
+      const target = `${url.pathname}${url.search}`;
+      window.location.assign(new URL(target, window.location.origin).toString());
+    }
+  })().finally(() => {
+    logoutPromise = null;
+  });
+  return logoutPromise;
 }
 
 let refreshPromise: Promise<boolean> | null = null;
 
+async function probeSession(): Promise<boolean> {
+  try {
+    const response = await fetch(`${API_BASE}/auth/me`, { credentials: "include" });
+    return response.ok;
+  } catch {
+    return false;
+  }
+}
+
+async function rotateSession(): Promise<boolean> {
+  try {
+    const response = await fetch(`${API_BASE}/auth/refresh`, {
+      method: "POST",
+      credentials: "include",
+      headers: csrfHeaders("POST"),
+    });
+    return response.ok;
+  } catch {
+    return false;
+  }
+}
+
+async function recoverSessionWithoutLock(): Promise<boolean> {
+  if (await probeSession()) return true;
+  return rotateSession();
+}
+
+async function recoverSession(): Promise<boolean> {
+  const locks = typeof navigator !== "undefined" ? navigator.locks : undefined;
+  if (!locks?.request) return recoverSessionWithoutLock();
+  try {
+    return await locks.request(REFRESH_LOCK, async () => {
+      if (await probeSession()) return true;
+      return rotateSession();
+    });
+  } catch {
+    return recoverSessionWithoutLock();
+  }
+}
+
 async function refreshSession(): Promise<boolean> {
   if (refreshPromise) return refreshPromise;
-  refreshPromise = (async () => {
-    try {
-      const res = await fetch(`${API_BASE}/auth/refresh`, {
-        method: "POST",
-        credentials: "include",
-        headers: csrfHeaders("POST"),
-      });
-      return res.ok;
-    } catch {
-      return false;
-    } finally {
-      refreshPromise = null;
-    }
-  })();
+  refreshPromise = recoverSession().finally(() => {
+    refreshPromise = null;
+  });
   return refreshPromise;
 }
 

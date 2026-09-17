@@ -87,7 +87,11 @@ def bearer_token_from_request(request: Request) -> str:
 
 
 def request_uses_cookie_auth(request: Request) -> bool:
-    return bool(request.cookies.get(settings.access_cookie_name)) and not bearer_token_from_request(request)
+    has_cookie_session = bool(
+        request.cookies.get(settings.access_cookie_name)
+        or request.cookies.get(settings.refresh_cookie_name)
+    )
+    return has_cookie_session and not bearer_token_from_request(request)
 
 
 def csrf_header_valid(request: Request) -> bool:
