@@ -15,11 +15,8 @@ out/
 !.env.docker.example
 .env.local
 
-# sqlite 数据与备份
+# 本地附件与运行数据
 data/
-*.db
-*.db-wal
-*.db-shm
 
 # os
 .DS_Store

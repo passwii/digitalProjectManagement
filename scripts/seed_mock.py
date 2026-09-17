@@ -35,7 +35,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from api.core.database import DATA_DIR, SessionLocal, engine, ensure_fts  # noqa: E402
+from api.core.database import DATA_DIR, SessionLocal, engine  # noqa: E402
 from api.core.notify import push, user_ids_with_role  # noqa: E402
 from api.core.security import hash_password  # noqa: E402
 from api.models import (ApprovalRecord, Attachment, Budget, BudgetAdjust, Department,  # noqa: E402
@@ -595,7 +595,6 @@ def main() -> None:
     ap.add_argument("--clean", action="store_true", help="只清理示例数据")
     args = ap.parse_args()
 
-    ensure_fts(engine)
     db = SessionLocal()
     try:
         if args.clean:

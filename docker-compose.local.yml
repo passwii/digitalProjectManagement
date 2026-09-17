@@ -1,0 +1,61 @@
+# 本地开发覆盖配置：通过 Docker 内 SSH 隧道访问 VPS 上的 PostgreSQL。
+# 用法：
+#   docker compose -f docker-compose.yml -f docker-compose.local.yml up --build
+
+services:
+  db-tunnel:
+    build:
+      context: .
+      dockerfile: docker/db-tunnel.Dockerfile
+      network: host
+    restart: unless-stopped
+    command:
+      - >
+        exec ssh -N
+        -o BatchMode=yes
+        -o ExitOnForwardFailure=yes
+        -o ServerAliveInterval=15
+        -o ServerAliveCountMax=3
+        -i /root/.ssh/id_ed25519
+        -L 0.0.0.0:5432:127.0.0.1:5432
+        ${VPS_SSH_USER:-root}@${VPS_SSH_HOST:-145.79.143.98}
+    volumes:
+      - ${HOME}/.ssh/id_ed25519:/root/.ssh/id_ed25519:ro
+      - ${HOME}/.ssh/known_hosts:/root/.ssh/known_hosts:ro
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z 127.0.0.1 5432"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  api:
+    build:
+      args:
+        PIP_INDEX_URL: https://pypi.tuna.tsinghua.edu.cn/simple
+      network: host
+    depends_on:
+      db-tunnel:
+        condition: service_healthy
+    environment:
+      DB_FORWARD_HOST: db-tunnel
+      DB_POOL_SIZE: 1
+      DB_MAX_OVERFLOW: 0
+      CORS_ORIGINS: "http://localhost:3001,http://127.0.0.1:3001"
+
+  web:
+    build: !reset null
+    image: node:20-alpine
+    working_dir: /app
+    environment:
+      NEXT_PUBLIC_API_BASE: http://localhost:8001/api/v1
+    volumes:
+      - ./web:/app
+    command:
+      - sh
+      - -c
+      - >
+        if [ ! -x node_modules/.bin/next ]; then
+          npm ci --registry=https://registry.npmmirror.com;
+        fi;
+        npm run build &&
+        npm run start -- -H 0.0.0.0 -p 3001

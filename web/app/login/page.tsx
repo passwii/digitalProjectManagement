@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { authApi, errText, saveSession } from "@/lib/api";
+import { authApi, errText, saveSession, UnauthorizedError } from "@/lib/api";
 import st from "./login.module.css";
 
 export default function LoginPage() {
@@ -31,7 +31,11 @@ export default function LoginPage() {
       saveSession(data.access_token, data.refresh_token);
       router.push(data.must_change_pwd ? "/change-password" : "/dashboard");
     } catch (err: unknown) {
-      setApiErr(errText(err));
+      setApiErr(
+        err instanceof UnauthorizedError
+          ? "手机号或密码错误"
+          : errText(err),
+      );
     } finally {
       setLoading(false);
     }
@@ -42,15 +46,12 @@ export default function LoginPage() {
       <section className={st.story}>
         <div className={st.storyGrid} aria-hidden />
         <div className={st.storyTop}>
-          <span className={st.mark}>数慧致科</span>
+          <span className={st.mark}>数科云办公</span>
           <span className={st.edition}>OA / PROJECT DELIVERY</span>
         </div>
         <div className={st.storyMain}>
           <p className={st.kicker}>Digital Project Operations</p>
-          <h1>
-            数慧致科
-            <span>OA管理平台</span>
-          </h1>
+          <h1>数科云办公</h1>
           <p className={st.storyText}>
             让项目台账、交付进度、合同档案与支出记录沉淀在同一套管理坐标中。
           </p>
@@ -67,11 +68,10 @@ export default function LoginPage() {
           <div className={st.cardHead}>
             <span className={st.cardBadge}>SHZK</span>
             <div>
-              <p className={st.cardEyebrow}>数慧致科OA管理平台</p>
+              <p className={st.cardEyebrow}>数科云办公</p>
               <h2>登录管理工作台</h2>
             </div>
           </div>
-          <p className={st.sub}>使用管理员签发的手机号账号登录。</p>
           <form onSubmit={onSubmit}>
             <div className={st.field}>
               <label htmlFor="login-phone">手机号</label>
@@ -102,7 +102,7 @@ export default function LoginPage() {
             </button>
           </form>
         </div>
-        <p className={st.copyright}>数慧致科 · 项目管理系统</p>
+        <p className={st.copyright}>数科云办公</p>
       </section>
     </main>
   );

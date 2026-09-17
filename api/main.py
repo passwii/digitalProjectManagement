@@ -3,15 +3,11 @@ import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from .core.database import Base, engine, ensure_fts
 from .routers import (admin, approvals, auth, budgets, dashboard, expenses, meta,
                       milestones, notifications, projects, reports, tasks)
 
-# 确保模型注册后再建表
+# 确保模型注册
 from . import models  # noqa: F401
-
-Base.metadata.create_all(bind=engine)
-ensure_fts(engine)  # 全文检索表（幂等；不支持 FTS5 时自动回退 LIKE）
 
 app = FastAPI(
     title="项目管理系统 API",

@@ -138,8 +138,7 @@ function ReportsInner() {
 
   return (
     <div>
-      <div className="page-head">
-        <h1>支出报表<span className="sub">项目 / 人员 / 部门 / 时间</span></h1>
+      <div className="page-head actions-only">
         <div className="actions no-print">
           {VIEWS.map((v) => (
             <button

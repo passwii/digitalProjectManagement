@@ -150,16 +150,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     <div className={`${s.shell} ${collapsed ? s.collapsed : ""}`}>
       <aside className={s.sidebar}>
         <div className={s.ws}>
-          <div className={s.wsName} title="数慧致科OA管理平台">
-            <span className={s.brandSeal}>SH</span>
+          <div className={s.wsName} title="数科云办公">
+            <span className={s.brandSeal}>SHZK</span>
             <span className={s.brandText}>
-              <b>数慧致科</b>
-              <small>OA管理平台</small>
+              <b>数科云办公</b>
             </span>
           </div>
-          <Link className={s.newBtn} href="/projects" title="新建项目">
-            {collapsed ? "+" : "+ 新建项目"}
-          </Link>
         </div>
         <nav className={s.nav} aria-label="主导航" aria-busy={permsLoading}>
           {navItems.map((n, i) => {
@@ -215,8 +211,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       <div className={s.main}>
         <header className={s.topbar}>
           <div className={s.topContext}>
-            <span className={s.crumb}>数慧致科 / <b>{current ? CRUMB[current] : "控制台"}</b></span>
-            <span className={s.topHint}>项目全周期管理</span>
+            <span className={s.crumb}>数科云办公 / <b>{current ? CRUMB[current] : "控制台"}</b></span>
           </div>
           <div className={s.topActions}>
             <span className={s.topDate}>{today}</span>

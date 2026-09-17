@@ -222,8 +222,6 @@ export interface Project {
   backward_contract?: string;
   status: string;
   progress: number;
-  /** FTS5 命中时的关键词高亮片段（仅带 keyword 检索返回） */
-  snippet?: string;
 }
 
 /** 项目选择器最小字段（`GET /projects/options`） */

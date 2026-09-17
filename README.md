@@ -1,10 +1,10 @@
-# 数慧致科OA管理平台
+# 数科云办公
 
-Next.js 14（前端）+ FastAPI（后端）+ SQLite（单文件库）实现的 MVP。计划与设计见 `docs/superpowers/plans/`。
+Next.js 14（前端）+ FastAPI（后端）+ PostgreSQL 实现的内部项目管理平台。计划与设计见 `docs/superpowers/plans/`。
 
 ## 本版本交付口径（2026-09-16）
 
-- 全站品牌标题为「数慧致科OA管理平台」，登录账号统一使用手机号，系统不提供自助注册。
+- 全站品牌标题为「数科云办公」，登录账号统一使用手机号，系统不提供自助注册。
 - 初始管理员账号 `15796280534` / `admin123456`，首次登录强制修改密码。管理员签发的其他账号同样强制首登改密。
 - 项目台账支持手填项目编号、固定负责人列表、合同状态、前向/后向合同及合同附件。
 - 项目完整档案默认进入可编辑白板，可自动保存文字并上传图片素材。
@@ -14,25 +14,15 @@ Next.js 14（前端）+ FastAPI（后端）+ SQLite（单文件库）实现的 M
 
 ## 启动
 
-后端（端口 8001）：
+本机统一使用 Docker 启动，项目根目录 `.env` 是 API、Web、数据库和密钥的共用配置来源。
+不要直接运行本机 `uvicorn`、`next dev`、`next start` 或依赖本机 Python/Node 服务。
 
 ```bash
-cd api
-export PYTHONPATH=$(cd .. && pwd)
-alembic upgrade head        # 首次：建表
-python3 -m api.seed         # 首次：种子数据（幂等，可重复执行）
-uvicorn api.main:app --port 8001
+docker compose -f docker-compose.yml -f docker-compose.local.yml up --build
 ```
 
-前端（端口 3001）：
-
-```bash
-cd web
-npm install                 # 首次
-npm run build && npx next start --port 3001
-# 开发模式：npx next dev --port 3001
-```
-
+本地覆盖配置会在 Docker 网络内建立到 VPS PostgreSQL 的 SSH 隧道，
+API 自动把根目录 `.env` 中 `DATABASE_URL` 的主机切换为隧道服务。
 打开 http://localhost:3001/login
 
 ## 演示数据开关（全站生效）
@@ -41,7 +31,6 @@ npm run build && npx next start --port 3001
 
 - **默认关闭**：演示项目在项目台账、工作台、报表、预警、任务里全部排除，直接访问 URL 也按不存在处理，保证各处统计口径一致
 - **打开方式**（仅管理员）：
-  - 项目台账页头右上角「显示演示数据」开关
   - 系统管理 → 参数 → `demo_data_on`
   - 直连：`PUT /api/v1/admin/demo-data` body `{"on": true}`
 - 开关打开时页面顶部有提示条，避免误把演示数据当成真实数据
@@ -98,7 +87,7 @@ u.pwd_hash=hash_password('admin123456'); u.must_change_pwd=False; db.commit(); p
 - 项目健康度（正常/风险/异常）、本周动态（逾期、7 天内到期、最近填报）
 
 **项目台账（`/projects`）**
-- 列表：关键字全文检索（FTS5 高亮片段）、状态/负责人筛选、分页、行点击开右侧详情抽屉
+- 列表：关键字模糊检索、状态/负责人筛选、分页、行点击开右侧详情抽屉
 - 新建/编辑走弹窗；状态机 7 态流转（含「待立项审批」），危险流转二次确认
 - 详情 4 Tab：档案 / 变更留痕时间线 / 附件（上传·下载·删除）/ 跟进（增删改 + 到期提醒）
 - 成员管理弹窗（多选 + 搜索，负责人不可移除）
@@ -238,7 +227,7 @@ u.pwd_hash=hash_password('admin123456'); u.must_change_pwd=False; db.commit(); p
 
 ## 性能（已实测，2000 项目规模）
 
-列表分页与查询边界的 P95 实测（临时 sqlite 库 + 真实 ASGI 请求路径，每接口采样 30 次，含鉴权与序列化）：
+列表分页与查询边界的 P95 实测（临时测试库 + 真实 ASGI 请求路径，每接口采样 30 次，含鉴权与序列化）：
 
 | 接口 | median | P95 | total |
 |---|---|---|---|
@@ -292,9 +281,7 @@ python3 -m pytest -q        # 62 项：
 
 ## 已知限制
 
-- SQLite FTS5 的 trigram 分词要求查询词 ≥3 字符，1-2 字关键词回退 LIKE（中文全文检索的完整方案留给 PostgreSQL 阶段）
-- FTS 命中集在检索时预先截断为 500 条（`fts_search` 的性能护栏），因此 `GET /projects?keyword=` 的 `total` 在命中超过
-  500 条时会低估；需要精确总数/分页的选择器场景请用 `GET /projects/options`（走 LIKE，`total` 准确）
+- 项目关键字当前使用 PostgreSQL 大小写不敏感模糊匹配；后续可升级为 `pg_trgm` 或中文全文检索索引
 - 字典类接口（`/meta/users`、`/meta/depts`）为「一次取回本地映射」设计，服务端硬上限 500 行；超出请用 `/meta/users/search`
 - 列表筛选/分页未写入 URL，刷新会丢筛选条件（Stage 3B 前端处理）
 - Stage 4A 新增的 `link` / `state` / `can_resubmit` / `decision_reason` 等字段后端已就绪，
@@ -311,13 +298,7 @@ docker compose up --build
 # api: http://localhost:8001
 ```
 
-不设置 `DATABASE_URL` 时默认使用容器内 SQLite：
-
-```text
-sqlite:////app/data/app.db
-```
-
-连接宿主机 PostgreSQL 时，在项目根目录创建 `.env`：
+启动前必须在项目根目录创建 `.env`，并提供 PostgreSQL 连接：
 
 ```dotenv
 DATABASE_URL=postgresql+psycopg://oa_user:change_me@host.docker.internal:5432/oa_platform
@@ -327,18 +308,19 @@ CORS_ORIGINS=http://localhost:3001,http://127.0.0.1:3001
 
 Compose 已为 Linux 添加 `host.docker.internal:host-gateway`。本机 PostgreSQL 需要允许 Docker 网段连接，
 即确认 `listen_addresses` 不只绑定 `127.0.0.1`，并在 `pg_hba.conf` 中允许对应 Docker 子网访问业务库和业务账号。
-首次启动 `api` 会自动执行 Alembic 迁移和幂等种子。附件仍持久化在 `pm-data` 卷，与数据库位置无关。
+首次启动 `api` 会自动执行 Alembic 迁移和幂等种子。未设置 `DATABASE_URL` 时 API 会拒绝启动。
+附件仍持久化在 `pm-data` 卷，与数据库位置无关。
 
 ## 运维
 
 ```bash
-bash scripts/backup_db.sh   # 备份 data/app.db，保留 7 天
+bash scripts/backup_db.sh   # 使用 pg_dump 备份 PostgreSQL
 python3 -m api.core.jobs    # 跟进到期扫描（建议 cron 每 10 分钟）
 ```
 
 ## 说明
 
-- 本地默认数据库为 SQLite（`data/app.db`）；设置 `DATABASE_URL` 后可切换 PostgreSQL，SQLite 专用 FTS 会自动降级为 LIKE。
+- 本地、开发和生产的 API 均只支持 PostgreSQL，且必须显式配置 `DATABASE_URL`；不存在 SQLite 回退。
 - Docker 仅运行前后端，不运行数据库；可连接宿主机已有 PostgreSQL。
 - CORS 默认放行 `localhost:3000/3001`，Docker 默认放行 `3001`，可用环境变量 `CORS_ORIGINS` 覆盖。
 - 前端 token 存 localStorage + 非 httpOnly cookie（供 middleware 鉴权），生产环境建议改由服务端下发 httpOnly cookie。

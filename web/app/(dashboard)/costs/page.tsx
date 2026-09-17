@@ -137,11 +137,7 @@ function CostsInner() {
 
   return (
     <div>
-      <div className="page-head">
-        <h1>
-          支出记录
-          {pid > 0 && data && <span className="sub">{total} 笔</span>}
-        </h1>
+      <div className="page-head actions-only">
         <div className="actions no-print">
           <button
             className="btn-primary"

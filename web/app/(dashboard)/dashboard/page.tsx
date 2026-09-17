@@ -19,7 +19,7 @@ const SUBJECT_COLORS = ["#1677FF", "#5B8DEF", "#7C5CFC", "#2C9C69", "#D48806"];
 
 export default function DashboardPage() {
   const { userName, deptName } = useMeta();
-  const { me, displayName } = useMe();
+  const { me } = useMe();
   // 审批入口与管理/审批权限均以后端菜单契约为准，不再自行拼角色判断
   const { isAdmin } = useMenus();
   const [data, setData] = useState<DashboardSummary | null>(null);
@@ -52,17 +52,7 @@ export default function DashboardPage() {
 
   return (
     <div>
-      <div className="page-head">
-        <h1>
-          工作台
-          <span className="sub">
-            {displayName || "当前用户"} 视角
-            <span className="mono">
-              {" · "}
-              {isAdmin ? "管理员 · 全局" : "项目参与"}
-            </span>
-          </span>
-        </h1>
+      <div className="page-head actions-only">
         <div className="actions no-print">
           <button className="btn-ghost" onClick={load}>刷新</button>
           <Link className="btn-ghost" href="/reports">支出报表</Link>

@@ -33,9 +33,6 @@ export default function ApprovalsPage() {
   if (!isAdmin) {
     return (
       <div>
-        <div className="page-head">
-          <h1>审批中心<span className="sub">管理员全局管理与审批</span></h1>
-        </div>
         <NoAccess
           title="审批中心仅管理员可用"
           hint={
@@ -139,11 +136,7 @@ function ApprovalsInner() {
 
   return (
     <div>
-      <div className="page-head">
-        <h1>
-          审批中心
-          <span className="sub">管理员全局管理与审批 · 立项 / 预算调整 / 支出 统一待办</span>
-        </h1>
+      <div className="page-head actions-only">
         <div className="actions no-print">
           <button className="btn-ghost" onClick={load} disabled={loading}>
             {loading ? "刷新中…" : "刷新"}

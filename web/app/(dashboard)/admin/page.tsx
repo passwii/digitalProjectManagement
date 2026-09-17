@@ -49,9 +49,6 @@ export default function AdminPage() {
   if (!isAdmin) {
     return (
       <div>
-        <div className="page-head">
-          <h1>系统管理<span className="sub">管理员全局管理</span></h1>
-        </div>
         <NoAccess
           title="系统管理仅管理员可用"
           hint={
@@ -153,8 +150,7 @@ function AdminInner() {
 
   return (
     <div>
-      <div className="page-head">
-        <h1>系统管理</h1>
+      <div className="page-head actions-only">
         <div className="actions no-print">
           {tab === "用户" && (
             <button className="btn-primary" style={{ width: "auto" }} onClick={() => { setEditingUser(null); setUserOpen(true); }}>

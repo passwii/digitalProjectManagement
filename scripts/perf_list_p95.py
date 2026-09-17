@@ -2,31 +2,36 @@
 """列表接口 P95 压测（Stage 3A 验收）：2000 项目规模下核心列表 P95 ≤ 2s。
 
 用法
-    python3 scripts/perf_list_p95.py                        # 2000 项目 / 每接口 30 次采样
-    python3 scripts/perf_list_p95.py --projects 2000 --runs 30
-    python3 scripts/perf_list_p95.py --projects 500 --runs 10 --keep-db
+    TEST_DATABASE_URL=postgresql+psycopg://... python3 scripts/perf_list_p95.py
+    TEST_DATABASE_URL=postgresql+psycopg://... python3 scripts/perf_list_p95.py --projects 500 --runs 10
 
 与 `scripts/seed_perf.py` 的区别
-    · seed_perf.py 往真实的 data/app.db 灌数据（供浏览器手测）；
-    · 本脚本在临时 sqlite 库上自建数据集，用依赖注入覆盖 get_db，走真实 ASGI 请求路径
-      （含鉴权、分页、序列化开销），跑完即弃，不动开发库，可直接接 CI（P95 超阈值退出码 1）。
+    · seed_perf.py 往配置的 PostgreSQL 开发库灌数据（供浏览器手测）；
+    · 本脚本在 TEST_DATABASE_URL 指向的 PostgreSQL 上创建临时 schema，用依赖注入覆盖 get_db
+      走真实 ASGI 请求路径（含鉴权、分页、序列化开销），跑完即删，可直接接 CI。
 """
 import argparse
+import os
 import random
 import statistics
 import sys
-import tempfile
 import time
+import uuid
 from datetime import date, timedelta
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from sqlalchemy import create_engine  # noqa: E402
+TEST_DATABASE_URL = (os.getenv("TEST_DATABASE_URL") or "").strip()
+if not TEST_DATABASE_URL:
+    raise SystemExit("TEST_DATABASE_URL must point to an isolated PostgreSQL test database")
+os.environ["DATABASE_URL"] = TEST_DATABASE_URL
+
+from sqlalchemy import create_engine, event, text  # noqa: E402
 from sqlalchemy.orm import sessionmaker  # noqa: E402
 
-from api.core.database import Base, ensure_fts, get_db  # noqa: E402
+from api.core.database import Base, get_db  # noqa: E402
 from api.core.security import hash_password  # noqa: E402
 from api.main import app  # noqa: E402
 from api.models import (  # noqa: E402
@@ -48,11 +53,17 @@ THRESHOLD_S = 2.0
 SUBJECTS = ["人工", "采购", "外包", "差旅", "其他"]
 
 
-def build_db(path: Path):
-    eng = create_engine(f"sqlite:///{path}", connect_args={"check_same_thread": False})
+def build_db(schema: str):
+    eng = create_engine(TEST_DATABASE_URL, pool_pre_ping=True)
+
+    @event.listens_for(eng, "connect")
+    def _set_search_path(dbapi_conn, _record):
+        cur = dbapi_conn.cursor()
+        cur.execute(f'SET search_path TO "{schema}"')
+        cur.close()
+
     Base.metadata.create_all(bind=eng)
-    ensure_fts(eng)          # 与生产一致：FTS5 trigram（不支持时静默回退 LIKE）
-    return sessionmaker(bind=eng, autoflush=False, autocommit=False)
+    return eng, sessionmaker(bind=eng, autoflush=False, autocommit=False)
 
 
 def seed(Session, n: int):
@@ -146,11 +157,13 @@ def main():
     ap.add_argument("--keep-db", action="store_true", help="保留临时库便于排查")
     args = ap.parse_args()
 
-    tmpdir = Path(tempfile.mkdtemp(prefix="perf_list_p95_"))
-    db_path = tmpdir / "perf.db"
-    Session = build_db(db_path)
+    schema = f"perf_list_p95_{uuid.uuid4().hex[:12]}"
+    admin_engine = create_engine(TEST_DATABASE_URL, pool_pre_ping=True)
+    with admin_engine.begin() as conn:
+        conn.execute(text(f'CREATE SCHEMA "{schema}"'))
+    engine, Session = build_db(schema)
     pid, seed_cost = seed(Session, args.projects)
-    print(f"临时库：{db_path}")
+    print(f"临时 schema：{schema}")
     print(f"数据集：{args.projects} 个项目（含任务/预算/支出）"
           f"，灌数据 {seed_cost:.1f}s（~{args.projects / max(seed_cost, .01):.0f} 项目/s）")
 
@@ -197,12 +210,12 @@ def main():
             failures.append((name, url, p95v))
 
     app.dependency_overrides.clear()
+    engine.dispose()
     if not args.keep_db:
-        import shutil
-        try:
-            shutil.rmtree(tmpdir, ignore_errors=True)
-        except OSError as e:      # 临时库清理失败不影响压测结论
-            print(f"（临时库清理失败，已保留：{tmpdir}：{e}）")
+        with admin_engine.begin() as conn:
+            conn.execute(text(f'DROP SCHEMA "{schema}" CASCADE'))
+        print(f"临时 schema 已删除：{schema}")
+    admin_engine.dispose()
 
     print("\n复现命令：python3 scripts/perf_list_p95.py "
           f"--projects {args.projects} --runs {args.runs}")

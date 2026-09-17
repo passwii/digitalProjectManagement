@@ -1,13 +1,12 @@
-# 数慧致科OA管理平台 — Docker 仅启动 api + web
+# 数科云办公 — Docker 仅启动 api + web
 #
 # 用法：
 #   docker compose up --build
 #   浏览器打开 http://localhost:3001/login
 #
 # 数据库：
-#   默认 sqlite:////app/data/app.db（落在 pm-data）
-#   推荐通过 DATABASE_URL 连接宿主机 PostgreSQL，不启动数据库容器
-#   PostgreSQL 示例见 .env.docker.example
+#   必须通过 DATABASE_URL 连接 PostgreSQL，不启动数据库容器
+#   配置示例见 .env.docker.example
 #
 # 附件持久化：命名卷 pm-data 挂在 /app/data
 
@@ -18,7 +17,10 @@ services:
       dockerfile: docker/api.Dockerfile
     environment:
       TZ: Asia/Shanghai
-      DATABASE_URL: "${DATABASE_URL:-sqlite:////app/data/app.db}"
+      APP_SECRET: "${APP_SECRET:?APP_SECRET must be set}"
+      DATABASE_URL: "${DATABASE_URL:?DATABASE_URL must be set to a PostgreSQL URL}"
+      DB_POOL_SIZE: "${DB_POOL_SIZE:-5}"
+      DB_MAX_OVERFLOW: "${DB_MAX_OVERFLOW:-10}"
       CORS_ORIGINS: "${CORS_ORIGINS:-http://localhost:3001,http://127.0.0.1:3001}"
     extra_hosts:
       - "host.docker.internal:host-gateway"
@@ -37,7 +39,7 @@ services:
       context: .
       dockerfile: docker/web.Dockerfile
       args:
-        NEXT_PUBLIC_API_BASE: http://localhost:8001/api/v1
+        NEXT_PUBLIC_API_BASE: "${NEXT_PUBLIC_API_BASE:-http://localhost:8001/api/v1}"
     ports:
       - "3001:3001"
     depends_on:

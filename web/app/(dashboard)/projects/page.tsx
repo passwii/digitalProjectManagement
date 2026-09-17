@@ -2,7 +2,7 @@
 
 import { Suspense, useState } from "react";
 import Link from "next/link";
-import { buildQuery, demoApi, errText, projectsApi, type Project } from "@/lib/api";
+import { buildQuery, errText, projectsApi, type Project } from "@/lib/api";
 import { useAsyncData } from "@/lib/useAsyncData";
 import { urlInt, useUrlState, useUrlText } from "@/lib/useUrlState";
 import { useMeta, useMenus } from "@/lib/useMeta";
@@ -13,14 +13,14 @@ import {
 import Badge from "@/components/ui/Badge";
 import Avatar from "@/components/ui/Avatar";
 import Empty from "@/components/ui/Empty";
-import Pagination, { DEFAULT_SIZE_OPTIONS } from "@/components/ui/Pagination";
+import Pagination from "@/components/ui/Pagination";
 import { LoadingBlock, LoadFailed } from "@/components/ui/PageState";
 import TableToolbar from "@/components/ui/TableToolbar";
 import { Confirm, Drawer } from "@/components/ui/Modal";
 import { useToast } from "@/components/ui/Toast";
 import ProjectFormDialog from "./ProjectFormDialog";
 
-const SIZE_OPTIONS = DEFAULT_SIZE_OPTIONS;
+const SIZE_OPTIONS = [15, 50, 100];
 
 // 筛选 / 分页 / 每页条数写入 URL：刷新、复制链接、前进后退都能恢复同一视图（BLF-1095）
 const URL_DEFAULTS = {
@@ -28,7 +28,7 @@ const URL_DEFAULTS = {
   status: "",
   owner: "",
   page: "1",
-  size: "20",
+  size: "15",
 };
 
 export default function ProjectsPage() {
@@ -49,7 +49,7 @@ export default function ProjectsPage() {
 function ProjectsInner() {
   const { users, userName } = useMeta();
   // 删除（软删除）与解归档仅管理员：显示条件取后端菜单契约
-  const { isAdmin, demoOn, canToggleDemo, reload: reloadMenus } = useMenus();
+  const { isAdmin, demoOn } = useMenus();
   const toast = useToast();
 
   const [url, setUrl] = useUrlState(URL_DEFAULTS, { pageKey: "page" });
@@ -82,7 +82,6 @@ function ProjectsInner() {
   const [confirmFlow, setConfirmFlow] = useState<{ p: Project; to: string } | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Project | null>(null);
   const [busy, setBusy] = useState(false);
-  const [demoBusy, setDemoBusy] = useState(false);
 
   const statusOptions = Object.entries(PROJECT_STATUS).map(([code, label]) => ({ code, label }));
   const DESTRUCTIVE = new Set(["cancelled", "archived", "done"]);
@@ -95,22 +94,6 @@ function ProjectsInner() {
     .filter(Boolean)
     .join(" · ");
   const ownerText = (p: Project) => p.owner_name || userName(p.owner_id);
-
-  async function toggleDemo(next: boolean) {
-    setDemoBusy(true);
-    try {
-      const r = await demoApi.set(next);
-      toast.ok(r.on ? "已显示演示数据" : "已隐藏演示数据");
-      // 菜单缓存里的 demo_on 决定列表口径：切完要重载权限上下文，再刷新列表
-      reloadMenus();
-      setUrl({ page: 1 });
-      reload();
-    } catch (e) {
-      toast.err(errText(e));
-    } finally {
-      setDemoBusy(false);
-    }
-  }
 
   async function changeStatus(p: Project, to: string) {
     setBusy(true);
@@ -129,27 +112,8 @@ function ProjectsInner() {
 
   return (
     <div>
-      <div className="page-head">
-        <h1>
-          项目台账
-          {data && <span className="sub mono">{total} 个项目</span>}
-        </h1>
+      <div className="page-head actions-only">
         <div className="actions">
-          {canToggleDemo && (
-            <label
-              className="demo-switch"
-              title={demoOn ? "当前包含演示数据，点此全站隐藏" : "当前不含演示数据，点此显示"}
-            >
-              <input
-                type="checkbox"
-                checked={demoOn}
-                disabled={demoBusy}
-                onChange={(e) => toggleDemo(e.target.checked)}
-              />
-              <span className="demo-switch-track" aria-hidden />
-              <span className="demo-switch-text">显示演示数据</span>
-            </label>
-          )}
           <button
             className="btn-primary"
             style={{ width: "auto" }}
@@ -215,8 +179,6 @@ function ProjectsInner() {
             hint={
               hasFilter
                 ? "换个筛选条件，或清除筛选后重试。"
-                : canToggleDemo && !demoOn
-                ? "点击右上角新建第一个项目，或打开「显示演示数据」查看演示数据。"
                 : "点击右上角新建第一个项目。"
             }
           />
@@ -224,7 +186,18 @@ function ProjectsInner() {
       ) : (
         <>
           <div className="table-scroll">
-            <table className="grid" aria-busy={loading}>
+            <table className="grid project-table" aria-busy={loading}>
+              <colgroup>
+                <col style={{ width: 112 }} />
+                <col style={{ width: 300 }} />
+                <col style={{ width: 132 }} />
+                <col style={{ width: 180 }} />
+                <col style={{ width: 92 }} />
+                <col style={{ width: 122 }} />
+                <col style={{ width: 76 }} />
+                <col style={{ width: 96 }} />
+                <col style={{ width: 132 }} />
+              </colgroup>
               <thead>
                 <tr>
                   <th>编号</th>
@@ -249,19 +222,6 @@ function ProjectsInner() {
                     <td className="mono tiny">{p.code}</td>
                     <td>
                       <span className="ellipsis" title={p.name}>{p.name}</span>{" "}
-                      {p.snippet && (
-                        <span
-                          className="tiny snippet"
-                          title="关键词命中位置"
-                          dangerouslySetInnerHTML={{ __html: p.snippet }}
-                        />
-                      )}
-                      <span className="row-actions" onClick={(e) => e.stopPropagation()}>
-                        <button onClick={() => setDetail(p)}>详情</button>
-                        <button onClick={() => { setEditing(p); setFormOpen(true); }}>编辑</button>
-                        <Link href={`/progress?project_id=${p.id}`}>进度</Link>
-                        <Link href={`/costs?project_id=${p.id}`}>成本</Link>
-                      </span>
                     </td>
                     <td>
                       <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
@@ -306,6 +266,7 @@ function ProjectsInner() {
             size={size}
             total={total}
             loading={loading}
+            sizeOptions={SIZE_OPTIONS}
             scopeText={scopeText}
             ariaLabel="项目台账分页"
             onChange={(next) =>

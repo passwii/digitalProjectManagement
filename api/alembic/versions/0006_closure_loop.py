@@ -69,8 +69,7 @@ def upgrade():
         op.add_column("followups", sa.Column("handled_at", sa.DateTime(), nullable=True))
     if not _has_column("followups", "handle_note"):
         op.add_column("followups", sa.Column("handle_note", sa.Text(), server_default=""))
-    # 带外键的列必须用 batch 模式：SQLite 不支持 ALTER 加约束，batch 会以「复制重建」方式落地 FK，
-    # 保证「全新库 create_all」与「存量库迁移」得到结构一致的 schema。
+    # 带外键的列使用 batch 模式，保证 PostgreSQL 下新建与迁移得到一致的约束结构。
     # batch 复制重建时约束必须有名字，显式给出 FK 名称（与 naming_convention 不冲突）。
     if not _has_column("followups", "handled_by"):
         with op.batch_alter_table("followups") as batch:

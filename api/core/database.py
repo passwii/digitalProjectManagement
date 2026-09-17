@@ -1,47 +1,80 @@
-"""数据库连接：默认 SQLite，可用 DATABASE_URL 切换 PostgreSQL 等外部数据库。"""
+"""数据库连接：仅支持 PostgreSQL，必须通过 DATABASE_URL 显式配置。"""
 import os
+import shlex
 from pathlib import Path
 
-from sqlalchemy import create_engine, event
+from sqlalchemy import create_engine
 from sqlalchemy.orm import declarative_base, sessionmaker
 
 ROOT = Path(__file__).resolve().parents[2]
+
+
+def _load_env_file(path: Path) -> None:
+    """Load simple KEY=VALUE entries without overriding the process environment."""
+    if not path.exists():
+        return
+    for raw in path.read_text(encoding="utf-8").splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#"):
+            continue
+        if line.startswith("export "):
+            line = line[7:].lstrip()
+        key, sep, value = line.partition("=")
+        key = key.strip()
+        if not sep or not key:
+            continue
+        value = value.strip()
+        if value and value[0] in {"'", '"'}:
+            parsed = shlex.split(value)
+            value = parsed[0] if parsed else ""
+        os.environ.setdefault(key, value)
+
+
+_load_env_file(ROOT / ".env")
+
 DATA_DIR = ROOT / "data"
 DATA_DIR.mkdir(exist_ok=True)
-DB_PATH = DATA_DIR / "app.db"
 
 
 def _database_url() -> str:
     raw = (os.getenv("DATABASE_URL") or "").strip()
     if not raw:
-        return f"sqlite:///{DB_PATH}"
+        raise RuntimeError(
+            "DATABASE_URL is required. SQLite is no longer supported; "
+            "configure a PostgreSQL connection before starting the API."
+        )
+    if raw.startswith("sqlite"):
+        raise RuntimeError(
+            "SQLite is no longer supported. Configure PostgreSQL via DATABASE_URL."
+        )
     # 兼容常见 PaaS 的 postgres:// 前缀，统一落到 psycopg3 驱动。
     if raw.startswith("postgres://"):
         raw = "postgresql+psycopg://" + raw[len("postgres://"):]
     elif raw.startswith("postgresql://"):
         raw = "postgresql+psycopg://" + raw[len("postgresql://"):]
+    if not raw.startswith("postgresql"):
+        raise RuntimeError("DATABASE_URL must point to PostgreSQL.")
     return raw
 
 
 DB_URL = _database_url()
-IS_SQLITE = DB_URL.startswith("sqlite")
-
-_engine_kwargs = {"pool_pre_ping": not IS_SQLITE}
-if IS_SQLITE:
-    _engine_kwargs["connect_args"] = {"check_same_thread": False, "timeout": 30}
-
-engine = create_engine(DB_URL, **_engine_kwargs)
 
 
-@event.listens_for(engine, "connect")
-def _sqlite_pragmas(dbapi_conn, _record):
-    if not IS_SQLITE:
-        return
-    cur = dbapi_conn.cursor()
-    cur.execute("PRAGMA journal_mode=WAL;")
-    cur.execute("PRAGMA busy_timeout=30000;")
-    cur.execute("PRAGMA foreign_keys=ON;")
-    cur.close()
+def _positive_int_env(name: str, default: int) -> int:
+    raw = (os.getenv(name) or "").strip()
+    try:
+        value = int(raw) if raw else default
+    except ValueError:
+        value = default
+    return max(value, 0)
+
+
+engine = create_engine(
+    DB_URL,
+    pool_pre_ping=True,
+    pool_size=max(_positive_int_env("DB_POOL_SIZE", 5), 1),
+    max_overflow=_positive_int_env("DB_MAX_OVERFLOW", 10),
+)
 
 
 SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)
@@ -64,39 +97,3 @@ def parse_date(v):
     if isinstance(v, str):
         return _date.fromisoformat(v)
     return v
-
-
-# 项目全文检索（Stage 5）：trigram 分词器支持中文子串，要求查询词 ≥3 字符。
-_FTS_DDL = [
-    "CREATE VIRTUAL TABLE IF NOT EXISTS projects_fts USING fts5("
-    "name, code, client, description, tokenize='trigram', "
-    "content='projects', content_rowid='id')",
-    """CREATE TRIGGER IF NOT EXISTS projects_ai AFTER INSERT ON projects BEGIN
-         INSERT INTO projects_fts(rowid, name, code, client, description)
-         VALUES (new.id, new.name, new.code, new.client, new.description);
-       END""",
-    """CREATE TRIGGER IF NOT EXISTS projects_ad AFTER DELETE ON projects BEGIN
-         INSERT INTO projects_fts(projects_fts, rowid, name, code, client, description)
-         VALUES ('delete', old.id, old.name, old.code, old.client, old.description);
-       END""",
-    """CREATE TRIGGER IF NOT EXISTS projects_au AFTER UPDATE ON projects BEGIN
-         INSERT INTO projects_fts(projects_fts, rowid, name, code, client, description)
-         VALUES ('delete', old.id, old.name, old.code, old.client, old.description);
-         INSERT INTO projects_fts(rowid, name, code, client, description)
-         VALUES (new.id, new.name, new.code, new.client, new.description);
-       END""",
-]
-
-
-def ensure_fts(engine_) -> bool:
-    """幂等创建 FTS5 全文检索表与触发器。环境不支持 FTS5/trigram 时返回 False（运行时回退 LIKE）。"""
-    if engine_.dialect.name != "sqlite":
-        return False
-
-    with engine_.begin() as conn:
-        for ddl in _FTS_DDL:
-            try:
-                conn.exec_driver_sql(ddl)
-            except Exception:
-                return False
-    return True

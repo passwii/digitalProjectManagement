@@ -1,75 +1,8 @@
-"""MVP 验收 pytest（Stage1-4）：≥10 用例，未登录 401 必测。隔离库：tmp sqlite + dependency_overrides。"""
+"""MVP 验收 pytest（Stage1-4）：≥10 用例，未登录 401 必测。"""
 import io
 from datetime import date, timedelta
 
 import pytest
-from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-
-from api.core.database import Base, ensure_fts, get_db
-from api.core.security import hash_password
-from api.main import app
-
-
-@pytest.fixture()
-def db(tmp_path):
-    url = f"sqlite:///{tmp_path}/t.db"
-    eng = create_engine(url, connect_args={"check_same_thread": False})
-    TestingSession = sessionmaker(bind=eng, autoflush=False, autocommit=False)
-    Base.metadata.create_all(bind=eng)
-    ensure_fts(eng)  # 与生产一致：FTS5 trigram（不支持时静默回退 LIKE）
-    s = TestingSession()
-    try:
-        from api.models import Department, Role, SysParam, User, UserRole
-        d = Department(name="综合部")
-        s.add(d)
-        s.flush()
-        for code, name in [("admin", "系统管理员"), ("project_manager", "项目负责人"),
-                           ("member", "项目成员"), ("cost_admin", "成本管理员"),
-                           ("dept_manager", "部门负责人"),
-                           ("executive", "高层（只读）")]:
-            s.add(Role(code=code, name=name))
-        s.flush()
-        for k, v in {"login_fail_limit": "5", "login_lock_minutes": "15",
-                     "budget_warn_rate": "0.8", "budget_approval_on": "0",
-                     "expense_approval_on": "0", "milestone_warn_days": "3",
-                     "stagnant_days": "7"}.items():
-            s.add(SysParam(key=k, value=v))
-
-        def mk(username, pwd, roles):
-            u = User(username=username, pwd_hash=hash_password(pwd),
-                     real_name=username, dept_id=d.id)
-            s.add(u)
-            s.flush()
-            for c in roles:
-                r = s.query(Role).filter_by(code=c).first()
-                s.add(UserRole(user_id=u.id, role_id=r.id))
-            return u
-        mk("admin", "admin123456", ["admin"])
-        mk("pm", "pm123456", ["project_manager", "member"])
-        mk("outsider", "out123456", ["member"])
-        mk("cost", "cost123456", ["cost_admin"])
-        mk("exec", "exec123456", ["executive"])
-        mk("deptm", "deptm123456", ["dept_manager", "member"])
-        s.commit()
-    finally:
-        s.close()
-
-    def override():
-        sess = TestingSession()
-        try:
-            yield sess
-        finally:
-            sess.close()
-    app.dependency_overrides[get_db] = override
-    yield TestingSession
-    app.dependency_overrides.clear()
-
-
-@pytest.fixture()
-def client(db):
-    return TestClient(app)
 
 
 PASSWORDS = {"admin": "admin123456", "cost": "cost123456", "outsider": "out123456",
@@ -457,7 +390,7 @@ def test_fts_keyword_snippet(client):
     h = login(client, "pm")
     mkproject(client, h, "官网改版项目", description="演示全文检索能力")
     hit = client.get("/api/v1/projects?keyword=官网改版", headers=h).json()
-    if hit["total"]:  # FTS5 可用时（部分环境无 trigram 会走 LIKE）
+    if hit["total"]:
         assert "snippet" in hit["items"][0]
     short = client.get("/api/v1/projects?keyword=改版", headers=h).json()
     assert short["total"] >= 1  # 2 字关键词经 LIKE 回退仍能命中

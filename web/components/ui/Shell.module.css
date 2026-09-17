@@ -30,7 +30,6 @@
   display: flex;
   align-items: center;
   gap: 10px;
-  margin-bottom: 14px;
 }
 .brandSeal {
   flex: none;
@@ -53,33 +52,7 @@
   font-size: 16px;
   letter-spacing: .08em;
 }
-.brandText small {
-  margin-top: 1px;
-  color: rgba(224, 236, 255, .62);
-  font-size: 11px;
-  letter-spacing: .11em;
-}
 .collapsed .brandText { display: none; }
-
-.newBtn {
-  height: 38px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid rgba(90, 168, 255, .42);
-  border-radius: 6px;
-  color: #EAF4FF;
-  background: rgba(22, 119, 255, .16);
-  font-size: 13px;
-  font-weight: 600;
-}
-.newBtn:hover {
-  color: #fff;
-  text-decoration: none;
-  background: rgba(22, 119, 255, .27);
-  border-color: rgba(104, 174, 255, .70);
-}
-.collapsed .newBtn { padding: 0; font-size: 18px; }
 
 .nav {
   flex: 1;
@@ -230,7 +203,6 @@
   white-space: nowrap;
 }
 .crumb b { color: var(--ink); font-weight: 650; }
-.topHint { color: var(--ink-3); font-size: 12px; white-space: nowrap; }
 .topActions { display: flex; align-items: center; gap: 16px; }
 .topDate {
   color: var(--ink-3);
@@ -293,7 +265,6 @@
   }
   .wsName { flex: 1; margin: 0; }
   .collapsed .brandText { display: flex; }
-  .newBtn { width: auto; padding: 0 14px; }
   .nav {
     flex-direction: row;
     padding: 8px 14px 10px;
@@ -316,7 +287,6 @@
     flex-basis: 58px;
     padding: 0 16px;
   }
-  .topHint,
   .topDate,
   .userChipText { display: none; }
   .topActions { gap: 10px; }
@@ -336,8 +306,6 @@
 
 @media (max-width: 520px) {
   .brandText b { font-size: 15px; }
-  .brandText small { font-size: 10px; }
-  .newBtn { display: none; }
   .crumb { max-width: 210px; }
 }
 

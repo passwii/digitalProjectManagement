@@ -79,11 +79,7 @@ function ProgressInner() {
 
   return (
     <div>
-      <div className="page-head">
-        <h1>
-          进度跟踪
-          {pid > 0 && data && <span className="sub">{total} 条进度记录</span>}
-        </h1>
+      <div className="page-head actions-only">
         <div className="actions no-print">
           <button
             className="btn-primary"

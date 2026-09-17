@@ -38,11 +38,10 @@ export default function ChangePasswordPage() {
           <div className={st.cardHead}>
             <span className={st.cardBadge}>SHZK</span>
             <div>
-              <p className={st.cardEyebrow}>数慧致科OA管理平台</p>
+              <p className={st.cardEyebrow}>数科云办公</p>
               <h2>首次登录 · 修改密码</h2>
             </div>
           </div>
-          <p className={st.sub}>为保障账号安全，请设置新密码后继续。</p>
           <form onSubmit={onSubmit}>
             <div className={st.field}>
               <label htmlFor="old-password">原密码</label>

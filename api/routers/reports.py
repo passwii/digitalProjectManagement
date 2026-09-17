@@ -59,7 +59,7 @@ def build_cost_rows(db: Session, projects: list, subject: str = "",
 
     eq = db.query(Expense.project_id, Expense.subject, func.sum(Expense.amount)) \
         .filter(Expense.project_id.in_(pids), Expense.status.in_(PASS))
-    if month:  # YYYY-MM：使用闭开日期区间，SQLite / PostgreSQL 均可用
+    if month:  # YYYY-MM：使用闭开日期区间
         try:
             y, m = (int(x) for x in month.split("-", 1))
             start = date(y, m, 1)

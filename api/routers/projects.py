@@ -5,7 +5,7 @@ from pathlib import Path
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
-from sqlalchemy import or_, text
+from sqlalchemy import or_
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -93,39 +93,11 @@ def _get(db: Session, pid: int, user: User, write=False) -> Project:
     return p
 
 
-def fts_search(db: Session, keyword: str, limit: int = 500) -> dict[int, str]:
-    """FTS5 trigram 全文检索：返回 {project_id: 高亮片段}。
-
-    trigram 分词器要求查询词 ≥3 字符，短词（1-2 字，如「示例」「改版」）
-    无法命中，返回 {} 由调用方回退 LIKE。FTS 不可用环境同样返回 {}。
-    """
-    import re
-
-    terms = [t for t in re.split(r"\s+", keyword.strip()) if t]
-    if not terms or any(len(t) < 3 for t in terms):
-        return {}   # 含短词：整体回退 LIKE，避免漏召回
-    query = " OR ".join(f'"{t}"' for t in terms)
-    try:
-        rows = db.execute(
-            text(
-                "SELECT rowid, snippet(projects_fts, 0, '<mark>', '</mark>', '…', 12) "
-                "FROM projects_fts WHERE projects_fts MATCH :q ORDER BY rank LIMIT :lim"
-            ),
-            {"q": query, "lim": limit},
-        ).all()
-    except Exception:
-        return {}
-    return {int(r[0]): (r[1] or "") for r in rows}
-
-
-def keyword_condition(db: Session, keyword: str):
-    """关键词过滤：优先 FTS5 命中 id 集合，失败/短词时回退 LIKE。返回 (条件, 片段表)。"""
-    hits = fts_search(db, keyword)
-    if hits:
-        return Project.id.in_(list(hits.keys())), hits
+def keyword_condition(keyword: str):
+    """关键词过滤：使用 PostgreSQL 大小写不敏感模糊匹配。"""
     kw = f"%{keyword}%"
-    return (or_(Project.name.like(kw), Project.code.like(kw),
-                Project.client.like(kw), Project.description.like(kw))), {}
+    return (or_(Project.name.ilike(kw), Project.code.ilike(kw),
+                Project.client.ilike(kw), Project.description.ilike(kw)))
 
 
 class ProjectIn(BaseModel):
@@ -173,18 +145,16 @@ def list_projects(name: str = "", code: str = "", status: str = "", owner_id: in
                   db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     """组合筛（名称/编号/状态/负责人/部门/关键字/计划时间）+ 统一分页信封。
 
-    关键字优先 FTS5 全文检索（返回高亮片段），不可用时回退 LIKE。
+    关键字使用 PostgreSQL 模糊匹配。
     排序白名单见 `PROJECT_SORTS`，默认 `-id`（最新在前）；`size` 上限 100。
     """
     q = db.query(Project).filter(Project.deleted_at.is_(None))
-    snips: dict[int, str] = {}
     if name:
         q = q.filter(Project.name.like(f"%{name}%"))
     if code:
         q = q.filter(Project.code.like(f"%{code}%"))
     if keyword:
-        cond, snips = keyword_condition(db, keyword)
-        q = q.filter(cond)
+        q = q.filter(keyword_condition(keyword))
     if status:
         q = q.filter_by(status=status)
     if owner_id:
@@ -202,10 +172,7 @@ def list_projects(name: str = "", code: str = "", status: str = "", owner_id: in
         q = q.filter(vis)
 
     def _row(p: Project):
-        d = _p(p)
-        if keyword and snips:
-            d["snippet"] = snips.get(p.id, "")
-        return d
+        return _p(p)
 
     return paginate(q, page=page, size=size, allowed=PROJECT_SORTS,
                     default_sort="-id", sort=sort, map_row=_row)
