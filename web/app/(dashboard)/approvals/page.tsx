@@ -77,11 +77,12 @@ function ApprovalsInner() {
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState("");
   const loadSeq = useRef(0);
+  const hasLoadedRef = useRef(false);
 
   const load = useCallback(async () => {
     const finish = beginActivity({ label: "刷新审批待办", scope: "content" });
     const id = ++loadSeq.current;
-    const first = data === null;
+    const first = !hasLoadedRef.current;
     if (first) setLoading(true);
     setErr("");
     try {
@@ -92,10 +93,12 @@ function ApprovalsInner() {
       if (loadSeq.current !== id) return;
       setErr(errText(e));
     } finally {
-      if (loadSeq.current === id) setLoading(false);
+      if (loadSeq.current === id) {
+        hasLoadedRef.current = true;
+        setLoading(false);
+      }
       finish();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [beginActivity]);
 
   useEffect(() => { load(); }, [load]);

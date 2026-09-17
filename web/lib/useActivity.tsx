@@ -15,6 +15,7 @@ import {
   type ActivityInput,
   type ActivityRecord,
 } from "./activityCore";
+import { setActivityHandler } from "./activityBus";
 
 interface ActivityContextValue {
   beginActivity: (input: ActivityInput) => () => void;
@@ -64,11 +65,15 @@ export function ActivityProvider({ children }: { children: React.ReactNode }) {
   );
 
   useEffect(
-    () => () => {
-      timers.current.forEach((timer) => window.clearTimeout(timer));
-      timers.current.clear();
+    () => {
+      setActivityHandler(beginActivity);
+      return () => {
+        setActivityHandler(null);
+        timers.current.forEach((timer) => window.clearTimeout(timer));
+        timers.current.clear();
+      };
     },
-    [],
+    [beginActivity],
   );
 
   return <ActivityContext.Provider value={value}>{children}</ActivityContext.Provider>;

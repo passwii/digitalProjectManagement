@@ -3,14 +3,14 @@
 import { Fragment, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { AnimatePresence, m, useReducedMotion } from "framer-motion";
+import { m, useReducedMotion } from "framer-motion";
 import { authApi, clearSession, type Me } from "@/lib/api";
 import { clearMetaCache, useMenus } from "@/lib/useMeta";
 import Avatar from "@/components/ui/Avatar";
 import Bell from "@/components/ui/Bell";
 import { ToastProvider } from "@/components/ui/Toast";
 import ActivityBar from "@/components/motion/ActivityBar";
-import MotionProvider, { useNavigationActivity } from "@/components/motion/MotionProvider";
+import MotionProvider from "@/components/motion/MotionProvider";
 import s from "@/components/ui/Shell.module.css";
 
 /**
@@ -101,7 +101,6 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
   const [collapsed, setCollapsed] = useState(false);
   const [me, setMe] = useState<Me | null>(null);
   const { menus, isAdmin, loading: permsLoading, error: permsError, reload: reloadMenus } = useMenus();
-  const { startNavigation } = useNavigationActivity();
   const reduced = useReducedMotion();
 
   const current = Object.keys(CRUMB).find((k) => pathname === k || pathname.startsWith(k + "/"));
@@ -184,21 +183,6 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
                 )}
                 <Link
                   href={n.href}
-                  onClick={(event) => {
-                    if (
-                      event.defaultPrevented ||
-                      event.metaKey ||
-                      event.ctrlKey ||
-                      event.shiftKey ||
-                      event.altKey ||
-                      event.currentTarget.target === "_blank" ||
-                      event.currentTarget.hasAttribute("download") ||
-                      active
-                    ) {
-                      return;
-                    }
-                    startNavigation(n.label, n.href);
-                  }}
                   className={`${s.navLink} ${active ? s.active : ""}`}
                   title={n.label}
                   aria-current={active ? "page" : undefined}
@@ -263,18 +247,15 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
         </header>
         <main className={s.content} id="main-content" tabIndex={-1}>
           <div className={s.contentInner}>
-            <AnimatePresence mode="popLayout" initial={false}>
-              <m.div
-                key={pathname}
-                className={s.routeView}
-                initial={reduced ? false : { opacity: 0, y: 4 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={reduced ? { opacity: 1 } : { opacity: 0, y: -4 }}
-                transition={{ duration: reduced ? 0 : 0.22, ease: [0.2, 0.72, 0.2, 1] }}
-              >
-                {children}
-              </m.div>
-            </AnimatePresence>
+            <m.div
+              key={pathname}
+              className={s.routeView}
+              initial={reduced ? false : { opacity: 0, y: 4 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: reduced ? 0 : 0.22, ease: [0.2, 0.72, 0.2, 1] }}
+            >
+              {children}
+            </m.div>
           </div>
         </main>
       </div>

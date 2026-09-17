@@ -19,6 +19,9 @@ function useModalBehavior({
 }) {
   const panelRef = useRef<HTMLElement | null>(null);
   const restoreRef = useRef<Element | null>(null);
+  const openRef = useRef(open);
+  openRef.current = open;
+  const overflowRef = useRef<string | null>(null);
   const wasOpenRef = useRef(false);
   const requestCloseRef = useRef(onRequestClose);
   const [mounted, setMounted] = useState(false);
@@ -27,6 +30,7 @@ function useModalBehavior({
   useEffect(() => setMounted(true), []);
 
   const requestClose = useCallback(() => {
+    if (!openRef.current) return;
     if (dirty) {
       setAskDiscard(true);
       return;
@@ -53,14 +57,20 @@ function useModalBehavior({
     if (element && typeof element.focus === "function") element.focus();
     restoreRef.current = null;
     wasOpenRef.current = false;
+    if (overflowRef.current !== null) {
+      document.body.style.overflow = overflowRef.current;
+      overflowRef.current = null;
+    }
   }, []);
 
   useEffect(() => {
     if (!open) {
       return;
     }
-    const prevOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
+    if (overflowRef.current === null) {
+      overflowRef.current = document.body.style.overflow;
+      document.body.style.overflow = "hidden";
+    }
 
     const t = setTimeout(() => {
       const panel = panelRef.current;
@@ -101,11 +111,20 @@ function useModalBehavior({
     return () => {
       clearTimeout(t);
       document.removeEventListener("keydown", onKey, true);
-      document.body.style.overflow = prevOverflow;
     };
   }, [open]);
 
-  return { mounted, panelRef, requestClose, askDiscard, setAskDiscard, handleExitComplete };
+  useEffect(
+    () => () => {
+      if (overflowRef.current !== null) {
+        document.body.style.overflow = overflowRef.current;
+        overflowRef.current = null;
+      }
+    },
+    [],
+  );
+
+  return { mounted, panelRef, openRef, requestClose, askDiscard, setAskDiscard, handleExitComplete };
 }
 
 function DiscardConfirm({ onKeep, onDiscard }: { onKeep: () => void; onDiscard: () => void }) {
@@ -136,9 +155,8 @@ export interface DialogProps {
 export function Dialog({
   open, onClose, title, children, footer, size = "md", dirty, maskClosable = true,
 }: DialogProps) {
-  const { mounted, panelRef, requestClose, askDiscard, setAskDiscard, handleExitComplete } = useModalBehavior({ open, onRequestClose: onClose, dirty });
+  const { mounted, panelRef, openRef, requestClose, askDiscard, setAskDiscard, handleExitComplete } = useModalBehavior({ open, onRequestClose: onClose, dirty });
   const reduced = useReducedMotion();
-  const closing = !open;
   const titleId = useId();
   if (!mounted) return null;
 
@@ -151,8 +169,12 @@ export function Dialog({
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: reduced ? 0 : 0.12 }}
-          style={{ pointerEvents: closing ? "none" : undefined }}
-          aria-hidden={closing || undefined}
+          onPointerDownCapture={(event) => {
+            if (!openRef.current) {
+              event.preventDefault();
+              event.stopPropagation();
+            }
+          }}
           onMouseDown={() => maskClosable && requestClose()}
         >
           <m.div
@@ -200,9 +222,8 @@ export interface DrawerProps {
 }
 
 export function Drawer({ open, onClose, title, children, footer, width = 480, dirty }: DrawerProps) {
-  const { mounted, panelRef, requestClose, askDiscard, setAskDiscard, handleExitComplete } = useModalBehavior({ open, onRequestClose: onClose, dirty });
+  const { mounted, panelRef, openRef, requestClose, askDiscard, setAskDiscard, handleExitComplete } = useModalBehavior({ open, onRequestClose: onClose, dirty });
   const reduced = useReducedMotion();
-  const closing = !open;
   const titleId = useId();
   if (!mounted) return null;
 
@@ -215,8 +236,12 @@ export function Drawer({ open, onClose, title, children, footer, width = 480, di
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: reduced ? 0 : 0.12 }}
-          style={{ pointerEvents: closing ? "none" : undefined }}
-          aria-hidden={closing || undefined}
+          onPointerDownCapture={(event) => {
+            if (!openRef.current) {
+              event.preventDefault();
+              event.stopPropagation();
+            }
+          }}
           onMouseDown={requestClose}
         >
           <m.aside
@@ -273,12 +298,11 @@ export function Confirm({
   const handleRequestClose = useCallback(() => {
     if (!loading) onCancel();
   }, [loading, onCancel]);
-  const { mounted, panelRef, requestClose, handleExitComplete } = useModalBehavior({
+  const { mounted, panelRef, openRef, requestClose, handleExitComplete } = useModalBehavior({
     open,
     onRequestClose: handleRequestClose,
   });
   const reduced = useReducedMotion();
-  const closing = !open;
   const titleId = useId();
   if (!mounted) return null;
 
@@ -291,8 +315,12 @@ export function Confirm({
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: reduced ? 0 : 0.12 }}
-          style={{ pointerEvents: closing ? "none" : undefined }}
-          aria-hidden={closing || undefined}
+          onPointerDownCapture={(event) => {
+            if (!openRef.current) {
+              event.preventDefault();
+              event.stopPropagation();
+            }
+          }}
           onMouseDown={requestClose}
         >
           <m.div
@@ -321,7 +349,9 @@ export function Confirm({
               <button className="btn-ghost" onClick={requestClose} disabled={loading}>{cancelText}</button>
               <button
                 className={`btn-primary ${danger ? st.dangerBtn : ""}`}
-                onClick={onConfirm}
+                onClick={() => {
+                  if (openRef.current) onConfirm();
+                }}
                 disabled={loading}
               >
                 {loading ? "处理中…" : okText}

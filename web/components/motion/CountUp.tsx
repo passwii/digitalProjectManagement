@@ -11,21 +11,24 @@ export default function CountUp({
   format?: (value: number) => string;
 }) {
   const reduced = useReducedMotion();
-  const previous = useRef(0);
-  const [display, setDisplay] = useState(reduced ? value : 0);
+  const initial = reduced ? value : 0;
+  const displayRef = useRef(initial);
+  const [display, setDisplay] = useState(initial);
 
   useEffect(() => {
     if (reduced) {
-      previous.current = value;
+      displayRef.current = value;
       setDisplay(value);
       return;
     }
-    const controls = animate(previous.current, value, {
+    const controls = animate(displayRef.current, value, {
       duration: 0.42,
       ease: "easeOut",
-      onUpdate: setDisplay,
+      onUpdate: (next) => {
+        displayRef.current = next;
+        setDisplay(next);
+      },
     });
-    previous.current = value;
     return () => controls.stop();
   }, [reduced, value]);
 

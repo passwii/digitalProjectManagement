@@ -26,6 +26,7 @@ function NavigationActivity({ children }: { children: React.ReactNode }) {
   const { beginActivity } = useActivity();
 
   const startNavigation = useCallback((label = "页面加载中", href?: string) => {
+    pendingNavigationRef.current.forEach((_, finish) => finish());
     const target = href
       ? new URL(href, window.location.origin).pathname
       : pathname;
@@ -41,10 +42,26 @@ function NavigationActivity({ children }: { children: React.ReactNode }) {
       pendingNavigationRef.current.delete(finish);
       finishActivity();
     };
-    timer = window.setTimeout(finish, 10_000);
+    timer = window.setTimeout(finish, 4_000);
     pendingNavigationRef.current.set(finish, target);
     return finish;
   }, [beginActivity, pathname]);
+
+  useEffect(() => {
+    function onClick(event: MouseEvent) {
+      if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+      const anchor = (event.target as Element | null)?.closest("a");
+      if (!anchor || anchor.target === "_blank" || anchor.hasAttribute("download")) return;
+      const href = anchor.getAttribute("href");
+      if (!href || !href.startsWith("/") || href.startsWith("//")) return;
+      const next = new URL(href, window.location.origin);
+      if (next.pathname === window.location.pathname) return;
+      startNavigation("页面加载中", href);
+    }
+
+    document.addEventListener("click", onClick, true);
+    return () => document.removeEventListener("click", onClick, true);
+  }, [startNavigation]);
 
   useEffect(() => {
     const previousPathname = lastPathnameRef.current;
