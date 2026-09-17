@@ -24,6 +24,7 @@ from ..core.audit import commit_audited, write_audit
 from ..core.costs import budget_total, execution, spent
 from ..core.database import ROOT, get_db, parse_date
 from ..core.deps import get_current_user
+from ..core.limits import MAX_ATTACHMENT_SIZE, read_within_limit
 from ..core.paging import DEFAULT_PAGE_SIZE, paginate
 from ..core.rbac import (can_read_project, get_active_project, is_admin, require_admin,
                          scope_child_query)
@@ -40,7 +41,8 @@ PEOPLE = {"张爱杰", "张玉军", "段佳奕", "段佳雷", "李智",
 # 仍接受历史科目值，确保存量单据可编辑、重提与审计不中断。
 SUBJECTS = PEOPLE | {"人工", "采购", "外包", "差旅", "其他"}
 VOUCHER_EXT = {".pdf", ".docx", ".xlsx", ".png", ".jpg", ".jpeg"}
-VOUCHER_MAX_SIZE = 20 * 1024 * 1024
+# 体积上限与超限文案统一来自 core.limits（前端单一来源为 web/lib/uploadLimits.ts）
+VOUCHER_MAX_SIZE = MAX_ATTACHMENT_SIZE
 
 # 排序白名单（Stage 3A）：字段名 → ORM 列
 EXPENSE_SORTS = {
@@ -281,11 +283,10 @@ def upload_voucher(eid: int, file: UploadFile = File(...), db: Session = Depends
     ext = Path(file.filename or "").suffix.lower()
     if ext not in VOUCHER_EXT:
         raise HTTPException(400, f"凭证仅允许 {sorted(VOUCHER_EXT)}")
-    data = file.file.read()
+    # 有界读取：超限在读完 limit+1 字节时就 400，不会把无界数据读进内存
+    data = read_within_limit(file, VOUCHER_MAX_SIZE)
     if not data:
         raise HTTPException(400, "凭证文件为空")
-    if len(data) > VOUCHER_MAX_SIZE:
-        raise HTTPException(400, "单文件最大 20MB")
     d = ROOT / "data" / "files" / f"expense_{eid}"
     d.mkdir(parents=True, exist_ok=True)
     safe_name = Path(file.filename or f"voucher{ext}").name

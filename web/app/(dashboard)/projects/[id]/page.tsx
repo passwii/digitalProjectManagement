@@ -9,13 +9,16 @@ import {
 } from "@/lib/api";
 import { useMeta } from "@/lib/useMeta";
 import { expenseStatusLabel, expenseTone, fmtDate, fmtDateTime, fmtMoney } from "@/lib/labels";
+import { CONTRACT_ATTACHMENT_EXTENSIONS, IMAGE_ATTACHMENT_EXTENSIONS } from "@/lib/uploadLimits";
 import Badge from "@/components/ui/Badge";
 import Empty from "@/components/ui/Empty";
 import { LoadingBlock } from "@/components/ui/PageState";
 import { Dialog } from "@/components/ui/Modal";
+import FileDropZone from "@/components/ui/FileDropZone";
 import { useToast } from "@/components/ui/Toast";
 import MotionTabs from "@/components/motion/MotionTabs";
 import { useActivity } from "@/lib/useActivity";
+import { useUploadQueue } from "@/lib/useUploadQueue";
 import ProjectFormDialog from "../ProjectFormDialog";
 import ProgressNodeDialog from "../../progress/ProgressNodeDialog";
 import ExpenseDialog from "../../costs/ExpenseDialog";
@@ -55,6 +58,8 @@ function ProjectDetail({ pid }: { pid: number }) {
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
+  const assetUploads = useUploadQueue();
+  const contractUploads = useUploadQueue();
   const [err, setErr] = useState("");
   const [editOpen, setEditOpen] = useState(false);
   const [nodeOpen, setNodeOpen] = useState(false);
@@ -147,12 +152,20 @@ function ProjectDetail({ pid }: { pid: number }) {
     router.replace(`/projects/${pid}?${q.toString()}`, { scroll: false });
   }
 
-  async function uploadAsset(file: File) {
+  async function uploadAssets(files: File[]) {
+    if (!files.length) return;
     const finish = beginActivity({ label: "上传项目素材", scope: "form" });
     setBusy(true);
     try {
-      await projectsApi.upload(pid, file);
-      toast.ok("图片已上传到项目白板");
+      const result = await assetUploads.start(files, (file, options) =>
+        projectsApi.upload(pid, file, "", options),
+      );
+      // 取消（切走页签 / 卸载）不算失败，也不刷新列表
+      if (result.aborted) return;
+      if (result.ok.length) {
+        toast.ok(result.ok.length === 1 ? "图片已上传到项目白板" : `${result.ok.length} 张图片已上传`);
+      }
+      if (result.failed) toast.err(`${result.failed} 个文件上传失败，请查看失败原因`);
       await loadAll();
     } catch (e) {
       toast.err(errText(e));
@@ -162,15 +175,17 @@ function ProjectDetail({ pid }: { pid: number }) {
     }
   }
 
-  async function uploadContract(files: FileList | null) {
-    if (!files?.length) return;
+  async function uploadContract(files: File[]) {
+    if (!files.length) return;
     const finish = beginActivity({ label: "上传合同附件", scope: "form" });
     setBusy(true);
     try {
-      for (const file of Array.from(files)) {
-        await projectsApi.upload(pid, file, "contract");
-      }
-      toast.ok("合同附件已上传");
+      const result = await contractUploads.start(files, (file, options) =>
+        projectsApi.upload(pid, file, "contract", options),
+      );
+      if (result.aborted) return;
+      if (result.ok.length) toast.ok("合同附件已上传");
+      if (result.failed) toast.err(`${result.failed} 个附件上传失败，请查看失败原因`);
       setContracts(await projectsApi.attachments(pid, "contract"));
     } catch (e) {
       toast.err(errText(e));
@@ -256,19 +271,16 @@ function ProjectDetail({ pid }: { pid: number }) {
               <span className={`save-state ${saveState}`}>
                 {saveState === "saving" ? "保存中…" : saveState === "saved" ? "已自动保存" : saveState === "error" ? "保存失败" : "自动保存"}
               </span>
-              <label className="btn-ghost btn-file">
-                {busy ? "上传中…" : "上传图片"}
-                <input
-                  type="file"
-                  accept="image/*"
-                  disabled={busy}
-                  onChange={(e) => {
-                    const f = e.target.files?.[0];
-                    if (f) uploadAsset(f);
-                    e.target.value = "";
-                  }}
-                />
-              </label>
+              <FileDropZone
+                variant="button"
+                extensions={IMAGE_ATTACHMENT_EXTENSIONS}
+                items={assetUploads.items}
+                disabled={busy}
+                multiple
+                label={assetUploads.uploading ? "上传中…" : "上传图片"}
+                ariaLabel="上传项目白板图片"
+                onFiles={uploadAssets}
+              />
             </div>
           </div>
           <textarea
@@ -308,16 +320,15 @@ function ProjectDetail({ pid }: { pid: number }) {
             <div>
               <h2>合同档案</h2>
             </div>
-            <label className="btn-primary btn-file">
-              {busy ? "上传中…" : "上传合同附件"}
-              <input
-                type="file"
-                multiple
-                accept=".pdf,.docx,.xlsx,.png,.jpg,.jpeg"
-                disabled={busy}
-                onChange={(e) => { uploadContract(e.target.files); e.target.value = ""; }}
-              />
-            </label>
+            <FileDropZone
+              variant="button"
+              extensions={CONTRACT_ATTACHMENT_EXTENSIONS}
+              items={contractUploads.items}
+              disabled={busy}
+              label={contractUploads.uploading ? "上传中…" : "上传合同附件"}
+              ariaLabel="上传合同附件"
+              onFiles={uploadContract}
+            />
           </div>
           <div className="contract-grid">
             <div className="contract-card">

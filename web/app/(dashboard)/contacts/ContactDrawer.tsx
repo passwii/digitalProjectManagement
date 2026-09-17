@@ -10,9 +10,12 @@ import {
 } from "@/lib/api";
 import { useMeta } from "@/lib/useMeta";
 import { useForm } from "@/lib/useForm";
+import { ATTACHMENT_HINT, CONTACT_ATTACHMENT_EXTENSIONS } from "@/lib/uploadLimits";
 import { Confirm, Drawer } from "@/components/ui/Modal";
 import Field from "@/components/ui/Field";
+import FileDropZone from "@/components/ui/FileDropZone";
 import { useToast } from "@/components/ui/Toast";
+import { useUploadQueue } from "@/lib/useUploadQueue";
 
 const EMPLOYMENT_TYPES = ["正式", "试用", "实习", "劳务", "兼职", "返聘"];
 const EMPLOYMENT_STATUS = [
@@ -190,6 +193,7 @@ export default function ContactDrawer({
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const uploads = useUploadQueue();
   const [formErr, setFormErr] = useState("");
   const [deleting, setDeleting] = useState<ContactAttachment | null>(null);
 
@@ -250,6 +254,13 @@ export default function ContactDrawer({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [contactId]);
 
+  // 抽屉关闭或切换到另一个人时中止在途上传，避免「关掉抽屉还在传」
+  useEffect(() => {
+    uploads.reset();
+    // 只依赖 reset（稳定引用）：依赖整个 uploads 对象会在每次进度更新时重跑，把上传掐断
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [contactId, uploads.reset]);
+
   async function save() {
     if (!form.validate()) return;
     setSaving(true);
@@ -277,8 +288,12 @@ export default function ContactDrawer({
     setUploading(true);
     setFormErr("");
     try {
-      const row = await contactsApi.upload(contact.id, category, file);
-      setAttachments((rows) => [row, ...rows]);
+      const result = await uploads.start([file], (picked, options) =>
+        contactsApi.upload(contact.id, category, picked, options),
+      );
+      if (result.aborted) return;
+      if (!result.ok.length) return; // 失败原因已由列表行展示
+      setAttachments((rows) => [result.ok[0], ...rows]);
       setContact((current) =>
         current ? { ...current, attachment_count: current.attachment_count + 1 } : current
       );
@@ -536,7 +551,7 @@ export default function ContactDrawer({
               <div className="form-section-head">
                 <div>
                   <h3>证件与合同附件</h3>
-                  <p>支持 PDF / Word / Excel / 图片，单个文件不超过 20MB。</p>
+                  <p>{ATTACHMENT_HINT}。</p>
                 </div>
               </div>
               {!contact ? (
@@ -554,19 +569,19 @@ export default function ContactDrawer({
                         <option key={value} value={value}>{label}</option>
                       ))}
                     </select>
-                    <label className="btn-primary btn-file" style={{ width: "auto" }}>
-                      {uploading ? "上传中…" : "上传附件"}
-                      <input
-                        type="file"
-                        accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg"
-                        disabled={uploading}
-                        onChange={(e) => {
-                          const file = e.target.files?.[0];
-                          e.target.value = "";
-                          if (file) upload(file);
-                        }}
-                      />
-                    </label>
+                    <FileDropZone
+                      variant="button"
+                      extensions={CONTACT_ATTACHMENT_EXTENSIONS}
+                      items={uploads.items}
+                      disabled={uploading}
+                      multiple={false}
+                      label={uploading ? "上传中…" : "上传附件"}
+                      ariaLabel="上传证件与合同附件"
+                      onFiles={(picked) => {
+                        const file = picked[0];
+                        if (file) upload(file);
+                      }}
+                    />
                   </div>
                   {attachments.length === 0 ? (
                     <div className="tiny">暂未上传附件</div>
