@@ -151,9 +151,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               <small>OA管理平台</small>
             </span>
           </div>
-          <Link className={s.newBtn} href="/projects" title="新建项目">
-            {collapsed ? "+" : "+ 新建项目"}
-          </Link>
         </div>
         <nav className={s.nav} aria-label="主导航" aria-busy={permsLoading}>
           {navItems.map((n, i) => {

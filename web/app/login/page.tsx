@@ -76,7 +76,6 @@ export default function LoginPage() {
   return (
     <MobileAuthShell
       title="登录工作区"
-      subtitle="使用项目管理系统账号继续"
       footer={
         <>
           首次登录需要修改密码

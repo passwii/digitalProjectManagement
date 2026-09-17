@@ -8,7 +8,7 @@ export default function MobileAuthShell({
   footer,
 }: {
   title: string;
-  subtitle: string;
+  subtitle?: string;
   children: ReactNode;
   footer?: ReactNode;
 }) {
@@ -21,7 +21,7 @@ export default function MobileAuthShell({
             <span>项目管理工作区</span>
           </div>
           <h1 id="auth-title">{title}</h1>
-          <p>{subtitle}</p>
+          {subtitle ? <p>{subtitle}</p> : null}
         </header>
         <div className={st.form}>{children}</div>
         {footer ? <footer className={st.footer}>{footer}</footer> : null}
