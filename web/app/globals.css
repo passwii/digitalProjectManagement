@@ -79,6 +79,23 @@ body {
 a { color: var(--brand); text-decoration: none; transition: color var(--motion); }
 a:hover { color: var(--brand-hover); text-decoration: underline; }
 
+/* 链接型按钮继承按钮外观，不能套用正文链接的 hover 下划线与文字色。 */
+a.btn-primary,
+a.btn-ghost,
+a.btn-danger,
+a.btn-danger-outline {
+  text-decoration: none;
+}
+a.btn-primary:hover,
+a.btn-danger:hover {
+  color: var(--on-brand);
+  text-decoration: none;
+}
+a.btn-ghost:hover,
+a.btn-danger-outline:hover {
+  text-decoration: none;
+}
+
 /* ---------- form ---------- */
 input, select, textarea, button { font-family: var(--font-body); font-size: 14px; }
 input, select, textarea {
