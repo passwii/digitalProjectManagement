@@ -56,6 +56,8 @@ export COOKIE_SECURE=1
 
 生产环境 Web 与 API 应部署在同一 site/host（推荐同源反向代理）。CSRF Cookie 需要前端 JavaScript 读取，会话提示也需要被 Next.js middleware 看到；跨主机或仅跨子域部署时必须另行设计 Cookie Domain 与同站策略。
 
+跨标签页刷新与登出串行依赖 Web Locks API，生产环境必须使用安全上下文（HTTPS；`localhost` 开发环境例外）。浏览器不支持 Web Locks 时，前端仍用模块内队列保证同一标签页的刷新/登出并发安全，但无法协调多个标签页同时刷新。
+
 ## 演示数据开关（全站生效）
 
 `scripts/seed_mock.py` 写入的演示数据带 `is_demo` 标记。系统参数 `demo_data_on` 控制是否展示：

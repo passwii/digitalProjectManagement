@@ -54,6 +54,17 @@ function csrfHeaders(method: string): Record<string, string> {
 /** 会话失效后的登录页跳转目标：站内固定路径，不接受任何外部输入 */
 const LOGIN_PATH = "/login";
 
+let fallbackAuthQueue: Promise<void> = Promise.resolve();
+
+async function withAuthLock<T>(operation: () => Promise<T>): Promise<T> {
+  const locks = typeof navigator !== "undefined" ? navigator.locks : undefined;
+  if (locks?.request) return await locks.request(REFRESH_LOCK, () => operation());
+
+  const result = fallbackAuthQueue.then(operation, operation);
+  fallbackAuthQueue = result.then(() => undefined, () => undefined);
+  return result;
+}
+
 let logoutPromise: Promise<void> | null = null;
 
 export async function clearSession(reason: SessionEndReason = "logout"): Promise<void> {
@@ -62,7 +73,7 @@ export async function clearSession(reason: SessionEndReason = "logout"): Promise
   if (window.location.pathname === LOGIN_PATH) return;
   if (logoutPromise) return logoutPromise;
 
-  logoutPromise = (async () => {
+  logoutPromise = withAuthLock(async () => {
     const controller = new AbortController();
     const timeout = window.setTimeout(() => controller.abort(), LOGOUT_TIMEOUT_MS);
     let logoutCompleted = false;
@@ -88,7 +99,7 @@ export async function clearSession(reason: SessionEndReason = "logout"): Promise
       const target = `${url.pathname}${url.search}`;
       window.location.assign(new URL(target, window.location.origin).toString());
     }
-  })().finally(() => {
+  }).finally(() => {
     logoutPromise = null;
   });
   return logoutPromise;
@@ -118,22 +129,11 @@ async function rotateSession(): Promise<boolean> {
   }
 }
 
-async function recoverSessionWithoutLock(): Promise<boolean> {
-  if (await probeSession()) return true;
-  return rotateSession();
-}
-
 async function recoverSession(): Promise<boolean> {
-  const locks = typeof navigator !== "undefined" ? navigator.locks : undefined;
-  if (!locks?.request) return recoverSessionWithoutLock();
-  try {
-    return await locks.request(REFRESH_LOCK, async () => {
-      if (await probeSession()) return true;
-      return rotateSession();
-    });
-  } catch {
-    return recoverSessionWithoutLock();
-  }
+  return withAuthLock(async () => {
+    if (await probeSession()) return true;
+    return rotateSession();
+  });
 }
 
 async function refreshSession(): Promise<boolean> {
