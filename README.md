@@ -301,7 +301,7 @@ python3 scripts/seed_perf.py 0 --clean     # 清理压测数据
 
 ```bash
 cd /Users/damon/DamonProjects/digitalProjectManagement
-python3 -m pytest -q        # 73 项：覆盖鉴权/状态机/越权/加权/预警/拦截/审批/通知/软删除/检索/分页/认证配置。
+python3 -m pytest -q        # 97 项：覆盖鉴权/状态机/越权/加权/预警/拦截/审批/通知/软删除/检索/分页/认证配置。
                             #  · tests/test_mvp.py：核心主链路、管理员全局范围、Stage 3A 列表契约、Cookie 与 CSRF。
                             #  · tests/test_stage4a_closure.py：Stage 4A 闭环、校验、时间线、通知与去重。
                             #  · tests/test_security_config.py：生产密钥与 Cookie 配置边界。
@@ -361,7 +361,7 @@ python3 -m api.core.jobs    # 跟进到期扫描（建议 cron 每 10 分钟）
 
 ## Review 2026-09-16：从 MVP 到可推广的推进建议
 
-当前项目已经不是“想法草稿”，而是一个可运行的内部 MVP：后端 73 项 pytest 全部通过，前端 `next build` 通过；本地浏览器已走通登录、首次改密、工作台和核心业务页。下一步不建议继续横向堆功能，先把数据正确性、权限边界和日常闭环做成可托付的产品。
+当前项目已经不是“想法草稿”，而是一个可运行的内部 MVP：后端 97 项 pytest 全部通过，前端 `next build` 通过；本地浏览器已走通登录、首次改密、工作台和核心业务页。下一步不建议继续横向堆功能，先把数据正确性、权限边界和日常闭环做成可托付的产品。
 
 ### 先给结论
 
