@@ -1224,16 +1224,34 @@ def test_refresh_renews_session_hint_cookie(client):
     assert client.cookies.get(settings.session_cookie_name) == login_hint
 
 
-def test_session_hint_alone_does_not_trigger_csrf_classification(client):
+def test_csrf_cookie_auth_uses_access_or_refresh_not_session_hint(client):
     client.cookies.set(settings.session_cookie_name, "1")
 
-    response = client.post(
+    hint_only = client.post(
         "/api/v1/auth/change-password",
         json={"old_password": "admin123456", "new_password": "admin1234567"},
     )
 
-    assert response.status_code == 401, response.text
-    assert response.json()["detail"] != "CSRF 校验失败"
+    assert hint_only.status_code == 401, hint_only.text
+    assert hint_only.json()["detail"] != "CSRF 校验失败"
+    client.cookies.clear()
+
+    login = client.post("/api/v1/auth/login",
+                        json={"username": "admin", "password": "admin123456"})
+    assert login.status_code == 200, login.text
+    refresh = client.cookies.get(settings.refresh_cookie_name)
+    csrf = client.cookies.get(settings.csrf_cookie_name)
+    client.cookies.clear()
+    client.cookies.set(settings.refresh_cookie_name, refresh)
+    client.cookies.set(settings.csrf_cookie_name, csrf)
+
+    denied = client.post("/api/v1/auth/refresh")
+    assert denied.status_code == 403, denied.text
+    assert denied.json()["detail"] == "CSRF 校验失败"
+
+    allowed = client.post("/api/v1/auth/refresh",
+                          headers={"X-CSRF-Token": csrf})
+    assert allowed.status_code == 200, allowed.text
 
 
 # 39. Cookie 写请求缺少 CSRF 必须 403，带对 token 成功
