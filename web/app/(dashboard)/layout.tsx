@@ -39,7 +39,7 @@ const ICON: Record<string, React.ReactNode> = {
   ),
   "/costs": (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M12 3v18M5 7c0-1.5 3-2.5 7-2.5s7 1 7 2.5-3 2.5-7 2.5-7 1-7 2.5 3 2.5 7 2.5 7-1 7-2.5" />
+      <path d="M7 5l5 7 5-7M12 12v7M8 13h8M8 16h8" />
     </svg>
   ),
   "/reports": (
