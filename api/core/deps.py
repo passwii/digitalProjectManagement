@@ -1,8 +1,9 @@
-"""登录态依赖：未登录一律 401。"""
-from fastapi import Depends, HTTPException, status
+"""登录态依赖：Bearer 或 access Cookie，未登录一律 401。"""
+from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
 
+from .config import settings
 from .database import get_db
 from .security import decode_token
 
@@ -14,16 +15,20 @@ def _unauth(msg="未登录"):
 
 
 def get_current_user(
+    request: Request,
     cred: HTTPAuthorizationCredentials | None = Depends(bearer),
     db: Session = Depends(get_db),
 ):
     from ..models import TokenBlacklist, User
 
-    if cred is None or not cred.credentials:
+    token = cred.credentials if cred and cred.credentials else request.cookies.get(
+        settings.access_cookie_name
+    )
+    if not token:
         raise _unauth("未登录")
 
     try:
-        payload = decode_token(cred.credentials, kind="access")
+        payload = decode_token(token, kind="access")
     except ValueError:
         raise _unauth("登录已过期")
     if db.query(TokenBlacklist).filter_by(jti=payload.get("jti")).first():

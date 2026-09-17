@@ -1118,3 +1118,55 @@ def test_sort_whitelist_orders(client):
     assert [x["amount"] for x in items(client.get(f"{base}&sort=-amount", headers=h))] == [300, 200, 100]
     # 默认 -id（最新在前）保持既有行为
     assert [x["amount"] for x in items(client.get(base, headers=h))] == [200, 100, 300]
+
+
+# 38. Cookie 登录：access/refresh 为 HttpOnly，CSRF 可由前端读取
+def test_cookie_login_sets_secure_session_shape(client):
+    r = client.post("/api/v1/auth/login",
+                    json={"username": "admin", "password": "admin123456"})
+    assert r.status_code == 200, r.text
+
+    cookies = r.headers.get_list("set-cookie")
+    access = next(c for c in cookies if c.startswith("pm_access_token="))
+    refresh = next(c for c in cookies if c.startswith("pm_refresh_token="))
+    csrf = next(c for c in cookies if c.startswith("pm_csrf_token="))
+    assert "HttpOnly" in access
+    assert "HttpOnly" in refresh
+    assert "HttpOnly" not in csrf
+    assert "SameSite=lax" in access
+    assert "Path=/api/v1/auth" in refresh
+
+    me = client.get("/api/v1/auth/me")
+    assert me.status_code == 200
+    assert me.json()["username"] == "admin"
+
+
+# 39. Cookie 写请求缺少 CSRF 必须 403，带对 token 成功
+def test_cookie_write_requires_csrf(client):
+    r = client.post("/api/v1/auth/login",
+                    json={"username": "admin", "password": "admin123456"})
+    assert r.status_code == 200
+    refresh = client.cookies.get("pm_refresh_token")
+
+    denied = client.post("/api/v1/auth/logout", json={})
+    assert denied.status_code == 403
+
+    csrf = client.cookies.get("pm_csrf_token")
+    allowed = client.post("/api/v1/auth/logout", json={},
+                          headers={"X-CSRF-Token": csrf})
+    assert allowed.status_code == 200
+
+    replay = client.post("/api/v1/auth/refresh", json={"refresh_token": refresh})
+    assert replay.status_code == 401
+
+
+# 40. Bearer 兼容期不要求 CSRF
+def test_bearer_write_remains_compatible(client):
+    login = client.post("/api/v1/auth/login",
+                        json={"username": "admin", "password": "admin123456"})
+    token = login.json()["access_token"]
+    client.cookies.clear()
+
+    r = client.post("/api/v1/auth/logout", json={},
+                    headers={"Authorization": f"Bearer {token}"})
+    assert r.status_code == 200
