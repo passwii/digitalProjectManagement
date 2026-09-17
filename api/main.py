@@ -1,8 +1,10 @@
 import os
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
+from .core.cookies import UNSAFE_METHODS, csrf_header_valid, request_uses_cookie_auth
 from .core.database import Base, engine, ensure_fts
 from .routers import (admin, approvals, auth, budgets, dashboard, expenses, meta,
                       milestones, notifications, projects, reports, tasks)
@@ -89,6 +91,20 @@ app.add_middleware(
     allow_headers=["*"],
     expose_headers=["Content-Disposition"],
 )
+
+CSRF_EXEMPT_PATHS = {"/api/v1/auth/login"}
+
+
+@app.middleware("http")
+async def csrf_protect(request: Request, call_next):
+    is_api_write = (
+        request.method in UNSAFE_METHODS
+        and request.url.path.startswith("/api/v1/")
+        and request.url.path not in CSRF_EXEMPT_PATHS
+    )
+    if is_api_write and request_uses_cookie_auth(request) and not csrf_header_valid(request):
+        return JSONResponse({"detail": "CSRF 校验失败"}, status_code=403)
+    return await call_next(request)
 
 for r in (auth.router, meta.router, admin.router, projects.router, tasks.router,
           milestones.router, budgets.router, expenses.router, reports.router,
