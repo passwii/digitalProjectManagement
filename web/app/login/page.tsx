@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { authApi, errText, saveSession } from "@/lib/api";
 import MobileAuthShell from "@/components/auth/MobileAuthShell";
@@ -11,19 +11,27 @@ export default function LoginPage() {
   const router = useRouter();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
-  const [fieldErr, setFieldErr] = useState("");
+  const [usernameErr, setUsernameErr] = useState("");
+  const [passwordErr, setPasswordErr] = useState("");
   const [apiErr, setApiErr] = useState("");
   const [loading, setLoading] = useState(false);
+  const usernameRef = useRef<HTMLInputElement>(null);
+  const passwordRef = useRef<HTMLInputElement>(null);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setApiErr("");
-    // 空值前端拦截（PLAN Stage 0 验收）
-    if (!username.trim() || !password) {
-      setFieldErr("账号和密码不能为空");
+
+    const nextUsernameErr = username.trim() ? "" : "请输入账号";
+    const nextPasswordErr = password ? "" : "请输入密码";
+    setUsernameErr(nextUsernameErr);
+    setPasswordErr(nextPasswordErr);
+    if (nextUsernameErr || nextPasswordErr) {
+      if (nextUsernameErr) usernameRef.current?.focus();
+      else passwordRef.current?.focus();
       return;
     }
-    setFieldErr("");
+
     setLoading(true);
     try {
       const data = await authApi.login(username.trim(), password);
@@ -57,23 +65,37 @@ export default function LoginPage() {
         <div className={st.field}>
           <label htmlFor="username">账号</label>
           <input
+            ref={usernameRef}
             id="username"
             value={username}
-            onChange={(e) => setUsername(e.target.value)}
+            onChange={(e) => {
+              setUsername(e.target.value);
+              if (usernameErr) setUsernameErr("");
+            }}
             placeholder="请输入账号"
             autoComplete="username"
             enterKeyHint="next"
             disabled={loading}
+            aria-invalid={Boolean(usernameErr)}
+            aria-describedby={usernameErr ? "username-error" : undefined}
           />
+          {usernameErr ? (
+            <span id="username-error" className="field-err" role="alert">{usernameErr}</span>
+          ) : null}
         </div>
         <PasswordInput
+          ref={passwordRef}
           label="密码"
           value={password}
-          onChange={setPassword}
+          onChange={(value) => {
+            setPassword(value);
+            if (passwordErr) setPasswordErr("");
+          }}
           autoComplete="current-password"
+          enterKeyHint="go"
+          error={passwordErr || undefined}
           disabled={loading}
         />
-        {fieldErr ? <div className={st.alert} role="alert">{fieldErr}</div> : null}
         {apiErr ? <div className={st.alert} role="alert">{apiErr}</div> : null}
         <div className={st.submit}>
           <button className="btn-primary" type="submit" disabled={loading}>
