@@ -1,15 +1,17 @@
 """MVP 验收 pytest（Stage1-4）：≥10 用例，未登录 401 必测。隔离库：tmp sqlite + dependency_overrides。"""
 import io
 from threading import Barrier, Thread
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 
 import pytest
 from fastapi.testclient import TestClient
+from jose import jwt
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
+from api.core.config import settings
 from api.core.database import Base, ensure_fts, get_db
-from api.core.security import hash_password
+from api.core.security import ALGORITHM, SECRET_KEY, hash_password
 from api.main import app
 
 
@@ -1147,21 +1149,93 @@ def test_cookie_write_requires_csrf(client):
     r = client.post("/api/v1/auth/login",
                     json={"username": "admin", "password": "admin123456"})
     assert r.status_code == 200
-    refresh = client.cookies.get("pm_refresh_token")
 
-    denied = client.post("/api/v1/auth/logout", json={})
+    change_password = {
+        "old_password": "admin123456",
+        "new_password": "admin1234567",
+    }
+    denied = client.post("/api/v1/auth/change-password", json=change_password)
     assert denied.status_code == 403
 
     csrf = client.cookies.get("pm_csrf_token")
-    allowed = client.post("/api/v1/auth/logout", json={},
+    allowed = client.post("/api/v1/auth/change-password", json=change_password,
                           headers={"X-CSRF-Token": csrf})
     assert allowed.status_code == 200
 
-    replay = client.post("/api/v1/auth/refresh", json={"refresh_token": refresh})
-    assert replay.status_code == 401
+
+def _expired_session_cookies():
+    expired_at = datetime.now(timezone.utc) - timedelta(minutes=1)
+
+    def encode(kind):
+        return jwt.encode(
+            {"sub": "1", "kind": kind, "jti": f"expired-{kind}", "exp": expired_at},
+            SECRET_KEY,
+            algorithm=ALGORITHM,
+        )
+
+    return {
+        settings.access_cookie_name: encode("access"),
+        settings.refresh_cookie_name: encode("refresh"),
+    }
 
 
-# 40. Bearer 兼容期不要求 CSRF
+# 40. 无有效会话也必须幂等清 Cookie
+@pytest.mark.parametrize("state", ["missing", "invalid", "expired", "blacklisted"])
+def test_logout_without_valid_session_clears_auth_cookies(client, state):
+    request_cookies = {}
+    access = refresh = ""
+
+    if state == "invalid":
+        request_cookies = {
+            settings.access_cookie_name: "invalid-access",
+            settings.refresh_cookie_name: "invalid-refresh",
+        }
+    elif state == "expired":
+        request_cookies = _expired_session_cookies()
+    elif state == "blacklisted":
+        login = client.post("/api/v1/auth/login",
+                            json={"username": "admin", "password": "admin123456"})
+        assert login.status_code == 200, login.text
+        access = login.json()["access_token"]
+        refresh = login.json()["refresh_token"]
+        csrf = client.cookies.get(settings.csrf_cookie_name)
+        first = client.post("/api/v1/auth/logout", json={},
+                            headers={"X-CSRF-Token": csrf})
+        assert first.status_code == 200, first.text
+        assert client.get("/api/v1/auth/me",
+                          headers={"Authorization": f"Bearer {access}"}).status_code == 401
+        assert client.post("/api/v1/auth/refresh",
+                           json={"refresh_token": refresh}).status_code == 401
+        client.cookies.clear()
+        request_cookies = {
+            settings.access_cookie_name: access,
+            settings.refresh_cookie_name: refresh,
+        }
+
+    for name, value in request_cookies.items():
+        client.cookies.set(name, value)
+    response = client.post("/api/v1/auth/logout")
+    assert response.status_code == 200, response.text
+
+    set_cookie = response.headers.get_list("set-cookie")
+    deleted = {
+        header.split("=", 1)[0]: header
+        for header in set_cookie
+        if header.startswith((
+            f"{settings.access_cookie_name}=",
+            f"{settings.refresh_cookie_name}=",
+            f"{settings.csrf_cookie_name}=",
+        ))
+    }
+    assert set(deleted) == {
+        settings.access_cookie_name,
+        settings.refresh_cookie_name,
+        settings.csrf_cookie_name,
+    }
+    assert all("max-age=0" in header.lower() for header in deleted.values())
+
+
+# 41. Bearer 兼容期不要求 CSRF
 def test_bearer_write_remains_compatible(client):
     login = client.post("/api/v1/auth/login",
                         json={"username": "admin", "password": "admin123456"})
@@ -1173,7 +1247,7 @@ def test_bearer_write_remains_compatible(client):
     assert r.status_code == 200
 
 
-# 41. 空 Bearer 不能让 Cookie 会话绕过 CSRF
+# 42. 空 Bearer 不能让 Cookie 会话绕过 CSRF
 def test_empty_bearer_does_not_bypass_cookie_csrf(client):
     login = client.post("/api/v1/auth/login",
                         json={"username": "admin", "password": "admin123456"})
@@ -1185,7 +1259,7 @@ def test_empty_bearer_does_not_bypass_cookie_csrf(client):
     assert r.status_code == 403
 
 
-# 42. 登出使用统一 Bearer 解析，额外空格的令牌也必须失效
+# 43. 登出使用统一 Bearer 解析，额外空格的令牌也必须失效
 def test_logout_blacklists_bearer_token_with_extra_spaces(client):
     login = client.post("/api/v1/auth/login",
                         json={"username": "admin", "password": "admin123456"})
@@ -1201,7 +1275,7 @@ def test_logout_blacklists_bearer_token_with_extra_spaces(client):
     assert me.status_code == 401
 
 
-# 41. refresh 轮换：Cookie 刷新后旧 token 重放返回 401
+# 44. refresh 轮换：Cookie 刷新后旧 token 重放返回 401
 def test_refresh_rotates_and_rejects_replay(client):
     r = client.post("/api/v1/auth/login",
                     json={"username": "admin", "password": "admin123456"})
@@ -1224,7 +1298,7 @@ def test_refresh_rotates_and_rejects_replay(client):
     assert replay.status_code == 401
 
 
-# 42. Bearer 客户端可用请求体 refresh token，不依赖 Cookie
+# 45. Bearer 客户端可用请求体 refresh token，不依赖 Cookie
 def test_refresh_body_token_supports_legacy_client(client):
     r = client.post("/api/v1/auth/login",
                     json={"username": "admin", "password": "admin123456"})
@@ -1238,7 +1312,7 @@ def test_refresh_body_token_supports_legacy_client(client):
     assert refreshed.json()["refresh_token"]
 
 
-# 43. 并发 refresh 只允许同一个 refresh token 消费一次
+# 46. 并发 refresh 只允许同一个 refresh token 消费一次
 def test_concurrent_refresh_consumes_token_once(client):
     login_response = client.post(
         "/api/v1/auth/login",

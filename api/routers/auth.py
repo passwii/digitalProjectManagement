@@ -89,25 +89,44 @@ def _blacklist_token(db: Session, token: str, kind: str, user_id: int) -> None:
         payload = decode_token(token, kind=kind)
     except ValueError:
         return
-    db.add(TokenBlacklist(
+    claim = insert(TokenBlacklist).values(
         jti=payload["jti"],
         user_id=user_id,
         expires_at=datetime.fromtimestamp(payload["exp"], tz=timezone.utc),
-    ))
+    ).on_conflict_do_nothing(index_elements=[TokenBlacklist.jti])
+    db.execute(claim)
+
+
+def _valid_session_user(db: Session, tokens: tuple[tuple[str, str], ...]) -> User | None:
+    for token, kind in tokens:
+        if not token:
+            continue
+        try:
+            payload = decode_token(token, kind=kind)
+            user_id = int(payload["sub"])
+        except (KeyError, TypeError, ValueError):
+            continue
+        if db.query(TokenBlacklist).filter_by(jti=payload.get("jti")).first():
+            continue
+        user = db.query(User).filter_by(id=user_id).first()
+        if user and user.status == "active":
+            return user
+    return None
 
 
 @router.post("/logout")
-def logout(request: Request, response: Response, db: Session = Depends(get_db),
-           user: User = Depends(get_current_user)):
+def logout(request: Request, response: Response, db: Session = Depends(get_db)):
     access = bearer_token_from_request(request)
     if not access:
         access = request.cookies.get(settings.access_cookie_name, "")
     refresh = request.cookies.get(settings.refresh_cookie_name, "")
-    _blacklist_token(db, access, "access", user.id)
-    _blacklist_token(db, refresh, "refresh", user.id)
-    db.commit()
-    write_audit(db, user.id, "logout", "auth", user.username, "登出",
-                request.client.host if request.client else "")
+    user = _valid_session_user(db, ((access, "access"), (refresh, "refresh")))
+    if user:
+        _blacklist_token(db, access, "access", user.id)
+        _blacklist_token(db, refresh, "refresh", user.id)
+        db.commit()
+        write_audit(db, user.id, "logout", "auth", user.username, "登出",
+                    request.client.host if request.client else "")
     clear_auth_cookies(response)
     return {"ok": True}
 

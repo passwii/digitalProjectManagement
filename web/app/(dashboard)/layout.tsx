@@ -134,14 +134,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     : "当前账号无管理与审批权限，仅参与项目业务";
 
   async function logout() {
-    try {
-      await authApi.logout();
-    } catch {
-      // 后端不可用也照常清本地会话
-    }
     clearMetaCache();
-    clearSession();
-    router.push("/login");
+    await clearSession();
   }
 
   return (
