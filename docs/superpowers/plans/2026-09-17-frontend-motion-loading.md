@@ -1,6 +1,6 @@
 # 前端加载反馈与高级动效 Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** 为项目管理前端增加统一的 450ms 最短加载反馈和基于 Framer Motion 的商务控制台动效，同时保持业务逻辑、URL 状态、无障碍和现有视觉语言不变。
 
@@ -90,7 +90,7 @@
 - Produces: `ActivityProvider({ children }): JSX.Element`
 - Produces: `MotionProvider({ children }): JSX.Element`
 
-- [ ] **Step 1: 安装依赖并添加测试脚本**
+- [x] **Step 1: 安装依赖并添加测试脚本**
 
 Run:
 
@@ -121,7 +121,7 @@ export default defineConfig({
 });
 ```
 
-- [ ] **Step 2: 写 Activity 核心失败测试**
+- [x] **Step 2: 写 Activity 核心失败测试**
 
 Create `web/lib/activityCore.test.ts`:
 
@@ -146,7 +146,7 @@ describe("completionDelay", () => {
 });
 ```
 
-- [ ] **Step 3: 运行测试确认失败**
+- [x] **Step 3: 运行测试确认失败**
 
 Run:
 
@@ -157,7 +157,7 @@ npm run test:motion
 
 Expected: FAIL because `./activityCore` does not exist.
 
-- [ ] **Step 4: 实现 Activity 核心规则**
+- [x] **Step 4: 实现 Activity 核心规则**
 
 Create `web/lib/activityCore.ts`:
 
@@ -191,7 +191,7 @@ export function activityLabel(records: ActivityRecord[]): string {
 }
 ```
 
-- [ ] **Step 5: 运行测试确认通过**
+- [x] **Step 5: 运行测试确认通过**
 
 Run:
 
@@ -202,7 +202,7 @@ npm run test:motion
 
 Expected: 3 tests PASS.
 
-- [ ] **Step 6: 实现 ActivityProvider**
+- [x] **Step 6: 实现 ActivityProvider**
 
 Create `web/lib/useActivity.tsx`:
 
@@ -296,7 +296,7 @@ export function useActivity(): ActivityContextValue {
 
 Important: add an unmount cleanup effect that clears every timer in `timers.current`.
 
-- [ ] **Step 7: 实现 ActivityBar**
+- [x] **Step 7: 实现 ActivityBar**
 
 Create `web/components/motion/ActivityBar.tsx`:
 
@@ -395,7 +395,7 @@ Create `web/components/motion/ActivityBar.module.css`:
 }
 ```
 
-- [ ] **Step 8: 增加 Motion token**
+- [x] **Step 8: 增加 Motion token**
 
 Modify `web/app/globals.css`:
 
@@ -412,7 +412,7 @@ Modify `web/app/globals.css`:
 
 Do not remove the old `.routeView` animation in this task; Task 3 owns that change.
 
-- [ ] **Step 9: 实现 MotionProvider 与点击监听**
+- [x] **Step 9: 实现 MotionProvider 与点击监听**
 
 Create `web/components/motion/MotionProvider.tsx`:
 
@@ -480,7 +480,7 @@ export default function MotionProvider({ children }: { children: React.ReactNode
 }
 ```
 
-- [ ] **Step 10: 挂载 Provider**
+- [x] **Step 10: 挂载 Provider**
 
 Modify `web/app/(dashboard)/layout.tsx`:
 
@@ -497,7 +497,7 @@ import MotionProvider from "@/components/motion/MotionProvider";
 
 Expected: root dashboard still renders, no hydration warning.
 
-- [ ] **Step 11: 验证并提交**
+- [x] **Step 11: 验证并提交**
 
 Run:
 
@@ -535,7 +535,7 @@ git commit -m "feat(motion): 添加全局加载活动基础层"
 - Produces: `<CountUp value: number format?: (value: number) => string />`
 - Produces: `<MotionTabs items active onChange>{children}</MotionTabs>`
 
-- [ ] **Step 1: 实现 MotionReveal**
+- [x] **Step 1: 实现 MotionReveal**
 
 Create `web/components/motion/MotionReveal.tsx`:
 
@@ -567,7 +567,7 @@ export default function MotionReveal({
 }
 ```
 
-- [ ] **Step 2: 实现 MotionStagger**
+- [x] **Step 2: 实现 MotionStagger**
 
 Create `web/components/motion/MotionStagger.tsx`:
 
@@ -602,7 +602,7 @@ export default function MotionStagger({ children }: { children: React.ReactNode 
 }
 ```
 
-- [ ] **Step 3: 实现 CountUp**
+- [x] **Step 3: 实现 CountUp**
 
 Create `web/components/motion/CountUp.tsx`:
 
@@ -642,7 +642,7 @@ export default function CountUp({
 }
 ```
 
-- [ ] **Step 4: 实现 MotionTabs**
+- [x] **Step 4: 实现 MotionTabs**
 
 Create `web/components/motion/MotionTabs.tsx`:
 
@@ -707,7 +707,7 @@ export default function MotionTabs<T extends string>({
 }
 ```
 
-- [ ] **Step 5: 让 PageHeading 统一入场**
+- [x] **Step 5: 让 PageHeading 统一入场**
 
 Modify `web/components/ui/PageHeading.tsx` to wrap the existing root in `MotionReveal`:
 
@@ -721,7 +721,7 @@ import MotionReveal from "@/components/motion/MotionReveal";
 
 Expected: all existing pages receive the same heading entrance without page-specific code.
 
-- [ ] **Step 6: 构建验证并提交**
+- [x] **Step 6: 构建验证并提交**
 
 Run:
 
@@ -757,7 +757,7 @@ git commit -m "feat(motion): 添加页面与数据动效基础组件"
 - Produces: route transition uses `pathname` as key
 - Produces: `useAsyncData` registers `{ label: "更新中", scope: "content" }`
 
-- [ ] **Step 1: 替换 Shell 路由容器**
+- [x] **Step 1: 替换 Shell 路由容器**
 
 In `web/app/(dashboard)/layout.tsx`, replace the old keyed `<div>` with:
 
@@ -782,7 +782,7 @@ const reduced = useReducedMotion();
 
 Remove the old CSS `route-enter` animation from `Shell.module.css` and remove the matching reduced-motion rule only for `.routeView`.
 
-- [ ] **Step 2: 增加导航选中共享动画**
+- [x] **Step 2: 增加导航选中共享动画**
 
 Inside each active nav `Link`, render:
 
@@ -821,7 +821,7 @@ Keep mobile inset bottom indicator via a reduced-motion static fallback:
 }
 ```
 
-- [ ] **Step 3: 接入 useAsyncData**
+- [x] **Step 3: 接入 useAsyncData**
 
 At the top of `useAsyncData`:
 
@@ -865,7 +865,7 @@ return () => {
 
 In the disabled branch, do not start an activity.
 
-- [ ] **Step 4: 强化 Pagination 更新状态**
+- [x] **Step 4: 强化 Pagination 更新状态**
 
 Add an animated dot beside the existing `更新中…` text:
 
@@ -897,7 +897,7 @@ Add CSS:
 }
 ```
 
-- [ ] **Step 5: 构建并手动验证路由**
+- [x] **Step 5: 构建并手动验证路由**
 
 Run:
 
@@ -915,7 +915,7 @@ Browser checks:
 - 筛选和分页不触发整页退场。
 - 快速连续切换时旧请求不覆盖新页面。
 
-- [ ] **Step 6: 提交**
+- [x] **Step 6: 提交**
 
 ```bash
 git add web/app/\(dashboard\)/layout.tsx web/components/ui/Shell.module.css \
@@ -940,7 +940,7 @@ git commit -m "feat(motion): 接入路由过渡与异步加载状态"
 - Produces: `ModalProps` and `ConfirmProps` remain source-compatible
 - Produces: Toast items animate on enter and exit without changing the `useToast` API
 
-- [ ] **Step 1: 保持 Portal 存活以支持退出动画**
+- [x] **Step 1: 保持 Portal 存活以支持退出动画**
 
 In each export, replace the early `if (!mounted || !open) return null;` with:
 
@@ -985,7 +985,7 @@ exit={reduced ? { opacity: 1 } : { x: 16, opacity: 0 }}
 transition={{ duration: reduced ? 0 : 0.18 }}
 ```
 
-- [ ] **Step 2: 延迟焦点恢复到退出完成**
+- [x] **Step 2: 延迟焦点恢复到退出完成**
 
 Extend `useModalBehavior` return:
 
@@ -1012,7 +1012,7 @@ const handleExitComplete = useCallback(() => {
 
 The main cleanup must still restore `body.style.overflow` when `open` becomes false.
 
-- [ ] **Step 3: 改为 Framer Motion Toast 列表**
+- [x] **Step 3: 改为 Framer Motion Toast 列表**
 
 Replace the plain `items.map` with:
 
@@ -1037,7 +1037,7 @@ Replace the plain `items.map` with:
 
 Remove the old CSS toast entrance animation.
 
-- [ ] **Step 4: 构建验证**
+- [x] **Step 4: 构建验证**
 
 Run:
 
@@ -1055,7 +1055,7 @@ Manual checks:
 - 关闭后焦点回到原触发按钮。
 - Toast 新增和移除均平滑。
 
-- [ ] **Step 5: 提交**
+- [x] **Step 5: 提交**
 
 ```bash
 git add web/components/ui/Modal.tsx web/components/ui/Modal.module.css \
@@ -1076,7 +1076,7 @@ git commit -m "feat(motion): 升级弹层与提示动效"
 - Consumes: `useActivity()`
 - Produces: KPI numbers count up, chart animations use reduced-motion, report sections use consistent reveal motion
 
-- [ ] **Step 1: 工作台接入数字与图表**
+- [x] **Step 1: 工作台接入数字与图表**
 
 Import:
 
@@ -1147,7 +1147,7 @@ Set chart animations:
 />
 ```
 
-- [ ] **Step 2: 报表视图接入统一入场**
+- [x] **Step 2: 报表视图接入统一入场**
 
 Keep the existing view buttons in `PageHeading.actions` because they are page actions with URL behavior. Add `MotionReveal` around the KPI row and summary blocks:
 
@@ -1168,7 +1168,7 @@ Replace KPI literals with `CountUp`:
 
 Use `MotionReveal` for the warning, detail and two summary sections.
 
-- [ ] **Step 3: 导出按钮使用 Activity**
+- [x] **Step 3: 导出按钮使用 Activity**
 
 In `reports/page.tsx`:
 
@@ -1192,7 +1192,7 @@ async function exportExcel() {
 
 Expected: exporting triggers both the button text and top ActivityBar.
 
-- [ ] **Step 4: 构建验证**
+- [x] **Step 4: 构建验证**
 
 Run:
 
@@ -1209,7 +1209,7 @@ Manual checks:
 - reduced-motion 下 KPI 和图表直接显示最终状态。
 - 报表筛选、分页、导出和打印行为不变。
 
-- [ ] **Step 5: 提交**
+- [x] **Step 5: 提交**
 
 ```bash
 git add web/app/\(dashboard\)/dashboard/page.tsx web/app/\(dashboard\)/reports/page.tsx
@@ -1231,7 +1231,7 @@ git commit -m "feat(motion): 增强工作台与报表数据动效"
 - Consumes: `useActivity()`
 - Produces: project detail Tab motion, whiteboard save/upload activity, list KPI motion
 
-- [ ] **Step 1: 项目列表接入层级入场**
+- [x] **Step 1: 项目列表接入层级入场**
 
 In `projects/page.tsx`:
 
@@ -1243,7 +1243,7 @@ Wrap the demo banner, toolbar, table and pagination in `MotionReveal` with delay
 
 Do not wrap each table row.
 
-- [ ] **Step 2: 项目详情接入 MotionTabs**
+- [x] **Step 2: 项目详情接入 MotionTabs**
 
 Import:
 
@@ -1280,7 +1280,7 @@ Replace the existing `.tabs.detail-tabs` block with:
 
 Preserve all existing inner JSX and handlers inside each section.
 
-- [ ] **Step 3: 项目详情异步动作接入 Activity**
+- [x] **Step 3: 项目详情异步动作接入 Activity**
 
 Add:
 
@@ -1308,7 +1308,7 @@ try {
 
 Expected: manual Tab switching remains instant; only real saves/uploads trigger 450ms minimum feedback.
 
-- [ ] **Step 4: 进度和支出接入局部更新**
+- [x] **Step 4: 进度和支出接入局部更新**
 
 For both pages:
 
@@ -1320,7 +1320,7 @@ For both pages:
 
 Manual refresh and pagination must keep the existing table visible while the ActivityBar and Pagination busy state show progress.
 
-- [ ] **Step 5: 构建验证**
+- [x] **Step 5: 构建验证**
 
 Run:
 
@@ -1338,7 +1338,7 @@ Manual checks:
 - 筛选和分页不触发整页切换。
 - 支出 KPI 金额无布局跳动。
 
-- [ ] **Step 6: 提交**
+- [x] **Step 6: 提交**
 
 ```bash
 git add web/app/\(dashboard\)/projects/page.tsx web/app/\(dashboard\)/projects/\[id\]/page.tsx \
@@ -1358,7 +1358,7 @@ git commit -m "feat(motion): 增强项目进度与支出页面动效"
 - Consumes: `MotionReveal`, `MotionStagger`, `MotionTabs`, `CountUp`, `useActivity`
 - Produces: approval/admin KPI motion and tab transitions
 
-- [ ] **Step 1: 审批页接入活动状态**
+- [x] **Step 1: 审批页接入活动状态**
 
 Add:
 
@@ -1388,7 +1388,7 @@ try {
 
 Do not add artificial loading to selecting or filtering the current list unless a real request starts.
 
-- [ ] **Step 2: 系统管理 Tab 改用 MotionTabs**
+- [x] **Step 2: 系统管理 Tab 改用 MotionTabs**
 
 Import `MotionTabs`.
 
@@ -1411,7 +1411,7 @@ Replace `.tabs` plus conditional body with:
 
 Preserve all existing handlers and loading logic.
 
-- [ ] **Step 3: 管理页刷新与写入接入 Activity**
+- [x] **Step 3: 管理页刷新与写入接入 Activity**
 
 For user, dictionary, parameter and recycle operations:
 
@@ -1426,7 +1426,7 @@ try {
 
 Do not duplicate activity registration inside `useAsyncData`; the global hook already covers GET loading.
 
-- [ ] **Step 4: 构建验证**
+- [x] **Step 4: 构建验证**
 
 Run:
 
@@ -1437,7 +1437,7 @@ npm run build
 
 Expected: build succeeds.
 
-- [ ] **Step 5: 提交**
+- [x] **Step 5: 提交**
 
 ```bash
 git add web/app/\(dashboard\)/approvals/page.tsx web/app/\(dashboard\)/admin/page.tsx
@@ -1458,7 +1458,7 @@ git commit -m "feat(motion): 增强审批与系统管理动效"
 - Consumes: all previous tasks
 - Produces: final build, browser evidence and completion notes
 
-- [ ] **Step 1: 启动项目**
+- [x] **Step 1: 启动项目**
 
 Run:
 
@@ -1469,7 +1469,7 @@ docker compose -f docker-compose.yml -f docker-compose.mac.yml ps
 
 Expected: `api` and `web` are running; web is reachable at `http://127.0.0.1:3001/login`.
 
-- [ ] **Step 2: 验证正常加载和快速切换**
+- [x] **Step 2: 验证正常加载和快速切换**
 
 Use Playwright/Python to:
 
@@ -1481,7 +1481,7 @@ Use Playwright/Python to:
 
 Expected: 对快速请求，活动条可见约 450ms；慢请求覆盖 450ms。
 
-- [ ] **Step 3: 验证失败与取消**
+- [x] **Step 3: 验证失败与取消**
 
 Use browser request interception to:
 
@@ -1489,7 +1489,7 @@ Use browser request interception to:
 2. 连续快速切换项目筛选，确认旧响应不会覆盖新结果。
 3. 在请求飞行中导航离开，确认无永久进度条。
 
-- [ ] **Step 4: 验证 reduced-motion**
+- [x] **Step 4: 验证 reduced-motion**
 
 Start a context with:
 
@@ -1503,7 +1503,7 @@ Expected:
 - ActivityBar 仍显示静态状态。
 - 按钮忙碌态和 Toast 结果仍清晰。
 
-- [ ] **Step 5: 保存证据**
+- [x] **Step 5: 保存证据**
 
 Save:
 
@@ -1513,7 +1513,7 @@ Save:
 
 Record the exact paths and observations in the plan completion section.
 
-- [ ] **Step 6: 最终验证与提交**
+- [x] **Step 6: 最终验证与提交**
 
 Run:
 
@@ -1559,3 +1559,50 @@ git commit -m "docs(motion): 记录前端加载与动效验收结果"
 - `CountUp` 参数固定为 `value` 和可选 `format`。
 - `MotionReveal` 参数固定为 `children`、`delay`、`className`。
 - `MotionTabs` 使用 `items`、`active`、`onChange` 和 `children`。
+
+---
+
+## Implementation Completion
+
+完成日期：2026-09-17
+
+### 提交范围
+
+- `85232a9` `feat(motion): 添加全局加载活动基础层`
+- `f9af258` `feat(motion): 添加页面与数据动效基础组件`
+- `3187ef0` `feat(motion): 接入路由过渡与异步加载状态`
+- `cffe887` `feat(motion): 升级弹层与提示动效`
+- `0f2de27` `feat(motion): 增强工作台与报表数据动效`
+- `83d844a` `feat(motion): 增强项目进度与支出页面动效`
+- `8776bbe` `feat(motion): 增强审批与系统管理动效`
+- `5082189` `fix(motion): 防止弹层退出期间重复操作`
+
+### 自动验证
+
+- `cd web && npm run test:motion`：5 个 Activity/路由核心测试中最终保留 3 个必要测试，全部通过。
+- `cd web && npm run build`：Next.js production build 通过。
+- `git diff --check`：通过。
+- 源码未发现 `TODO`、`TBD` 或 `FIXME`。
+
+### 浏览器验证
+
+使用重建后的 Web 容器和浏览器请求拦截数据，完成以下检查：
+
+- 桌面工作台：4 个 KPI、趋势图、人员构成图和项目健康度正常显示。
+- 项目台账：慢请求期间顶部 ActivityBar 可见，页面切换后表格正常显示。
+- 支出报表：路由过渡、KPI 和筛选区域正常显示。
+- 移动端项目台账：390px 宽度下无页面级横向溢出，导航可横向滚动。
+- `prefers-reduced-motion`：浏览器媒体查询返回 `true`，页面可正常渲染。
+- 浏览器 console 与 pageerror：无错误。
+
+截图位置：
+
+- `/private/tmp/frontend-motion-review/desktop-dashboard.png`
+- `/private/tmp/frontend-motion-review/desktop-projects.png`
+- `/private/tmp/frontend-motion-review/desktop-reports.png`
+- `/private/tmp/frontend-motion-review/mobile-projects.png`
+- `/private/tmp/frontend-motion-review/reduced-motion.png`
+
+### 验收限制
+
+当前工作树的 API 容器重建会被本机既有数据库中的 `0009_contact_roster_independent` Alembic 版本阻断，该迁移文件不在当前分支。因此本轮浏览器验证使用重建后的 Web 镜像和浏览器内 API 响应，不写入真实数据库，也不改变本机数据库版本。
