@@ -7,7 +7,8 @@ from sqlalchemy.orm import Session
 
 from ..core.audit import write_audit
 from ..core.config import settings
-from ..core.cookies import clear_auth_cookies, set_auth_cookies
+from ..core.cookies import (bearer_token_from_request, clear_auth_cookies,
+                            set_auth_cookies)
 from ..core.database import get_db
 from ..core.deps import get_current_user
 from ..core.security import (create_access_token, create_refresh_token,
@@ -96,8 +97,7 @@ def _blacklist_token(db: Session, token: str, kind: str, user_id: int) -> None:
 @router.post("/logout")
 def logout(request: Request, response: Response, db: Session = Depends(get_db),
            user: User = Depends(get_current_user)):
-    auth = request.headers.get("authorization", "")
-    access = auth[7:] if auth.lower().startswith("bearer ") else ""
+    access = bearer_token_from_request(request)
     if not access:
         access = request.cookies.get(settings.access_cookie_name, "")
     refresh = request.cookies.get(settings.refresh_cookie_name, "")
