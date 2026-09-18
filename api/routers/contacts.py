@@ -1,4 +1,5 @@
 """管理员通讯录花名册：人员主数据、可选账号关联与证件/合同附件。"""
+
 import re
 from datetime import date, datetime, timezone
 from pathlib import Path
@@ -29,7 +30,12 @@ EMPLOYMENT_STATUSES = {"active", "probation", "leave"}
 CONTRACT_TYPES = {"劳动合同", "劳务合同", "实习协议", "顾问协议", "其他"}
 GENDERS = {"男", "女", "未填写"}
 ATTACHMENT_CATEGORIES = {
-    "id_card", "education", "degree", "professional_cert", "labor_contract", "other",
+    "id_card",
+    "education",
+    "degree",
+    "professional_cert",
+    "labor_contract",
+    "other",
 }
 ALLOWED_EXT = {".pdf", ".doc", ".docx", ".xls", ".xlsx", ".png", ".jpg", ".jpeg"}
 # 体积上限与超限文案统一来自 core.limits（前端单一来源为 web/lib/uploadLimits.ts）
@@ -139,7 +145,9 @@ def _contact_or_404(db: Session, cid: int) -> ContactProfile:
 def _attachment_count_query(db: Session):
     return (
         db.query(func.count(Attachment.id))
-        .filter(Attachment.ref_type == "contact", Attachment.ref_id == ContactProfile.id)
+        .filter(
+            Attachment.ref_type == "contact", Attachment.ref_id == ContactProfile.id
+        )
         .correlate(ContactProfile)
         .scalar_subquery()
     )
@@ -158,11 +166,20 @@ def _joined_query(db: Session):
     )
 
 
-def _serialize(profile: ContactProfile, account: User | None, dept_name: str = "",
-               attachment_count: int = 0, manager_name: str = "",
-               sensitive: bool = False) -> dict:
+def _serialize(
+    profile: ContactProfile,
+    account: User | None,
+    dept_name: str = "",
+    attachment_count: int = 0,
+    manager_name: str = "",
+    sensitive: bool = False,
+) -> dict:
     id_card = profile.id_card_no or ""
-    name = profile.name or (account.real_name if account else "") or (account.username if account else "")
+    name = (
+        profile.name
+        or (account.real_name if account else "")
+        or (account.username if account else "")
+    )
     return {
         "id": profile.id,
         "user_id": profile.user_id,
@@ -225,17 +242,25 @@ def _detail(db: Session, cid: int, sensitive: bool) -> dict:
         raise HTTPException(404, "通讯录人员不存在")
     profile, account, dept, attachment_count = row
     return _serialize(
-        profile, account, dept.name if dept else "", attachment_count,
-        _manager_name(db, profile), sensitive=sensitive,
+        profile,
+        account,
+        dept.name if dept else "",
+        attachment_count,
+        _manager_name(db, profile),
+        sensitive=sensitive,
     )
 
 
-def _validate_employee_no(db: Session, cid: int | None, value: str | None) -> str | None:
+def _validate_employee_no(
+    db: Session, cid: int | None, value: str | None
+) -> str | None:
     employee_no = _clean_text(value) or None
     if employee_no and len(employee_no) > 32:
         raise HTTPException(400, "工号最多 32 个字符")
     if employee_no:
-        query = db.query(ContactProfile).filter(ContactProfile.employee_no == employee_no)
+        query = db.query(ContactProfile).filter(
+            ContactProfile.employee_no == employee_no
+        )
         if cid is not None:
             query = query.filter(ContactProfile.id != cid)
         if query.first():
@@ -243,7 +268,9 @@ def _validate_employee_no(db: Session, cid: int | None, value: str | None) -> st
     return employee_no
 
 
-def _validate_user_link(db: Session, cid: int | None, user_id: int | None) -> User | None:
+def _validate_user_link(
+    db: Session, cid: int | None, user_id: int | None
+) -> User | None:
     if user_id is None:
         return None
     account = db.query(User).filter_by(id=user_id).first()
@@ -257,7 +284,9 @@ def _validate_user_link(db: Session, cid: int | None, user_id: int | None) -> Us
     return account
 
 
-def _apply_payload(db: Session, profile: ContactProfile, data: dict, actor_id: int) -> None:
+def _apply_payload(
+    db: Session, profile: ContactProfile, data: dict, actor_id: int
+) -> None:
     if "name" in data:
         name = _clean_text(data["name"])
         if not name:
@@ -268,7 +297,10 @@ def _apply_payload(db: Session, profile: ContactProfile, data: dict, actor_id: i
 
     if "dept_id" in data:
         dept_id = data["dept_id"]
-        if dept_id is not None and not db.query(Department).filter_by(id=dept_id).first():
+        if (
+            dept_id is not None
+            and not db.query(Department).filter_by(id=dept_id).first()
+        ):
             raise HTTPException(400, "部门不存在")
         profile.dept_id = dept_id
 
@@ -292,14 +324,19 @@ def _apply_payload(db: Session, profile: ContactProfile, data: dict, actor_id: i
         manager_id = data["manager_id"]
         if manager_id == profile.id:
             raise HTTPException(400, "直属上级不能选择本人")
-        if manager_id is not None and not db.query(ContactProfile).filter_by(id=manager_id).first():
+        if (
+            manager_id is not None
+            and not db.query(ContactProfile).filter_by(id=manager_id).first()
+        ):
             raise HTTPException(400, "直属上级不存在")
         profile.manager_id = manager_id
 
     if "employment_type" in data:
         value = _clean_text(data["employment_type"])
         if value not in EMPLOYMENT_TYPES:
-            raise HTTPException(400, f"用工类型仅支持 {'/'.join(sorted(EMPLOYMENT_TYPES))}")
+            raise HTTPException(
+                400, f"用工类型仅支持 {'/'.join(sorted(EMPLOYMENT_TYPES))}"
+            )
         profile.employment_type = value
 
     if "employment_status" in data:
@@ -311,7 +348,9 @@ def _apply_payload(db: Session, profile: ContactProfile, data: dict, actor_id: i
     if "contract_type" in data:
         value = _clean_text(data["contract_type"])
         if value and value not in CONTRACT_TYPES:
-            raise HTTPException(400, f"合同类型仅支持 {'/'.join(sorted(CONTRACT_TYPES))}")
+            raise HTTPException(
+                400, f"合同类型仅支持 {'/'.join(sorted(CONTRACT_TYPES))}"
+            )
         profile.contract_type = value
 
     if "gender" in data:
@@ -320,20 +359,43 @@ def _apply_payload(db: Session, profile: ContactProfile, data: dict, actor_id: i
             raise HTTPException(400, "性别仅支持 男/女/未填写")
         profile.gender = value
 
-    for field in ("hire_date", "regular_date", "leave_date", "contract_start",
-                  "contract_end", "birth_date", "graduation_date"):
+    for field in (
+        "hire_date",
+        "regular_date",
+        "leave_date",
+        "contract_start",
+        "contract_end",
+        "birth_date",
+        "graduation_date",
+    ):
         if field in data:
             setattr(profile, field, data[field])
 
     if profile.birth_date and profile.birth_date > date.today():
         raise HTTPException(400, "出生日期不能晚于今天")
-    if profile.hire_date and profile.regular_date and profile.hire_date > profile.regular_date:
+    if (
+        profile.hire_date
+        and profile.regular_date
+        and profile.hire_date > profile.regular_date
+    ):
         raise HTTPException(400, "入职日期不能晚于转正日期")
-    if profile.regular_date and profile.leave_date and profile.regular_date > profile.leave_date:
+    if (
+        profile.regular_date
+        and profile.leave_date
+        and profile.regular_date > profile.leave_date
+    ):
         raise HTTPException(400, "转正日期不能晚于离职日期")
-    if profile.hire_date and profile.leave_date and profile.hire_date > profile.leave_date:
+    if (
+        profile.hire_date
+        and profile.leave_date
+        and profile.hire_date > profile.leave_date
+    ):
         raise HTTPException(400, "入职日期不能晚于离职日期")
-    if profile.contract_start and profile.contract_end and profile.contract_start > profile.contract_end:
+    if (
+        profile.contract_start
+        and profile.contract_end
+        and profile.contract_start > profile.contract_end
+    ):
         raise HTTPException(400, "合同开始日期不能晚于结束日期")
 
     if profile.id_card_no and not ID_CARD_RE.match(profile.id_card_no):
@@ -343,8 +405,14 @@ def _apply_payload(db: Session, profile: ContactProfile, data: dict, actor_id: i
     if profile.work_email and not EMAIL_RE.match(profile.work_email):
         raise HTTPException(400, "工作邮箱格式不正确")
 
-    account = linked_account if "user_id" in data else (
-        db.query(User).filter_by(id=profile.user_id).first() if profile.user_id else None
+    account = (
+        linked_account
+        if "user_id" in data
+        else (
+            db.query(User).filter_by(id=profile.user_id).first()
+            if profile.user_id
+            else None
+        )
     )
     if account:
         account.real_name = profile.name
@@ -355,10 +423,16 @@ def _apply_payload(db: Session, profile: ContactProfile, data: dict, actor_id: i
 
 
 @router.get("")
-def list_contacts(keyword: str = "", dept_id: int = 0, employment_status: str = "",
-                  sort: str = "id", page: int = 1, size: int = DEFAULT_PAGE_SIZE,
-                  db: Session = Depends(get_db),
-                  user: User = Depends(get_current_user)):
+def list_contacts(
+    keyword: str = "",
+    dept_id: int = 0,
+    employment_status: str = "",
+    sort: str = "id",
+    page: int = 1,
+    size: int = DEFAULT_PAGE_SIZE,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
     """管理员通讯录列表：人员主数据，不要求存在登录账号。"""
     _admin(user)
     if employment_status and employment_status not in EMPLOYMENT_STATUSES:
@@ -367,14 +441,16 @@ def list_contacts(keyword: str = "", dept_id: int = 0, employment_status: str = 
     q = _joined_query(db)
     if keyword:
         like = f"%{keyword.strip()}%"
-        q = q.filter(or_(
-            ContactProfile.name.ilike(like),
-            ContactProfile.mobile.ilike(like),
-            User.username.ilike(like),
-            ContactProfile.employee_no.ilike(like),
-            ContactProfile.position.ilike(like),
-            ContactProfile.work_email.ilike(like),
-        ))
+        q = q.filter(
+            or_(
+                ContactProfile.name.ilike(like),
+                ContactProfile.mobile.ilike(like),
+                User.username.ilike(like),
+                ContactProfile.employee_no.ilike(like),
+                ContactProfile.position.ilike(like),
+                ContactProfile.work_email.ilike(like),
+            )
+        )
     if dept_id:
         q = q.filter(ContactProfile.dept_id == dept_id)
     if employment_status:
@@ -388,16 +464,22 @@ def list_contacts(keyword: str = "", dept_id: int = 0, employment_status: str = 
         default_sort="id",
         sort=sort,
         map_row=lambda row: _serialize(
-            row[0], row[1], row[2].name if row[2] else "",
-            attachment_count=row[3], sensitive=False,
+            row[0],
+            row[1],
+            row[2].name if row[2] else "",
+            attachment_count=row[3],
+            sensitive=False,
         ),
     )
 
 
 @router.get("/options")
-def contact_options(keyword: str = "", limit: int = 500,
-                    db: Session = Depends(get_db),
-                    user: User = Depends(get_current_user)):
+def contact_options(
+    keyword: str = "",
+    limit: int = 500,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
     """通讯录人员最小字段，供直属上级选择器使用。"""
     _admin(user)
     limit = max(1, min(limit, 500))
@@ -405,21 +487,34 @@ def contact_options(keyword: str = "", limit: int = 500,
     if keyword:
         q = q.filter(ContactProfile.name.ilike(f"%{keyword.strip()}%"))
     rows = q.order_by(ContactProfile.id).limit(limit).all()
-    return [{"id": row.id, "name": row.name, "dept_id": row.dept_id,
-             "position": row.position or ""} for row in rows]
+    return [
+        {
+            "id": row.id,
+            "name": row.name,
+            "dept_id": row.dept_id,
+            "position": row.position or "",
+        }
+        for row in rows
+    ]
 
 
 @router.post("")
-def create_contact(body: ContactIn, db: Session = Depends(get_db),
-                   user: User = Depends(get_current_user)):
+def create_contact(
+    body: ContactIn,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
     """新建通讯录人员，不要求先创建系统账号。"""
     _admin(user)
     data = body.model_dump(exclude_unset=True)
     if not _clean_text(data.get("name")):
         raise HTTPException(400, "姓名不能为空")
-    profile = ContactProfile(name=_clean_text(data["name"]),
-                             employment_type="正式", employment_status="active",
-                             updated_by=user.id)
+    profile = ContactProfile(
+        name=_clean_text(data["name"]),
+        employment_type="正式",
+        employment_status="active",
+        updated_by=user.id,
+    )
     db.add(profile)
     db.flush()
     _apply_payload(db, profile, data, user.id)
@@ -428,20 +523,27 @@ def create_contact(body: ContactIn, db: Session = Depends(get_db),
     except IntegrityError:
         db.rollback()
         raise HTTPException(400, "工号或关联账号已存在")
-    commit_audited(db, user.id, "create_contact", "contact_profiles", profile.id, profile.name)
+    commit_audited(
+        db, user.id, "create_contact", "contact_profiles", profile.id, profile.name
+    )
     return _detail(db, profile.id, sensitive=True)
 
 
 @router.get("/{cid}")
-def get_contact(cid: int, db: Session = Depends(get_db),
-                user: User = Depends(get_current_user)):
+def get_contact(
+    cid: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)
+):
     _admin(user)
     return _detail(db, cid, sensitive=True)
 
 
 @router.patch("/{cid}")
-def update_contact(cid: int, body: ContactIn, db: Session = Depends(get_db),
-                   user: User = Depends(get_current_user)):
+def update_contact(
+    cid: int,
+    body: ContactIn,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
     """更新人员档案；如已关联账号，同步账号姓名和部门。"""
     _admin(user)
     profile = _contact_or_404(db, cid)
@@ -451,7 +553,9 @@ def update_contact(cid: int, body: ContactIn, db: Session = Depends(get_db),
     except IntegrityError:
         db.rollback()
         raise HTTPException(400, "工号或关联账号已存在")
-    commit_audited(db, user.id, "update_contact", "contact_profiles", profile.id, profile.name)
+    commit_audited(
+        db, user.id, "update_contact", "contact_profiles", profile.id, profile.name
+    )
     return _detail(db, cid, sensitive=True)
 
 
@@ -468,8 +572,12 @@ def _attachment(a: Attachment) -> dict:
 
 
 @router.get("/{cid}/attachments")
-def list_attachments(cid: int, category: str = "", db: Session = Depends(get_db),
-                     user: User = Depends(get_current_user)):
+def list_attachments(
+    cid: int,
+    category: str = "",
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
     _admin(user)
     _contact_or_404(db, cid)
     if category and category not in ATTACHMENT_CATEGORIES:
@@ -486,15 +594,21 @@ def list_attachments(cid: int, category: str = "", db: Session = Depends(get_db)
 
 
 @router.post("/{cid}/attachments")
-def upload_attachment(cid: int, file: UploadFile = File(...),
-                      category: str = Form(...), db: Session = Depends(get_db),
-                      user: User = Depends(get_current_user)):
+def upload_attachment(
+    cid: int,
+    file: UploadFile = File(...),
+    category: str = Form(...),
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
     _admin(user)
     _contact_or_404(db, cid)
     if category not in ATTACHMENT_CATEGORIES:
         raise HTTPException(400, "附件分类不支持")
 
-    original = Path((file.filename or "attachment").replace("\\", "/")).name or "attachment"
+    original = (
+        Path((file.filename or "attachment").replace("\\", "/")).name or "attachment"
+    )
     ext = Path(original).suffix.lower()
     if ext not in ALLOWED_EXT:
         raise HTTPException(400, f"仅允许 {sorted(ALLOWED_EXT)}")
@@ -503,45 +617,80 @@ def upload_attachment(cid: int, file: UploadFile = File(...),
 
     # 正文落位（本地磁盘 / R2）由 core.attachments 收口
     row = store_attachment(
-        db, domain="contact", filename=original, content_type=file.content_type or "",
-        data=data, project_id=None, ref_type="contact", ref_id=cid,
-        category=category, uploaded_by=user.id,
+        db,
+        domain="contact",
+        filename=original,
+        content_type=file.content_type or "",
+        data=data,
+        project_id=None,
+        ref_type="contact",
+        ref_id=cid,
+        category=category,
+        uploaded_by=user.id,
     )
-    commit_audited(db, user.id, "upload_contact_attachment", "attachments",
-                   row.id, f"{cid}:{category}:{original}")
+    commit_audited(
+        db,
+        user.id,
+        "upload_contact_attachment",
+        "attachments",
+        row.id,
+        f"{cid}:{category}:{original}",
+    )
     return _attachment(row)
 
 
 @router.get("/{cid}/attachments/{aid}/download")
-def download_attachment(cid: int, aid: int, db: Session = Depends(get_db),
-                        user: User = Depends(get_current_user)):
+def download_attachment(
+    cid: int,
+    aid: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
     _admin(user)
     _contact_or_404(db, cid)
-    row = db.query(Attachment).filter(
-        Attachment.id == aid,
-        Attachment.project_id.is_(None),
-        Attachment.ref_type == "contact",
-        Attachment.ref_id == cid,
-    ).first()
+    row = (
+        db.query(Attachment)
+        .filter(
+            Attachment.id == aid,
+            Attachment.project_id.is_(None),
+            Attachment.ref_type == "contact",
+            Attachment.ref_id == cid,
+        )
+        .first()
+    )
     if not row:
         raise HTTPException(404, "附件不存在")
     filename = row.filename
-    write_audit(db, user.id, "download_contact_attachment", "attachments", row.id,
-                f"{cid}:{filename}")
+    write_audit(
+        db,
+        user.id,
+        "download_contact_attachment",
+        "attachments",
+        row.id,
+        f"{cid}:{filename}",
+    )
     return attachment_response(row)
 
 
 @router.delete("/{cid}/attachments/{aid}")
-def delete_attachment(cid: int, aid: int, db: Session = Depends(get_db),
-                      user: User = Depends(get_current_user)):
+def delete_attachment(
+    cid: int,
+    aid: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
     _admin(user)
     _contact_or_404(db, cid)
-    row = db.query(Attachment).filter(
-        Attachment.id == aid,
-        Attachment.project_id.is_(None),
-        Attachment.ref_type == "contact",
-        Attachment.ref_id == cid,
-    ).first()
+    row = (
+        db.query(Attachment)
+        .filter(
+            Attachment.id == aid,
+            Attachment.project_id.is_(None),
+            Attachment.ref_type == "contact",
+            Attachment.ref_id == cid,
+        )
+        .first()
+    )
     if not row:
         raise HTTPException(404, "附件不存在")
     filename = row.filename
@@ -549,6 +698,12 @@ def delete_attachment(cid: int, aid: int, db: Session = Depends(get_db),
     remove_attachment_blob(row)
     db.delete(row)
     db.flush()
-    commit_audited(db, user.id, "delete_contact_attachment", "attachments", aid,
-                   f"{cid}:{filename}")
+    commit_audited(
+        db,
+        user.id,
+        "delete_contact_attachment",
+        "attachments",
+        aid,
+        f"{cid}:{filename}",
+    )
     return {"ok": True}

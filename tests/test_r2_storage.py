@@ -14,6 +14,7 @@
 测试通过替换 `api.core.r2.build_client` 注入内存客户端，`R2_*` 环境变量在用例内设置，
 因此「本地跑测试」不需要 R2 凭据，也不会碰到真实桶。
 """
+
 from __future__ import annotations
 
 import io
@@ -59,6 +60,7 @@ R2_ENV = {
 
 # ============ 内存版 S3 替身 ============
 
+
 class _FakeS3:
     """最小 S3 兼容实现：够 put/get/head/delete/预签名，且能模拟各类故障。"""
 
@@ -74,15 +76,20 @@ class _FakeS3:
     @staticmethod
     def _missing(key: str) -> ClientError:
         return ClientError(
-            {"Error": {"Code": "NoSuchKey", "Message": "not found"},
-             "ResponseMetadata": {"HTTPStatusCode": 404}},
+            {
+                "Error": {"Code": "NoSuchKey", "Message": "not found"},
+                "ResponseMetadata": {"HTTPStatusCode": 404},
+            },
             "GetObject",
         )
 
     @staticmethod
     def _boom() -> ClientError:
         return ClientError(
-            {"Error": {"Code": "InternalError"}, "ResponseMetadata": {"HTTPStatusCode": 500}},
+            {
+                "Error": {"Code": "InternalError"},
+                "ResponseMetadata": {"HTTPStatusCode": 500},
+            },
             "Op",
         )
 
@@ -92,7 +99,9 @@ class _FakeS3:
             raise self._boom()
         payload = Body if isinstance(Body, bytes) else bytes(Body)
         self.objects[Key] = {"body": payload, "content_type": ContentType}
-        self.put_calls.append({"key": Key, "size": len(payload), "content_type": ContentType})
+        self.put_calls.append(
+            {"key": Key, "size": len(payload), "content_type": ContentType}
+        )
         return {"ETag": '"' + str(abs(hash(payload))) + '"'}
 
     def get_object(self, Bucket, Key):  # noqa: N803
@@ -101,9 +110,11 @@ class _FakeS3:
         if self.fail_get:
             raise self._boom()
         record = self.objects[Key]
-        return {"Body": io.BytesIO(record["body"]),
-                "ContentLength": len(record["body"]),
-                "ETag": '"' + str(abs(hash(record["body"]))) + '"'}
+        return {
+            "Body": io.BytesIO(record["body"]),
+            "ContentLength": len(record["body"]),
+            "ETag": '"' + str(abs(hash(record["body"]))) + '"',
+        }
 
     def head_object(self, Bucket, Key):  # noqa: N803
         if Key not in self.objects:
@@ -146,8 +157,12 @@ def local_storage(monkeypatch):
 
 
 def _settings() -> R2Settings:
-    return R2Settings(endpoint_url=ENDPOINT, access_key_id=FAKE_KEY_ID,
-                      secret_access_key=FAKE_SECRET, bucket=BUCKET)
+    return R2Settings(
+        endpoint_url=ENDPOINT,
+        access_key_id=FAKE_KEY_ID,
+        secret_access_key=FAKE_SECRET,
+        bucket=BUCKET,
+    )
 
 
 @pytest.fixture()
@@ -167,14 +182,15 @@ def session(db):
 
 # ============ 1. 传输层 core.r2 ============
 
+
 def test_public_url_encodes_chinese_key_but_keeps_slashes(fake_s3):
     """中文进 key 时 URL 会百分号编码，且不破坏路径分隔（保留 `/`）。"""
     url = storage_mod.get_backend().url_for("tenant/default/项目/发票 扫描件.pdf", "")
     suffix = url.split(f"{ENDPOINT}/{BUCKET}/")[1]
-    assert suffix.startswith("tenant/default/")        # 路径分隔符保留
+    assert suffix.startswith("tenant/default/")  # 路径分隔符保留
     assert suffix.endswith(".pdf")
-    assert "%" in suffix                                # 中文/空格被百分号编码
-    assert "项目" not in suffix and "发票" not in suffix    # 原文不出现在 URL 里
+    assert "%" in suffix  # 中文/空格被百分号编码
+    assert "项目" not in suffix and "发票" not in suffix  # 原文不出现在 URL 里
 
 
 def test_sanitize_key_keeps_unicode_strips_control_chars():
@@ -186,12 +202,16 @@ def test_sanitize_key_keeps_unicode_strips_control_chars():
 
 
 def test_public_url_prefers_custom_domain_and_encodes_chinese():
-    with_custom = R2Settings(endpoint_url=ENDPOINT, access_key_id=FAKE_KEY_ID,
-                             secret_access_key=FAKE_SECRET, bucket=BUCKET,
-                             public_url="https://cdn.example.com")
-    assert public_url(with_custom, "tenant/default/project/2026/09/发票.pdf").startswith(
-        "https://cdn.example.com/tenant/default/project/2026/09/"
+    with_custom = R2Settings(
+        endpoint_url=ENDPOINT,
+        access_key_id=FAKE_KEY_ID,
+        secret_access_key=FAKE_SECRET,
+        bucket=BUCKET,
+        public_url="https://cdn.example.com",
     )
+    assert public_url(
+        with_custom, "tenant/default/project/2026/09/发票.pdf"
+    ).startswith("https://cdn.example.com/tenant/default/project/2026/09/")
     # 中文被百分号编码，但路径分隔符保留
     encoded = public_url(with_custom, "a/发票.pdf").split("https://cdn.example.com/")[1]
     assert encoded.startswith("a/") and "%" in encoded and "/" not in encoded[2:]
@@ -272,13 +292,20 @@ def test_client_is_cached_per_config_fingerprint(monkeypatch):
     assert len(created) == 1, "同一配置只应构造一次客户端"
 
     # 凭据变化 → 重建（不能继续用旧凭据）
-    r2_mod.get_r2_client(R2Settings(endpoint_url=ENDPOINT, access_key_id="rotated-key-id",
-                                    secret_access_key=FAKE_SECRET, bucket=BUCKET))
+    r2_mod.get_r2_client(
+        R2Settings(
+            endpoint_url=ENDPOINT,
+            access_key_id="rotated-key-id",
+            secret_access_key=FAKE_SECRET,
+            bucket=BUCKET,
+        )
+    )
     assert len(created) == 2
     r2_mod.close_clients()
 
 
 # ============ 2. 抽象层 core.storage ============
+
 
 def test_backend_auto_falls_back_to_local_without_r2_config(monkeypatch):
     for key in R2_ENV:
@@ -333,8 +360,9 @@ def test_build_object_key_shape_and_sanitization():
     tagged = storage_mod.build_object_key("expense", "a.png", suffix="20260918120000")
     assert tagged.split("/")[5].endswith("_20260918120000.png")
     # 两次调用不重复（uuid）
-    assert storage_mod.build_object_key("project", "a.pdf") != \
-        storage_mod.build_object_key("project", "a.pdf")
+    assert storage_mod.build_object_key(
+        "project", "a.pdf"
+    ) != storage_mod.build_object_key("project", "a.pdf")
 
 
 def test_local_backend_roundtrip(tmp_path):
@@ -361,8 +389,12 @@ def test_r2_backend_put_stream_delete(fake_s3, tmp_path):
     backend = storage_mod.get_backend()
     assert backend.name == "r2"
 
-    stored = backend.put(b"invoice-bytes", "tenant/default/expense/2026/09/x.png",
-                         tmp_path / "ignored.png", "image/png")
+    stored = backend.put(
+        b"invoice-bytes",
+        "tenant/default/expense/2026/09/x.png",
+        tmp_path / "ignored.png",
+        "image/png",
+    )
     assert stored.backend == "r2" and stored.object_key.endswith(".png")
     assert stored.path == public_url(_settings(), stored.object_key)
     assert stored.size == 13
@@ -384,10 +416,17 @@ def test_r2_backend_delete_failure_raises_for_strict_callers(fake_s3):
 
 # ============ 3. store_attachment / 下载 / 删除 的统一层 ============
 
+
 def test_store_attachment_uses_r2_and_records_coordinates(session, fake_s3):
-    row = store_attachment(session, domain="project", filename="发票 扫描件.pdf",
-                           content_type="application/pdf", data=b"payload-bytes",
-                           project_id=None, uploaded_by=None)
+    row = store_attachment(
+        session,
+        domain="project",
+        filename="发票 扫描件.pdf",
+        content_type="application/pdf",
+        data=b"payload-bytes",
+        project_id=None,
+        uploaded_by=None,
+    )
     assert str(row.storage_backend) == "r2"
     assert str(row.object_key).startswith("tenant/default/project/")
     # 对象键是不含中文的 uuid 命名（不可猜测且可审计）；公开 URL 由 endpoint/bucket + key 拼成
@@ -407,8 +446,11 @@ def test_attachment_response_streams_r2_bytes_with_utf8_filename(client, fake_s3
     """
     h = login(client, "pm")
     p = mkproject(client, h, "PR2Stream")
-    up = client.post(f"/api/v1/projects/{p['id']}/attachments", headers=h,
-                     files={"file": ("发票.png", b"img", "image/png")})
+    up = client.post(
+        f"/api/v1/projects/{p['id']}/attachments",
+        headers=h,
+        files={"file": ("发票.png", b"img", "image/png")},
+    )
     assert up.status_code == 200, up.text
     aid = up.json()["id"]
 
@@ -420,18 +462,32 @@ def test_attachment_response_streams_r2_bytes_with_utf8_filename(client, fake_s3
     assert dl.headers["content-type"] == "image/png"
 
 
-def test_attachment_response_missing_object_is_404_but_unavailable_is_502(session, fake_s3):
+def test_attachment_response_missing_object_is_404_but_unavailable_is_502(
+    session, fake_s3
+):
     from fastapi import HTTPException
 
-    row = store_attachment(session, domain="project", filename="a.pdf",
-                           content_type="application/pdf", data=b"x", project_id=None)
+    row = store_attachment(
+        session,
+        domain="project",
+        filename="a.pdf",
+        content_type="application/pdf",
+        data=b"x",
+        project_id=None,
+    )
     fake_s3.objects.pop(str(row.object_key))
     with pytest.raises(HTTPException) as missing:
         attachment_response(row)
     assert missing.value.status_code == 404
 
-    row2 = store_attachment(session, domain="project", filename="b.pdf",
-                            content_type="application/pdf", data=b"y", project_id=None)
+    row2 = store_attachment(
+        session,
+        domain="project",
+        filename="b.pdf",
+        content_type="application/pdf",
+        data=b"y",
+        project_id=None,
+    )
     fake_s3.fail_get = True
     with pytest.raises(HTTPException) as unavailable:
         attachment_response(row2)
@@ -440,16 +496,31 @@ def test_attachment_response_missing_object_is_404_but_unavailable_is_502(sessio
     assert attachment_blob_available(row2) in (False, True)  # HEAD 也可能失败，不应抛错
 
 
-def test_remove_attachment_blob_deletes_object_and_is_strict_on_failure(session, fake_s3):
-    row = store_attachment(session, domain="project", filename="c.pdf",
-                           content_type="application/pdf", data=b"z", project_id=None)
+def test_remove_attachment_blob_deletes_object_and_is_strict_on_failure(
+    session, fake_s3
+):
+    row = store_attachment(
+        session,
+        domain="project",
+        filename="c.pdf",
+        content_type="application/pdf",
+        data=b"z",
+        project_id=None,
+    )
     assert remove_attachment_blob(row) is True
     assert str(row.object_key) not in fake_s3.objects
 
-    row2 = store_attachment(session, domain="project", filename="d.pdf",
-                            content_type="application/pdf", data=b"w", project_id=None)
+    row2 = store_attachment(
+        session,
+        domain="project",
+        filename="d.pdf",
+        content_type="application/pdf",
+        data=b"w",
+        project_id=None,
+    )
     fake_s3.fail_delete = True
     from fastapi import HTTPException
+
     with pytest.raises(HTTPException) as exc:
         remove_attachment_blob(row2)
     assert exc.value.status_code == 502
@@ -459,12 +530,16 @@ def test_remove_attachment_blob_deletes_object_and_is_strict_on_failure(session,
 
 # ============ 4. 三个上传入口端到端（R2 后端） ============
 
+
 def test_project_attachment_full_flow_on_r2(client, fake_s3):
     h = login(client, "pm")
     p = mkproject(client, h, "PR2Flow")
 
-    up = client.post(f"/api/v1/projects/{p['id']}/attachments", headers=h,
-                     files={"file": ("方案 第一版.pdf", b"pdf-body", "application/pdf")})
+    up = client.post(
+        f"/api/v1/projects/{p['id']}/attachments",
+        headers=h,
+        files={"file": ("方案 第一版.pdf", b"pdf-body", "application/pdf")},
+    )
     assert up.status_code == 200, up.text
     aid = up.json()["id"]
     assert up.json()["size"] == 8
@@ -477,8 +552,12 @@ def test_project_attachment_full_flow_on_r2(client, fake_s3):
     assert dl.status_code == 200 and dl.content == b"pdf-body"
     assert "filename*=UTF-8" in dl.headers["content-disposition"]
 
-    assert client.delete(f"/api/v1/projects/{p['id']}/attachments/{aid}",
-                         headers=h).status_code == 200
+    assert (
+        client.delete(
+            f"/api/v1/projects/{p['id']}/attachments/{aid}", headers=h
+        ).status_code
+        == 200
+    )
     assert fake_s3.objects == {}
     assert client.get(f"/api/v1/projects/{p['id']}/attachments", headers=h).json() == []
 
@@ -486,19 +565,30 @@ def test_project_attachment_full_flow_on_r2(client, fake_s3):
 def test_contract_attachment_gets_contract_domain(client, fake_s3):
     h = login(client, "pm")
     p = mkproject(client, h, "PR2Contract")
-    assert client.post(f"/api/v1/projects/{p['id']}/attachments", headers=h,
-                       data={"ref_type": "contract"},
-                       files={"file": ("合同.pdf", b"c", "application/pdf")}).status_code == 200
+    assert (
+        client.post(
+            f"/api/v1/projects/{p['id']}/attachments",
+            headers=h,
+            data={"ref_type": "contract"},
+            files={"file": ("合同.pdf", b"c", "application/pdf")},
+        ).status_code
+        == 200
+    )
     assert list(fake_s3.objects)[0].startswith("tenant/default/contract/")
 
 
 def test_contact_attachment_full_flow_on_r2(client, fake_s3):
     h = login(client, "admin")
-    cid = client.post("/api/v1/contacts", headers=h, json={"name": "R2 证件人员"}).json()["id"]
+    cid = client.post(
+        "/api/v1/contacts", headers=h, json={"name": "R2 证件人员"}
+    ).json()["id"]
 
-    up = client.post(f"/api/v1/contacts/{cid}/attachments", headers=h,
-                     data={"category": "id_card"},
-                     files={"file": ("身份证正面.png", b"id-card", "image/png")})
+    up = client.post(
+        f"/api/v1/contacts/{cid}/attachments",
+        headers=h,
+        data={"category": "id_card"},
+        files={"file": ("身份证正面.png", b"id-card", "image/png")},
+    )
     assert up.status_code == 200, up.text
     assert up.json()["category"] == "id_card"
     assert up.json()["filename"] == "身份证正面.png"
@@ -507,20 +597,29 @@ def test_contact_attachment_full_flow_on_r2(client, fake_s3):
     aid = up.json()["id"]
     dl = client.get(f"/api/v1/contacts/{cid}/attachments/{aid}/download", headers=h)
     assert dl.status_code == 200 and dl.content == b"id-card"
-    assert client.delete(f"/api/v1/contacts/{cid}/attachments/{aid}",
-                         headers=h).status_code == 200
+    assert (
+        client.delete(
+            f"/api/v1/contacts/{cid}/attachments/{aid}", headers=h
+        ).status_code
+        == 200
+    )
     assert fake_s3.objects == {}
 
 
 def test_expense_voucher_full_flow_on_r2(client, fake_s3):
     h = login(client, "pm")
     p = mkproject(client, h, "PR2Voucher")
-    eid = client.post("/api/v1/expenses",
-                      json={"project_id": p["id"], "subject": "采购", "amount": 100},
-                      headers=h).json()["id"]
+    eid = client.post(
+        "/api/v1/expenses",
+        json={"project_id": p["id"], "subject": "采购", "amount": 100},
+        headers=h,
+    ).json()["id"]
 
-    up = client.post(f"/api/v1/expenses/{eid}/vouchers", headers=h,
-                     files={"file": ("发票.png", b"invoice", "image/png")})
+    up = client.post(
+        f"/api/v1/expenses/{eid}/vouchers",
+        headers=h,
+        files={"file": ("发票.png", b"invoice", "image/png")},
+    )
     assert up.status_code == 200, up.text
     assert list(fake_s3.objects)[0].startswith("tenant/default/expense/")
 
@@ -529,13 +628,23 @@ def test_expense_voucher_full_flow_on_r2(client, fake_s3):
     assert dl.status_code == 200 and dl.content == b"invoice"
 
     # 归属隔离仍然成立：项目附件入口不得取到凭证，反之亦然
-    assert client.get(f"/api/v1/projects/{p['id']}/attachments/{aid}/download",
-                      headers=h).status_code == 404
-    assert client.delete(f"/api/v1/projects/{p['id']}/attachments/{aid}",
-                         headers=h).status_code == 404
+    assert (
+        client.get(
+            f"/api/v1/projects/{p['id']}/attachments/{aid}/download", headers=h
+        ).status_code
+        == 404
+    )
+    assert (
+        client.delete(
+            f"/api/v1/projects/{p['id']}/attachments/{aid}", headers=h
+        ).status_code
+        == 404
+    )
 
-    assert client.delete(f"/api/v1/expenses/{eid}/vouchers/{aid}",
-                         headers=h).status_code == 200
+    assert (
+        client.delete(f"/api/v1/expenses/{eid}/vouchers/{aid}", headers=h).status_code
+        == 200
+    )
     assert fake_s3.objects == {}
 
 
@@ -546,8 +655,11 @@ def test_upload_to_r2_failure_returns_502_without_metadata(client, session, fake
     p = mkproject(client, h, "PR2Fail")
     fake_s3.fail_put = True
 
-    r = client.post(f"/api/v1/projects/{p['id']}/attachments", headers=h,
-                    files={"file": ("x.pdf", b"body", "application/pdf")})
+    r = client.post(
+        f"/api/v1/projects/{p['id']}/attachments",
+        headers=h,
+        files={"file": ("x.pdf", b"body", "application/pdf")},
+    )
     assert r.status_code == 502, r.text
     # 上传失败不得留下元数据，客户端可安全重试
     assert session.query(Attachment).filter_by(project_id=p["id"]).count() == 0
@@ -560,8 +672,11 @@ def test_delete_when_r2_delete_fails_keeps_metadata(client, session, fake_s3):
 
     h = login(client, "pm")
     p = mkproject(client, h, "PR2DelFail")
-    aid = client.post(f"/api/v1/projects/{p['id']}/attachments", headers=h,
-                      files={"file": ("keep.pdf", b"body", "application/pdf")}).json()["id"]
+    aid = client.post(
+        f"/api/v1/projects/{p['id']}/attachments",
+        headers=h,
+        files={"file": ("keep.pdf", b"body", "application/pdf")},
+    ).json()["id"]
 
     fake_s3.fail_delete = True
     r = client.delete(f"/api/v1/projects/{p['id']}/attachments/{aid}", headers=h)
@@ -574,15 +689,20 @@ def test_delete_when_r2_delete_fails_keeps_metadata(client, session, fake_s3):
 def test_size_limit_still_enforced_on_r2(client, fake_s3):
     h = login(client, "pm")
     p = mkproject(client, h, "PR2Limit")
-    over = client.post(f"/api/v1/projects/{p['id']}/attachments", headers=h,
-                       files={"file": ("big.pdf", b"\0" * (MAX_ATTACHMENT_SIZE + 1),
-                                       "application/pdf")})
+    over = client.post(
+        f"/api/v1/projects/{p['id']}/attachments",
+        headers=h,
+        files={
+            "file": ("big.pdf", b"\0" * (MAX_ATTACHMENT_SIZE + 1), "application/pdf")
+        },
+    )
     assert over.status_code == 400 and "100MB" in over.json()["detail"]
     # 超限在读取阶段就被拦下，不会上传到 R2
     assert fake_s3.put_calls == []
 
 
 # ============ 5. 兼容存量本地行 / 本地后端回归 ============
+
 
 def test_legacy_local_rows_still_download(client, session, fake_s3, tmp_path):
     """接入 R2 之前写入的行（storage_backend 空/object_key 空）继续按磁盘路径读。"""
@@ -594,9 +714,16 @@ def test_legacy_local_rows_still_download(client, session, fake_s3, tmp_path):
     uploader = session.query(User).filter_by(username="pm").first().id
     path = tmp_path / "legacy.pdf"
     path.write_bytes(b"legacy-bytes")
-    legacy = Attachment(project_id=p["id"], filename="legacy.pdf", path=str(path),
-                        size=12, content_type="application/pdf", ref_type="", ref_id=None,
-                        uploaded_by=uploader)
+    legacy = Attachment(
+        project_id=p["id"],
+        filename="legacy.pdf",
+        path=str(path),
+        size=12,
+        content_type="application/pdf",
+        ref_type="",
+        ref_id=None,
+        uploaded_by=uploader,
+    )
     session.add(legacy)
     session.flush()
     # 模拟迁移后的存量行：server_default 已把 storage_backend 置为 local、object_key 为空。
@@ -604,15 +731,21 @@ def test_legacy_local_rows_still_download(client, session, fake_s3, tmp_path):
     legacy.storage_backend = "local"  # type: ignore[assignment]
     session.commit()
 
-    dl = client.get(f"/api/v1/projects/{p['id']}/attachments/{legacy.id}/download", headers=h)
+    dl = client.get(
+        f"/api/v1/projects/{p['id']}/attachments/{legacy.id}/download", headers=h
+    )
     assert dl.status_code == 200 and dl.content == b"legacy-bytes"
 
     row = session.query(Attachment).filter_by(id=legacy.id).first()
     assert attachment_blob_available(row) is True
     # 本地行不会被误删到 R2 上
     assert fake_s3.delete_calls == []
-    assert client.delete(f"/api/v1/projects/{p['id']}/attachments/{legacy.id}",
-                         headers=h).status_code == 200
+    assert (
+        client.delete(
+            f"/api/v1/projects/{p['id']}/attachments/{legacy.id}", headers=h
+        ).status_code
+        == 200
+    )
     assert not path.exists()
 
 
@@ -622,8 +755,11 @@ def test_local_backend_still_works_end_to_end(client, local_storage, session):
 
     h = login(client, "pm")
     p = mkproject(client, h, "PLocalBack")
-    up = client.post(f"/api/v1/projects/{p['id']}/attachments", headers=h,
-                     files={"file": ("local.pdf", b"on-disk", "application/pdf")})
+    up = client.post(
+        f"/api/v1/projects/{p['id']}/attachments",
+        headers=h,
+        files={"file": ("local.pdf", b"on-disk", "application/pdf")},
+    )
     assert up.status_code == 200, up.text
     aid = up.json()["id"]
 
@@ -631,21 +767,29 @@ def test_local_backend_still_works_end_to_end(client, local_storage, session):
     assert row.storage_backend in ("local", "") and row.object_key == ""
     assert row.path.startswith(str(ROOT / "data" / "files"))
     from pathlib import Path
+
     assert Path(row.path).read_bytes() == b"on-disk"
 
     dl = client.get(f"/api/v1/projects/{p['id']}/attachments/{aid}/download", headers=h)
     assert dl.status_code == 200 and dl.content == b"on-disk"
 
-    assert client.delete(f"/api/v1/projects/{p['id']}/attachments/{aid}",
-                         headers=h).status_code == 200
+    assert (
+        client.delete(
+            f"/api/v1/projects/{p['id']}/attachments/{aid}", headers=h
+        ).status_code
+        == 200
+    )
     assert not Path(row.path).exists()
 
 
 def test_list_endpoints_do_not_leak_storage_details_or_secrets(client, fake_s3):
     h = login(client, "pm")
     p = mkproject(client, h, "PR2Leak")
-    client.post(f"/api/v1/projects/{p['id']}/attachments", headers=h,
-                files={"file": ("a.pdf", b"x", "application/pdf")})
+    client.post(
+        f"/api/v1/projects/{p['id']}/attachments",
+        headers=h,
+        files={"file": ("a.pdf", b"x", "application/pdf")},
+    )
     listed = client.get(f"/api/v1/projects/{p['id']}/attachments", headers=h)
     assert listed.status_code == 200
     body = listed.text

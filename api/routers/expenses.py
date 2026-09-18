@@ -12,6 +12,7 @@ Stage 4A 补齐的闭环：
   3. **审批意见**：`decision_reason` + `decided_at` 落在支出行上，列表直接可见驳回原因；
   4. **申请人可查的时间线**：`GET /expenses/{id}/timeline`（非管理员也能读自己单据的流转）。
 """
+
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
@@ -51,8 +52,18 @@ from ..models import Attachment, Expense, Project, SysParam, User
 
 router = APIRouter(prefix="/expenses", tags=["expenses"])
 
-PEOPLE = {"张爱杰", "张玉军", "段佳奕", "段佳雷", "李智",
-          "朱成龙", "张涛", "田孝通", "李润康", "薛凡"}
+PEOPLE = {
+    "张爱杰",
+    "张玉军",
+    "段佳奕",
+    "段佳雷",
+    "李智",
+    "朱成龙",
+    "张涛",
+    "田孝通",
+    "李润康",
+    "薛凡",
+}
 # `subject` 为兼容既有表结构的稳定存储字段；当前业务语义已调整为「支出人员」。
 # 仍接受历史科目值，确保存量单据可编辑、重提与审计不中断。
 SUBJECTS = PEOPLE | {"人工", "采购", "外包", "差旅", "其他"}
@@ -62,22 +73,33 @@ VOUCHER_MAX_SIZE = MAX_ATTACHMENT_SIZE
 
 # 排序白名单（Stage 3A）：字段名 → ORM 列
 EXPENSE_SORTS = {
-    "id": Expense.id, "project_id": Expense.project_id, "subject": Expense.subject,
-    "amount": Expense.amount, "exp_date": Expense.exp_date,
-    "status": Expense.status, "by_id": Expense.by_id,
+    "id": Expense.id,
+    "project_id": Expense.project_id,
+    "subject": Expense.subject,
+    "amount": Expense.amount,
+    "exp_date": Expense.exp_date,
+    "status": Expense.status,
+    "by_id": Expense.by_id,
     "created_at": Expense.created_at,
 }
 
 
 def _e(e: Expense):
-    return {"id": e.id, "project_id": e.project_id, "subject": e.subject,
-            "amount": e.amount, "exp_date": e.exp_date.isoformat() if e.exp_date else None,
-            "note": e.note, "status": e.status, "by_id": e.by_id,
-            "approved_by": e.approved_by,
-            "decision_reason": e.decision_reason or "",
-            "decided_at": e.decided_at.isoformat() if e.decided_at else None,
-            "resubmit_count": e.resubmit_count or 0,
-            "can_resubmit": e.status == "rejected"}
+    return {
+        "id": e.id,
+        "project_id": e.project_id,
+        "subject": e.subject,
+        "amount": e.amount,
+        "exp_date": e.exp_date.isoformat() if e.exp_date else None,
+        "note": e.note,
+        "status": e.status,
+        "by_id": e.by_id,
+        "approved_by": e.approved_by,
+        "decision_reason": e.decision_reason or "",
+        "decided_at": e.decided_at.isoformat() if e.decided_at else None,
+        "resubmit_count": e.resubmit_count or 0,
+        "can_resubmit": e.status == "rejected",
+    }
 
 
 def _over(db: Session, project_id: int, subject: str, extra: float) -> bool:
@@ -86,9 +108,14 @@ def _over(db: Session, project_id: int, subject: str, extra: float) -> bool:
 
 
 def _voucher(a: Attachment):
-    return {"id": a.id, "filename": a.filename, "size": a.size,
-            "content_type": a.content_type, "uploaded_by": a.uploaded_by,
-            "uploaded_at": a.uploaded_at.isoformat() if a.uploaded_at else None}
+    return {
+        "id": a.id,
+        "filename": a.filename,
+        "size": a.size,
+        "content_type": a.content_type,
+        "uploaded_by": a.uploaded_by,
+        "uploaded_at": a.uploaded_at.isoformat() if a.uploaded_at else None,
+    }
 
 
 def _expense(db: Session, eid: int) -> Expense:
@@ -101,7 +128,9 @@ def _expense(db: Session, eid: int) -> Expense:
 def _expense_for_read(db: Session, eid: int, user: User) -> Expense:
     """读边界：支出所属项目须「未软删除 + 当前用户可见」。"""
     e = _expense(db, eid)
-    p = get_active_project(db, e.project_id, user)  # 软删除/演示隐藏/越权统一 404 或 403
+    p = get_active_project(
+        db, e.project_id, user
+    )  # 软删除/演示隐藏/越权统一 404 或 403
     if not can_read_project(user, p):
         raise HTTPException(403, "无权访问该支出")
     return e
@@ -128,7 +157,9 @@ class ExpenseIn(BaseModel):
     note: str = ""
 
 
-def _prepare(body_subject: str, amount, project: Project, exp_date: date | None) -> tuple[str, float]:
+def _prepare(
+    body_subject: str, amount, project: Project, exp_date: date | None
+) -> tuple[str, float]:
     subject = str(body_subject or "").strip()
     if subject:
         check_choice(subject, SUBJECTS, field="科目")
@@ -138,11 +169,20 @@ def _prepare(body_subject: str, amount, project: Project, exp_date: date | None)
 
 
 @router.get("")
-def list_expenses(project_id: int = 0, status: str = "", subject: str = "",
-                  keyword: str = "", date_from: str = "", date_to: str = "",
-                  mine: int = 0, sort: str = "-id", page: int = 1,
-                  size: int = DEFAULT_PAGE_SIZE,
-                  db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+def list_expenses(
+    project_id: int = 0,
+    status: str = "",
+    subject: str = "",
+    keyword: str = "",
+    date_from: str = "",
+    date_to: str = "",
+    mine: int = 0,
+    sort: str = "-id",
+    page: int = 1,
+    size: int = DEFAULT_PAGE_SIZE,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
     """支出列表：统一分页信封（默认 `-id` 最新在前）+ 排序白名单 + 组合筛选。
 
     指定 project_id 时按该项目鉴权；否则只返回「可见 + 未软删除」项目的支出（下推 SQL）。
@@ -167,13 +207,23 @@ def list_expenses(project_id: int = 0, status: str = "", subject: str = "",
         q = q.filter((Expense.exp_date.is_(None)) | (Expense.exp_date >= df))
     if dt:
         q = q.filter((Expense.exp_date.is_(None)) | (Expense.exp_date <= dt))
-    return paginate(q, page=page, size=size, allowed=EXPENSE_SORTS,
-                    default_sort="-id", sort=sort, map_row=_e)
+    return paginate(
+        q,
+        page=page,
+        size=size,
+        allowed=EXPENSE_SORTS,
+        default_sort="-id",
+        sort=sort,
+        map_row=_e,
+    )
 
 
 @router.post("")
-def create_expense(body: ExpenseIn, db: Session = Depends(get_db),
-                   user: User = Depends(get_current_user)):
+def create_expense(
+    body: ExpenseIn,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
     """登记支出：科目/金额/日期全部先校验；审批开关开启或超预算时转 pending。"""
     p = get_active_project(db, body.project_id, user, write=True)
     if p.status == "archived":
@@ -187,26 +237,50 @@ def create_expense(body: ExpenseIn, db: Session = Depends(get_db),
         raise HTTPException(400, "超预算已拦截：请调预算或走特批")
     st = "pending" if (approval_on or over) else "approved"
     now = datetime.now(timezone.utc)
-    e = Expense(project_id=body.project_id, subject=subject, amount=amount,
-                exp_date=body.exp_date, note=body.note, status=st, by_id=user.id,
-                decided_at=now if st == "approved" else None,
-                decision_reason="" if st == "approved" else "",
-                created_at=now, resubmit_count=0)
+    e = Expense(
+        project_id=body.project_id,
+        subject=subject,
+        amount=amount,
+        exp_date=body.exp_date,
+        note=body.note,
+        status=st,
+        by_id=user.id,
+        decided_at=now if st == "approved" else None,
+        decision_reason="" if st == "approved" else "",
+        created_at=now,
+        resubmit_count=0,
+    )
     db.add(e)
     db.flush()
     from ..core.timeline import record as record_timeline
-    record_timeline(db, KIND_EXPENSE, e.id, ACTION_SUBMIT, from_status="", to_status=st,
-                    project_id=p.id, actor_id=user.id,
-                    reason="超预算待审批" if over else "")
+
+    record_timeline(
+        db,
+        KIND_EXPENSE,
+        e.id,
+        ACTION_SUBMIT,
+        from_status="",
+        to_status=st,
+        project_id=p.id,
+        actor_id=user.id,
+        reason="超预算待审批" if over else "",
+    )
     if st == "pending":
         # 待审批：通知审批人（当前契约下唯一审批人 = 管理员）
         from ..core.notify import approval_recipients, push_many
-        push_many(db, approval_recipients(db), "approval",
-                  f"支出待审批：{subject} {amount} 元",
-                  f"项目 {p.name}｜{body.note or '无说明'}"
-                  + ("｜超预算需特批" if over else ""),
-                  ref_type="expense", ref_id=e.id, project_id=p.id,
-                  dedup_key=f"expense-request:{e.id}")
+
+        push_many(
+            db,
+            approval_recipients(db),
+            "approval",
+            f"支出待审批：{subject} {amount} 元",
+            f"项目 {p.name}｜{body.note or '无说明'}"
+            + ("｜超预算需特批" if over else ""),
+            ref_type="expense",
+            ref_id=e.id,
+            project_id=p.id,
+            dedup_key=f"expense-request:{e.id}",
+        )
     # 业务行 + 时间线 + 通知 + 审计同一次提交，不存在「已落库但无留痕」
     commit_audited(db, user.id, "create_expense", "expenses", e.id, f"{amount} {st}")
     ex = execution(db, body.project_id, subject)
@@ -217,18 +291,27 @@ def create_expense(body: ExpenseIn, db: Session = Depends(get_db),
 
 
 @router.get("/{eid}/timeline")
-def expense_timeline(eid: int, db: Session = Depends(get_db),
-                     user: User = Depends(get_current_user)):
+def expense_timeline(
+    eid: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)
+):
     """单据时间线：申请人（非管理员）与管理员都能看到自己可见支出经历的状态变化。"""
     e = _expense_for_read(db, eid, user)
-    return {"id": e.id, "status": e.status, "decision_reason": e.decision_reason or "",
-            "decided_at": e.decided_at.isoformat() if e.decided_at else None,
-            "items": timeline(db, KIND_EXPENSE, eid)}
+    return {
+        "id": e.id,
+        "status": e.status,
+        "decision_reason": e.decision_reason or "",
+        "decided_at": e.decided_at.isoformat() if e.decided_at else None,
+        "items": timeline(db, KIND_EXPENSE, eid),
+    }
 
 
 @router.post("/{eid}/resubmit")
-def resubmit(eid: int, body: dict, db: Session = Depends(get_db),
-             user: User = Depends(get_current_user)):
+def resubmit(
+    eid: int,
+    body: dict,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
     """驳回后重新提交（仅申请人本人或管理员）。
 
     只允许从「已驳回」回到待审批；可同时修正科目/金额/日期/说明。
@@ -268,29 +351,58 @@ def resubmit(eid: int, body: dict, db: Session = Depends(get_db),
     e.decision_reason = ""
 
     from ..core.timeline import record as record_timeline
-    record_timeline(db, KIND_EXPENSE, e.id, ACTION_RESUBMIT, from_status=old_status,
-                    to_status=to, project_id=e.project_id, actor_id=user.id,
-                    reason=str(body.get("reason", "") or "") or
-                           (f"修正后重新提交（原驳回意见：{previous_reason}）"
-                            if previous_reason else "修正后重新提交"))
+
+    record_timeline(
+        db,
+        KIND_EXPENSE,
+        e.id,
+        ACTION_RESUBMIT,
+        from_status=old_status,
+        to_status=to,
+        project_id=e.project_id,
+        actor_id=user.id,
+        reason=str(body.get("reason", "") or "")
+        or (
+            f"修正后重新提交（原驳回意见：{previous_reason}）"
+            if previous_reason
+            else "修正后重新提交"
+        ),
+    )
     if to == "pending":
         from ..core.notify import approval_recipients, push_many
-        push_many(db, approval_recipients(db), "approval",
-                  f"支出重新提交待审批：{subject} {amount} 元",
-                  f"项目 {p.name}｜第 {e.resubmit_count} 次提交"
-                  + (f"｜原驳回意见：{previous_reason}" if previous_reason else ""),
-                  ref_type="expense", ref_id=e.id, project_id=p.id,
-                  dedup_key=f"expense-resubmit:{e.id}:{e.resubmit_count}")
-    commit_audited(db, user.id, "resubmit_expense", "expenses", eid,
-                   f"{old_status}->{to} amount={amount} count={e.resubmit_count}")
+
+        push_many(
+            db,
+            approval_recipients(db),
+            "approval",
+            f"支出重新提交待审批：{subject} {amount} 元",
+            f"项目 {p.name}｜第 {e.resubmit_count} 次提交"
+            + (f"｜原驳回意见：{previous_reason}" if previous_reason else ""),
+            ref_type="expense",
+            ref_id=e.id,
+            project_id=p.id,
+            dedup_key=f"expense-resubmit:{e.id}:{e.resubmit_count}",
+        )
+    commit_audited(
+        db,
+        user.id,
+        "resubmit_expense",
+        "expenses",
+        eid,
+        f"{old_status}->{to} amount={amount} count={e.resubmit_count}",
+    )
     r = _e(e)
     r["execution"] = execution(db, e.project_id, subject)
     return r
 
 
 @router.post("/{eid}/vouchers")
-def upload_voucher(eid: int, file: UploadFile = File(...), db: Session = Depends(get_db),
-                   user: User = Depends(get_current_user)):
+def upload_voucher(
+    eid: int,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
     """上传支出凭证：项目可写者（申请人）即可，附件与支出强关联。"""
     e = _expense(db, eid)
     p = get_active_project(db, e.project_id, user, write=True)
@@ -306,41 +418,63 @@ def upload_voucher(eid: int, file: UploadFile = File(...), db: Session = Depends
     safe_name = Path(file.filename or f"voucher{ext}").name
     # 正文落位（本地磁盘 / R2）由 core.attachments 收口；suffix 保留上传时间戳便于排查
     a = store_attachment(
-        db, domain="expense", filename=safe_name,
-        content_type=file.content_type or "", data=data,
-        project_id=e.project_id, ref_type="expense", ref_id=eid,
+        db,
+        domain="expense",
+        filename=safe_name,
+        content_type=file.content_type or "",
+        data=data,
+        project_id=e.project_id,
+        ref_type="expense",
+        ref_id=eid,
         uploaded_by=user.id,
         suffix=datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S"),
     )
-    commit_audited(db, user.id, "upload_expense_voucher", "attachments", a.id, safe_name)
+    commit_audited(
+        db, user.id, "upload_expense_voucher", "attachments", a.id, safe_name
+    )
     return _voucher(a)
 
 
 @router.get("/{eid}/vouchers")
-def list_vouchers(eid: int, db: Session = Depends(get_db),
-                  user: User = Depends(get_current_user)):
+def list_vouchers(
+    eid: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)
+):
     """支出凭证列表（申请人可查自己单据的凭证）。"""
     _expense_for_read(db, eid, user)
-    rows = db.query(Attachment).filter_by(ref_type="expense", ref_id=eid) \
-        .order_by(Attachment.id).all()
+    rows = (
+        db.query(Attachment)
+        .filter_by(ref_type="expense", ref_id=eid)
+        .order_by(Attachment.id)
+        .all()
+    )
     return [_voucher(a) for a in rows]
 
 
 @router.get("/{eid}/vouchers/{aid}/download")
-def download_voucher(eid: int, aid: int, db: Session = Depends(get_db),
-                     user: User = Depends(get_current_user)):
+def download_voucher(
+    eid: int,
+    aid: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
     """凭证下载：校验支出可见性 + 附件归属，防越权取件。"""
     _expense_for_read(db, eid, user)
     a = db.query(Attachment).filter_by(id=aid, ref_type="expense", ref_id=eid).first()
     if not a:
         raise HTTPException(404, "凭证不存在")
-    write_audit(db, user.id, "download_expense_voucher", "attachments", a.id, a.filename)
+    write_audit(
+        db, user.id, "download_expense_voucher", "attachments", a.id, a.filename
+    )
     return attachment_response(a)
 
 
 @router.delete("/{eid}/vouchers/{aid}")
-def delete_voucher(eid: int, aid: int, db: Session = Depends(get_db),
-                   user: User = Depends(get_current_user)):
+def delete_voucher(
+    eid: int,
+    aid: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
     """删除凭证：上传者本人或管理员（待审批阶段可更换凭证）。"""
     e = _expense(db, eid)
     get_active_project(db, e.project_id, user, write=True)
@@ -357,8 +491,15 @@ def delete_voucher(eid: int, aid: int, db: Session = Depends(get_db),
     return {"ok": True}
 
 
-def _decide(db: Session, e: Expense, user: User, action: str, reason: str,
-            to_status: str, audit_action: str) -> Expense:
+def _decide(
+    db: Session,
+    e: Expense,
+    user: User,
+    action: str,
+    reason: str,
+    to_status: str,
+    audit_action: str,
+) -> Expense:
     """决策收口：状态 + 意见 + 时间 + 时间线 + 审计一次提交。"""
     from ..core.timeline import record as record_timeline
 
@@ -367,10 +508,20 @@ def _decide(db: Session, e: Expense, user: User, action: str, reason: str,
     e.approved_by = user.id
     e.decision_reason = reason or ""
     e.decided_at = datetime.now(timezone.utc)
-    record_timeline(db, KIND_EXPENSE, e.id, action, from_status=old, to_status=to_status,
-                    project_id=e.project_id, actor_id=user.id, reason=reason)
-    commit_audited(db, user.id, audit_action, "expenses", e.id,
-                   f"{old}->{to_status} {reason}")
+    record_timeline(
+        db,
+        KIND_EXPENSE,
+        e.id,
+        action,
+        from_status=old,
+        to_status=to_status,
+        project_id=e.project_id,
+        actor_id=user.id,
+        reason=reason,
+    )
+    commit_audited(
+        db, user.id, audit_action, "expenses", e.id, f"{old}->{to_status} {reason}"
+    )
     return e
 
 
@@ -378,16 +529,24 @@ def _notify_applicant(db: Session, e: Expense, action: str, reason: str) -> None
     """决策结果通知申请人（带可定位引用；驳回/特批时把意见原样带给申请人）。"""
     from ..core.notify import push
 
-    push(db, e.by_id, "approval",
-         f"支出{action}：{e.subject} {e.amount}",
-         reason or f"当前状态：{e.status}",
-         ref_type="expense", ref_id=e.id, project_id=e.project_id,
-         dedup_key=f"expense-decided:{e.id}:{e.status}:{e.resubmit_count or 0}")
+    push(
+        db,
+        e.by_id,
+        "approval",
+        f"支出{action}：{e.subject} {e.amount}",
+        reason or f"当前状态：{e.status}",
+        ref_type="expense",
+        ref_id=e.id,
+        project_id=e.project_id,
+        dedup_key=f"expense-decided:{e.id}:{e.status}:{e.resubmit_count or 0}",
+    )
     db.commit()
 
 
 @router.post("/{eid}/approve")
-def approve(eid: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+def approve(
+    eid: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)
+):
     """支出通过（仅管理员）。超预算时须先调预算或走特批。"""
     require_admin(user)
     e = _expense(db, eid)
@@ -402,8 +561,12 @@ def approve(eid: int, db: Session = Depends(get_db), user: User = Depends(get_cu
 
 
 @router.post("/{eid}/reject")
-def reject(eid: int, body: dict, db: Session = Depends(get_db),
-           user: User = Depends(get_current_user)):
+def reject(
+    eid: int,
+    body: dict,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
     """支出驳回（仅管理员）。驳回意见必填且对申请人可见，申请人可修改后重新提交。"""
     require_admin(user)
     e = _expense(db, eid)
@@ -419,8 +582,12 @@ def reject(eid: int, body: dict, db: Session = Depends(get_db),
 
 
 @router.post("/{eid}/exception")
-def exception(eid: int, body: dict, db: Session = Depends(get_db),
-              user: User = Depends(get_current_user)):
+def exception(
+    eid: int,
+    body: dict,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
     """特批放行超预算支出（仅管理员）。仅「待审批 / 已驳回」可特批，意见必填。"""
     require_admin(user)
     e = _expense(db, eid)

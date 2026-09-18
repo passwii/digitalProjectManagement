@@ -22,7 +22,7 @@
 ### 1.2 领域边界
 
 | 领域 | 核心职责 | 主要模块 |
-|---|---|---|
+| --- | --- | --- |
 | 身份与访问 | 登录、会话、密码策略、RBAC、项目管理边界 | `auth`、`meta`、`admin`、`core.rbac` |
 | 组织与通讯录 | 部门、账号主数据、员工档案、证件与合同附件 | `contacts` |
 | 项目治理 | 项目生命周期、成员、合同、附件、跟进记录 | `projects` |
@@ -70,7 +70,7 @@ flowchart LR
 ### 2.2 前端分层
 
 | 层 | 职责 | 典型实现 |
-|---|---|---|
+| --- | --- | --- |
 | Route / Composition | 页面编排、路由参数、权限态加载 | `app/(dashboard)/**/page.tsx` |
 | Feature UI | 业务弹窗、抽屉、筛选、表格和操作反馈 | `*Dialog`、`*Drawer`、Feature Page |
 | Shared UI | 按钮、字段、分页、Toast、导航壳 | `components/ui/*` |
@@ -87,7 +87,7 @@ flowchart LR
 ### 2.4 前端安全问题与目标架构
 
 | 事项 | `[现状]` | `[目标]` |
-|---|---|---|
+| --- | --- | --- |
 | 会话载体 | localStorage + 非 httpOnly Cookie | BFF 或同源网关签发 httpOnly、Secure、SameSite Cookie |
 | API 访问 | 浏览器直连 API 域名 | 同源 `/api` 反向代理，减少 CORS 与令牌暴露面 |
 | 接口契约 | 手写 TypeScript 类型 | 基于 OpenAPI 生成 Client 与类型，CI 校验契约漂移 |
@@ -114,7 +114,7 @@ flowchart TB
 ```
 
 | 层 | 责任 | 不应承担 |
-|---|---|---|
+| --- | --- | --- |
 | Transport | 路由、依赖注入、认证、状态码、响应模型 | 复杂业务规则和跨聚合一致性 |
 | Application | 用例编排、权限校验顺序、事务边界、审计原子提交 | SQL 方言和前端展示逻辑 |
 | Domain | 状态机、金额与日期约束、审批动作、预警规则 | HTTP 细节 |
@@ -167,7 +167,7 @@ PostgreSQL 是整个系统的 **System of Record**。预算审批、支出状态
 ### 4.2 领域数据分组
 
 | 数据域 | 代表表 | 关键约束 |
-|---|---|---|
+| --- | --- | --- |
 | IAM | `users`、`roles`、`user_roles`、`token_blacklist` | 手机号唯一、角色唯一、失效 token 可追踪 |
 | 组织与通讯录 | `departments`、`contact_profiles`、`attachments` | 人员主数据、账号可选关联、工号唯一、附件归属明确 |
 | 项目治理 | `projects`、`project_members`、`project_changes`、`followups` | 项目编号唯一、软删除、字段变更留痕 |
@@ -239,7 +239,7 @@ class StorageBackend(Protocol):
 失败语义（务必区分，否则会把「R2 挂了」误报成「文件丢了」）：
 
 | 情况 | `core.r2` | 下载响应 |
-|---|---|---|
+| --- | --- | --- |
 | 对象不存在 | `R2ObjectMissing` | `404 附件文件已丢失` |
 | 网络 / 凭据 / 5xx | `R2Unavailable` | `502 文件存储不可用，请稍后重试` |
 | 删除失败 | `R2DeleteResult(success=False)` | 删除接口 `502` 且**保留元数据** |
@@ -249,7 +249,7 @@ class StorageBackend(Protocol):
 目标结构在 `attachments` 上扩展：
 
 | 字段 | 语义 |
-|---|---|
+| --- | --- |
 | `storage_backend` | `local` / `s3`（`s3` 指向 Cloudflare R2） |
 | `bucket` | 对象存储桶 |
 | `object_key` | 与供应商解耦的对象键 |
@@ -368,7 +368,7 @@ S3_FORCE_PATH_STYLE=false
 ### 6.2 数据安全分级
 
 | 等级 | 数据 | 控制 |
-|---|---|---|
+| --- | --- | --- |
 | Internal | 项目名称、进度、一般任务 | 登录访问、项目成员边界 |
 | Confidential | 预算、支出、客户、审批意见 | 管理员或项目参与人、审计 |
 | Restricted | 身份证号、劳动合同、证件扫描件 | 管理员专属、字段脱敏、对象存储私有桶、访问审计 |
@@ -380,7 +380,7 @@ S3_FORCE_PATH_STYLE=false
 系统区分三个证据面：
 
 | 证据面 | 表 / 机制 | 服务对象 | 语义 |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | 管理审计面 | `audit_logs` | 管理员、安全审计 | 谁在何时对什么资源执行了什么动作 |
 | 业务时间线 | `approval_records` | 申请人、审批人 | 单据经历了哪些状态变化和审批意见 |
 | 字段变更面 | `project_changes`、进度日志 | 业务用户 | 关键字段、进度和计划的历史变化 |
@@ -430,7 +430,7 @@ Business Change
 ### 6.6 威胁模型
 
 | 威胁 | 典型风险 | 缓解 |
-|---|---|---|
+| --- | --- | --- |
 | 令牌窃取 | XSS 读取 localStorage | httpOnly Cookie、CSP、短会话、Refresh 轮换 |
 | 越权访问 | 普通用户调用管理接口 | 服务端 RBAC、默认拒绝、权限先于读写 |
 | 横向数据泄露 | 通过项目 ID 访问其他项目 | 项目可见性条件下推到 SQL，统一返回 `404` |
@@ -488,7 +488,7 @@ flowchart TB
 ## 8. 质量属性
 
 | 质量属性 | 架构策略 | 目标指标 |
-|---|---|---|
+| --- | --- | --- |
 | Consistency | PostgreSQL 事务、状态机、原子审计 | 关键业务不得出现半提交状态 |
 | Security | RBAC、默认拒绝、最小权限、敏感分级 | 未授权访问稳定 `401/403/404`，敏感操作全留痕 |
 | Auditability | 业务时间线 + 管理审计 + 哈希链 | 任一关键变更可还原 actor、time、before/after |
@@ -503,7 +503,7 @@ flowchart TB
 ## 9. 演进路线
 
 | 阶段 | 架构主题 | 关键交付 |
-|---|---|---|
+| --- | --- | --- |
 | Phase A | 存储解耦 | `StorageProvider`、Cloudflare R2 S3-compatible Adapter、Presigned URL、元数据扩展 |
 | Phase B | 安全加固 | httpOnly 会话、Refresh 轮换、密钥管理、IP 限速、PII 加密 |
 | Phase C | 审计强化 | Correlation ID、哈希链、审计分区、WORM 锚定、SIEM 导出 |
@@ -516,7 +516,7 @@ flowchart TB
 ## 10. Architecture Decisions
 
 | ADR | 决策 | 理由 | 代价 |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | ADR-001 | 采用模块化单体，而非立即微服务 | 当前规模下优先保证事务一致性和交付效率 | 后续需要严格控制模块边界 |
 | ADR-002 | PostgreSQL 作为唯一 System of Record | 复杂审批、预算和项目关系需要强一致事务 | 数据库承担较高核心责任 |
 | ADR-003 | 前端展示权限，后端执行权限 | 防止 UI 隐藏被误当成安全边界 | 接口契约必须保持单一来源 |

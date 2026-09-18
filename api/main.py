@@ -7,25 +7,25 @@ from fastapi.middleware.cors import CORSMiddleware
 from . import models  # noqa: F401
 from .core.storage import storage_profile
 from .routers import (
-    admin,
-    approvals,
-    auth,
-    budgets,
-    contacts,
-    dashboard,
-    expenses,
-    meta,
-    milestones,
-    notifications,
-    projects,
-    reports,
-    tasks,
+  admin,
+  approvals,
+  auth,
+  budgets,
+  contacts,
+  dashboard,
+  expenses,
+  meta,
+  milestones,
+  notifications,
+  projects,
+  reports,
+  tasks,
 )
 
 app = FastAPI(
-    title="项目管理系统 API",
-    version="0.1.0",
-    description="""
+  title="项目管理系统 API",
+  version="0.1.0",
+  description="""
 ## 管理与审批边界契约（Stage 1 收敛，2026-09-16 确认）
 
 - **管理员（`admin`）是唯一的管理与审批角色**，也是唯一拥有全局数据范围的用户：可跨部门、跨项目读取和操作。
@@ -86,30 +86,44 @@ app = FastAPI(
 
 # CORS：本地开发、Docker 与生产统一使用前端 3001，可用 CORS_ORIGINS 覆盖
 _default_origins = "http://localhost:3001,http://127.0.0.1:3001"
-origins = [o.strip() for o in os.getenv("CORS_ORIGINS", _default_origins).split(",") if o.strip()]
+origins = [
+  o.strip() for o in os.getenv("CORS_ORIGINS", _default_origins).split(",") if o.strip()
+]
 app.add_middleware(
-    CORSMiddleware,
-    allow_origins=origins,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-    expose_headers=["Content-Disposition"],
+  CORSMiddleware,
+  allow_origins=origins,
+  allow_credentials=True,
+  allow_methods=["*"],
+  allow_headers=["*"],
+  expose_headers=["Content-Disposition"],
 )
 
-for r in (auth.router, meta.router, admin.router, contacts.router, projects.router, tasks.router,
-          milestones.router, budgets.router, expenses.router, reports.router,
-          notifications.router, approvals.router, dashboard.router):
-    app.include_router(r, prefix="/api/v1")
+for r in (
+  auth.router,
+  meta.router,
+  admin.router,
+  contacts.router,
+  projects.router,
+  tasks.router,
+  milestones.router,
+  budgets.router,
+  expenses.router,
+  reports.router,
+  notifications.router,
+  approvals.router,
+  dashboard.router,
+):
+  app.include_router(r, prefix="/api/v1")
 
 
 @app.get("/health")
 def health():
-    """健康检查：额外回报附件存储后端，便于确认「是否真的接上了 R2」。
+  """健康检查：额外回报附件存储后端，便于确认「是否真的接上了 R2」。
 
-    只回后端名与桶名，**不含任何密钥**；`local` 表示尚未接对象存储。
-    """
-    profile = storage_profile()
-    body = {"ok": True, "storage_backend": profile["backend"]}
-    if "bucket" in profile:
-        body["storage_bucket"] = profile["bucket"]
-    return body
+  只回后端名与桶名，**不含任何密钥**；`local` 表示尚未接对象存储。
+  """
+  profile = storage_profile()
+  body = {"ok": True, "storage_backend": profile["backend"]}
+  if "bucket" in profile:
+    body["storage_bucket"] = profile["bucket"]
+  return body

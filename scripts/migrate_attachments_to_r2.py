@@ -32,6 +32,7 @@
 注意：需先把 `STORAGE_BACKEND` 设为 `r2`（或 `R2_*` 配齐且用 `auto`），
 否则本脚本会拒绝执行——避免「以为在回填 R2、其实又写了一遍本地盘」。
 """
+
 from __future__ import annotations
 
 import argparse
@@ -106,9 +107,12 @@ def _read_local(row: Attachment) -> bytes | None:
 def migrate(*, apply: bool, verify: bool, delete_local: bool) -> int:
     backend_name = resolve_backend_name()
     if backend_name != BACKEND_R2:
-        print(f"[abort] 当前 STORAGE_BACKEND 解析为 {backend_name!r}，不是 'r2'。\n"
-              "        请设置 STORAGE_BACKEND=r2（并配齐 R2_*）后重跑，"
-              "避免把正文又写回本地盘。", file=sys.stderr)
+        print(
+            f"[abort] 当前 STORAGE_BACKEND 解析为 {backend_name!r}，不是 'r2'。\n"
+            "        请设置 STORAGE_BACKEND=r2（并配齐 R2_*）后重跑，"
+            "避免把正文又写回本地盘。",
+            file=sys.stderr,
+        )
         return 2
 
     backend = get_backend()
@@ -132,7 +136,9 @@ def migrate(*, apply: bool, verify: bool, delete_local: bool) -> int:
                 failures.append((_ident(row.id), "local file missing"))
                 continue
 
-            key = build_object_key(_domain_for(row), _text(row.filename) or "attachment")
+            key = build_object_key(
+                _domain_for(row), _text(row.filename) or "attachment"
+            )
             print(f"  [plan] id={row.id} {row.filename!r} -> {key} ({len(data)} bytes)")
             if not apply:
                 continue
@@ -162,7 +168,9 @@ def migrate(*, apply: bool, verify: bool, delete_local: bool) -> int:
                 failures.append((_ident(row.id), str(exc)))
                 print(f"  [fail] id={row.id}: {exc}", file=sys.stderr)
 
-        print(f"完成：回填 {migrated}，跳过(本地缺失) {skipped_missing}，失败 {len(failures)}")
+        print(
+            f"完成：回填 {migrated}，跳过(本地缺失) {skipped_missing}，失败 {len(failures)}"
+        )
         if failures:
             print("失败明细：", file=sys.stderr)
             for aid, why in failures:
@@ -175,10 +183,13 @@ def migrate(*, apply: bool, verify: bool, delete_local: bool) -> int:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="回填存量本地附件到 Cloudflare R2")
-    parser.add_argument("--apply", action="store_true", help="真正执行（默认只打印计划）")
+    parser.add_argument(
+        "--apply", action="store_true", help="真正执行（默认只打印计划）"
+    )
     parser.add_argument("--verify", action="store_true", help="上传后回读比对字节")
-    parser.add_argument("--delete-local", action="store_true",
-                        help="校验成功后删除本地文件（默认保留）")
+    parser.add_argument(
+        "--delete-local", action="store_true", help="校验成功后删除本地文件（默认保留）"
+    )
     args = parser.parse_args()
     return migrate(apply=args.apply, verify=args.verify, delete_local=args.delete_local)
 

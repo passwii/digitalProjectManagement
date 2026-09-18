@@ -12,6 +12,7 @@
 
 幂等：所有 `add_column` 都先查存在性，重复执行不报错（与本仓库既有迁移一致）。
 """
+
 import sqlalchemy as sa
 
 from alembic import op
@@ -30,8 +31,9 @@ def upgrade():
     if not _has_column("attachments", "storage_backend"):
         op.add_column(
             "attachments",
-            sa.Column("storage_backend", sa.String(16), nullable=False,
-                      server_default="local"),
+            sa.Column(
+                "storage_backend", sa.String(16), nullable=False, server_default="local"
+            ),
         )
     if not _has_column("attachments", "object_key"):
         op.add_column(

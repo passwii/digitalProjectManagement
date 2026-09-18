@@ -25,6 +25,7 @@
 对象键命名遵循 README §5.3 的「不可猜测 + 可审计」要求：
 `tenant/default/{domain}/{yyyy}/{mm}/{uuid}.{ext}`（domain 例如 project / expense / contact）。
 """
+
 from __future__ import annotations
 
 import os
@@ -81,8 +82,8 @@ class StoredObject:
     """一次落盘/上传的结果，直接映射到 `Attachment` 的存储字段。"""
 
     backend: str
-    path: str            # 本地：磁盘路径；R2：公开 URL
-    object_key: str      # 本地：空；R2：对象键
+    path: str  # 本地：磁盘路径；R2：公开 URL
+    object_key: str  # 本地：空；R2：对象键
     size: int
     etag: str
 
@@ -92,8 +93,9 @@ class StorageBackend(Protocol):
 
     name: str
 
-    def put(self, data: bytes, key: str, local_path: Path,
-            content_type: str) -> StoredObject:
+    def put(
+        self, data: bytes, key: str, local_path: Path, content_type: str
+    ) -> StoredObject:
         """写入正文，返回可落库的存储坐标。"""
         ...
 
@@ -137,21 +139,29 @@ def get_storage_settings() -> _Settings:
         region=_env("R2_REGION", "auto"),
         public_url=_env("R2_PUBLIC_URL"),
     )
-    complete = bool(r2.endpoint_url and r2.access_key_id and r2.secret_access_key and r2.bucket)
+    complete = bool(
+        r2.endpoint_url and r2.access_key_id and r2.secret_access_key and r2.bucket
+    )
     requested = _env("STORAGE_BACKEND", "auto").lower()
     if requested == BACKEND_R2 and not complete:
         raise RuntimeError(
             "STORAGE_BACKEND=r2 但 R2 配置不完整（需要 R2_ENDPOINT_URL / R2_ACCESS_KEY_ID / "
             "R2_SECRET_ACCESS_KEY / R2_BUCKET_NAME）"
         )
-    backend = BACKEND_R2 if (requested == BACKEND_R2 or (requested == "auto" and complete)) \
+    backend = (
+        BACKEND_R2
+        if (requested == BACKEND_R2 or (requested == "auto" and complete))
         else BACKEND_LOCAL
+    )
     try:
         ttl = int(_env("R2_PRESIGN_TTL_SECONDS", "3600"))
     except ValueError:
         ttl = 3600
-    return _Settings(backend=backend, r2=r2 if backend == BACKEND_R2 else None,
-                     presign_ttl=max(ttl, 60))
+    return _Settings(
+        backend=backend,
+        r2=r2 if backend == BACKEND_R2 else None,
+        presign_ttl=max(ttl, 60),
+    )
 
 
 def resolve_backend_name() -> str:
@@ -175,8 +185,9 @@ def storage_profile() -> dict[str, object]:
     return profile
 
 
-def build_object_key(domain: str, filename: str, owner_id: int | None = None,
-                     suffix: str = "") -> str:
+def build_object_key(
+    domain: str, filename: str, owner_id: int | None = None, suffix: str = ""
+) -> str:
     """生成对象键：`tenant/default/{domain}/{yyyy}/{mm}/{uuid}{suffix}{ext}`。
 
     · domain 走白名单，非法值收敛为 `other`，绝不把调用方字符串直接拼成路径；
@@ -195,8 +206,9 @@ def build_object_key(domain: str, filename: str, owner_id: int | None = None,
     return sanitize_key(key)
 
 
-def local_path_for(domain: str, filename: str, object_key: str,
-                   owner_id: int | None = None) -> Path:
+def local_path_for(
+    domain: str, filename: str, object_key: str, owner_id: int | None = None
+) -> Path:
     """本地后端的目标路径：`data/files/{domain}/{owner?}/{uuid}{ext}`（与既有布局同构）。"""
     parts = [FILES_ROOT, domain if domain in _ALLOWED_DOMAIN else "other"]
     if owner_id is not None:
@@ -211,8 +223,9 @@ class LocalBackend:
 
     name = BACKEND_LOCAL
 
-    def put(self, data: bytes, key: str, local_path: Path,
-            content_type: str) -> StoredObject:
+    def put(
+        self, data: bytes, key: str, local_path: Path, content_type: str
+    ) -> StoredObject:
         import hashlib
 
         local_path.parent.mkdir(parents=True, exist_ok=True)
@@ -262,10 +275,12 @@ class R2Backend:
         self._settings = settings
         self._presign_ttl = presign_ttl
 
-    def put(self, data: bytes, key: str, local_path: Path,
-            content_type: str) -> StoredObject:
-        uploaded = upload_object(self._settings, data, key,
-                                 content_type or "application/octet-stream")
+    def put(
+        self, data: bytes, key: str, local_path: Path, content_type: str
+    ) -> StoredObject:
+        uploaded = upload_object(
+            self._settings, data, key, content_type or "application/octet-stream"
+        )
         return StoredObject(
             backend=self.name,
             path=public_url(self._settings, uploaded["key"]),

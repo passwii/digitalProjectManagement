@@ -1,4 +1,5 @@
 """Stage 1：项目台账 CRUD + 状态机 + 变更留痕 + 附件 + 跟进 + 加权进度。"""
+
 from datetime import date, datetime, timezone
 from pathlib import Path
 
@@ -39,23 +40,31 @@ router = APIRouter(prefix="/projects", tags=["projects"])
 
 # 排序白名单（Stage 3A）：字段名 → ORM 列，用户输入永不拼进 SQL
 PROJECT_SORTS = {
-    "id": Project.id, "code": Project.code, "name": Project.name,
-    "status": Project.status, "priority": Project.priority,
-    "budget_total": Project.budget_total, "progress": Project.progress,
-    "plan_start": Project.plan_start, "plan_end": Project.plan_end,
-    "created_at": Project.created_at, "dept_id": Project.dept_id,
+    "id": Project.id,
+    "code": Project.code,
+    "name": Project.name,
+    "status": Project.status,
+    "priority": Project.priority,
+    "budget_total": Project.budget_total,
+    "progress": Project.progress,
+    "plan_start": Project.plan_start,
+    "plan_end": Project.plan_end,
+    "created_at": Project.created_at,
+    "dept_id": Project.dept_id,
     "owner_id": Project.owner_id,
 }
 FOLLOWUP_SORTS = {
-    "id": Followup.id, "happened_at": Followup.happened_at,
-    "remind_at": Followup.remind_at, "user_id": Followup.user_id,
+    "id": Followup.id,
+    "happened_at": Followup.happened_at,
+    "remind_at": Followup.remind_at,
+    "user_id": Followup.user_id,
     "method": Followup.method,
 }
 
 # 状态机：草稿/待立项审批/已立项/进行中/暂停/已完成/已归档/已取消
 TRANSITIONS = {
     "draft": {"pending", "filed", "cancelled"},
-    "pending": {"filed", "cancelled"},   # 立项审批（approval 开关开启时）
+    "pending": {"filed", "cancelled"},  # 立项审批（approval 开关开启时）
     "filed": {"doing", "cancelled"},
     "doing": {"paused", "done"},
     "paused": {"doing", "done"},
@@ -70,26 +79,41 @@ MAX_SIZE = MAX_ATTACHMENT_SIZE
 
 
 def _p(p: Project):
-    return {"id": p.id, "code": p.code, "name": p.name, "type": p.type,
-            "dept_id": p.dept_id, "owner_id": p.owner_id,
-            "owner_name": p.owner_name or "",
-            "member_ids": [m.user_id for m in p.members],
-            "plan_start": p.plan_start.isoformat() if p.plan_start else None,
-            "plan_end": p.plan_end.isoformat() if p.plan_end else None,
-            "budget_total": p.budget_total, "priority": p.priority,
-            "client": p.client, "description": p.description,
-            "contract_status": p.contract_status or "",
-            "forward_contract": p.forward_contract or "",
-            "backward_contract": p.backward_contract or "",
-            "status": p.status, "progress": p.progress}
+    return {
+        "id": p.id,
+        "code": p.code,
+        "name": p.name,
+        "type": p.type,
+        "dept_id": p.dept_id,
+        "owner_id": p.owner_id,
+        "owner_name": p.owner_name or "",
+        "member_ids": [m.user_id for m in p.members],
+        "plan_start": p.plan_start.isoformat() if p.plan_start else None,
+        "plan_end": p.plan_end.isoformat() if p.plan_end else None,
+        "budget_total": p.budget_total,
+        "priority": p.priority,
+        "client": p.client,
+        "description": p.description,
+        "contract_status": p.contract_status or "",
+        "forward_contract": p.forward_contract or "",
+        "backward_contract": p.backward_contract or "",
+        "status": p.status,
+        "progress": p.progress,
+    }
 
 
 def _next_code(db: Session) -> str:
     y = date.today().year
     prefix = f"PJ-{y}-"
-    last = db.query(Project).filter(Project.code.like(prefix + "%")).order_by(Project.code.desc()).first()
+    last = (
+        db.query(Project)
+        .filter(Project.code.like(prefix + "%"))
+        .order_by(Project.code.desc())
+        .first()
+    )
     n = int(last.code.rsplit("-", 1)[1]) + 1 if last else 1
     return f"{prefix}{n:04d}"
+
 
 def _get(db: Session, pid: int, user: User, write=False) -> Project:
     p = db.query(Project).filter_by(id=pid, deleted_at=None).first()
@@ -102,14 +126,20 @@ def _get(db: Session, pid: int, user: User, write=False) -> Project:
 def keyword_condition(keyword: str):
     """关键词过滤：使用 PostgreSQL 大小写不敏感模糊匹配。"""
     kw = f"%{keyword}%"
-    return (or_(Project.name.ilike(kw), Project.code.ilike(kw),
-                Project.client.ilike(kw), Project.description.ilike(kw)))
+    return or_(
+        Project.name.ilike(kw),
+        Project.code.ilike(kw),
+        Project.client.ilike(kw),
+        Project.description.ilike(kw),
+    )
 
 
 def _keyword_snippet(project: Project, keyword: str) -> str:
     """关键词命中的纯文本摘要；不返回 HTML，避免把用户输入当标记渲染。"""
     sources = [project.description, project.name, project.client, project.code]
-    text = next((str(v) for v in sources if v and keyword.lower() in str(v).lower()), "")
+    text = next(
+        (str(v) for v in sources if v and keyword.lower() in str(v).lower()), ""
+    )
     if not text:
         text = str(project.description or project.name or project.code or "")
     idx = text.lower().find(keyword.lower())
@@ -143,7 +173,9 @@ def _code(value: str) -> str:
     return str(value or "").strip()
 
 
-def _owner(db: Session, owner_id: int | None, owner_name: str) -> tuple[int | None, str]:
+def _owner(
+    db: Session, owner_id: int | None, owner_name: str
+) -> tuple[int | None, str]:
     selected_name = str(owner_name or "").strip()
     if owner_id:
         u = db.query(User).filter_by(id=owner_id).first()
@@ -158,11 +190,21 @@ def _owner(db: Session, owner_id: int | None, owner_name: str) -> tuple[int | No
 
 
 @router.get("")
-def list_projects(name: str = "", code: str = "", status: str = "", owner_id: int = 0,
-                  dept_id: int = 0, keyword: str = "", date_from: str = "",
-                  date_to: str = "", sort: str = "-id",
-                  page: int = 1, size: int = DEFAULT_PAGE_SIZE,
-                  db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+def list_projects(
+    name: str = "",
+    code: str = "",
+    status: str = "",
+    owner_id: int = 0,
+    dept_id: int = 0,
+    keyword: str = "",
+    date_from: str = "",
+    date_to: str = "",
+    sort: str = "-id",
+    page: int = 1,
+    size: int = DEFAULT_PAGE_SIZE,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
     """组合筛（名称/编号/状态/负责人/部门/关键字/计划时间）+ 统一分页信封。
 
     关键字使用 PostgreSQL 模糊匹配。
@@ -197,15 +239,28 @@ def list_projects(name: str = "", code: str = "", status: str = "", owner_id: in
             row["snippet"] = _keyword_snippet(p, keyword)
         return row
 
-    return paginate(q, page=page, size=size, allowed=PROJECT_SORTS,
-                    default_sort="-id", sort=sort, map_row=_row)
+    return paginate(
+        q,
+        page=page,
+        size=size,
+        allowed=PROJECT_SORTS,
+        default_sort="-id",
+        sort=sort,
+        map_row=_row,
+    )
 
 
 @router.get("/options")
-def project_options(keyword: str = "", status: str = "", owner_id: int = 0,
-                    sort: str = "-id", page: int = 1, size: int = DEFAULT_PAGE_SIZE,
-                    db: Session = Depends(get_db),
-                    user: User = Depends(get_current_user)):
+def project_options(
+    keyword: str = "",
+    status: str = "",
+    owner_id: int = 0,
+    sort: str = "-id",
+    page: int = 1,
+    size: int = DEFAULT_PAGE_SIZE,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
     """项目选择器专用：最小字段 + 关键词分页，替代前端 `?size=100` 全量下拉。
 
     只返回 id/code/name/status/owner_id/dept_id（不含描述、成员等大字段），
@@ -214,8 +269,14 @@ def project_options(keyword: str = "", status: str = "", owner_id: int = 0,
     不走 FTS——FTS 命中集预先截断为 500 条，会让分页的 `total` 失真。
     注意：本路由必须定义在 `/{pid}` 之前，否则会被单段路径参数抢先匹配。
     """
-    q = db.query(Project.id, Project.code, Project.name, Project.status,
-                 Project.owner_id, Project.dept_id).filter(Project.deleted_at.is_(None))
+    q = db.query(
+        Project.id,
+        Project.code,
+        Project.name,
+        Project.status,
+        Project.owner_id,
+        Project.dept_id,
+    ).filter(Project.deleted_at.is_(None))
     if keyword:
         like = f"%{keyword}%"
         q = q.filter(or_(Project.name.like(like), Project.code.like(like)))
@@ -223,21 +284,37 @@ def project_options(keyword: str = "", status: str = "", owner_id: int = 0,
         q = q.filter(Project.status == status)
     if owner_id:
         q = q.filter(Project.owner_id == owner_id)
-    vis = project_scope_condition(user, db)   # 含演示数据开关
+    vis = project_scope_condition(user, db)  # 含演示数据开关
     if vis is not None:
         q = q.filter(vis)
 
     def _opt(r):
-        return {"id": r.id, "code": r.code, "name": r.name, "status": r.status,
-                "owner_id": r.owner_id, "dept_id": r.dept_id}
+        return {
+            "id": r.id,
+            "code": r.code,
+            "name": r.name,
+            "status": r.status,
+            "owner_id": r.owner_id,
+            "dept_id": r.dept_id,
+        }
 
-    return paginate(q, page=page, size=size, allowed=PROJECT_SORTS,
-                    default_sort="-id", sort=sort, map_row=_opt)
+    return paginate(
+        q,
+        page=page,
+        size=size,
+        allowed=PROJECT_SORTS,
+        default_sort="-id",
+        sort=sort,
+        map_row=_opt,
+    )
 
 
 @router.post("")
-def create_project(body: ProjectIn, db: Session = Depends(get_db),
-                   user: User = Depends(get_current_user)):
+def create_project(
+    body: ProjectIn,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
     if not body.name:
         raise HTTPException(400, "项目名称必填")
     code = _code(body.code)
@@ -257,18 +334,25 @@ def create_project(body: ProjectIn, db: Session = Depends(get_db),
             # 立项审批开关：开启则项目进入「待立项审批」，由审批中心放行
             ap = db.query(SysParam).filter_by(key="project_approval_on").first()
             filing_on = bool(ap and ap.value == "1")
-            p = Project(code=code or _next_code(db), name=body.name, type=body.type,
-                        dept_id=body.dept_id if body.dept_id else user.dept_id,
-                        owner_id=owner_id or user.id, owner_name=owner_name,
-                        plan_start=body.plan_start,
-                        plan_end=body.plan_end, budget_total=body.budget_total,
-                        priority=body.priority, client=body.client,
-                        description=body.description,
-                        contract_status=body.contract_status,
-                        forward_contract=body.forward_contract,
-                        backward_contract=body.backward_contract,
-                        status="pending" if filing_on else "draft",
-                        created_by=user.id)
+            p = Project(
+                code=code or _next_code(db),
+                name=body.name,
+                type=body.type,
+                dept_id=body.dept_id if body.dept_id else user.dept_id,
+                owner_id=owner_id or user.id,
+                owner_name=owner_name,
+                plan_start=body.plan_start,
+                plan_end=body.plan_end,
+                budget_total=body.budget_total,
+                priority=body.priority,
+                client=body.client,
+                description=body.description,
+                contract_status=body.contract_status,
+                forward_contract=body.forward_contract,
+                backward_contract=body.backward_contract,
+                status="pending" if filing_on else "draft",
+                created_by=user.id,
+            )
             db.add(p)
             db.flush()
             for uid in set(body.member_ids) | {p.owner_id}:
@@ -279,21 +363,35 @@ def create_project(body: ProjectIn, db: Session = Depends(get_db),
                 from ..core.notify import approval_recipients, push_many
                 from ..core.timeline import ACTION_SUBMIT, KIND_PROJECT_FILING
                 from ..core.timeline import record as record_timeline
-                record_timeline(db, KIND_PROJECT_FILING, p.id, ACTION_SUBMIT,
-                                from_status="draft", to_status="pending",
-                                project_id=p.id, actor_id=user.id)
-                push_many(db, approval_recipients(db), "approval",
-                          f"立项审批待处理：{p.name}",
-                          f"编号 {p.code}，预算 {p.budget_total}",
-                          ref_type="project", ref_id=p.id, project_id=p.id,
-                          dedup_key=f"filing-request:{p.id}")
+
+                record_timeline(
+                    db,
+                    KIND_PROJECT_FILING,
+                    p.id,
+                    ACTION_SUBMIT,
+                    from_status="draft",
+                    to_status="pending",
+                    project_id=p.id,
+                    actor_id=user.id,
+                )
+                push_many(
+                    db,
+                    approval_recipients(db),
+                    "approval",
+                    f"立项审批待处理：{p.name}",
+                    f"编号 {p.code}，预算 {p.budget_total}",
+                    ref_type="project",
+                    ref_id=p.id,
+                    project_id=p.id,
+                    dedup_key=f"filing-request:{p.id}",
+                )
             db.flush()
             commit_audited(db, user.id, "create_project", "projects", p.id, p.code)
             break
         except HTTPException:
             db.rollback()
             raise
-        except IntegrityError:   # 编号唯一索引冲突 → 重试取号
+        except IntegrityError:  # 编号唯一索引冲突 → 重试取号
             db.rollback()
             continue
         except Exception:
@@ -305,19 +403,39 @@ def create_project(body: ProjectIn, db: Session = Depends(get_db),
 
 
 @router.get("/{pid}")
-def get_project(pid: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+def get_project(
+    pid: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)
+):
     return _p(_get(db, pid, user))
 
 
 @router.patch("/{pid}")
-def update_project(pid: int, body: dict, db: Session = Depends(get_db),
-                   user: User = Depends(get_current_user)):
+def update_project(
+    pid: int,
+    body: dict,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
     p = _get(db, pid, user, write=True)
     if p.status == "archived":
         raise HTTPException(400, "已归档项目只读")
-    allowed = {"code", "name", "type", "dept_id", "owner_id", "owner_name",
-               "plan_start", "plan_end", "budget_total", "priority", "client",
-               "description", "contract_status", "forward_contract", "backward_contract"}
+    allowed = {
+        "code",
+        "name",
+        "type",
+        "dept_id",
+        "owner_id",
+        "owner_name",
+        "plan_start",
+        "plan_end",
+        "budget_total",
+        "priority",
+        "client",
+        "description",
+        "contract_status",
+        "forward_contract",
+        "backward_contract",
+    }
     now = datetime.now(timezone.utc)
     for f, v in body.items():
         if f == "member_ids":
@@ -335,46 +453,96 @@ def update_project(pid: int, body: dict, db: Session = Depends(get_db),
         if f == "contract_status" and v not in ("", *CONTRACT_STATUSES):
             raise HTTPException(400, "合同状态须为「已签订」或「未签订」")
         if f == "owner_id":
-            owner_id, owner_name = _owner(db, int(v) if v else None, body.get("owner_name", p.owner_name))
+            owner_id, owner_name = _owner(
+                db, int(v) if v else None, body.get("owner_name", p.owner_name)
+            )
             if owner_id != p.owner_id:
                 old_owner = p.owner_id
                 p.owner_id = owner_id
-                db.add(ProjectChange(project_id=pid, field="owner_id", old=str(old_owner or ""),
-                                     new=str(owner_id or ""), by_id=user.id, at=now))
+                db.add(
+                    ProjectChange(
+                        project_id=pid,
+                        field="owner_id",
+                        old=str(old_owner or ""),
+                        new=str(owner_id or ""),
+                        by_id=user.id,
+                        at=now,
+                    )
+                )
             if owner_name != (p.owner_name or ""):
                 p.owner_name = owner_name
-                db.add(ProjectChange(project_id=pid, field="owner_name", old="", new=owner_name,
-                                     by_id=user.id, at=now))
+                db.add(
+                    ProjectChange(
+                        project_id=pid,
+                        field="owner_name",
+                        old="",
+                        new=owner_name,
+                        by_id=user.id,
+                        at=now,
+                    )
+                )
             continue
         if f == "owner_name":
             v = str(v or "").strip()
         if f in ("plan_start", "plan_end"):
             v = parse_date(v)
         old = getattr(p, f)
-        old_s = old.isoformat() if isinstance(old, date) else str(old if old is not None else "")
+        old_s = (
+            old.isoformat()
+            if isinstance(old, date)
+            else str(old if old is not None else "")
+        )
         if str(v or "") != old_s:
-            if f == "name" and db.query(Project).filter(Project.name == v, Project.id != pid).first():
+            if (
+                f == "name"
+                and db.query(Project)
+                .filter(Project.name == v, Project.id != pid)
+                .first()
+            ):
                 raise HTTPException(400, "项目名称已存在")
             setattr(p, f, v)
-            db.add(ProjectChange(project_id=pid, field=f, old=old_s, new=str(v or ""),
-                                 by_id=user.id, at=now))
+            db.add(
+                ProjectChange(
+                    project_id=pid,
+                    field=f,
+                    old=old_s,
+                    new=str(v or ""),
+                    by_id=user.id,
+                    at=now,
+                )
+            )
     if "member_ids" in body:
         db.query(ProjectMember).filter_by(project_id=pid).delete()
         for uid in set(body["member_ids"]) | ({p.owner_id} if p.owner_id else set()):
             if db.query(User).filter_by(id=uid).first():
                 db.add(ProjectMember(project_id=pid, user_id=uid))
-        db.add(ProjectChange(project_id=pid, field="member_ids", old="", new=str(body["member_ids"]),
-                             by_id=user.id, at=now))
+        db.add(
+            ProjectChange(
+                project_id=pid,
+                field="member_ids",
+                old="",
+                new=str(body["member_ids"]),
+                by_id=user.id,
+                at=now,
+            )
+        )
     if p.owner_id and "member_ids" not in body:
-        db.add(ProjectMember(project_id=pid, user_id=p.owner_id)) if not db.query(ProjectMember).filter_by(
-            project_id=pid, user_id=p.owner_id).first() else None
-    commit_audited(db, user.id, "update_project", "projects", pid, str(list(body.keys())))
+        db.add(ProjectMember(project_id=pid, user_id=p.owner_id)) if not db.query(
+            ProjectMember
+        ).filter_by(project_id=pid, user_id=p.owner_id).first() else None
+    commit_audited(
+        db, user.id, "update_project", "projects", pid, str(list(body.keys()))
+    )
     return _p(p)
 
 
 @router.post("/{pid}/status")
-def change_status(pid: int, body: dict, db: Session = Depends(get_db),
-                  user: User = Depends(get_current_user)):
+def change_status(
+    pid: int,
+    body: dict,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
     p = _get(db, pid, user, write=True)
     to = body.get("status", "")
     reason = str(body.get("reason", "") or "")
@@ -387,8 +555,11 @@ def change_status(pid: int, body: dict, db: Session = Depends(get_db),
     old = p.status
     p.status = to
     now = datetime.now(timezone.utc)
-    db.add(ProjectChange(project_id=pid, field="status", old=old, new=to,
-                         by_id=user.id, at=now))
+    db.add(
+        ProjectChange(
+            project_id=pid, field="status", old=old, new=to, by_id=user.id, at=now
+        )
+    )
     # 立项审批的最终状态也进时间线（申请人可查「谁在什么时候批/驳了什么」）
     if old in ("pending", "draft") and to in ("filed", "cancelled"):
         from ..core.timeline import (
@@ -398,28 +569,66 @@ def change_status(pid: int, body: dict, db: Session = Depends(get_db),
             KIND_PROJECT_FILING,
         )
         from ..core.timeline import record as record_timeline
-        record_timeline(db, KIND_PROJECT_FILING, pid, ACTION_SUBMIT, from_status="draft",
-                        to_status="pending", project_id=pid, actor_id=p.owner_id)
-        record_timeline(db, KIND_PROJECT_FILING, pid,
-                        ACTION_APPROVE if to == "filed" else ACTION_REJECT,
-                        from_status="pending", to_status=to, project_id=pid,
-                        actor_id=user.id, reason=reason)
-    commit_audited(db, user.id, "project_status", "projects", pid, f"{old}->{to} {reason}")
+
+        record_timeline(
+            db,
+            KIND_PROJECT_FILING,
+            pid,
+            ACTION_SUBMIT,
+            from_status="draft",
+            to_status="pending",
+            project_id=pid,
+            actor_id=p.owner_id,
+        )
+        record_timeline(
+            db,
+            KIND_PROJECT_FILING,
+            pid,
+            ACTION_APPROVE if to == "filed" else ACTION_REJECT,
+            from_status="pending",
+            to_status=to,
+            project_id=pid,
+            actor_id=user.id,
+            reason=reason,
+        )
+    commit_audited(
+        db, user.id, "project_status", "projects", pid, f"{old}->{to} {reason}"
+    )
     return _p(p)
 
 
 @router.get("/{pid}/changes")
-def list_changes(pid: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+def list_changes(
+    pid: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)
+):
     _get(db, pid, user)
-    rows = db.query(ProjectChange).filter_by(project_id=pid).order_by(ProjectChange.id.desc()).all()
-    return [{"id": c.id, "field": c.field, "old": c.old, "new": c.new,
-             "by_id": c.by_id, "at": c.at.isoformat() if c.at else None} for c in rows]
+    rows = (
+        db.query(ProjectChange)
+        .filter_by(project_id=pid)
+        .order_by(ProjectChange.id.desc())
+        .all()
+    )
+    return [
+        {
+            "id": c.id,
+            "field": c.field,
+            "old": c.old,
+            "new": c.new,
+            "by_id": c.by_id,
+            "at": c.at.isoformat() if c.at else None,
+        }
+        for c in rows
+    ]
 
 
 @router.post("/{pid}/attachments")
-def upload(pid: int, file: UploadFile = File(...), ref_type: str = Form(""),
-           db: Session = Depends(get_db),
-           user: User = Depends(get_current_user)):
+def upload(
+    pid: int,
+    file: UploadFile = File(...),
+    ref_type: str = Form(""),
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
     p = _get(db, pid, user, write=True)
     if p.status == "archived":
         raise HTTPException(400, "已归档禁传附件")
@@ -432,9 +641,14 @@ def upload(pid: int, file: UploadFile = File(...), ref_type: str = Form(""),
         raise HTTPException(400, "附件类型不支持")
     # 正文落位（本地磁盘 / R2）由 core.attachments 收口，本处只管业务语义与鉴权
     a = store_attachment(
-        db, domain="contract" if ref_type == "contract" else "project",
-        filename=file.filename or "attachment", content_type=file.content_type or "",
-        data=data, project_id=pid, ref_type=ref_type, ref_id=None,
+        db,
+        domain="contract" if ref_type == "contract" else "project",
+        filename=file.filename or "attachment",
+        content_type=file.content_type or "",
+        data=data,
+        project_id=pid,
+        ref_type=ref_type,
+        ref_id=None,
         uploaded_by=user.id,
     )
     commit_audited(db, user.id, "upload_attachment", "attachments", a.id, file.filename)
@@ -442,8 +656,12 @@ def upload(pid: int, file: UploadFile = File(...), ref_type: str = Form(""),
 
 
 @router.get("/{pid}/attachments")
-def list_attachments(pid: int, ref_type: str = "", db: Session = Depends(get_db),
-                     user: User = Depends(get_current_user)):
+def list_attachments(
+    pid: int,
+    ref_type: str = "",
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
     """项目附件列表（只含项目级附件）。
 
     支出凭证（`ref_type="expense"`）挂在同一张表上，必须按 `ref_type` 排除，
@@ -458,27 +676,44 @@ def list_attachments(pid: int, ref_type: str = "", db: Session = Depends(get_db)
     else:
         q = q.filter(or_(Attachment.ref_type == "", Attachment.ref_type.is_(None)))
     rows = q.all()
-    return [{"id": a.id, "filename": a.filename, "size": a.size,
-             "ref_type": a.ref_type or "",
-             "content_type": a.content_type or "",
-             "uploaded_by": a.uploaded_by,
-             "uploaded_at": a.uploaded_at.isoformat() if a.uploaded_at else None}
-            for a in rows]
+    return [
+        {
+            "id": a.id,
+            "filename": a.filename,
+            "size": a.size,
+            "ref_type": a.ref_type or "",
+            "content_type": a.content_type or "",
+            "uploaded_by": a.uploaded_by,
+            "uploaded_at": a.uploaded_at.isoformat() if a.uploaded_at else None,
+        }
+        for a in rows
+    ]
 
 
 @router.get("/{pid}/attachments/{aid}/download")
-def download_attachment(pid: int, aid: int, db: Session = Depends(get_db),
-                        user: User = Depends(get_current_user)):
+def download_attachment(
+    pid: int,
+    aid: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
     """附件下载：校验项目可见性 + 附件归属，防越权取件。
 
     只允许项目级附件；支出凭证要经 `/expenses/{id}/vouchers/{aid}/download` 取，
     以保证「支出可见性」与「凭证可见性」永远同源。
     """
     _get(db, pid, user)
-    a = db.query(Attachment).filter(
-        Attachment.id == aid, Attachment.project_id == pid,
-        or_(Attachment.ref_type.in_(("", "contract")), Attachment.ref_type.is_(None)),
-    ).first()
+    a = (
+        db.query(Attachment)
+        .filter(
+            Attachment.id == aid,
+            Attachment.project_id == pid,
+            or_(
+                Attachment.ref_type.in_(("", "contract")), Attachment.ref_type.is_(None)
+            ),
+        )
+        .first()
+    )
     if not a:
         raise HTTPException(404, "附件不存在")
     write_audit(db, user.id, "download_attachment", "attachments", a.id, a.filename)
@@ -486,14 +721,25 @@ def download_attachment(pid: int, aid: int, db: Session = Depends(get_db),
 
 
 @router.delete("/{pid}/attachments/{aid}")
-def delete_attachment(pid: int, aid: int, db: Session = Depends(get_db),
-                      user: User = Depends(get_current_user)):
+def delete_attachment(
+    pid: int,
+    aid: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
     """删除附件：项目可写者或上传者本人，同时清理磁盘文件。只限项目级附件。"""
     _get(db, pid, user, write=True)
-    a = db.query(Attachment).filter(
-        Attachment.id == aid, Attachment.project_id == pid,
-        or_(Attachment.ref_type.in_(("", "contract")), Attachment.ref_type.is_(None)),
-    ).first()
+    a = (
+        db.query(Attachment)
+        .filter(
+            Attachment.id == aid,
+            Attachment.project_id == pid,
+            or_(
+                Attachment.ref_type.in_(("", "contract")), Attachment.ref_type.is_(None)
+            ),
+        )
+        .first()
+    )
     if not a:
         raise HTTPException(404, "附件不存在")
     if a.uploaded_by != user.id and not is_admin(user):
@@ -508,8 +754,12 @@ def delete_attachment(pid: int, aid: int, db: Session = Depends(get_db),
 
 
 @router.put("/{pid}/members")
-def set_members(pid: int, body: dict, db: Session = Depends(get_db),
-                user: User = Depends(get_current_user)):
+def set_members(
+    pid: int,
+    body: dict,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
     """整体覆盖项目成员：负责人始终保留，变更写入留痕。"""
     from ..models import ProjectMember
 
@@ -523,21 +773,31 @@ def set_members(pid: int, body: dict, db: Session = Depends(get_db),
     for uid in wanted:
         if not db.query(User).filter_by(id=uid).first():
             raise HTTPException(400, f"用户 {uid} 不存在")
-    old = sorted({m.user_id for m in db.query(ProjectMember).filter_by(project_id=pid).all()})
+    old = sorted(
+        {m.user_id for m in db.query(ProjectMember).filter_by(project_id=pid).all()}
+    )
     db.query(ProjectMember).filter_by(project_id=pid).delete()
     for uid in wanted:
         db.add(ProjectMember(project_id=pid, user_id=uid))
-    db.add(ProjectChange(project_id=pid, field="members",
-                         old=",".join(map(str, old)), new=",".join(map(str, sorted(wanted))),
-                         by_id=user.id, at=datetime.now(timezone.utc)))
+    db.add(
+        ProjectChange(
+            project_id=pid,
+            field="members",
+            old=",".join(map(str, old)),
+            new=",".join(map(str, sorted(wanted))),
+            by_id=user.id,
+            at=datetime.now(timezone.utc),
+        )
+    )
     db.commit()
     write_audit(db, user.id, "set_members", "projects", pid, f"{old}->{sorted(wanted)}")
     return _p(db.query(Project).filter_by(id=pid).first())
 
 
 @router.delete("/{pid}")
-def delete_project(pid: int, db: Session = Depends(get_db),
-                   user: User = Depends(get_current_user)):
+def delete_project(
+    pid: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)
+):
     """软删除项目：仅管理员，数据保留可恢复（回收站见 GET /projects/recycle-bin）。"""
     require_admin(user)
     p = db.query(Project).filter_by(id=pid, deleted_at=None).first()
@@ -552,8 +812,9 @@ def delete_project(pid: int, db: Session = Depends(get_db),
 
 
 @router.post("/{pid}/restore")
-def restore_project(pid: int, db: Session = Depends(get_db),
-                    user: User = Depends(get_current_user)):
+def restore_project(
+    pid: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)
+):
     """从回收站恢复（仅管理员）。"""
     require_admin(user)
     p = db.query(Project).filter_by(id=pid).first()
@@ -566,8 +827,13 @@ def restore_project(pid: int, db: Session = Depends(get_db),
 
 
 @router.get("/recycle-bin/list")
-def recycle_bin(sort: str = "-deleted_at", page: int = 1, size: int = DEFAULT_PAGE_SIZE,
-                db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+def recycle_bin(
+    sort: str = "-deleted_at",
+    page: int = 1,
+    size: int = DEFAULT_PAGE_SIZE,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
     """回收站列表（仅管理员）：正常业务列表不看已软删除项目，回收站单独查看与恢复。
 
     统一分页信封；排序白名单 `id` / `deleted_at` / `code` / `name`，默认按删除时间倒序。
@@ -576,13 +842,28 @@ def recycle_bin(sort: str = "-deleted_at", page: int = 1, size: int = DEFAULT_PA
     q = db.query(Project).filter(Project.deleted_at.isnot(None))
 
     def _row(p: Project):
-        return {"id": p.id, "code": p.code, "name": p.name, "status": p.status,
-                "deleted_at": p.deleted_at.isoformat() if p.deleted_at else None}
+        return {
+            "id": p.id,
+            "code": p.code,
+            "name": p.name,
+            "status": p.status,
+            "deleted_at": p.deleted_at.isoformat() if p.deleted_at else None,
+        }
 
-    return paginate(q, page=page, size=size,
-                    allowed={"id": Project.id, "deleted_at": Project.deleted_at,
-                             "code": Project.code, "name": Project.name},
-                    default_sort="-deleted_at", sort=sort, map_row=_row)
+    return paginate(
+        q,
+        page=page,
+        size=size,
+        allowed={
+            "id": Project.id,
+            "deleted_at": Project.deleted_at,
+            "code": Project.code,
+            "name": Project.name,
+        },
+        default_sort="-deleted_at",
+        sort=sort,
+        map_row=_row,
+    )
 
 
 class FollowupIn(BaseModel):
@@ -598,10 +879,18 @@ FOLLOWUP_STATES = ("pending", "done", "ignored")
 
 
 @router.get("/{pid}/followups")
-def list_followups(pid: int, user_id: int = 0, date_from: str = "", date_to: str = "",
-                   remind_state: str = "", sort: str = "-id", page: int = 1,
-                   size: int = DEFAULT_PAGE_SIZE,
-                   db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+def list_followups(
+    pid: int,
+    user_id: int = 0,
+    date_from: str = "",
+    date_to: str = "",
+    remind_state: str = "",
+    sort: str = "-id",
+    page: int = 1,
+    size: int = DEFAULT_PAGE_SIZE,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
     """跟进列表：按人/时间/提醒状态筛 + 统一分页信封（默认 `-id`，最新在前）。
 
     `remind_state` 区分跟进提醒的可追踪状态（pending 待处理 / done 已通知或已处理 / ignored 已忽略），
@@ -609,7 +898,10 @@ def list_followups(pid: int, user_id: int = 0, date_from: str = "", date_to: str
     """
     _get(db, pid, user)
     if remind_state and remind_state not in FOLLOWUP_STATES:
-        raise HTTPException(400, f"remind_state 须为 {list(FOLLOWUP_STATES)} 之一，收到 {remind_state!r}")
+        raise HTTPException(
+            400,
+            f"remind_state 须为 {list(FOLLOWUP_STATES)} 之一，收到 {remind_state!r}",
+        )
     q = db.query(Followup).filter_by(project_id=pid)
     if user_id:
         q = q.filter_by(user_id=user_id)
@@ -617,43 +909,78 @@ def list_followups(pid: int, user_id: int = 0, date_from: str = "", date_to: str
         q = q.filter(Followup.remind_state == remind_state)
     df, dt = parse_date(date_from or None), parse_date(date_to or None)
     if df:
-        q = q.filter(or_(Followup.happened_at.is_(None),
-                         Followup.happened_at >= datetime(df.year, df.month, df.day)))
+        q = q.filter(
+            or_(
+                Followup.happened_at.is_(None),
+                Followup.happened_at >= datetime(df.year, df.month, df.day),
+            )
+        )
     if dt:
-        q = q.filter(or_(Followup.happened_at.is_(None),
-                         Followup.happened_at < datetime(dt.year, dt.month, dt.day, 23, 59, 59)))
+        q = q.filter(
+            or_(
+                Followup.happened_at.is_(None),
+                Followup.happened_at < datetime(dt.year, dt.month, dt.day, 23, 59, 59),
+            )
+        )
 
     def _f(f: Followup):
-        return {"id": f.id, "user_id": f.user_id, "method": f.method, "content": f.content,
-                "next_step": f.next_step,
-                "remind_at": f.remind_at.isoformat() if f.remind_at else None,
-                "remind_state": f.remind_state or "none",
-                "reminded_at": f.reminded_at.isoformat() if f.reminded_at else None,
-                "handled_at": f.handled_at.isoformat() if f.handled_at else None,
-                "handled_by": f.handled_by,
-                "handle_note": f.handle_note or "",
-                "happened_at": f.happened_at.isoformat() if f.happened_at else None}
+        return {
+            "id": f.id,
+            "user_id": f.user_id,
+            "method": f.method,
+            "content": f.content,
+            "next_step": f.next_step,
+            "remind_at": f.remind_at.isoformat() if f.remind_at else None,
+            "remind_state": f.remind_state or "none",
+            "reminded_at": f.reminded_at.isoformat() if f.reminded_at else None,
+            "handled_at": f.handled_at.isoformat() if f.handled_at else None,
+            "handled_by": f.handled_by,
+            "handle_note": f.handle_note or "",
+            "happened_at": f.happened_at.isoformat() if f.happened_at else None,
+        }
 
-    return paginate(q, page=page, size=size, allowed=FOLLOWUP_SORTS,
-                    default_sort="-id", sort=sort, map_row=_f)
+    return paginate(
+        q,
+        page=page,
+        size=size,
+        allowed=FOLLOWUP_SORTS,
+        default_sort="-id",
+        sort=sort,
+        map_row=_f,
+    )
 
 
 @router.post("/{pid}/followups")
-def create_followup(pid: int, body: FollowupIn, db: Session = Depends(get_db),
-                    user: User = Depends(get_current_user)):
+def create_followup(
+    pid: int,
+    body: FollowupIn,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
     """新建跟进：带 remind_at 时初始为 pending（待提醒），否则为 none（不参与提醒）。"""
     _get(db, pid, user, write=True)
     method = str(body.method or "").strip()
     if method and method not in FOLLOWUP_METHODS:
-        raise HTTPException(400, f"跟进方式须为 {sorted(FOLLOWUP_METHODS)} 之一，收到 {method!r}")
-    if body.remind_at is not None and body.happened_at and body.remind_at < body.happened_at:
+        raise HTTPException(
+            400, f"跟进方式须为 {sorted(FOLLOWUP_METHODS)} 之一，收到 {method!r}"
+        )
+    if (
+        body.remind_at is not None
+        and body.happened_at
+        and body.remind_at < body.happened_at
+    ):
         raise HTTPException(400, "提醒时间不能早于跟进时间")
-    f = Followup(project_id=pid, user_id=user.id,
-                 happened_at=body.happened_at or datetime.now(timezone.utc),
-                 method=method, content=body.content,
-                 next_step=body.next_step, remind_at=body.remind_at,
-                 remind_state="pending" if body.remind_at else "none",
-                 created_at=datetime.now(timezone.utc))
+    f = Followup(
+        project_id=pid,
+        user_id=user.id,
+        happened_at=body.happened_at or datetime.now(timezone.utc),
+        method=method,
+        content=body.content,
+        next_step=body.next_step,
+        remind_at=body.remind_at,
+        remind_state="pending" if body.remind_at else "none",
+        created_at=datetime.now(timezone.utc),
+    )
     db.add(f)
     db.flush()
     commit_audited(db, user.id, "create_followup", "followups", f.id, str(pid))
@@ -670,16 +997,26 @@ def _followup(db: Session, pid: int, fid: int, user: User):
 
 
 @router.patch("/{pid}/followups/{fid}")
-def update_followup(pid: int, fid: int, body: FollowupIn, db: Session = Depends(get_db),
-                    user: User = Depends(get_current_user)):
+def update_followup(
+    pid: int,
+    fid: int,
+    body: FollowupIn,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
     _get(db, pid, user, write=True)
     f = _followup(db, pid, fid, user)
     method = body.method or f.method
     if method and method not in FOLLOWUP_METHODS:
-        raise HTTPException(400, f"跟进方式须为 {sorted(FOLLOWUP_METHODS)} 之一，收到 {method!r}")
+        raise HTTPException(
+            400, f"跟进方式须为 {sorted(FOLLOWUP_METHODS)} 之一，收到 {method!r}"
+        )
     new_remind = body.remind_at
-    if new_remind is not None and (body.happened_at or f.happened_at) \
-            and new_remind < (body.happened_at or f.happened_at):
+    if (
+        new_remind is not None
+        and (body.happened_at or f.happened_at)
+        and new_remind < (body.happened_at or f.happened_at)
+    ):
         raise HTTPException(400, "提醒时间不能早于跟进时间")
     f.happened_at = body.happened_at or f.happened_at
     f.method = method
@@ -694,15 +1031,25 @@ def update_followup(pid: int, fid: int, body: FollowupIn, db: Session = Depends(
         f.remind_state = "pending"
         f.reminded_at, f.handled_at, f.handled_by, f.handle_note = None, None, None, ""
     commit_audited(db, user.id, "update_followup", "followups", fid, f"project={pid}")
-    return {"id": f.id, "content": f.content, "next_step": f.next_step, "method": f.method,
-            "remind_state": f.remind_state or "none",
-            "happened_at": f.happened_at.isoformat() if f.happened_at else None,
-            "remind_at": f.remind_at.isoformat() if f.remind_at else None}
+    return {
+        "id": f.id,
+        "content": f.content,
+        "next_step": f.next_step,
+        "method": f.method,
+        "remind_state": f.remind_state or "none",
+        "happened_at": f.happened_at.isoformat() if f.happened_at else None,
+        "remind_at": f.remind_at.isoformat() if f.remind_at else None,
+    }
 
 
 @router.post("/{pid}/followups/{fid}/remind")
-def handle_followup_remind(pid: int, fid: int, body: dict, db: Session = Depends(get_db),
-                           user: User = Depends(get_current_user)):
+def handle_followup_remind(
+    pid: int,
+    fid: int,
+    body: dict,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
     """处理跟进提醒（记录人或管理员）：标记已处理/已忽略，或重新打开为待处理。
 
     这是「跟进到期通知可追踪」的写入端：处理状态与处理人、时间、备注一并落库，
@@ -714,20 +1061,36 @@ def handle_followup_remind(pid: int, fid: int, body: dict, db: Session = Depends
     f = _followup(db, pid, fid, user)
     state = str(body.get("state", "done") or "done")
     if state not in FOLLOWUP_STATES:
-        raise HTTPException(400, f"state 须为 {list(FOLLOWUP_STATES)} 之一，收到 {state!r}")
+        raise HTTPException(
+            400, f"state 须为 {list(FOLLOWUP_STATES)} 之一，收到 {state!r}"
+        )
     if not f.remind_at:
         raise HTTPException(400, "该跟进没有设置提醒时间，无需处理提醒")
     handle_followup(db, f, state, user.id, str(body.get("note", "") or ""))
-    commit_audited(db, user.id, "handle_followup_remind", "followups", fid,
-                   f"state={state} project={pid}")
-    return {"id": f.id, "remind_state": f.remind_state,
-            "handled_at": f.handled_at.isoformat() if f.handled_at else None,
-            "handled_by": f.handled_by, "handle_note": f.handle_note or ""}
+    commit_audited(
+        db,
+        user.id,
+        "handle_followup_remind",
+        "followups",
+        fid,
+        f"state={state} project={pid}",
+    )
+    return {
+        "id": f.id,
+        "remind_state": f.remind_state,
+        "handled_at": f.handled_at.isoformat() if f.handled_at else None,
+        "handled_by": f.handled_by,
+        "handle_note": f.handle_note or "",
+    }
 
 
 @router.delete("/{pid}/followups/{fid}")
-def delete_followup(pid: int, fid: int, db: Session = Depends(get_db),
-                    user: User = Depends(get_current_user)):
+def delete_followup(
+    pid: int,
+    fid: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
     _get(db, pid, user, write=True)
     f = _followup(db, pid, fid, user)
     db.delete(f)
@@ -737,8 +1100,9 @@ def delete_followup(pid: int, fid: int, db: Session = Depends(get_db),
 
 
 @router.get("/{pid}/progress")
-def project_progress(pid: int, db: Session = Depends(get_db),
-                     user: User = Depends(get_current_user)):
+def project_progress(
+    pid: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)
+):
     """加权进度 Σ(进度×权重)/Σ权重（权重缺省均分）。"""
     p = _get(db, pid, user)
     tasks = db.query(Task).filter_by(project_id=pid).all()
@@ -753,8 +1117,9 @@ def project_progress(pid: int, db: Session = Depends(get_db),
 
 
 @router.post("/{pid}/progress/confirm")
-def confirm_progress(pid: int, db: Session = Depends(get_db),
-                     user: User = Depends(get_current_user)):
+def confirm_progress(
+    pid: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)
+):
     """负责人一键确认快照：重算加权进度并写入 project_changes 留痕+审计。"""
     p = _get(db, pid, user, write=True)
     if user.id != p.owner_id and not is_admin(user):
@@ -766,10 +1131,29 @@ def confirm_progress(pid: int, db: Session = Depends(get_db),
     old = str(p.progress or 0)
     now = datetime.now(timezone.utc)
     p.progress = val
-    db.add(ProjectChange(project_id=pid, field="progress_snapshot", old=old,
-                         new=str(val), by_id=user.id, at=now))
+    db.add(
+        ProjectChange(
+            project_id=pid,
+            field="progress_snapshot",
+            old=old,
+            new=str(val),
+            by_id=user.id,
+            at=now,
+        )
+    )
     db.commit()
-    write_audit(db, user.id, "confirm_progress", "projects", pid,
-                f"snapshot {old}->{val} tasks={len(tasks)}")
-    return {"project_id": pid, "progress": val, "task_count": len(tasks),
-            "confirmed_by": user.id, "confirmed_at": now.isoformat()}
+    write_audit(
+        db,
+        user.id,
+        "confirm_progress",
+        "projects",
+        pid,
+        f"snapshot {old}->{val} tasks={len(tasks)}",
+    )
+    return {
+        "project_id": pid,
+        "progress": val,
+        "task_count": len(tasks),
+        "confirmed_by": user.id,
+        "confirmed_at": now.isoformat(),
+    }

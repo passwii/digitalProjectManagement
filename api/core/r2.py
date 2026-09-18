@@ -13,6 +13,7 @@
 · **boto3 延迟导入**：仅使用本地存储（`STORAGE_BACKEND=local`）时不依赖 boto3 也能启动。
 · 传输失败统一包装成 `R2Unavailable` / `R2ObjectMissing`，不把 botocore 异常泄漏到 router。
 """
+
 from __future__ import annotations
 
 import io
@@ -65,8 +66,13 @@ class R2Settings:
 
     def fingerprint(self) -> tuple[str, str, str, str, str]:
         """客户端缓存键：任一项变化即重建客户端。"""
-        return (self.endpoint_url, self.access_key_id, self.secret_access_key,
-                self.bucket, self.region or "auto")
+        return (
+            self.endpoint_url,
+            self.access_key_id,
+            self.secret_access_key,
+            self.bucket,
+            self.region or "auto",
+        )
 
 
 @dataclass(frozen=True)
@@ -98,8 +104,11 @@ def build_client(settings: R2Settings):
         aws_secret_access_key=settings.secret_access_key,
         region_name=settings.region or "auto",
         # R2 只支持 SigV4，且路径风格必须显式开启（默认 virtual-host 会被拒）
-        config=Config(signature_version="s3v4", s3={"addressing_style": "path"},
-                      retries={"max_attempts": 3, "mode": "standard"}),
+        config=Config(
+            signature_version="s3v4",
+            s3={"addressing_style": "path"},
+            retries={"max_attempts": 3, "mode": "standard"},
+        ),
     )
 
 
@@ -145,8 +154,12 @@ def _is_missing(exc) -> bool:
     return code in {"NoSuchKey", "NoSuchBucket", "404"} or status == 404
 
 
-def upload_object(settings: R2Settings, data: bytes, key: str,
-                  content_type: str = "application/octet-stream") -> dict:
+def upload_object(
+    settings: R2Settings,
+    data: bytes,
+    key: str,
+    content_type: str = "application/octet-stream",
+) -> dict:
     """上传一段字节，返回 `{key, bucket, etag, size}`。
 
     上传前已由 `core.limits` 做体积上限校验，因此单次 PUT 足够（≤100MB，未触及 5GB 上限）。
@@ -155,8 +168,12 @@ def upload_object(settings: R2Settings, data: bytes, key: str,
 
     client = get_r2_client(settings)
     try:
-        resp = client.put_object(Bucket=settings.bucket, Key=key, Body=data,
-                                 ContentType=content_type or "application/octet-stream")
+        resp = client.put_object(
+            Bucket=settings.bucket,
+            Key=key,
+            Body=data,
+            ContentType=content_type or "application/octet-stream",
+        )
     except Exception as exc:
         raise R2Unavailable(f"R2 上传失败（{exc.__class__.__name__}）") from exc
     etag = str(resp.get("ETag") or "").strip('"')
@@ -226,8 +243,12 @@ def try_delete_object(settings: R2Settings, key: str) -> R2DeleteResult:
         client.delete_object(Bucket=settings.bucket, Key=key)
         return R2DeleteResult(success=True, key=key)
     except Exception as exc:  # noqa: BLE001
-        return R2DeleteResult(success=False, key=key,
-                              error_class=exc.__class__.__name__, error_message=str(exc))
+        return R2DeleteResult(
+            success=False,
+            key=key,
+            error_class=exc.__class__.__name__,
+            error_message=str(exc),
+        )
 
 
 def delete_object(settings: R2Settings, key: str) -> None:
@@ -247,7 +268,9 @@ def public_url(settings: R2Settings, key: str) -> str:
     """
     from urllib.parse import quote
 
-    base = (settings.public_url or f"{settings.endpoint_url}/{settings.bucket}").rstrip("/")
+    base = (settings.public_url or f"{settings.endpoint_url}/{settings.bucket}").rstrip(
+        "/"
+    )
     return f"{base}/{quote(sanitize_key(key), safe='/')}"
 
 

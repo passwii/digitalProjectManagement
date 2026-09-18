@@ -15,6 +15,7 @@ router 只负责鉴权与业务语义：
 同时兼容**存量数据**：`storage_backend` 为空/`local` 的旧行仍按磁盘路径读，
 不需要一次性迁移即可平滑运行；新写入的行按当前配置走后端。
 """
+
 from __future__ import annotations
 
 from collections.abc import Iterator
@@ -55,11 +56,21 @@ def _row_coords(row) -> tuple[str, str, str]:
     return backend, object_key, path
 
 
-def store_attachment(db: Session, *, domain: str, filename: str, content_type: str,
-                     data: bytes, project_id: int | None = None, ref_type: str = "",
-                     ref_id: int | None = None, category: str = "",
-                     uploaded_by: int | None = None, suffix: str = "",
-                     backend: StorageBackend | None = None) -> Attachment:
+def store_attachment(
+    db: Session,
+    *,
+    domain: str,
+    filename: str,
+    content_type: str,
+    data: bytes,
+    project_id: int | None = None,
+    ref_type: str = "",
+    ref_id: int | None = None,
+    category: str = "",
+    uploaded_by: int | None = None,
+    suffix: str = "",
+    backend: StorageBackend | None = None,
+) -> Attachment:
     """写正文并返回**未持久化**的 `Attachment` 行。
 
     调用方负责鉴权、体积/类型校验与 `commit_audited()`；本函数只做正文落位与元数据组装，
@@ -104,8 +115,9 @@ def attachment_blob_available(row) -> bool:
     return get_backend().exists(object_key, local_path)
 
 
-def attachment_response(row, *, filename: str | None = None,
-                        content_type: str | None = None) -> FileResponse | StreamingResponse:
+def attachment_response(
+    row, *, filename: str | None = None, content_type: str | None = None
+) -> FileResponse | StreamingResponse:
     """构造下载响应（`Content-Disposition` 统一带 UTF-8 文件名）。
 
     · 本地后端：`FileResponse` —— 原生支持 Range 断点续传；
@@ -122,7 +134,9 @@ def attachment_response(row, *, filename: str | None = None,
         path = Path(local_path)
         if not path.exists():
             raise HTTPException(404, _LOST_MSG)
-        return FileResponse(path, media_type=media_type, filename=name, headers=disposition)
+        return FileResponse(
+            path, media_type=media_type, filename=name, headers=disposition
+        )
 
     if not object_key:
         raise HTTPException(404, _LOST_MSG)
@@ -132,8 +146,11 @@ def attachment_response(row, *, filename: str | None = None,
         raise HTTPException(404, _LOST_MSG) from exc
     except R2Unavailable as exc:
         raise HTTPException(502, f"文件存储不可用，请稍后重试（{exc}）") from exc
-    return StreamingResponse(_guarded(chunks), media_type=media_type,
-                             headers=_stream_headers(disposition, size))
+    return StreamingResponse(
+        _guarded(chunks),
+        media_type=media_type,
+        headers=_stream_headers(disposition, size),
+    )
 
 
 _LOST_MSG = "附件文件已丢失，请联系管理员"
