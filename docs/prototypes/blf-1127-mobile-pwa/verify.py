@@ -78,6 +78,7 @@ GEOM = """() => {
   };
   return {
     screen: r('#screen'),
+    statusbar: r('#sb-login'),
     sheet: r('#sheet'),
     scrim: r('#scrim'),
     dock: r('#dock'),
@@ -125,12 +126,15 @@ with sync_playwright() as p:
           abs((g["card"]["x"] - g["screen"]["x"])
               - (g["screen"]["rr"] - g["card"]["rr"])) < 2)
 
-    # 居中基准是「品牌块 + 表单卡」这组：用两者中点判断
+    # 居中基准是「品牌块 + 表单卡」这组的中点。
+    # 手机框顶部 42px 是模拟状态栏，不属于可布局区：拿整屏中心去比天生会差半个
+    # 状态栏（实测 +20.5px），所以基准取「状态栏以下可用区」的中心。
     brand_top = page.evaluate("() => document.querySelector('.login-brand-block').getBoundingClientRect().top")
     group_center = (brand_top + g["card"]["b"]) / 2
-    check("登录「品牌块+表单卡」垂直居中于屏幕",
-          abs(group_center - (g["screen"]["y"] + g["screen"]["h"] / 2)) < 26,
-          f"group_center={group_center:.0f} screen_center={g['screen']['y'] + g['screen']['h'] / 2:.0f}")
+    avail_center = (g["statusbar"]["b"] + g["screen"]["b"]) / 2  # 状态栏底边 = 可用区顶边
+    check("登录「品牌块+表单卡」垂直居中于状态栏以下可用区",
+          abs(group_center - avail_center) < TOL,
+          f"group_center={group_center:.1f} avail_center={avail_center:.1f} dev={group_center - avail_center:+.1f}px")
     check("手机号输入框高度 >= 44px（触控达标）", g["phone"]["h"] >= 44, f"{g['phone']['h']:.0f}px")
     check("输入框字号 >= 16px（避免 iOS 聚焦自动放大）",
           page.evaluate("() => parseFloat(getComputedStyle(document.querySelector('#phone')).fontSize)") >= 16)
@@ -163,8 +167,8 @@ with sync_playwright() as p:
     check("登录后进入 App", page.locator("#view-app").is_visible())
     check("Dock 为 5 位", page.locator("#dock .tab").count() == 5,
           f"{page.locator('#dock .tab').count()} 位")
-    check("Dock 标签为 工作台/项目/进度/费用/我的",
-          page.locator("#dock .tab .lbl").all_inner_texts() == ["工作台", "项目", "进度", "费用", "我的"],
+    check("Dock 标签为 工作台/项目/进度/支出/我的",
+          page.locator("#dock .tab .lbl").all_inner_texts() == ["工作台", "项目", "进度", "支出", "我的"],
           str(page.locator("#dock .tab .lbl").all_inner_texts()))
     check("Dock 贴底", abs(g["dock"]["b"] - g["screen"]["b"]) < TOL,
           f"{g['dock']['b']:.1f} vs {g['screen']['b']:.1f}")
@@ -275,12 +279,12 @@ with sync_playwright() as p:
     check("管理员 Dock 出现待办红点", page.locator("#dock .badge-dot").count() >= 1)
     page.screenshot(path=str(SHOTS / "9-mine-admin.png"))
 
-    # ======================================================== 费用抽屉
+    # ======================================================== 支出抽屉
     page.click("#dock .tab[data-tab='costs']")
     page.wait_for_timeout(550)
     costs_text = page.locator("#sheetBody").inner_text()
-    check("费用抽屉含「支出记录」与「支出报表」", "支出记录" in costs_text and "支出报表" in costs_text)
-    check("费用抽屉含成本口径说明", "特批通过" in costs_text)
+    check("支出抽屉含「支出记录」与「支出报表」", "支出记录" in costs_text and "支出报表" in costs_text)
+    check("支出抽屉含支出/成本口径说明", "特批通过" in costs_text)
     page.screenshot(path=str(SHOTS / "10-costs-sheet.png"))
 
     # ======================================================== 窄屏 360
@@ -296,13 +300,22 @@ with sync_playwright() as p:
     page.screenshot(path=str(SHOTS / "11-narrow-360.png"))
 
     # ======================================================== 字号下限 / 无 JS 报错
-    worst = page.evaluate("""() => {
-      const vals = [];
-      document.querySelectorAll('#dock .lbl, .badge, .kpi .k, .pv-k, .pcard .code, .fchip')
-        .forEach(e => vals.push(parseFloat(getComputedStyle(e).fontSize)));
-      return vals.length ? Math.min(...vals) : 0;
-    }""")
-    check("最小字号 >= 10px", worst >= 10, f"min={worst}px")
+    # 两组分开采样：正文与标签下限是 10px；`.dot` / `.badge-dot` 是两位数字的小角标
+    # （圆角胶囊内 9.5px），设计上本就小于正文标签，不与正文用同一阈值。
+    sizes = page.evaluate("""() => {
+    const minOf = (sel) => {
+      const vals = [...document.querySelectorAll(sel)].map(e => parseFloat(getComputedStyle(e).fontSize));
+      return vals.length ? Math.min(...vals) : null;
+    };
+    return {
+      text: minOf('#dock .lbl, .badge, .kpi .k, .pv-k, .pcard .code, .fchip'),
+      badge: minOf('.dot, .badge-dot'),
+    };
+  }""")
+    text_min, badge_min = sizes["text"], sizes["badge"]
+    check("正文/标签字号 >= 10px，数字角标 >= 9.5px",
+          (text_min or 0) >= 10 and (badge_min is None or badge_min >= 9.5),
+          f"text_min={text_min}px badge_min={badge_min}px")
 
     browser.close()
 
