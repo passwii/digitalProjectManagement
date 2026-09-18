@@ -10,6 +10,9 @@
 #
 # 附件持久化：命名卷 pm-data 挂在 /app/data
 
+# 附件存储：R2 是正文唯一的持久化口径，容器磁盘/命名卷不再承担持久化职责
+# （命名卷只保留给 BLF-1136 之前落在 data/files 的存量附件）。
+
 services:
   api:
     build:
@@ -22,9 +25,12 @@ services:
       DB_POOL_SIZE: "${DB_POOL_SIZE:-5}"
       DB_MAX_OVERFLOW: "${DB_MAX_OVERFLOW:-10}"
       CORS_ORIGINS: "${CORS_ORIGINS:-http://localhost:3001,http://127.0.0.1:3001}"
-      # 附件对象存储（BLF-1136）：留空且 STORAGE_BACKEND=auto 时回落本地磁盘（会记 warning）；
-      # STORAGE_BACKEND=r2 时这四项必须配齐，否则容器启动即失败。
-      STORAGE_BACKEND: "${STORAGE_BACKEND:-auto}"
+      # 附件对象存储（BLF-1136）：R2 是正文唯一持久化口径。
+      # r2（默认）/ auto 在 R2_* 不全时**启动即失败**；local 仅开发/测试，写临时暂存目录，
+      # 且 APP_ENV=production 时被拒绝（生产环境不可能把正文落盘）。
+      STORAGE_BACKEND: "${STORAGE_BACKEND:-r2}"
+      APP_ENV: "${APP_ENV:-development}"
+      STORAGE_LOCAL_ROOT: "${STORAGE_LOCAL_ROOT:-}"
       R2_ENDPOINT_URL: "${R2_ENDPOINT_URL:-}"
       R2_ACCESS_KEY_ID: "${R2_ACCESS_KEY_ID:-}"
       R2_SECRET_ACCESS_KEY: "${R2_SECRET_ACCESS_KEY:-}"

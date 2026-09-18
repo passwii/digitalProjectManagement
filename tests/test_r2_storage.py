@@ -329,13 +329,90 @@ def test_client_is_cached_per_config_fingerprint(monkeypatch):
 # ============ 2. 抽象层 core.storage ============
 
 
-def test_backend_auto_falls_back_to_local_without_r2_config(monkeypatch):
+def test_backend_auto_does_not_fall_back_to_local_without_r2_config(monkeypatch):
+    """`auto` 不再回落本地盘：正文只存 R2，「没配凭据也能起服务」不再是可接受的代价。"""
     for key in R2_ENV:
         monkeypatch.delenv(key, raising=False)
     monkeypatch.setenv("STORAGE_BACKEND", "auto")
-    assert storage_mod.resolve_backend_name() == "local"
-    assert storage_mod.get_backend().name == "local"
-    assert storage_mod.storage_enabled() is False
+    with pytest.raises(RuntimeError, match="不回落本地磁盘"):
+        storage_mod.resolve_backend_name()
+
+
+def test_default_backend_is_r2(monkeypatch):
+    """不设 `STORAGE_BACKEND` 时默认 `r2`：安全的取值就是默认值。"""
+    for key, value in R2_ENV.items():
+        monkeypatch.setenv(key, value)
+    monkeypatch.delenv("STORAGE_BACKEND", raising=False)
+    assert storage_mod.resolve_backend_name() == "r2"
+
+
+def test_default_backend_without_r2_config_fails_at_startup(monkeypatch):
+    """默认值也是硬约束：没配凭据就起不来，而不是默默写到容器磁盘。"""
+    for key in R2_ENV:
+        monkeypatch.delenv(key, raising=False)
+    monkeypatch.delenv("STORAGE_BACKEND", raising=False)
+    with pytest.raises(RuntimeError, match="R2 配置不完整"):
+        storage_mod.resolve_backend_name()
+
+
+def test_unknown_storage_backend_value_fails_loudly(monkeypatch):
+    """取值写错（如 `s3`）必须报错，而不是当成某个默认后端。"""
+    monkeypatch.setenv("STORAGE_BACKEND", "s3")
+    with pytest.raises(RuntimeError, match="无法识别"):
+        storage_mod.resolve_backend_name()
+
+
+def test_local_backend_refused_in_production(monkeypatch):
+    """生产环境（`APP_ENV=production`）禁止本地后端 —— VPS 不允许持久化正文。"""
+    for key in R2_ENV:
+        monkeypatch.delenv(key, raising=False)
+    monkeypatch.setenv("STORAGE_BACKEND", "local")
+    monkeypatch.setenv("APP_ENV", "production")
+    with pytest.raises(RuntimeError, match="生产环境"):
+        storage_mod.resolve_backend_name()
+
+
+def test_local_staging_root_must_be_outside_app_dir(monkeypatch):
+    """本地后端落点不许在应用目录内：落进去就等于「在 VPS 上持久化」。"""
+    from api.core.database import ROOT
+
+    monkeypatch.setenv("STORAGE_BACKEND", "local")
+    monkeypatch.setenv("STORAGE_LOCAL_ROOT", str(ROOT / "data" / "files"))
+    with pytest.raises(RuntimeError, match="应用目录"):
+        storage_mod.resolve_backend_name()
+
+
+@pytest.mark.parametrize("raw", ["", "data/files"])
+@pytest.mark.parametrize("env", ["development", "test"])
+def test_local_staging_default_is_outside_app_dir(monkeypatch, raw, env):
+    """默认（或相对）落点要么在应用目录之外，要么直接报错。"""
+    from api.core.database import ROOT
+
+    monkeypatch.setenv("STORAGE_BACKEND", "local")
+    monkeypatch.setenv("APP_ENV", env)
+    monkeypatch.setenv("STORAGE_LOCAL_ROOT", raw)
+    if raw:
+        with pytest.raises(RuntimeError, match="应用目录"):
+            storage_mod.local_staging_root()
+        return
+    root = storage_mod.local_staging_root()
+    app_root = ROOT.resolve()
+    assert root != app_root and app_root not in root.parents
+
+
+def test_local_backend_stages_into_temp_root(local_storage, monkeypatch, tmp_path):
+    """本地后端的正文只写进 `STORAGE_LOCAL_ROOT`（临时暂存），不是应用目录。"""
+    from api.core.database import ROOT
+
+    staging = tmp_path / "staging"
+    monkeypatch.setenv("STORAGE_LOCAL_ROOT", str(staging))
+    key = storage_mod.build_object_key("project", "a.pdf")
+    target = storage_mod.local_path_for("project", "a.pdf", key, owner_id=7)
+    assert str(target).startswith(str(staging))
+    assert ROOT.resolve() not in target.resolve().parents
+    stored = storage_mod.LocalBackend().put(b"disk-body", key, target, "application/pdf")
+    assert Path(stored.path).read_bytes() == b"disk-body"
+    assert stored.object_key == ""
 
 
 def test_backend_auto_uses_r2_when_config_complete(monkeypatch):
@@ -795,7 +872,10 @@ def test_local_backend_still_works_end_to_end(
     path = str(_col(row, "path"))
     assert str(_col(row, "storage_backend")) in ("local", "")
     assert str(_col(row, "object_key")) == ""
-    assert path.startswith(str(ROOT / "data" / "files"))
+    # 本地后端只写临时暂存目录，**不落在应用目录（data 持久卷）里**
+    app_root = ROOT.resolve()
+    assert app_root not in Path(path).resolve().parents
+    assert path.startswith(str(storage_mod.local_staging_root()))
 
     assert Path(path).read_bytes() == b"on-disk"
 
@@ -956,11 +1036,9 @@ def test_row_backend_resolution_matches_row_coordinates(fake_s3):
         storage_mod.resolve_backend_name_from("s3", "k.pdf")
 
 
-def test_row_local_backend_needs_no_r2_credentials(local_storage, fake_s3_row_free=None):
+def test_row_local_backend_needs_no_r2_credentials(local_storage, tmp_path):
     """本地行即使 `R2_*` 全空也照常删除磁盘文件（不因缺凭据而报错）。"""
-    from api.core.database import ROOT
-
-    path = ROOT / "data" / "files" / "unit-local-row.bin"
+    path = tmp_path / "unit-local-row.bin"
     path.write_bytes(b"disk-body")
     backend = storage_mod.get_backend_for_row(type("Row", (), {
         "storage_backend": "local", "path": str(path), "object_key": "",
@@ -998,30 +1076,131 @@ def test_startup_lifespan_rejects_forced_r2_without_config(monkeypatch):
         pass
 
 
-def test_startup_lifespan_accepts_auto_without_config(monkeypatch):
-    """`auto` 且没配凭据时仍能启动（本地开发/CI 不该被凭据卡住）。"""
+def test_startup_lifespan_accepts_local_backend(monkeypatch):
+    """开发/测试环境显式 `local` 仍能启动（临时暂存，不触网、不需要凭据）。"""
     from fastapi.testclient import TestClient
 
     from api.main import app
 
     for name in R2_ENV:
         monkeypatch.delenv(name, raising=False)
-    monkeypatch.setenv("STORAGE_BACKEND", "auto")
+    monkeypatch.setenv("STORAGE_BACKEND", "local")
+    monkeypatch.setenv("APP_ENV", "test")
     with TestClient(app) as c:
         body = c.get("/health").json()
     assert body["ok"] is True and body["storage_backend"] == "local"
     assert "storage_bucket" not in body
 
 
-def test_auto_fallback_logs_warning(monkeypatch, caplog):
-    """`auto` 静默回落本地盘是本 PR 要防的场景之一：至少要留一条 warning。"""
+def test_startup_lifespan_rejects_local_backend_in_production(monkeypatch):
+    """生产环境选本地后端 → 应用启动即失败（不是起来后每个请求才炸）。"""
+    from fastapi.testclient import TestClient
+
+    from api.main import app
+
+    for name in R2_ENV:
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setenv("STORAGE_BACKEND", "local")
+    monkeypatch.setenv("APP_ENV", "production")
+    with pytest.raises(RuntimeError, match="生产环境"), TestClient(app):
+        pass
+
+
+def test_local_backend_logs_staging_warning(monkeypatch, caplog):
+    """本地临时暂存要留一条 warning：让人看得见「这不是持久化存储」。"""
     import logging
 
     for name in R2_ENV:
         monkeypatch.delenv(name, raising=False)
-    monkeypatch.setenv("STORAGE_BACKEND", "auto")
+    monkeypatch.setenv("STORAGE_BACKEND", "local")
+    monkeypatch.setenv("APP_ENV", "test")
     with caplog.at_level(logging.WARNING, logger="api.core.storage"):
         assert storage_mod.resolve_backend_name() == "local"
-    assert any("回落本地磁盘" in r.message for r in caplog.records)
-    # 只报「哪些变量没配」，绝不回显值
+    assert any("临时暂存" in r.message for r in caplog.records)
+    # 只报落点与变量名，绝不回显值
     assert FAKE_SECRET not in caplog.text
+
+
+# ============ 8. 「R2 是唯一持久化口径」在 API 层的落地 ============
+
+
+def test_production_upload_writes_only_to_r2_and_never_to_disk(
+    client, session: Session, fake_s3, monkeypatch, tmp_path
+):
+    """生产环境上传：正文只进 R2，服务器磁盘上不产生任何附件文件。
+
+    用户口径「上传可以短暂在 VPS 停留，但唯一持久化存储是 R2」的回归点。
+    走 R2 时**连磁盘暂存路径都不会生成**（本地盘只服务开发/测试）。
+    """
+    monkeypatch.setenv("APP_ENV", "production")
+    staging = tmp_path / "staging"
+    monkeypatch.setenv("STORAGE_LOCAL_ROOT", str(staging))
+    h = login(client, "pm")
+    p = mkproject(client, h, "PR2ProdOnly")
+
+    up = client.post(
+        f"/api/v1/projects/{p['id']}/attachments",
+        headers=h,
+        files={"file": ("prod.pdf", b"prod-body", "application/pdf")},
+    )
+    assert up.status_code == 200, up.text
+    aid = up.json()["id"]
+    row = _row_of(session, aid)
+    assert str(_col(row, "storage_backend")) == "r2"
+    assert str(_col(row, "path")).startswith(ENDPOINT)
+    assert list(fake_s3.objects) == [str(_col(row, "object_key"))]
+    # 没有任何磁盘落点：临时暂存目录压根没被创建
+    assert not staging.exists()
+
+    # 下载走的也是 R2 正文（字节一致），删除同时清 R2 对象
+    dl = client.get(f"/api/v1/projects/{p['id']}/attachments/{aid}/download", headers=h)
+    assert dl.status_code == 200, dl.text
+    assert dl.content == b"prod-body"
+    assert client.delete(f"/api/v1/projects/{p['id']}/attachments/{aid}", headers=h).status_code == 200
+    assert fake_s3.objects == {}
+
+
+def test_misconfigured_backend_returns_502_not_500(client, monkeypatch):
+    """`get_backend()` 的配置错误要收敛成 502（可重试）且不产生元数据，不是裸 500。"""
+    h = login(client, "pm")
+    p = mkproject(client, h, "PR2Misconfig")
+    for name in R2_ENV:
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setenv("STORAGE_BACKEND", "r2")
+
+    up = client.post(
+        f"/api/v1/projects/{p['id']}/attachments",
+        headers=h,
+        files={"file": ("x.pdf", b"x", "application/pdf")},
+    )
+    assert up.status_code == 502, up.text
+    assert client.get(f"/api/v1/projects/{p['id']}/attachments", headers=h).json() == []
+
+
+def test_unknown_row_backend_on_download_and_delete_is_502(
+    client, session: Session, fake_s3, monkeypatch
+):
+    """行内 `storage_backend` 非法（如 `s3`）时，读/删都是 502 + 保留元数据，不是裸 500。"""
+    from sqlalchemy import update
+
+    h = login(client, "pm")
+    p = mkproject(client, h, "PR2BadRow")
+    aid = client.post(
+        f"/api/v1/projects/{p['id']}/attachments",
+        headers=h,
+        files={"file": ("bad.pdf", b"body", "application/pdf")},
+    ).json()["id"]
+
+    session.execute(
+        update(Attachment).where(Attachment.id == aid).values(storage_backend="s3")
+    )
+    session.commit()
+
+    dl = client.get(f"/api/v1/projects/{p['id']}/attachments/{aid}/download", headers=h)
+    assert dl.status_code == 502, dl.text
+    assert "已丢失" not in dl.text
+
+    rm = client.delete(f"/api/v1/projects/{p['id']}/attachments/{aid}", headers=h)
+    assert rm.status_code == 502, rm.text
+    # 元数据保留：对象仍可被追踪、人工修正后重试删除
+    assert session.query(Attachment).filter_by(id=aid).count() == 1

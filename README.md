@@ -199,23 +199,29 @@ PostgreSQL 是整个系统的 **System of Record**。预算审批、支出状态
 
 ## 5. 对象存储架构：Cloudflare R2（S3 兼容）
 
-### 5.1 `[ 现状／已实现 ]` 本地文件系统 + Cloudflare R2 双后端
+### 5.1 `[ 现状／已实现 ]` Cloudflare R2 为正文唯一持久化口径（本地仅临时暂存）
 
-附件正文自 BLF-1136 起支持两个后端。`STORAGE_BACKEND` 只决定**新上传**落到哪里（`auto` / `local` / `r2`）：
+附件正文自 BLF-1136 起有两个后端，但**唯一被认可的持久化口径是 Cloudflare R2**：
+服务器磁盘只允许在上传途中「短暂停留」（`UploadFile` 的 spool 文件、内存缓冲），
+任何配置组合都不允许把正文落盘持久化。`STORAGE_BACKEND` 只决定**新上传**落到哪里：
 
-- `auto`（默认）：`R2_*` 配齐就用 R2，否则回落本地磁盘（回落会记一条 warning，不静默）；
-- `r2`：新上传强制走对象存储，配置不全时**应用 lifespan 启动即失败**（不允许「以为在用 R2、其实写容器磁盘」）；
-- `local`：新上传落本地磁盘（离线演示）。**它不是整体回滚开关**。
+- `r2`（**默认**）：新上传强制走对象存储，`R2_*` 配不全时**应用 lifespan 启动即失败**；
+- `auto`：`R2_*` 配齐就走 R2，**配不齐同样启动即失败**（不再静默回落本地盘）；
+- `local`：仅开发/测试显式可用，正文写进 `STORAGE_LOCAL_ROOT`（默认系统临时目录，
+  **不是持久卷**），且 `APP_ENV=production` 时该取值被**直接拒绝**。
+
+配套硬校验：`local_staging_root()` 不允许落点位于应用目录（容器里的 `/app`，含 `data`
+持久卷）内。所以「VPS 不落盘」不靠约定，而是配置一错就起不来。
 
 已存在附件的下载与删除**永远按行内坐标**（`attachments.storage_backend` / `object_key` / `path`）选后端，
 与当前 `STORAGE_BACKEND` 无关（`storage.get_backend_for_row()`）。所以把开关改回 `local` 后：
 存量 R2 附件照常从 R2 下载、删除时也真的删掉 R2 对象，只是新上传改落本地盘（「读旧的、写新的」）。
 反之，行在 R2 而 `R2_*` 缺失时会返回 `502` 并**保留元数据**（绝不静默 404 或假装删除成功）。
 
-本地后端仍在 `pm-data` 持久卷的 `data/files` 下，但目录布局自 BLF-1136 起为
-`data/files/{domain}/{owner_id}/{uuid}{ext}`（**与接入前的 `data/files/{pid}/...` 不同**）：
-存量附件按行内 `path` 读、不受影响，但新写入的文件不再落在旧目录、磁盘上也不再保留原始文件名
-（原名只存库里）。`scripts/seed_mock.py` 的演示数据仍用旧布局，与新写入不互通，属已知差异。
+存量附件（BLF-1136 之前落在 `data/files/{pid}/...` 的行）仍按行内 `path` 读，不受布局变化影响；
+本地后端新写入的暂存路径为 `{STORAGE_LOCAL_ROOT}/{domain}/{owner_id}/{uuid}{ext}`，
+磁盘上不保留原始文件名（原名只存库里）。`scripts/seed_mock.py` 的演示数据仍用旧布局，属已知差异。
+要让存量附件也不再依赖服务器磁盘，跑 `scripts/migrate_attachments_to_r2.py --apply --verify --delete-local`。
 
 项目附件、支出凭证、通讯录证件和劳动合同共用 `attachments` 表，通过 `ref_type`、`ref_id`、`category` 区分。
 
@@ -248,8 +254,8 @@ class StorageBackend(Protocol):
 
 适配器：
 
-- `LocalBackend`：兼容现有机房或开发环境（本地行 `object_key` 为空）。
-- `R2Backend`：通过 S3-compatible Endpoint、SigV4 签名和存储桶访问 Cloudflare R2。
+- `LocalBackend`：**仅开发/测试**用的临时暂存后端（落在 `STORAGE_LOCAL_ROOT` 指定的应用目录之外的位置，`object_key` 为空，进程/临时目录清理后即消失）。
+- `R2Backend`：通过 S3-compatible Endpoint、SigV4 签名和存储桶访问 Cloudflare R2（生产唯一后端）。
 
 能力差异：R2 下载走 `StreamingResponse`，**不支持 Range 断点续传**（本地后端走 `FileResponse`，支持）。
 100MB 附件的中断重传会从 0 开始，前端目前是 blob 全量下载，暂无功能回归。
@@ -345,13 +351,15 @@ Cloudflare R2 作为唯一目标对象存储，通过 S3-compatible API 提供�
 Bucket、Endpoint、Region、路径风格和凭据均通过配置注入：
 
 ```dotenv
-STORAGE_BACKEND=s3
-S3_ENDPOINT_URL=https://<account_id>.r2.cloudflarestorage.com
-S3_REGION=auto
-S3_BUCKET=
-S3_ACCESS_KEY_ID=
-S3_SECRET_ACCESS_KEY=
-S3_FORCE_PATH_STYLE=false
+# 当前实现（BLF-1136）实际读取的变量名：
+STORAGE_BACKEND=r2
+APP_ENV=production
+R2_ENDPOINT_URL=https://<account_id>.r2.cloudflarestorage.com
+R2_REGION=auto
+R2_BUCKET_NAME=
+R2_ACCESS_KEY_ID=
+R2_SECRET_ACCESS_KEY=
+R2_PUBLIC_URL=
 ```
 
 ### 5.7 生命周期、版本控制与迁移
