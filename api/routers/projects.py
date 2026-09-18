@@ -5,7 +5,7 @@ from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from pydantic import BaseModel
-from sqlalchemy import or_
+from sqlalchemy import and_, or_
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -134,6 +134,30 @@ def keyword_condition(keyword: str):
     )
 
 
+def owner_condition(db: Session, owner_id: int = 0, owner: str = ""):
+    """负责人过滤（BLF-1148）：`owner_id` 精确匹配；`owner` 按姓名精确匹配。
+
+    姓名匹配同时覆盖两列：`owner_name` 精确相等，或 `owner_id` 指向同名用户。
+    后者兼容历史脏数据（展示名是某人、但 `owner_id` 陈旧/为空的项目），
+    避免「按负责人筛选出来的是全部或空白」。无条件时返回 None（不过滤）。
+    """
+    conds = []
+    if owner_id:
+        conds.append(Project.owner_id == owner_id)
+    name = (owner or "").strip()
+    if name:
+        same_name_ids = [
+            row[0] for row in db.query(User.id).filter(User.real_name == name).all()
+        ]
+        name_cond = Project.owner_name == name
+        if same_name_ids:
+            name_cond = or_(name_cond, Project.owner_id.in_(same_name_ids))
+        conds.append(name_cond)
+    if not conds:
+        return None
+    return and_(*conds) if len(conds) > 1 else conds[0]
+
+
 def _keyword_snippet(project: Project, keyword: str) -> str:
     """关键词命中的纯文本摘要；不返回 HTML，避免把用户输入当标记渲染。"""
     sources = [project.description, project.name, project.client, project.code]
@@ -195,6 +219,7 @@ def list_projects(
     code: str = "",
     status: str = "",
     owner_id: int = 0,
+    owner: str = "",
     dept_id: int = 0,
     keyword: str = "",
     date_from: str = "",
@@ -219,8 +244,9 @@ def list_projects(
         q = q.filter(keyword_condition(keyword))
     if status:
         q = q.filter_by(status=status)
-    if owner_id:
-        q = q.filter_by(owner_id=owner_id)
+    owner_cond = owner_condition(db, owner_id=owner_id, owner=owner)
+    if owner_cond is not None:
+        q = q.filter(owner_cond)
     if dept_id:
         q = q.filter_by(dept_id=dept_id)
     df, dt = parse_date(date_from or None), parse_date(date_to or None)
@@ -255,6 +281,7 @@ def project_options(
     keyword: str = "",
     status: str = "",
     owner_id: int = 0,
+    owner: str = "",
     sort: str = "-id",
     page: int = 1,
     size: int = DEFAULT_PAGE_SIZE,
@@ -282,8 +309,9 @@ def project_options(
         q = q.filter(or_(Project.name.like(like), Project.code.like(like)))
     if status:
         q = q.filter(Project.status == status)
-    if owner_id:
-        q = q.filter(Project.owner_id == owner_id)
+    owner_cond = owner_condition(db, owner_id=owner_id, owner=owner)
+    if owner_cond is not None:
+        q = q.filter(owner_cond)
     vis = project_scope_condition(user, db)  # 含演示数据开关
     if vis is not None:
         q = q.filter(vis)
@@ -484,6 +512,25 @@ def update_project(
             continue
         if f == "owner_name":
             v = str(v or "").strip()
+            # 仅改名未带 owner_id 时尝试重链（BLF-1148）：新名精确命中唯一用户则同步
+            # owner_id，避免「展示名是 A、筛选 id 却是 B」的口径分裂；命中不到/多个则
+            # 保持原 owner_id（读侧 owner 条件同时覆盖 owner_name，不会筛丢）。
+            if "owner_id" not in body and v and v != (p.owner_name or ""):
+                linked = db.query(User).filter(User.real_name == v).all()
+                # 纯值比较（str 化）：实例属性在右侧时保持 bool 语义，避免 Column 表达式
+                if len(linked) == 1 and str(linked[0].id) != str(p.owner_id or ""):
+                    old_owner = p.owner_id
+                    p.owner_id = linked[0].id
+                    db.add(
+                        ProjectChange(
+                            project_id=pid,
+                            field="owner_id",
+                            old=str(old_owner or ""),
+                            new=str(linked[0].id),
+                            by_id=user.id,
+                            at=now,
+                        )
+                    )
         if f in ("plan_start", "plan_end"):
             v = parse_date(v)
         old = getattr(p, f)
