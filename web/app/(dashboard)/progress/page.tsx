@@ -18,7 +18,7 @@ import ProjectPicker from "@/components/ui/ProjectPicker";
 import { LoadingBlock, LoadFailed } from "@/components/ui/PageState";
 import { Confirm } from "@/components/ui/Modal";
 import { useToast } from "@/components/ui/Toast";
-import PageHeading from "@/components/ui/PageHeading";
+import PageActions from "@/components/ui/PageActions";
 import MotionReveal from "@/components/motion/MotionReveal";
 import { useActivity } from "@/lib/useActivity";
 import ProgressNodeDialog from "./ProgressNodeDialog";
@@ -85,9 +85,8 @@ function ProgressInner() {
 
   return (
     <div>
-      <PageHeading
+      <PageActions
         title="进度跟踪"
-        description="记录项目关键节点，持续更新交付进展和阶段结果。"
         actions={
           <button
             className="btn-primary"

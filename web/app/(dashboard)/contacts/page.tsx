@@ -14,7 +14,7 @@ import Badge from "@/components/ui/Badge";
 import Empty from "@/components/ui/Empty";
 import Pagination from "@/components/ui/Pagination";
 import { LoadingBlock, LoadFailed } from "@/components/ui/PageState";
-import PageHeading from "@/components/ui/PageHeading";
+import PageActions from "@/components/ui/PageActions";
 import TableToolbar from "@/components/ui/TableToolbar";
 import ContactDrawer from "./ContactDrawer";
 
@@ -99,9 +99,8 @@ function ContactsInner() {
 
   return (
     <div>
-      <PageHeading
+      <PageActions
         title="通讯录"
-        description="管理员人员主数据：无账号人员可直接建档，系统账号可选关联，证件和合同集中管理。"
         actions={
           <button
             className="btn-primary"

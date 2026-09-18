@@ -12,7 +12,7 @@ import { EXPENSE_PEOPLE, fmtMoney } from "@/lib/labels";
 import Empty from "@/components/ui/Empty";
 import Pagination from "@/components/ui/Pagination";
 import ProjectPicker from "@/components/ui/ProjectPicker";
-import PageHeading from "@/components/ui/PageHeading";
+import PageActions from "@/components/ui/PageActions";
 import { LoadingBlock, LoadFailed } from "@/components/ui/PageState";
 import ProgressBar from "@/components/ui/ProgressBar";
 import CountUp from "@/components/motion/CountUp";
@@ -145,9 +145,8 @@ function ReportsInner() {
 
   return (
     <div>
-      <PageHeading
+      <PageActions
         title="支出报表"
-        description="按项目、部门、人员和月份汇总查看已通过支出。"
         actions={
           <>
           {VIEWS.map((v) => (

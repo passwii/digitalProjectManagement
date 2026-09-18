@@ -1120,6 +1120,10 @@ td.num, th.num { text-align: right; }
 @media (max-width: 640px) {
   .page-head .actions { gap: 6px; }
   .page-head .actions > * { flex: 1 1 auto; }
+  /* 只有操作、没有标题的行（.page-head.actions-only，仅 PageActions 在用）：单按钮页
+     窄屏同样要铺满贴左。上面那条 > * 只能让按钮在 .actions **内部**伸展，.actions 自身
+     若是内容宽，整行就会缩到右侧变成小胶囊——这里用 (0,3,0) 特异性把它拉满并左对齐。 */
+  .page-head.actions-only .actions { width: 100%; justify-content: flex-start; }
   .page-head h1 { font-size: 19px; }
   .page-head .sub { width: 100%; margin: 4px 0 0; }
   .kpi-row { grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); }

@@ -15,7 +15,7 @@ import Pagination from "@/components/ui/Pagination";
 import { LoadingBlock, LoadFailed, NoAccess } from "@/components/ui/PageState";
 import { Confirm, Drawer } from "@/components/ui/Modal";
 import { useToast } from "@/components/ui/Toast";
-import PageHeading from "@/components/ui/PageHeading";
+import PageActions from "@/components/ui/PageActions";
 import MotionTabs from "@/components/motion/MotionTabs";
 import { useActivity } from "@/lib/useActivity";
 import DictDialog from "./DictDialog";
@@ -152,24 +152,20 @@ function AdminInner() {
   const [paramEdit, setParamEdit] = useState<{ key: string; value: string } | null>(null);
   const [confirm, setConfirm] = useState<{ title: string; text?: string; danger?: boolean; run: () => Promise<void> } | null>(null);
 
+  // 主操作随页签变化；没有主操作的页签（角色 / 参数 / 日志 / 回收站）不传，
+  // 由 PageActions 不渲染操作行——避免又留一条空白行（BLF-1140）
+  const pageActions =
+    tab === "用户" ? (
+      <button className="btn-primary" onClick={() => { setEditingUser(null); setUserOpen(true); }}>
+        + 新增用户
+      </button>
+    ) : tab === "字典" ? (
+      <button className="btn-primary" onClick={() => setDictOpen(true)}>+ 字典项</button>
+    ) : null;
+
   return (
     <div>
-      <PageHeading
-        title="系统管理"
-        description="维护用户、业务字典、系统参数、审计日志和回收站。"
-        actions={
-          <>
-          {tab === "用户" && (
-            <button className="btn-primary" onClick={() => { setEditingUser(null); setUserOpen(true); }}>
-              + 新增用户
-            </button>
-          )}
-          {tab === "字典" && (
-            <button className="btn-primary" onClick={() => setDictOpen(true)}>+ 字典项</button>
-          )}
-          </>
-        }
-      />
+      <PageActions title="系统管理" actions={pageActions} />
 
       {active.error && <LoadFailed message={active.error} onRetry={active.reload} />}
 

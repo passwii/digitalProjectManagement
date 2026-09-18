@@ -15,7 +15,7 @@ import Badge from "@/components/ui/Badge";
 import Empty from "@/components/ui/Empty";
 import ProgressBar from "@/components/ui/ProgressBar";
 import { LoadingBlock } from "@/components/ui/PageState";
-import PageHeading from "@/components/ui/PageHeading";
+import PageActions from "@/components/ui/PageActions";
 import CountUp from "@/components/motion/CountUp";
 import MotionStagger from "@/components/motion/MotionStagger";
 import { useActivity } from "@/lib/useActivity";
@@ -61,9 +61,8 @@ export default function DashboardPage() {
 
   return (
     <div>
-      <PageHeading
+      <PageActions
         title="工作台"
-        description="快速查看项目健康度、近期动态和关键经营数据。"
         actions={
           <>
           <button className="btn-ghost" onClick={load}>刷新</button>
