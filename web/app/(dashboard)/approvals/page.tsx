@@ -14,7 +14,7 @@ import Empty from "@/components/ui/Empty";
 import { LoadingBlock, LoadFailed, NoAccess } from "@/components/ui/PageState";
 import { Confirm } from "@/components/ui/Modal";
 import { useToast } from "@/components/ui/Toast";
-import PageHeading from "@/components/ui/PageHeading";
+import PageActions from "@/components/ui/PageActions";
 import CountUp from "@/components/motion/CountUp";
 import MotionReveal from "@/components/motion/MotionReveal";
 import MotionStagger from "@/components/motion/MotionStagger";
@@ -149,9 +149,8 @@ function ApprovalsInner() {
 
   return (
     <div>
-      <PageHeading
+      <PageActions
         title="审批中心"
-        description="集中处理立项、预算调整和支出审批待办。"
         actions={
           <button className="btn-ghost" onClick={load} disabled={loading} aria-busy={loading}>
             {loading ? "刷新中…" : "刷新"}

@@ -18,7 +18,7 @@ import { LoadingBlock, LoadFailed } from "@/components/ui/PageState";
 import TableToolbar from "@/components/ui/TableToolbar";
 import { Confirm, Drawer } from "@/components/ui/Modal";
 import { useToast } from "@/components/ui/Toast";
-import PageHeading from "@/components/ui/PageHeading";
+import PageActions from "@/components/ui/PageActions";
 import MotionReveal from "@/components/motion/MotionReveal";
 import ProjectFormDialog from "./ProjectFormDialog";
 
@@ -114,9 +114,8 @@ function ProjectsInner() {
 
   return (
     <div>
-      <PageHeading
+      <PageActions
         title="项目台账"
-        description="集中查看项目状态、负责人、预算与合同信息。"
         actions={
           <button
             className="btn-primary"

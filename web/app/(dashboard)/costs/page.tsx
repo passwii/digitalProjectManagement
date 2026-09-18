@@ -20,7 +20,7 @@ import { LoadingBlock, LoadFailed } from "@/components/ui/PageState";
 import ProgressBar from "@/components/ui/ProgressBar";
 import { Confirm, Dialog } from "@/components/ui/Modal";
 import { useToast } from "@/components/ui/Toast";
-import PageHeading from "@/components/ui/PageHeading";
+import PageActions from "@/components/ui/PageActions";
 import CountUp from "@/components/motion/CountUp";
 import MotionReveal from "@/components/motion/MotionReveal";
 import MotionStagger from "@/components/motion/MotionStagger";
@@ -148,9 +148,8 @@ function CostsInner() {
 
   return (
     <div>
-      <PageHeading
+      <PageActions
         title="支出记录"
-        description="按项目登记支出，查看预算执行情况和审批状态。"
         actions={
           <button
             className="btn-primary"
