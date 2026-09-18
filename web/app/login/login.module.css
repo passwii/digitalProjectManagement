@@ -283,3 +283,117 @@
   .cardBadge { width: 42px; height: 42px; }
   .card h2 { font-size: 20px; }
 }
+
+/*
+ * 手机端（≤767px）：登录页真居中。
+ *
+ * 契约：docs/superpowers/specs/2026-09-18-mobile-pwa-navigation-design.md §5 + §7。
+ * 桌面是「左品牌故事 + 右表单」两栏；手机端把品牌故事压成卡片上方的一个品牌块
+ * （SHZK 印章仍在卡片头里），整组「品牌块 + 表单卡」在视口里垂直居中。
+ * 断点取 767px（而不是上面那几个 900px）：767px 才是手机，与手机壳的断点一致。
+ * 本块放在 980px / 520px 分支之后：≤520px 时两块同时命中，以本块为准。
+ */
+@media (max-width: 767px) {
+  .wrap {
+    position: relative;
+    z-index: 0;                 /* 纹理用 z-index:-1 垫在底色之上、卡片之下 */
+    display: flex;
+    flex-direction: column;
+    /* 手机上 100vh 含地址栏，会把内容顶偏；dvh 才是真正看得见的高度。
+       上面留 vh 兜底，老浏览器只多一点点滚动，不会丢掉居中。 */
+    min-height: 100vh;
+    min-height: 100dvh;
+    /* 不写 overflow: hidden：视口比整组矮时（横屏 / 极小屏）必须还能往下滚到主按钮 */
+    /* 深色底 + 顶部径向蓝光：桌面 .story 的底色（--navy-deep #0D2B4E）搬到整页 */
+    background:
+      radial-gradient(120% 60% at 50% -10%, rgba(22, 119, 255, 0.2), transparent 70%),
+      #0D2B4E;
+    /* 上下留白对称：整组的中点才落在视口中心（安全区上下不等时按可用区居中） */
+    padding: calc(env(safe-area-inset-top, 0px) + 16px) 22px
+      calc(env(safe-area-inset-bottom, 0px) + 16px);
+  }
+
+  /* 品牌块：原来的左侧深色故事栏，手机端只留字标 + slogan。
+     居中用 auto margin 而不是 justify-content: center——视口比整组还矮时
+     （软键盘抬起 / 横屏），center 会让整组上下同时溢出且顶部滚不到；
+     auto margin 在空间不足时退化成 0，内容从顶部对齐，仍可滚动。 */
+  .story {
+    position: static;
+    overflow: visible;
+    min-height: auto;
+    margin: auto 0 26px;
+    padding: 0;
+    background: none;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    text-align: center;
+  }
+  /* 右下角圆环让位给顶部径向渐变 */
+  .story::after { display: none; }
+  /* 网格纹理：跟着整页走，不再只铺左侧栏（.story 已 static → 相对 .wrap 定位） */
+  .storyGrid {
+    inset: 0;
+    z-index: -1;
+    opacity: 0.1;
+    background-size: 46px 46px;
+    mask-image: linear-gradient(180deg, #000 0%, transparent 62%);
+  }
+  .storyTop { justify-content: center; }
+  .storyTop .edition { display: none; }
+  .mark { font-size: 25px; letter-spacing: 0.14em; }
+  .storyMain { padding: 0; max-width: none; }
+  /* 桌面大标题与 kicker 在手机端删掉：品牌块只留字标 + slogan */
+  .kicker,
+  .storyMain h1 { display: none; }
+  .storyText {
+    max-width: none;
+    margin: 0;
+    color: rgba(226, 238, 255, 0.62);
+    font-size: 12.5px;
+    line-height: 1.6;
+    letter-spacing: 0.18em;
+  }
+  /* 01/02/03 卖点行删掉 */
+  .storyFoot { display: none; }
+
+  /* 表单区：高度只由卡片决定（卡片下方的版权行脱离文档流，不参与居中） */
+  .auth {
+    position: static;           /* 让 .copyright 相对 .wrap 贴底，而不是贴卡片底 */
+    min-height: auto;
+    margin-bottom: auto;
+    padding: 0;
+    display: block;
+  }
+  .card {
+    width: 100%;
+    border: 0;
+    border-radius: 14px;
+    padding: 22px 20px 20px;
+    box-shadow: 0 22px 54px rgba(6, 22, 42, 0.38);
+  }
+  .card h2 { font-size: 18px; letter-spacing: 0.01em; }
+  .field { margin-bottom: 13px; }
+  .field label { font-size: 12px; }
+  .field input {
+    height: 46px;               /* ≥ 触控下限 --m-tap(44px) */
+    border-radius: 10px;
+    /* 必须 ≥16px：iOS Safari 在 <16px 的输入框聚焦时会自动放大整页 */
+    font-size: 16px;
+  }
+  .alert { margin-bottom: 12px; font-size: 12.5px; }
+  .submit { height: 48px; border-radius: 11px; font-size: 15.5px; }
+  /* 提示行脱离文档流：留在文档流里会把「品牌块 + 卡片」整组往上顶 */
+  .copyright {
+    position: absolute;
+    left: 22px;
+    right: 22px;
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 2px);
+    margin: 0;
+    text-align: center;
+    color: rgba(226, 238, 255, 0.55);
+    font-size: 11.5px;
+  }
+}

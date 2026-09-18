@@ -57,7 +57,7 @@ export default function LoginPage() {
 
   return (
     <main className={st.wrap}>
-      <section className={st.story}>
+      <section className={st.story} data-login="brand">
         <div className={st.storyGrid} aria-hidden />
         <div className={st.storyTop}>
           <span className={st.mark}>数科云办公</span>
@@ -76,7 +76,7 @@ export default function LoginPage() {
       </section>
 
       <section className={st.auth}>
-        <div className={st.card}>
+        <div className={st.card} data-login="card">
           <div className={st.cardHead}>
             <span className={st.cardBadge}>SHZK</span>
             <div>
@@ -113,7 +113,7 @@ export default function LoginPage() {
             </button>
           </form>
         </div>
-        <p className={st.copyright}>数科云办公</p>
+        <p className={st.copyright} data-login="hint">数科云办公</p>
       </section>
     </main>
   );
