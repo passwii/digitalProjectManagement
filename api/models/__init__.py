@@ -138,6 +138,8 @@ class Project(Base):
   budget_total = Column(Float, default=0)
   priority = Column(String(16), default="中")
   client = Column(String(128), default="")
+  client_contact = Column(String(64), default="")  # 客户联系人（BLF-1150）
+  client_phone = Column(String(64), default="")  # 联系方式（BLF-1150）
   description = Column(Text, default="")
   contract_status = Column(String(16), default="")  # 已签订 / 未签订
   forward_contract = Column(String(128), default="")  # 前向合同（甲方）
