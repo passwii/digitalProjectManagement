@@ -5,6 +5,7 @@ import Link from "next/link";
 import { buildQuery, errText, projectsApi, type Project } from "@/lib/api";
 import { useAsyncData } from "@/lib/useAsyncData";
 import { urlInt, useUrlState, useUrlText } from "@/lib/useUrlState";
+import { buildYearOptions, parseYearParam, yearToCodeFilter } from "@/lib/projectYear";
 import { useMeta, useMenus } from "@/lib/useMeta";
 import {
   PROJECT_FLOW, PROJECT_STATUS, fmtMoney,
@@ -25,13 +26,18 @@ import ProjectFormDialog from "./ProjectFormDialog";
 const SIZE_OPTIONS = [15, 50, 100];
 
 // 筛选 / 分页 / 每页条数写入 URL：刷新、复制链接、前进后退都能恢复同一视图（BLF-1095）
+// year 为裸年份（"2026"/""），发往后端时转成 code 模糊值（BLF-1149）
 const URL_DEFAULTS = {
   q: "",
   status: "",
   owner: "",
+  year: "",
   page: "1",
   size: "15",
 };
+
+// 列表默认倒序：后端默认即 -id（PROJECT_SORTS 白名单），前端显式锁定该契约（BLF-1149）
+const DEFAULT_SORT = "-id";
 
 export default function ProjectsPage() {
   return (
@@ -57,6 +63,8 @@ function ProjectsInner() {
   const [url, setUrl] = useUrlState(URL_DEFAULTS, { pageKey: "page" });
   const page = urlInt(url.page, 1);
   const size = SIZE_OPTIONS.includes(Number(url.size)) ? Number(url.size) : SIZE_OPTIONS[0];
+  const year = parseYearParam(url.year);
+  const yearOptions = buildYearOptions(Date.now(), year);
   const [qDraft, setQDraft] = useUrlText(url.q, (next) => setUrl({ q: next }));
 
   const { data, loading, firstLoad, error, reload } = useAsyncData(
@@ -65,13 +73,15 @@ function ProjectsInner() {
         buildQuery({
           page,
           size,
+          sort: DEFAULT_SORT,
           keyword: url.q.trim(),
           status: url.status,
           owner_id: url.owner,
+          code: yearToCodeFilter(year),
         }),
         signal,
       ),
-    [page, size, url.q, url.status, url.owner],
+    [page, size, url.q, url.status, url.owner, year],
     { resetOnDepChange: true },
   );
 
@@ -87,11 +97,12 @@ function ProjectsInner() {
 
   const statusOptions = Object.entries(PROJECT_STATUS).map(([code, label]) => ({ code, label }));
   const DESTRUCTIVE = new Set(["cancelled", "archived", "done"]);
-  const hasFilter = !!(url.q || url.status || url.owner);
+  const hasFilter = !!(url.q || url.status || url.owner || year);
   const scopeText = [
     url.q ? `关键词「${url.q}」` : "",
     url.status ? `状态=${PROJECT_STATUS[url.status] ?? url.status}` : "",
     url.owner ? `负责人=${userName(Number(url.owner))}` : "",
+    year ? `${year}年` : "",
   ]
     .filter(Boolean)
     .join(" · ");
@@ -165,12 +176,20 @@ function ProjectsInner() {
           <option value="">全部负责人</option>
           {users.map((u) => <option key={u.id} value={u.id}>{u.real_name}</option>)}
         </select>
+        <select
+          value={year}
+          onChange={(e) => setUrl({ year: e.target.value })}
+          aria-label="按年度筛选"
+        >
+          <option value="">全部年份</option>
+          {yearOptions.map((y) => <option key={y} value={y}>{y}年</option>)}
+        </select>
         {hasFilter && (
           <button
             type="button"
             className="btn-ghost"
             style={{ height: 32, lineHeight: "30px", width: "auto" }}
-            onClick={() => setUrl({ q: "", status: "", owner: "" })}
+            onClick={() => setUrl({ q: "", status: "", owner: "", year: "" })}
           >
             清除筛选
           </button>
