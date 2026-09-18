@@ -51,6 +51,9 @@ export default function ExpenseDialog({
   const [formErr, setFormErr] = useState("");
   const [files, setFiles] = useState<File[]>([]);
   const [saving, setSaving] = useState(false);
+  // 建单成功后锁定为「补传模式」：支出单已存在，再走 submit 会重复建单，
+  // 后续只允许重试失败票据（review：防重复创建）。
+  const [created, setCreated] = useState<{ id: number; msg: string; warn: boolean; total: number } | null>(null);
   const toast = useToast();
   const uploads = useUploadQueue();
   const isResubmit = !!resubmitOf;
@@ -67,6 +70,7 @@ export default function ExpenseDialog({
     form.reset(resubmitOf ? fromExpense(resubmitOf) : { ...BLANK, exp_date: todayISO() });
     setFormErr("");
     setFiles([]);
+    setCreated(null);
     uploads.reset();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, resubmitOf?.id]);
@@ -79,6 +83,8 @@ export default function ExpenseDialog({
   }, [open, uploads.abort]);
 
   async function submit() {
+    // 已建单成功：直接忽略，避免重复调用 expensesApi.create 产生重复支出单
+    if (created) return;
     setFormErr("");
     if (!form.validate()) return;
     const v = form.values;
@@ -92,6 +98,16 @@ export default function ExpenseDialog({
     setSaving(true);
     try {
       const saved = await expensesApi.create(payload);
+      const rate = saved.execution?.rate;
+      const msg =
+        saved.status === "pending"
+          ? isResubmit
+            ? "已重新提交，等待审批后计入执行"
+            : "支出已提交，等待审批后计入执行"
+          : `支出已登记并计入执行${rate != null ? `（执行率 ${(rate * 100).toFixed(1)}%）` : ""}`;
+      const warn = !!saved.execution?.warn;
+      // 先落锁再传票据：票据部分失败时提交按钮保持禁用，只能走行内重试补传
+      setCreated({ id: saved.id, msg, warn, total: files.length });
       // 票据挂到刚建好的单据上；单个失败不阻断其余文件，失败时留在弹层里
       if (files.length) {
         const result = await uploads.start<Attachment>(files, (file, options) =>
@@ -105,14 +121,7 @@ export default function ExpenseDialog({
           return;
         }
       }
-      const rate = saved.execution?.rate;
-      const msg =
-        saved.status === "pending"
-          ? isResubmit
-            ? "已重新提交，等待审批后计入执行"
-            : "支出已提交，等待审批后计入执行"
-          : `支出已登记并计入执行${rate != null ? `（执行率 ${(rate * 100).toFixed(1)}%）` : ""}`;
-      onSaved(files.length ? `${msg}，票据 ${files.length} 份已上传` : msg, !!saved.execution?.warn);
+      onSaved(files.length ? `${msg}，票据 ${files.length} 份已上传` : msg, warn);
       setFiles([]);
       onClose();
     } catch (e) {
@@ -144,9 +153,19 @@ export default function ExpenseDialog({
     }
     const remaining = uploads.items.filter((item) => item.id !== id && item.status !== "done");
     if (!remaining.length) {
-      toast.ok("票据已补传成功");
+      // 最后一张失败票据补传成功：走与 submit 成功一致的收尾——先刷新父列表再关弹层，
+      // 且全程不再调 create（created 锁保证无重复建单）。
+      if (created) {
+        onSaved(created.total ? `${created.msg}，票据 ${created.total} 份已上传` : created.msg, created.warn);
+        setCreated(null);
+      } else {
+        toast.ok("票据已补传成功");
+      }
       setFiles([]);
+      setFormErr("");
       onClose();
+    } else {
+      toast.ok("票据已补传成功");
     }
   }
 
@@ -159,8 +178,8 @@ export default function ExpenseDialog({
       footer={
         <>
           <button className="btn-ghost" onClick={onClose} disabled={saving}>取消</button>
-          <button className="btn-primary" onClick={submit} disabled={saving}>
-            {saving ? "保存中…" : isResubmit ? "重新提交" : "提交支出"}
+          <button className="btn-primary" onClick={submit} disabled={saving || !!created}>
+            {saving ? "保存中…" : created ? "已创建，请补传票据" : isResubmit ? "重新提交" : "提交支出"}
           </button>
         </>
       }
@@ -196,8 +215,8 @@ export default function ExpenseDialog({
           <FileDropZone
             extensions={VOUCHER_ATTACHMENT_EXTENSIONS}
             items={uploads.items}
-            disabled={saving}
-            label={files.length ? `已选择 ${files.length} 个文件，随单据一起提交` : "选择票据文件"}
+            disabled={saving || !!created}
+            label={created ? "支出已创建，失败票据请点行内「重试」补传" : files.length ? `已选择 ${files.length} 个文件，随单据一起提交` : "选择票据文件"}
             onRetry={retryUpload}
             hint={
               files.length
