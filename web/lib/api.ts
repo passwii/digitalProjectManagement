@@ -1,5 +1,10 @@
 // API 封装：base + token 注入 + 401 跳登录。字段与后端 api/routers/*.py 对齐。
 import { beginTrackedActivity } from "./activityBus";
+import {
+  IDENTITY_STORAGE_KEY,
+  serializeIdentitySnapshot,
+  type IdentityUser,
+} from "./identityCore";
 import { uploadPercent, type UploadProgress } from "./uploadZone";
 
 export const API_BASE =
@@ -23,12 +28,54 @@ export function saveSession(access: string, refresh: string) {
   document.cookie = `pm_access_token=${access}; path=/; max-age=${2 * 3600}`;
 }
 
+/**
+ * 身份快照的存储访问统一入口：Storage 不可用（隐私模式 / 配额不足 / SSR）时
+ * 一律静默降级为 fallback —— 只影响首帧是否闪烁，不能让存储异常打断登录流程。
+ */
+function withIdentityStorage<T>(run: (ls: Storage) => T, fallback: T): T {
+  if (typeof window === "undefined") return fallback;
+  try {
+    return run(window.localStorage);
+  } catch {
+    return fallback;
+  }
+}
+
+/**
+ * 已登录用户的身份快照（BLF-1125）：让 `/auth/me` 回来之前就能显示正确头像与姓名。
+ *
+ * 存在 localStorage 而非内存：刷新会重建整个 JS 上下文，内存缓存活不过刷新，
+ * 那正是「刷新时先闪默认值」的成因。快照与 token 绑定存储，因此换账号
+ * （token 变了）自动失效，不会把上一个人的姓名显示给新用户。
+ *
+ * 这里只负责存储 I/O；解析与「同一快照返回同一引用」的缓存见
+ * `lib/useMeta.ts` 的身份 store（引用稳定是 useSyncExternalStore 的硬要求）。
+ */
+export function readIdentityRaw(): string | null {
+  return withIdentityStorage((ls) => ls.getItem(IDENTITY_STORAGE_KEY), null);
+}
+
+/** 写入身份快照；存储不可用时静默降级（只影响首帧是否闪烁，不影响功能） */
+export function writeIdentityCache(me: IdentityUser, token: string): void {
+  withIdentityStorage((ls) => {
+    ls.setItem(IDENTITY_STORAGE_KEY, serializeIdentitySnapshot(me, token));
+  }, undefined);
+}
+
+/** 清除身份快照（随登出；token 本身失效时也会因 token 不匹配而自然失效） */
+export function clearIdentityCache(): void {
+  withIdentityStorage((ls) => {
+    ls.removeItem(IDENTITY_STORAGE_KEY);
+  }, undefined);
+}
+
 /** 会话失效后的登录页跳转目标：站内固定路径，不接受任何外部输入 */
 const LOGIN_PATH = "/login";
 
 export function clearSession() {
   localStorage.removeItem(TOKEN_KEY);
   localStorage.removeItem(REFRESH_KEY);
+  clearIdentityCache();
   document.cookie = "pm_access_token=; path=/; max-age=0";
   if (typeof window === "undefined") return;
   // 固定站内路径 + 同源解析：目标不可被外部输入影响，无开放重定向风险

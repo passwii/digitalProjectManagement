@@ -4,8 +4,9 @@ import { Fragment, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { m, useReducedMotion } from "framer-motion";
-import { authApi, clearSession, type Me } from "@/lib/api";
-import { clearMetaCache, useMenus } from "@/lib/useMeta";
+import { authApi, clearSession } from "@/lib/api";
+import { clearMetaCache, loadMe, useMe, useMenus } from "@/lib/useMeta";
+import { identityViewOf } from "@/lib/identityCore";
 import Avatar from "@/components/ui/Avatar";
 import Bell from "@/components/ui/Bell";
 import { ToastProvider } from "@/components/ui/Toast";
@@ -99,8 +100,8 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const [collapsed, setCollapsed] = useState(false);
-  const [me, setMe] = useState<Me | null>(null);
-  const { menus, isAdmin, loading: permsLoading, error: permsError, reload: reloadMenus } = useMenus();
+  const { me, error: meError } = useMe();
+  const { menus, isAdmin, ready: permsReady, loading: permsLoading, error: permsError, reload: reloadMenus } = useMenus();
   const reduced = useReducedMotion();
 
   const current = Object.keys(CRUMB).find((k) => pathname === k || pathname.startsWith(k + "/"));
@@ -121,13 +122,12 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
   }, [menus, permsError]);
 
   useEffect(() => {
+    // must_change_pwd 的强制跳转仍在这里；复用 `loadMe()` 而不是再直接打一次
+    // `/auth/me`（它与 useMe 共享内存缓存与 inflight，同一会话只发一次请求）。
     let alive = true;
-    authApi
-      .me()
+    loadMe()
       .then((m) => {
-        if (!alive) return;
-        setMe(m);
-        if (m.must_change_pwd) router.replace("/change-password");
+        if (alive && m.must_change_pwd) router.replace("/change-password");
       })
       .catch(() => {});
     return () => {
@@ -135,15 +135,21 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
     };
   }, [router]);
 
-  const displayName = me?.real_name || me?.username || "当前用户";
-  const roleText = isAdmin
-    ? "管理员 · 全局管理与审批"
-    : "普通用户 · 参与项目业务";
-  const roleTip = isAdmin
-    ? "管理员是唯一的管理与审批角色，可跨部门、跨项目查看与处理管理数据"
-    : me?.roles.length
-    ? `角色：${me.roles.map((r) => r.name).join(" / ")}（当前仅参与项目业务，无管理与审批权限）`
-    : "当前账号无管理与审批权限，仅参与项目业务";
+  /**
+   * 身份区展示文案（BLF-1125）。
+   *
+   * 未确认时 `identity.name` 为 `null`——渲染骨架，不再用 `|| "当前用户"` 顶上。
+   * 旧写法的 `"当前用户"` 会被 `next build` 静态预渲染进 HTML（实测 dashboard.html
+   * 里出现 4 次），刷新时浏览器先画出假名字，等 `/auth/me` 回来才变成真名。
+   */
+  const identity = identityViewOf({
+    me,
+    isAdmin: permsReady ? isAdmin : null,
+    permsFailed: Boolean(permsError),
+    identityFailed: Boolean(meError),
+  });
+  // 取出为局部常量：TS 才能在 `name !== null` 分支里把类型缩窄给 <Avatar> 用
+  const { name: displayName, role: roleLine, roleShort } = identity;
 
   async function logout() {
     try {
@@ -209,10 +215,23 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
         )}
         <div className={s.sideFoot}>
           <div className={s.userRow}>
-            <Avatar name={displayName} size={28} />
+            {displayName === null ? (
+              <span className={`skel ${s.avatarSkel}`} aria-hidden="true" />
+            ) : (
+              <Avatar name={displayName} size={28} />
+            )}
             <div className={s.userMeta}>
-              <div className={s.n}>{displayName}</div>
-              <div className={s.r} title={roleTip}>{roleText}</div>
+              {displayName === null ? (
+                <>
+                  <span className={`skel ${s.nameSkel}`} aria-hidden="true" />
+                  <span className="sr-only">身份加载中</span>
+                </>
+              ) : (
+                <>
+                  <div className={s.n}>{displayName}</div>
+                  {roleLine && <div className={s.r} title={roleLine.tip}>{roleLine.text}</div>}
+                </>
+              )}
             </div>
             <button className={s.logoutBtn} onClick={logout} aria-label="退出登录">登出</button>
           </div>
@@ -236,11 +255,23 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
             <span className={s.topDate}>{today}</span>
             <Bell />
             <div className={s.userChip}>
-              <Avatar name={displayName} size={30} />
-              <span className={s.userChipText}>
-                <b>{displayName}</b>
-                <small>{isAdmin ? "管理员" : "项目成员"}</small>
-              </span>
+              {displayName === null ? (
+                <>
+                  <span className={`skel ${s.avatarSkel}`} aria-hidden="true" />
+                  <span className={s.userChipText}>
+                    <span className={`skel ${s.nameSkel}`} aria-hidden="true" />
+                    <small className="sr-only">身份加载中</small>
+                  </span>
+                </>
+              ) : (
+                <>
+                  <Avatar name={displayName} size={30} />
+                  <span className={s.userChipText}>
+                    <b>{displayName}</b>
+                    {roleShort && <small>{roleShort}</small>}
+                  </span>
+                </>
+              )}
             </div>
           </div>
           <ActivityBar />
