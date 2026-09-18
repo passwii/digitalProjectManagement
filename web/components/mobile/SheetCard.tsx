@@ -18,72 +18,72 @@ import s from "./SheetCard.module.css";
 export type SheetCardVariant = "preview" | "list";
 
 export interface SheetCardProps {
-  /** 形态：`preview`（peek 平铺）/ `list`（half / full 行）。默认 `preview` */
-  variant?: SheetCardVariant;
-  /** 落点：模块或详情页 */
-  href: string;
-  /** 主文案（模块名 / 记录标题） */
-  title: string;
-  /** 第二行说明（列表卡的元信息：编号 / 负责人 / 口径） */
-  note?: string;
-  /**
-   * 预览卡的指标值（如「待办 12」「逾期 3」「本月支出 ¥38.6万」）。
-   * S3 只渲染模块卡，用不到它；S4 填各 Dock 位的预览卡时直接传值，
-   * 不用为此再造一个「指标卡」组件。
-   */
-  value?: string;
-  /** 指标语义色（超期 / 超预算一类需要立刻看见的口径） */
-  tone?: "default" | "brand" | "warn" | "danger";
-  /** 卡片图标；缺省时不占位 */
-  icon?: React.ReactNode;
-  /**
-   * 点击回调（导航**之前**调用）。
-   * 抽屉是导航的第二入口：进了模块就不该留在屏上，所以这里用来收起抽屉。
-   */
-  onSelect?: () => void;
+    /** 形态：`preview`（peek 平铺）/ `list`（half / full 行）。默认 `preview` */
+    variant?: SheetCardVariant;
+    /** 落点：模块或详情页 */
+    href: string;
+    /** 主文案（模块名 / 记录标题） */
+    title: string;
+    /** 第二行说明（列表卡的元信息：编号 / 负责人 / 口径） */
+    note?: string;
+    /**
+     * 预览卡的指标值（如「待办 12」「逾期 3」「本月支出 ¥38.6万」）。
+     * S3 只渲染模块卡，用不到它；S4 填各 Dock 位的预览卡时直接传值，
+     * 不用为此再造一个「指标卡」组件。
+     */
+    value?: string;
+    /** 指标语义色（超期 / 超预算一类需要立刻看见的口径） */
+    tone?: "default" | "brand" | "warn" | "danger";
+    /** 卡片图标；缺省时不占位 */
+    icon?: React.ReactNode;
+    /**
+     * 点击回调（导航**之前**调用）。
+     * 抽屉是导航的第二入口：进了模块就不该留在屏上，所以这里用来收起抽屉。
+     */
+    onSelect?: () => void;
 }
 
 export default function SheetCard({
-  variant = "preview",
-  href,
-  title,
-  note,
-  value,
-  tone = "default",
-  icon,
-  onSelect,
+    variant = "preview",
+    href,
+    title,
+    note,
+    value,
+    tone = "default",
+    icon,
+    onSelect,
 }: SheetCardProps) {
-  return (
-    <Link
-      href={href}
-      className={s.card}
-      data-sheet-card={variant}
-      data-tone={tone}
-      onClick={onSelect}
-    >
-      {icon && (
-        <span className={s.icon} aria-hidden="true">
-          {icon}
-        </span>
-      )}
-      <span className={s.text}>
-        <span className={s.title}>{title}</span>
-        {note && <span className={s.note}>{note}</span>}
-      </span>
-      {value && <span className={s.value}>{value}</span>}
-      <svg
-        className={s.chev}
-        width="13"
-        height="13"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2.4"
-        strokeLinecap="round"
-        aria-hidden="true"
-      >
-        <path d="M9 5l7 7-7 7" />
-      </svg>
-    </Link>
-  );
+    return (
+        <Link
+            href={href}
+            className={s.card}
+            data-sheet-card={variant}
+            data-tone={tone}
+            onClick={onSelect}
+        >
+            {icon && (
+                <span className={s.icon} aria-hidden="true">
+                    {icon}
+                </span>
+            )}
+            <span className={s.text}>
+                <span className={s.title}>{title}</span>
+                {note && <span className={s.note}>{note}</span>}
+            </span>
+            {value && <span className={s.value}>{value}</span>}
+            <svg
+                className={s.chev}
+                width="13"
+                height="13"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.4"
+                strokeLinecap="round"
+                aria-hidden="true"
+            >
+                <path d="M9 5l7 7-7 7" />
+            </svg>
+        </Link>
+    );
 }

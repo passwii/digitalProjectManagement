@@ -2,9 +2,20 @@
 // 通用弹层：Dialog（居中）/ Drawer（右侧）/ Confirm（确认）。
 // 统一处理 Esc 关闭、焦点锁定、滚动锁定、脏数据二次确认、移动端全屏。
 import { createPortal } from "react-dom";
-import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import { AnimatePresence, m, useReducedMotion } from "framer-motion";
-import { MODAL_BODY_ATTR, MODAL_CLOSE_ATTR, resolveInitialFocus } from "@/lib/modalFocus";
+import {
+  MODAL_BODY_ATTR,
+  MODAL_CLOSE_ATTR,
+  resolveInitialFocus,
+} from "@/lib/modalFocus";
 import st from "./Modal.module.css";
 
 type Size = "sm" | "md" | "lg";
@@ -170,8 +181,8 @@ export function useModalBehavior({
       // 关闭按钮是合法的 Tab 落点（只在**初始**聚焦时才排除），且这里要逐项过滤 disabled。
       const nodes = Array.from(
         panel.querySelectorAll<HTMLElement>(
-          "input:not([type=hidden]):not([disabled]), select:not([disabled]), textarea:not([disabled]), button:not([disabled]), [href], [tabindex]:not([tabindex='-1'])"
-        )
+          "input:not([type=hidden]):not([disabled]), select:not([disabled]), textarea:not([disabled]), button:not([disabled]), [href], [tabindex]:not([tabindex='-1'])",
+        ),
       ).filter((el) => el.offsetParent !== null);
       if (nodes.length === 0) return;
       const first = nodes[0];
@@ -201,16 +212,39 @@ export function useModalBehavior({
     [],
   );
 
-  return { mounted, panelRef, openRef, requestClose, askDiscard, setAskDiscard, handleExitComplete };
+  return {
+    mounted,
+    panelRef,
+    openRef,
+    requestClose,
+    askDiscard,
+    setAskDiscard,
+    handleExitComplete,
+  };
 }
 
-function DiscardConfirm({ onKeep, onDiscard }: { onKeep: () => void; onDiscard: () => void }) {
+function DiscardConfirm({
+  onKeep,
+  onDiscard,
+}: {
+  onKeep: () => void;
+  onDiscard: () => void;
+}) {
   return (
-    <div className={st.inner} role="alertdialog" aria-label="放弃未保存的修改" aria-live="assertive">
+    <div
+      className={st.inner}
+      role="alertdialog"
+      aria-label="放弃未保存的修改"
+      aria-live="assertive"
+    >
       <div className={st.innerBody}>有未保存的修改，确定关闭吗？</div>
       <div className={st.innerFoot}>
-        <button className="btn-ghost" onClick={onKeep}>继续编辑</button>
-        <button className={`btn-primary ${st.dangerBtn}`} onClick={onDiscard}>放弃修改</button>
+        <button className="btn-ghost" onClick={onKeep}>
+          继续编辑
+        </button>
+        <button className={`btn-primary ${st.dangerBtn}`} onClick={onDiscard}>
+          放弃修改
+        </button>
       </div>
     </div>
   );
@@ -230,9 +264,24 @@ export interface DialogProps {
 }
 
 export function Dialog({
-  open, onClose, title, children, footer, size = "md", dirty, maskClosable = true,
+  open,
+  onClose,
+  title,
+  children,
+  footer,
+  size = "md",
+  dirty,
+  maskClosable = true,
 }: DialogProps) {
-  const { mounted, panelRef, openRef, requestClose, askDiscard, setAskDiscard, handleExitComplete } = useModalBehavior({ open, onRequestClose: onClose, dirty });
+  const {
+    mounted,
+    panelRef,
+    openRef,
+    requestClose,
+    askDiscard,
+    setAskDiscard,
+    handleExitComplete,
+  } = useModalBehavior({ open, onRequestClose: onClose, dirty });
   const reduced = useReducedMotion();
   const titleId = useId();
   if (!mounted) return null;
@@ -255,7 +304,9 @@ export function Dialog({
           onMouseDown={() => maskClosable && requestClose()}
         >
           <m.div
-            ref={(element) => { panelRef.current = element; }}
+            ref={(element) => {
+              panelRef.current = element;
+            }}
             className={`${st.panel} ${st[size]}`}
             role="dialog"
             aria-modal="true"
@@ -268,23 +319,47 @@ export function Dialog({
             onMouseDown={(e) => e.stopPropagation()}
           >
             <header className={st.head}>
-              <h2 id={titleId} className={st.title}>{title}</h2>
-              <button className={st.close} {...CLOSE_MARK} onClick={requestClose} aria-label="关闭">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true">
+              <h2 id={titleId} className={st.title}>
+                {title}
+              </h2>
+              <button
+                className={st.close}
+                {...CLOSE_MARK}
+                onClick={requestClose}
+                aria-label="关闭"
+              >
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                  aria-hidden="true"
+                >
                   <path d="M6 6l12 12M18 6L6 18" />
                 </svg>
               </button>
             </header>
-            <div className={st.body} {...BODY_MARK}>{children}</div>
+            <div className={st.body} {...BODY_MARK}>
+              {children}
+            </div>
             {footer && <footer className={st.foot}>{footer}</footer>}
             {askDiscard && (
-              <DiscardConfirm onKeep={() => setAskDiscard(false)} onDiscard={() => { setAskDiscard(false); onClose(); }} />
+              <DiscardConfirm
+                onKeep={() => setAskDiscard(false)}
+                onDiscard={() => {
+                  setAskDiscard(false);
+                  onClose();
+                }}
+              />
             )}
           </m.div>
         </m.div>
       )}
     </AnimatePresence>,
-    document.body
+    document.body,
   );
 }
 
@@ -298,8 +373,24 @@ export interface DrawerProps {
   dirty?: boolean;
 }
 
-export function Drawer({ open, onClose, title, children, footer, width = 480, dirty }: DrawerProps) {
-  const { mounted, panelRef, openRef, requestClose, askDiscard, setAskDiscard, handleExitComplete } = useModalBehavior({ open, onRequestClose: onClose, dirty });
+export function Drawer({
+  open,
+  onClose,
+  title,
+  children,
+  footer,
+  width = 480,
+  dirty,
+}: DrawerProps) {
+  const {
+    mounted,
+    panelRef,
+    openRef,
+    requestClose,
+    askDiscard,
+    setAskDiscard,
+    handleExitComplete,
+  } = useModalBehavior({ open, onRequestClose: onClose, dirty });
   const reduced = useReducedMotion();
   const titleId = useId();
   if (!mounted) return null;
@@ -322,7 +413,9 @@ export function Drawer({ open, onClose, title, children, footer, width = 480, di
           onMouseDown={requestClose}
         >
           <m.aside
-            ref={(element) => { panelRef.current = element; }}
+            ref={(element) => {
+              panelRef.current = element;
+            }}
             className={st.drawer}
             style={{ width }}
             role="dialog"
@@ -336,23 +429,47 @@ export function Drawer({ open, onClose, title, children, footer, width = 480, di
             onMouseDown={(e) => e.stopPropagation()}
           >
             <header className={st.head}>
-              <h2 id={titleId} className={st.title}>{title}</h2>
-              <button className={st.close} {...CLOSE_MARK} onClick={requestClose} aria-label="关闭">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true">
+              <h2 id={titleId} className={st.title}>
+                {title}
+              </h2>
+              <button
+                className={st.close}
+                {...CLOSE_MARK}
+                onClick={requestClose}
+                aria-label="关闭"
+              >
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                  aria-hidden="true"
+                >
                   <path d="M6 6l12 12M18 6L6 18" />
                 </svg>
               </button>
             </header>
-            <div className={st.body} {...BODY_MARK}>{children}</div>
+            <div className={st.body} {...BODY_MARK}>
+              {children}
+            </div>
             {footer && <footer className={st.foot}>{footer}</footer>}
             {askDiscard && (
-              <DiscardConfirm onKeep={() => setAskDiscard(false)} onDiscard={() => { setAskDiscard(false); onClose(); }} />
+              <DiscardConfirm
+                onKeep={() => setAskDiscard(false)}
+                onDiscard={() => {
+                  setAskDiscard(false);
+                  onClose();
+                }}
+              />
             )}
           </m.aside>
         </m.div>
       )}
     </AnimatePresence>,
-    document.body
+    document.body,
   );
 }
 
@@ -370,15 +487,25 @@ export interface ConfirmProps {
 }
 
 export function Confirm({
-  open, title, text, children, okText = "确定", cancelText = "取消", danger, loading, onConfirm, onCancel,
+  open,
+  title,
+  text,
+  children,
+  okText = "确定",
+  cancelText = "取消",
+  danger,
+  loading,
+  onConfirm,
+  onCancel,
 }: ConfirmProps) {
   const handleRequestClose = useCallback(() => {
     if (!loading) onCancel();
   }, [loading, onCancel]);
-  const { mounted, panelRef, openRef, requestClose, handleExitComplete } = useModalBehavior({
-    open,
-    onRequestClose: handleRequestClose,
-  });
+  const { mounted, panelRef, openRef, requestClose, handleExitComplete } =
+    useModalBehavior({
+      open,
+      onRequestClose: handleRequestClose,
+    });
   const reduced = useReducedMotion();
   const titleId = useId();
   if (!mounted) return null;
@@ -401,7 +528,9 @@ export function Confirm({
           onMouseDown={requestClose}
         >
           <m.div
-            ref={(element) => { panelRef.current = element; }}
+            ref={(element) => {
+              panelRef.current = element;
+            }}
             className={`${st.panel} ${st.sm}`}
             role="alertdialog"
             aria-modal="true"
@@ -414,16 +543,44 @@ export function Confirm({
             onMouseDown={(e) => e.stopPropagation()}
           >
             <header className={st.head}>
-              <h2 id={titleId} className={st.title}>{title}</h2>
-              <button className={st.close} {...CLOSE_MARK} onClick={requestClose} aria-label="关闭" disabled={loading}>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true">
+              <h2 id={titleId} className={st.title}>
+                {title}
+              </h2>
+              <button
+                className={st.close}
+                {...CLOSE_MARK}
+                onClick={requestClose}
+                aria-label="关闭"
+                disabled={loading}
+              >
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                  aria-hidden="true"
+                >
                   <path d="M6 6l12 12M18 6L6 18" />
                 </svg>
               </button>
             </header>
-            {(text || children) && <div className={st.body} {...BODY_MARK}>{text}{children}</div>}
+            {(text || children) && (
+              <div className={st.body} {...BODY_MARK}>
+                {text}
+                {children}
+              </div>
+            )}
             <footer className={st.foot}>
-              <button className="btn-ghost" onClick={requestClose} disabled={loading}>{cancelText}</button>
+              <button
+                className="btn-ghost"
+                onClick={requestClose}
+                disabled={loading}
+              >
+                {cancelText}
+              </button>
               <button
                 className={`btn-primary ${danger ? st.dangerBtn : ""}`}
                 onClick={() => {
@@ -438,6 +595,6 @@ export function Confirm({
         </m.div>
       )}
     </AnimatePresence>,
-    document.body
+    document.body,
   );
 }

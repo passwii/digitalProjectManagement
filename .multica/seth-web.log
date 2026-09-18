@@ -1,0 +1,51 @@
+  ▲ Next.js 14.2.18
+  - Local:        http://127.0.0.1:3101
+  - Network:      http://127.0.0.1:3101
+
+ ✓ Starting...
+ ✓ Ready in 1904ms
+ ✓ Compiled /middleware in 118ms (72 modules)
+ ○ Compiling /login ...
+ ✓ Compiled /login in 1442ms (1350 modules)
+ GET /login 200 in 1522ms
+ GET /login 200 in 16ms
+ ✓ Compiled /icon.svg in 131ms (695 modules)
+ GET /icon.svg?7127cff0eba07d1f 200 in 164ms
+ GET /login 200 in 41ms
+ GET /icon.svg?7127cff0eba07d1f 200 in 3ms
+ GET /login 200 in 13ms
+ GET /icon.svg?7127cff0eba07d1f 200 in 3ms
+ ○ Compiling /dashboard ...
+ ✓ Compiled /dashboard in 1358ms (2592 modules)
+ GET /icon.svg?7127cff0eba07d1f 200 in 8ms
+ GET /dashboard 200 in 86ms
+ GET /icon.svg?7127cff0eba07d1f 200 in 3ms
+ ✓ Compiled /reports in 258ms (2517 modules)
+ GET /reports 200 in 318ms
+ GET /icon.svg?7127cff0eba07d1f 200 in 12ms
+ GET /dashboard 200 in 72ms
+ GET /icon.svg?7127cff0eba07d1f 200 in 2ms
+ ✓ Compiled /costs in 193ms (2516 modules)
+ GET /costs 200 in 250ms
+ GET /icon.svg?7127cff0eba07d1f 200 in 3ms
+ GET /costs?project_id=1 200 in 14ms
+ GET /icon.svg?7127cff0eba07d1f 200 in 4ms
+ ✓ Compiled /projects in 241ms (2559 modules)
+ GET /projects 200 in 299ms
+ GET /icon.svg?7127cff0eba07d1f 200 in 3ms
+ GET /projects 200 in 14ms
+ GET /icon.svg?7127cff0eba07d1f 200 in 4ms
+ GET /costs 200 in 17ms
+ GET /icon.svg?7127cff0eba07d1f 200 in 3ms
+ GET /dashboard 200 in 29ms
+ GET /icon.svg?7127cff0eba07d1f 200 in 3ms
+ GET /projects 200 in 13ms
+ GET /icon.svg?7127cff0eba07d1f 200 in 4ms
+ ✓ Compiled /progress in 231ms (2548 modules)
+ ✓ Compiled /change-password in 156ms (2554 modules)
+ GET /login 200 in 23ms
+ GET /icon.svg?7127cff0eba07d1f 200 in 9ms
+ GET /icon.svg?7127cff0eba07d1f 200 in 4ms
+ GET /dashboard 200 in 20ms
+ GET /icon.svg?7127cff0eba07d1f 200 in 2ms
+[?25h

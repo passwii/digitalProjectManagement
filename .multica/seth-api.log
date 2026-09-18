@@ -1,0 +1,8 @@
+INFO:     Started server process [89117]
+INFO:     Waiting for application startup.
+附件正文使用本地临时暂存目录（/private/tmp/multica-task-485758297/pm-attachment-staging）：仅限开发/测试，重启或临时目录清理后即消失，不是持久化存储。
+INFO:     Application startup complete.
+ERROR:    [Errno 48] error while attempting to bind on address ('127.0.0.1', 8055): address already in use
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+[storage] 附件后端：本地临时暂存（仅开发/测试，正文不持久化）
