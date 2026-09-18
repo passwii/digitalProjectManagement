@@ -113,7 +113,7 @@ export default function LoginPage() {
             </button>
           </form>
         </div>
-        <p className={st.copyright} data-login="hint">数科云办公</p>
+        <p className={st.copyright} data-login="hint">数科云办公©2026</p>
       </section>
     </main>
   );
