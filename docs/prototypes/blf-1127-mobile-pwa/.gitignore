@@ -1,0 +1,4 @@
+# verify.py 生成的截图：可随时重新生成，不入库（单张 ~800KB，11 张近 9MB）。
+# 需要时跑 python3 verify.py 会重建 shots/；attach/ 是给 issue 评论用的缩图。
+shots/
+attach/

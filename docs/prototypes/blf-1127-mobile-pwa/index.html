@@ -1,0 +1,1764 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>数科云办公 · 手机端（PWA）导航与信息架构原型 · BLF-1127</title>
+<style>
+/* ==========================================================================
+   数科云办公 · 手机端 PWA 原型样式
+   BLF-1127 —— 登录页居中 / 底部 Dock / Dock 选中后的卡片·抽屉展开形态
+
+   设计令牌直接对齐 web/app/globals.css 与 web/components/ui/Shell.module.css，
+   颜色、圆角、动效时长都不新造，保证原型可 1:1 迁移进真实前端。
+   ========================================================================== */
+
+:root {
+  /* —— 与 web/app/globals.css 同源 —— */
+  --ink: #17263B;
+  --ink-2: #5C6B7C;
+  --ink-3: #8B99AA;
+  --line: #DEE5EE;
+  --line-soft: #EEF3F8;
+  --bg: #F3F6FA;
+  --card: #FFFFFF;
+  --brand: #1677FF;
+  --brand-hover: #0E5FD8;
+  --brand-soft: #EAF3FF;
+  --line-blue: #C7DBFF;
+  --navy: #0F2742;        /* Shell 侧栏底色 */
+  --navy-deep: #0D2B4E;   /* 登录 story 底色 */
+  --navy-soft: #68AEFF;
+  --todo: #66788C;
+  --doing: #2E6BE6;
+  --warn: #9A620B;
+  --warn-bg: #FFF5DF;
+  --danger: #B53C35;
+  --danger-bg: #FFF0EE;
+  --done: #2C9C69;
+  --done-bg: #EAF8F1;
+  --radius: 8px;
+  --radius-sm: 6px;
+  --ease-console: cubic-bezier(.2, .72, .2, 1);
+  --font-body: "Noto Sans SC", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", "IBM Plex Mono", Menlo, Consolas, monospace;
+  --font-serif: "Songti SC", "STSong", "Noto Serif SC", serif;
+
+  /* —— 手机端专用令牌（原型提出，待评审后并入 globals.css） —— */
+  --m-dock-h: 58px;
+  --m-safe-b: 22px;              /* 真机里是 env(safe-area-inset-bottom) */
+  --m-appbar-h: 52px;
+  --m-status-h: 42px;
+  --m-sheet-r: 18px;
+  --m-tap: 44px;                 /* 最小触控目标 */
+  --m-shadow-dock: 0 -1px 0 rgba(23,43,77,.06), 0 -8px 24px rgba(23,43,77,.06);
+  --m-shadow-sheet: 0 -12px 40px rgba(23,43,77,.18);
+}
+
+/* `hidden` 属性必须真的隐藏：.dock/.sheet/.scroll 都是显式 display 值，
+   否则 [hidden] 会被覆盖，元素虽然看不见但仍然占位、仍然拦截点击。 */
+[hidden] { display: none !important; }
+
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+html, body { margin: 0; padding: 0; }
+
+body {
+  min-height: 100vh;
+  background:
+    linear-gradient(rgba(22,119,255,.026) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(22,119,255,.026) 1px, transparent 1px),
+    #EEF2F8;
+  background-size: 32px 32px;
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ============================ 页面外壳（原型工具区） ============================ */
+
+.page {
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: 28px 24px 64px;
+  display: grid;
+  grid-template-columns: minmax(320px, 420px) minmax(0, 1fr);
+  gap: 32px;
+  align-items: start;
+}
+
+.page-head { grid-column: 1 / -1; border-bottom: 1px solid var(--line); padding-bottom: 18px; }
+.page-head .eyebrow {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: .16em;
+  color: var(--brand);
+  text-transform: uppercase;
+}
+.page-head h1 { margin: 8px 0 6px; font-size: 24px; letter-spacing: .01em; }
+.page-head p { margin: 0; color: var(--ink-2); font-size: 13px; max-width: 68ch; }
+.page-head .meta { margin-top: 10px; display: flex; flex-wrap: wrap; gap: 8px; }
+.chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  height: 24px; padding: 0 10px;
+  border: 1px solid var(--line); border-radius: 999px;
+  background: #fff; color: var(--ink-2);
+  font-size: 12px; font-family: var(--font-mono);
+}
+
+/* ---------- 左栏：手机画布 ---------- */
+.stage { position: sticky; top: 24px; display: flex; flex-direction: column; gap: 14px; align-items: center; }
+
+.stage-bar {
+  width: 100%;
+  display: flex; gap: 8px; flex-wrap: wrap; justify-content: center;
+}
+.tbtn {
+  height: 30px; padding: 0 12px;
+  border: 1px solid var(--line); border-radius: var(--radius-sm);
+  background: #fff; color: var(--ink-2);
+  font-size: 12px; cursor: pointer;
+  transition: border-color 140ms, color 140ms, background 140ms;
+}
+.tbtn:hover { border-color: var(--brand); color: var(--brand); }
+.tbtn[aria-pressed="true"] { background: var(--brand-soft); border-color: var(--brand); color: var(--brand); font-weight: 600; }
+
+/* ---------- 设备外框 ---------- */
+.device {
+  position: relative;
+  width: 390px;
+  height: 844px;
+  border-radius: 46px;
+  background: #0B1826;
+  padding: 10px;
+  box-shadow:
+    0 0 0 1px rgba(255,255,255,.06) inset,
+    0 30px 70px rgba(11,24,38,.35),
+    0 2px 0 rgba(255,255,255,.28) inset;
+  flex: none;
+}
+.device.narrow { width: 360px; height: 780px; }
+.device.wide { width: 430px; height: 860px; }
+
+.screen {
+  position: relative;
+  width: 100%; height: 100%;
+  border-radius: 36px;
+  overflow: hidden;
+  background: var(--bg);
+  display: flex; flex-direction: column;
+  isolation: isolate;
+}
+.device.narrow .screen { border-radius: 34px; }
+.device.wide .screen { border-radius: 40px; }
+
+/* iOS 状态栏（真机 PWA standalone 下由系统绘制，这里只做视觉占位） */
+.statusbar {
+  flex: none;
+  height: var(--m-status-h);
+  padding: 0 24px 0 28px;
+  display: flex; align-items: center; justify-content: space-between;
+  font-family: var(--font-mono);
+  font-size: 13px; font-weight: 600; letter-spacing: .02em;
+  color: var(--ink);
+  position: relative; z-index: 6;
+}
+.statusbar.on-navy { color: #fff; }
+.statusbar .sb-right { display: flex; align-items: center; gap: 5px; }
+.statusbar svg { display: block; }
+.notch {
+  position: absolute; left: 50%; top: 12px; transform: translateX(-50%);
+  width: 96px; height: 26px; border-radius: 999px;
+  background: #0B1826; z-index: 7;
+}
+
+/* ============================ 视图容器 ============================ */
+
+.view {
+  position: absolute; inset: 0;
+  display: flex; flex-direction: column;
+  background: var(--bg);
+  z-index: 1;
+}
+.view[hidden] { display: none; }
+
+/* ============================ ① 登录页（手机端） ============================ */
+
+.login {
+  flex: 1; min-height: 0;
+  display: flex; flex-direction: column;
+  background:
+    radial-gradient(120% 60% at 50% -10%, rgba(22,119,255,.20), transparent 70%),
+    var(--navy-deep);
+  position: relative;
+  overflow: hidden;
+}
+/* 网格纹理沿用桌面 story 的做法，但压到极低存在感 */
+.login::before {
+  content: ""; position: absolute; inset: 0; opacity: .10;
+  background-image:
+    linear-gradient(rgba(255,255,255,.30) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,.30) 1px, transparent 1px);
+  background-size: 46px 46px;
+  mask-image: linear-gradient(180deg, #000 0%, transparent 62%);
+}
+.login-body {
+  position: relative; z-index: 1;
+  flex: 1; min-height: 0;
+  display: flex; flex-direction: column;
+  /* 居中基准＝「品牌块 + 表单卡」整组；提示行脱离文档流（见 .login-hintline），
+     否则它会把这组整体往上顶，表单就不在屏幕中心了。 */
+  justify-content: center;
+  padding: 12px 22px;
+  transition: padding-bottom 220ms var(--ease-console);
+}
+/* 键盘抬起：品牌块让位给表单，验证表单不被遮挡 */
+.view.is-keyboard .login-body { justify-content: flex-start; padding-bottom: 8px; }
+.view.is-keyboard .login-brand-block { transform: scale(.78); transform-origin: top center; margin-bottom: -22px; }
+.view.is-keyboard .login-hintline { display: none; }
+
+.login-brand-block {
+  display: flex; flex-direction: column; align-items: center; gap: 12px;
+  margin-bottom: 26px;
+  transition: transform 220ms var(--ease-console), margin 220ms var(--ease-console);
+}
+.seal-lg {
+  width: 56px; height: 56px;
+  display: grid; place-items: center;
+  border: 1px solid rgba(104,174,255,.55);
+  border-radius: 12px;
+  background: rgba(22,119,255,.10);
+  color: #8CBCFF;
+  font-family: var(--font-mono); font-size: 13px; font-weight: 700; letter-spacing: .10em;
+}
+.login-brand-block .brand {
+  font-family: var(--font-serif);
+  font-size: 25px; font-weight: 700; letter-spacing: .14em;
+  color: #fff;
+}
+.login-brand-block .slogan {
+  color: rgba(226,238,255,.62);
+  font-size: 12.5px; letter-spacing: .18em;
+}
+
+.login-card {
+  background: #fff;
+  border-radius: 14px;
+  padding: 22px 20px 20px;
+  box-shadow: 0 22px 54px rgba(6,22,42,.38);
+}
+.login-card h2 { margin: 0 0 2px; font-size: 18px; letter-spacing: .01em; }
+.login-card .sub { margin: 0 0 18px; color: var(--ink-3); font-size: 12px; }
+
+.field { margin-bottom: 13px; }
+.field label {
+  display: block;
+  font-size: 12px; font-weight: 600; color: var(--ink-2);
+  margin-bottom: 6px; letter-spacing: .02em;
+}
+.field input {
+  width: 100%; height: 46px;
+  padding: 0 13px;
+  border: 1px solid var(--line); border-radius: 10px;
+  background: #fff; color: var(--ink);
+  /* 字号必须 >= 16px：iOS Safari 在 <16px 的输入框聚焦时会自动放大整页，
+     是手机端「页面莫名变大、要双击缩回」的常见来源。 */
+  font-family: var(--font-body); font-size: 16px;
+  outline: none;
+  transition: border-color 140ms, box-shadow 140ms;
+}
+.field input::placeholder { color: var(--ink-3); }
+.field input:focus { border-color: var(--brand); box-shadow: 0 0 0 3px rgba(22,119,255,.11); }
+.field .with-eye { position: relative; }
+.field .with-eye button {
+  position: absolute; right: 6px; top: 50%; transform: translateY(-50%);
+  width: 36px; height: 36px; border: 0; border-radius: 8px;
+  background: transparent; color: var(--ink-3); cursor: pointer;
+  display: grid; place-items: center;
+}
+.field .with-eye button:hover { color: var(--ink-2); }
+
+.alert {
+  display: flex; gap: 7px; align-items: flex-start;
+  padding: 9px 11px; border-radius: 9px;
+  background: var(--danger-bg); border: 1px solid #EFC0BB;
+  color: var(--danger); font-size: 12.5px; line-height: 1.45;
+  margin-bottom: 12px;
+}
+
+.btn-primary {
+  width: 100%; height: 48px;
+  border: 1px solid var(--brand); border-radius: 11px;
+  background: var(--brand); color: #fff;
+  font-family: var(--font-body); font-size: 15.5px; font-weight: 650;
+  letter-spacing: .04em; cursor: pointer;
+  transition: background 140ms, transform 90ms;
+}
+.btn-primary:hover { background: var(--brand-hover); border-color: var(--brand-hover); }
+.btn-primary:active { transform: translateY(1px); }
+
+.login-foot {
+  margin-top: 14px; text-align: center;
+  color: rgba(226,238,255,.42); font-size: 11px; letter-spacing: .06em;
+}
+.login-hintline {
+  position: absolute; left: 22px; right: 22px; bottom: calc(var(--m-safe-b) + 2px);
+  margin: 0; text-align: center; color: rgba(226,238,255,.55); font-size: 11.5px;
+}
+/* 键盘态：模拟软键盘抬起，验证表单不被遮挡 */
+.keyboard {
+  flex: none; height: 0; overflow: hidden;
+  background: #D6DCE5; border-top: 1px solid #C3CBD7;
+  transition: height 220ms var(--ease-console);
+  display: grid; grid-template-columns: repeat(10, 1fr); gap: 5px;
+  padding: 0 8px; align-content: center;
+}
+.keyboard span {
+  height: 30px; border-radius: 5px; background: #fff;
+  box-shadow: 0 1px 0 #B9C2CF;
+  display: grid; place-items: center;
+  font-family: var(--font-mono); font-size: 13px; color: #4A5666;
+}
+.view.is-keyboard .keyboard { height: 236px; padding-top: 10px; padding-bottom: 10px; }
+
+/* ============================ 通用 App 结构 ============================ */
+
+.appbar {
+  flex: none;
+  height: var(--m-appbar-h);
+  padding: 0 14px 0 16px;
+  display: flex; align-items: center; gap: 10px;
+  background: rgba(255,255,255,.86);
+  backdrop-filter: saturate(180%) blur(12px);
+  -webkit-backdrop-filter: saturate(180%) blur(12px);
+  border-bottom: 1px solid var(--line);
+  position: relative; z-index: 5;
+}
+.appbar.on-navy {
+  background: rgba(13,43,78,.86);
+  border-bottom-color: rgba(255,255,255,.10);
+  color: #fff;
+}
+.appbar .title { font-size: 15.5px; font-weight: 650; letter-spacing: .01em; }
+.appbar .crumb {
+  font-size: 10.5px; color: var(--ink-3); font-family: var(--font-mono); letter-spacing: .04em;
+}
+.appbar.on-navy .crumb { color: rgba(214,228,249,.55); }
+.appbar .grow { flex: 1; min-width: 0; }
+.appbar .iconbtn {
+  flex: none;
+  width: 36px; height: 36px; border-radius: 10px;
+  border: 1px solid transparent; background: transparent;
+  color: var(--ink-2); cursor: pointer;
+  display: grid; place-items: center; position: relative;
+}
+.appbar.on-navy .iconbtn { color: rgba(231,239,252,.82); }
+.appbar .iconbtn:hover { background: var(--line-soft); }
+.appbar.on-navy .iconbtn:hover { background: rgba(255,255,255,.10); }
+.appbar .iconbtn .dot {
+  position: absolute; top: 6px; right: 6px;
+  min-width: 15px; height: 15px; padding: 0 3px;
+  border-radius: 999px; background: var(--danger); color: #fff;
+  font-family: var(--font-mono); font-size: 9.5px; font-weight: 700;
+  display: grid; place-items: center;
+  border: 1.5px solid #fff;
+}
+.appbar .avatar {
+  flex: none; width: 30px; height: 30px; border-radius: 999px;
+  background: var(--brand); color: #fff;
+  display: grid; place-items: center;
+  font-size: 12px; font-weight: 650;
+}
+
+/* 内容滚动区：底部留出 dock + 安全区 */
+.scroll {
+  flex: 1; min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain;
+  padding: 14px 14px calc(var(--m-dock-h) + var(--m-safe-b) + 18px);
+}
+.scroll.on-navy { padding-bottom: 18px; }
+.view.no-dock .scroll { padding-bottom: calc(var(--m-safe-b) + 18px); }
+
+/* 下拉刷新（standalone 下浏览器自带刷新被禁用，必须自建） */
+.ptr {
+  position: absolute; left: 0; right: 0; top: var(--m-status-h);
+  height: 0; overflow: hidden;
+  display: grid; place-items: center;
+  color: var(--brand); z-index: 4;
+  transition: height 200ms var(--ease-console);
+}
+.ptr.show { height: 44px; }
+.ptr .ring {
+  width: 18px; height: 18px; border-radius: 50%;
+  border: 2px solid var(--line-blue); border-top-color: var(--brand);
+  animation: spin 720ms linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ============================ 内容积木 ============================ */
+
+.sec-title {
+  display: flex; align-items: baseline; justify-content: space-between;
+  margin: 18px 2px 8px;
+  font-size: 13.5px; font-weight: 650;
+}
+.sec-title:first-child { margin-top: 0; }
+.sec-title .sub { color: var(--ink-3); font-size: 11.5px; font-weight: 400; }
+.sec-title .link { color: var(--brand); font-size: 12px; font-weight: 500; }
+
+.kpis { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.kpi {
+  background: var(--card); border: 1px solid var(--line); border-radius: var(--radius);
+  padding: 12px 13px;
+}
+.kpi .k { font-size: 11px; font-weight: 600; color: var(--ink-3); letter-spacing: .04em; margin-bottom: 5px; }
+.kpi .v { font-size: 23px; font-weight: 700; letter-spacing: -.01em; line-height: 1.15; }
+.kpi .v.mono { font-family: var(--font-mono); font-size: 18px; }
+.kpi .t { margin-top: 4px; font-size: 11px; color: var(--ink-3); }
+.kpi.alert .v { color: var(--danger); }
+.kpi.warn .v { color: var(--warn); }
+
+.mcard {
+  background: var(--card); border: 1px solid var(--line); border-radius: var(--radius);
+  padding: 12px 13px;
+}
+.list { display: flex; flex-direction: column; gap: 10px; }
+
+/* 项目卡（表格 → 卡片：手机端台账的基本单位） */
+.pcard {
+  background: var(--card); border: 1px solid var(--line); border-radius: 10px;
+  padding: 12px 13px;
+  display: flex; flex-direction: column; gap: 9px;
+  cursor: pointer;
+  transition: border-color 140ms, box-shadow 140ms, transform 90ms;
+}
+.pcard:active { transform: scale(.995); }
+.pcard:hover { border-color: var(--line-blue); box-shadow: 0 6px 18px rgba(23,43,77,.07); }
+.pcard .top { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.pcard .nm { font-size: 14.5px; font-weight: 650; line-height: 1.35; }
+.pcard .code { margin-top: 3px; font-family: var(--font-mono); font-size: 10.5px; color: var(--ink-3); letter-spacing: .04em; }
+.pcard .facts {
+  display: flex; flex-wrap: wrap; gap: 6px 14px;
+  font-size: 11.5px; color: var(--ink-2);
+}
+.pcard .facts b { font-family: var(--font-mono); font-weight: 600; color: var(--ink); }
+
+.badge {
+  flex: none;
+  display: inline-flex; align-items: center; height: 21px; padding: 0 8px;
+  border-radius: 999px; font-size: 11px; font-weight: 600; white-space: nowrap;
+}
+.badge.doing { background: #EAF1FF; color: var(--doing); }
+.badge.done { background: var(--done-bg); color: var(--done); }
+.badge.warn { background: var(--warn-bg); color: var(--warn); }
+.badge.danger { background: var(--danger-bg); color: var(--danger); }
+.badge.todo { background: #F1F5FA; color: var(--todo); }
+
+.bar { height: 5px; border-radius: 999px; background: var(--line-soft); overflow: hidden; }
+.bar > i { display: block; height: 100%; border-radius: 999px; background: var(--brand); }
+.bar.warn > i { background: var(--warn); }
+.bar.danger > i { background: var(--danger); }
+
+.timeline { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.timeline li { display: flex; gap: 9px; font-size: 12.5px; }
+.timeline .t { flex: none; width: 78px; font-family: var(--font-mono); font-size: 10.5px; color: var(--ink-3); padding-top: 1px; }
+.timeline b { font-family: var(--font-mono); }
+
+.rowlink {
+  display: flex; align-items: center; gap: 10px;
+  min-height: var(--m-tap);
+  padding: 11px 2px;
+  border-bottom: 1px solid var(--line-soft);
+  color: var(--ink); text-decoration: none; cursor: pointer;
+}
+.rowlink:last-child { border-bottom: 0; }
+.rowlink .ic {
+  flex: none; width: 30px; height: 30px; border-radius: 9px;
+  background: var(--brand-soft); color: var(--brand);
+  display: grid; place-items: center;
+}
+.rowlink .tx { flex: 1; min-width: 0; }
+.rowlink .tx b { display: block; font-size: 13.5px; font-weight: 600; }
+.rowlink .tx span { display: block; font-size: 11px; color: var(--ink-3); margin-top: 1px; }
+.rowlink .chev { color: var(--ink-3); }
+
+.segmented {
+  display: flex; gap: 4px; padding: 3px;
+  background: #E9EEF6; border-radius: 9px;
+}
+.segmented button {
+  flex: 1; height: 32px; border: 0; border-radius: 7px;
+  background: transparent; color: var(--ink-2);
+  font-family: var(--font-body); font-size: 12.5px; cursor: pointer;
+  transition: background 140ms, color 140ms, box-shadow 140ms;
+  white-space: nowrap;
+}
+.segmented button[aria-selected="true"] {
+  background: #fff; color: var(--ink); font-weight: 650;
+  box-shadow: 0 1px 3px rgba(23,43,77,.10);
+}
+
+.filters { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 2px; }
+.filters::-webkit-scrollbar { display: none; }
+.fchip {
+  flex: none; height: 32px; padding: 0 12px;
+  border: 1px solid var(--line); border-radius: 999px;
+  background: #fff; color: var(--ink-2);
+  font-size: 12.5px; cursor: pointer; white-space: nowrap;
+}
+.fchip[aria-pressed="true"] { background: var(--brand); border-color: var(--brand); color: #fff; font-weight: 600; }
+
+.fab {
+  position: absolute; right: 16px;
+  bottom: calc(var(--m-dock-h) + var(--m-safe-b) + 14px);
+  height: 46px; padding: 0 16px;
+  border: 0; border-radius: 999px;
+  background: var(--brand); color: #fff;
+  font-family: var(--font-body); font-size: 13.5px; font-weight: 650;
+  display: inline-flex; align-items: center; gap: 6px;
+  box-shadow: 0 10px 24px rgba(22,119,255,.36);
+  cursor: pointer; z-index: 5;
+}
+
+/* ============================ ② 底部 Dock ============================ */
+
+.dock {
+  position: absolute; left: 0; right: 0; bottom: 0;
+  height: calc(var(--m-dock-h) + var(--m-safe-b));
+  padding: 0 6px var(--m-safe-b);
+  display: grid; grid-auto-flow: column; grid-auto-columns: 1fr;
+  align-items: center;
+  background: rgba(255,255,255,.92);
+  backdrop-filter: saturate(180%) blur(16px);
+  -webkit-backdrop-filter: saturate(180%) blur(16px);
+  box-shadow: var(--m-shadow-dock);
+  z-index: 20;
+}
+.dock::before {
+  content: ""; position: absolute; left: 0; right: 0; top: 0; height: 1px;
+  background: var(--line);
+}
+.tab {
+  position: relative;
+  height: 46px; margin: 0 1px;
+  border: 0; border-radius: 12px;
+  background: transparent;
+  color: var(--ink-3);
+  font-family: var(--font-body);
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
+  cursor: pointer;
+  transition: color 160ms var(--ease-console), background 160ms var(--ease-console);
+}
+.tab .lbl { font-size: 10.5px; letter-spacing: .02em; font-weight: 600; }
+.tab svg { display: block; }
+.tab[aria-current="true"] { color: var(--brand); }
+.tab[aria-current="true"] .lbl { font-weight: 700; }
+/* 选中态：品牌色药丸底 + 顶部短指示条，两者都用 transform/opacity 做动效 */
+.tab .pill {
+  position: absolute; inset: 2px 3px;
+  border-radius: 12px; background: var(--brand-soft);
+  opacity: 0; transform: scale(.9);
+  transition: opacity 180ms var(--ease-console), transform 180ms var(--ease-console);
+  z-index: -1;
+}
+.tab[aria-current="true"] .pill { opacity: 1; transform: none; }
+.tab .badge-dot {
+  position: absolute; top: 4px; right: 50%; margin-right: -20px;
+  min-width: 16px; height: 16px; padding: 0 4px;
+  border-radius: 999px; background: var(--danger); color: #fff;
+  font-family: var(--font-mono); font-size: 9.5px; font-weight: 700; line-height: 16px;
+  border: 1.5px solid #fff;
+}
+.tab .hit { position: absolute; inset: 0; }
+
+/* ============================ ③ Dock 选中后的展开形态 ============================ */
+
+.scrim {
+  position: absolute; inset: 0; z-index: 15;
+  background: rgba(15,39,66,.34);
+  opacity: 0; pointer-events: none;
+  transition: opacity 220ms var(--ease-console);
+}
+/* 打开时同时恢复 opacity 与命中：只改 opacity 的话遮罩看得见却永远点不透 */
+.scrim.on { opacity: 1; pointer-events: auto; }
+
+/* 内容随抽屉上浮一档，制造层次 */
+.view-shift {
+  transition: transform 240ms var(--ease-console), opacity 240ms var(--ease-console);
+}
+.view-shift.lift { transform: translateY(-10px) scale(.972); opacity: .72; }
+
+.sheet {
+  position: absolute; left: 0; right: 0; bottom: 0;
+  z-index: 16;
+  max-height: calc(100% - var(--m-status-h) - 8px);
+  min-height: 148px;
+  display: flex; flex-direction: column;
+  background: #fff;
+  border-radius: var(--m-sheet-r) var(--m-sheet-r) 0 0;
+  box-shadow: var(--m-shadow-sheet);
+  transform: translateY(110%);
+  transition: transform 260ms var(--ease-console), height 260ms var(--ease-console);
+  touch-action: none;
+}
+/* 关闭态不用 display:none（会杀掉上滑动画），改用 visibility + 禁用命中 */
+.sheet.closed { visibility: hidden; pointer-events: none; }
+.sheet.peek { height: auto; }
+.sheet.half { height: 56%; }
+.sheet.full { height: calc(100% - var(--m-status-h)); transform: translateY(0) !important; }
+.sheet.open { transform: translateY(0); }
+.sheet.dragging { transition: none; }
+
+/* 拖拽把手：整块 header 可拖（手机上比只有把手好抓） */
+.sheet-grip {
+  flex: none; padding: 8px 0 2px;
+  display: grid; place-items: center;
+  cursor: grab;
+}
+.sheet-grip span { width: 38px; height: 4px; border-radius: 999px; background: #D2DAE5; }
+
+.sheet-head {
+  flex: none;
+  padding: 4px 16px 12px;
+  display: flex; align-items: center; gap: 10px;
+  cursor: grab;
+}
+.sheet-head .ttl { flex: 1; min-width: 0; }
+.sheet-head .ttl b { display: block; font-size: 16px; font-weight: 700; letter-spacing: .01em; }
+.sheet-head .ttl span { display: block; margin-top: 2px; font-size: 11.5px; color: var(--ink-3); }
+.sheet-head .gobtn {
+  flex: none; height: 30px; padding: 0 11px;
+  border: 1px solid var(--line); border-radius: 999px;
+  background: #fff; color: var(--ink-2); font-size: 12px; cursor: pointer;
+  display: inline-flex; align-items: center; gap: 4px;
+}
+.sheet-head .gobtn:hover { border-color: var(--brand); color: var(--brand); }
+
+.sheet-body {
+  flex: 1; min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain;
+  padding: 0 16px calc(var(--m-safe-b) + 16px);
+  touch-action: pan-y;
+}
+.sheet.peek .sheet-body { overflow: hidden; }
+
+/* 预览卡（peek 态的主角：抽屉里放卡片） */
+.pv-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.pv-grid.one { grid-template-columns: 1fr; }
+.pv {
+  text-align: left;
+  border: 1px solid var(--line); border-radius: 11px;
+  background: #fff; padding: 12px;
+  cursor: pointer;
+  transition: border-color 140ms, box-shadow 140ms, transform 90ms;
+  display: flex; flex-direction: column; gap: 7px;
+}
+.pv:hover { border-color: var(--line-blue); box-shadow: 0 6px 16px rgba(23,43,77,.07); }
+.pv:active { transform: scale(.985); }
+.pv .pv-k { font-size: 11px; font-weight: 600; color: var(--ink-3); letter-spacing: .04em; }
+.pv .pv-v { font-size: 21px; font-weight: 700; line-height: 1.1; }
+.pv .pv-v.mono { font-family: var(--font-mono); font-size: 17px; }
+.pv .pv-t { font-size: 11px; color: var(--ink-3); }
+.pv .pv-v.danger { color: var(--danger); }
+.pv .pv-v.warn { color: var(--warn); }
+.pv.brand { background: linear-gradient(160deg, #F5FAFF, #fff); border-color: var(--line-blue); }
+.pv.brand .pv-v { color: var(--brand); }
+.pv .ico { color: var(--brand); }
+
+.stack-note {
+  margin: 12px 0 0;
+  display: flex; gap: 7px; align-items: flex-start;
+  padding: 9px 10px; border-radius: 9px;
+  background: #F7F9FC; border: 1px solid var(--line-soft);
+  color: var(--ink-2); font-size: 11.5px; line-height: 1.5;
+}
+
+/* ============================ 全屏推开页（第二层） ============================ */
+
+.detail-hero {
+  background: var(--navy);
+  color: #fff;
+  padding: 16px 16px 18px;
+  position: relative;
+  overflow: hidden;
+}
+.detail-hero::after {
+  content: ""; position: absolute; right: -70px; top: -60px;
+  width: 190px; height: 190px; border: 34px solid rgba(22,119,255,.16); border-radius: 50%;
+}
+.detail-hero .who { position: relative; z-index: 1; }
+.detail-hero h2 { margin: 8px 0 6px; font-size: 19px; line-height: 1.3; letter-spacing: .01em; }
+.detail-hero .code { font-family: var(--font-mono); font-size: 11px; color: rgba(214,228,249,.62); letter-spacing: .06em; }
+.detail-hero .tags { margin-top: 11px; display: flex; flex-wrap: wrap; gap: 6px; position: relative; z-index: 1; }
+.detail-hero .tag {
+  height: 22px; padding: 0 9px; border-radius: 999px;
+  background: rgba(255,255,255,.12); border: 1px solid rgba(255,255,255,.18);
+  font-size: 11px; display: inline-flex; align-items: center; gap: 4px;
+}
+.backbtn {
+  width: 34px; height: 34px; border-radius: 10px;
+  border: 1px solid rgba(255,255,255,.16); background: rgba(255,255,255,.08);
+  color: #fff; display: grid; place-items: center; cursor: pointer;
+}
+.appbar.on-hero { background: var(--navy); border-bottom-color: rgba(255,255,255,.10); color: #fff; }
+
+.bottom-actions {
+  position: absolute; left: 0; right: 0; bottom: 0;
+  padding: 10px 14px calc(var(--m-safe-b) + 10px);
+  background: rgba(255,255,255,.94);
+  backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+  border-top: 1px solid var(--line);
+  display: flex; gap: 10px;
+  z-index: 12;
+}
+.btn-ghost {
+  flex: 1; height: 44px;
+  border: 1px solid var(--line); border-radius: 10px;
+  background: #fff; color: var(--ink);
+  font-family: var(--font-body); font-size: 14px; cursor: pointer;
+}
+.btn-ghost:hover { border-color: var(--brand); color: var(--brand); }
+.bottom-actions .btn-ghost.primary { flex: 1.4; background: var(--brand); border-color: var(--brand); color: #fff; font-weight: 650; }
+.bottom-actions .btn-ghost.primary:hover { background: var(--brand-hover); color: #fff; }
+
+/* ============================ 右栏：方案说明 ============================ */
+
+.side { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.side .panel {
+  background: #fff; border: 1px solid var(--line); border-radius: 12px;
+  padding: 18px 20px;
+  box-shadow: 0 1px 2px rgba(23,43,77,.04);
+}
+.side h2 { margin: 0 0 12px; font-size: 15px; letter-spacing: .01em; }
+.side h3 { margin: 16px 0 8px; font-size: 13px; color: var(--ink); }
+.side h3:first-of-type { margin-top: 0; }
+.side p { margin: 0 0 10px; font-size: 13px; color: var(--ink-2); line-height: 1.7; }
+.side ol, .side ul { margin: 0; padding-left: 20px; font-size: 13px; color: var(--ink-2); line-height: 1.8; }
+.side li b { color: var(--ink); }
+.side code {
+  font-family: var(--font-mono); font-size: 11.5px;
+  background: #F2F5FA; border: 1px solid var(--line-soft);
+  border-radius: 4px; padding: 1px 5px; color: #33506F;
+}
+.spec-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.spec-table th, .spec-table td {
+  text-align: left; padding: 8px 10px;
+  border-bottom: 1px solid var(--line-soft);
+  vertical-align: top;
+}
+.spec-table thead th { background: #F7F9FC; font-size: 11px; color: var(--ink-2); letter-spacing: .04em; }
+.spec-table td b { color: var(--ink); }
+.spec-table td.mono { font-family: var(--font-mono); font-size: 11.5px; }
+.pill-list { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 0; }
+.pill {
+  height: 24px; padding: 0 10px; border-radius: 999px;
+  border: 1px solid var(--line); background: #fff; color: var(--ink-2);
+  font-size: 11.5px; display: inline-flex; align-items: center; gap: 5px;
+}
+.pill.ok { border-color: #B7DDC8; background: var(--done-bg); color: var(--done); }
+.pill.no { border-color: #EFC0BB; background: var(--danger-bg); color: var(--danger); }
+.pill.todo2 { border-color: var(--line-blue); background: var(--brand-soft); color: var(--brand); }
+.qbox {
+  border-left: 3px solid var(--brand);
+  background: #F7FAFF; border-radius: 0 8px 8px 0;
+  padding: 10px 14px; margin: 0 0 10px;
+}
+.qbox b { font-size: 13px; }
+.qbox p { margin: 4px 0 0; font-size: 12.5px; }
+
+@media (max-width: 1040px) {
+  .page { grid-template-columns: 1fr; }
+  .stage { position: static; }
+}
+
+/* 原型里所有动效都遵循 prefers-reduced-motion */
+@media (prefers-reduced-motion: reduce) {
+  * { transition-duration: 1ms !important; animation-duration: 1ms !important; }
+}
+</style>
+</head>
+<body>
+
+<div class="page">
+  <header class="page-head">
+    <div class="eyebrow">BLF-1127 · Mobile PWA Prototype</div>
+    <h1>数科云办公 · 手机端导航与信息架构原型</h1>
+    <p>
+      覆盖三件事：<b>①登录页垂直居中</b>、<b>②业务模块收到底部 Dock</b>、<b>③Dock 选中后的卡片/抽屉展开形态</b>。
+      配色、圆角、动效曲线、状态语义都取自现有 <code>web/app/globals.css</code>，业务数据取自 <code>scripts/seed_mock.py</code> 的真实演示项目，验收通过后可 1:1 迁移。
+    </p>
+    <div class="meta">
+      <span class="chip">真实数据：企业官网改版 / CRM 系统一期实施</span>
+      <span class="chip">真实菜单契约：/meta/me/menus</span>
+      <span class="chip">触控目标 ≥ 44px</span>
+      <span class="chip">支持 prefers-reduced-motion</span>
+    </div>
+  </header>
+
+  <!-- ==================== 左：手机画布 ==================== -->
+  <section class="stage">
+    <div class="stage-bar">
+      <button class="tbtn" data-jump="login" aria-pressed="true">① 登录页</button>
+      <button class="tbtn" data-jump="dashboard">② 工作台</button>
+      <button class="tbtn" data-jump="projects">③ 项目台账</button>
+      <button class="tbtn" data-jump="detail">④ 项目详情</button>
+      <button class="tbtn" data-jump="sheet">⑤ Dock 展开</button>
+      <button class="tbtn" data-jump="full">⑥ 全屏抽屉</button>
+    </div>
+    <div class="stage-bar">
+      <button class="tbtn" id="btnKeyboard" aria-pressed="false">键盘抬起</button>
+      <button class="tbtn" id="btnAdmin" aria-pressed="false">管理员视角</button>
+      <button class="tbtn" id="btnWidth" data-w="narrow">360×780</button>
+      <button class="tbtn" id="btnWidth2" data-w="wide">430×860</button>
+      <button class="tbtn" id="btnReset">重置原型</button>
+    </div>
+
+    <div class="device" id="device">
+      <div class="notch" aria-hidden="true"></div>
+      <div class="screen" id="screen">
+
+        <!-- ============ 视图 1：登录页 ============ -->
+        <div class="view" id="view-login">
+          <div class="statusbar on-navy" id="sb-login">
+            <span>9:41</span>
+            <span class="sb-right">
+              <svg width="17" height="11" viewBox="0 0 17 11" fill="currentColor"><rect x="0" y="7" width="3" height="4" rx="1"/><rect x="4.5" y="5" width="3" height="6" rx="1"/><rect x="9" y="2.5" width="3" height="8.5" rx="1"/><rect x="13.5" y="0" width="3" height="11" rx="1" opacity=".38"/></svg>
+              <svg width="16" height="11" viewBox="0 0 16 11" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M1 3.4a11 11 0 0 1 14 0"/><path d="M3.6 6a7.4 7.4 0 0 1 8.8 0"/><path d="M6.2 8.5a3.6 3.6 0 0 1 3.6 0"/></svg>
+              <svg width="25" height="12" viewBox="0 0 25 12" fill="none"><rect x=".6" y=".6" width="21" height="10.8" rx="3" stroke="currentColor" stroke-opacity=".45"/><rect x="2.4" y="2.4" width="16.5" height="7.2" rx="1.8" fill="currentColor"/><path d="M23.4 4.2v3.6a2 2 0 0 0 0-3.6z" fill="currentColor" fill-opacity=".5"/></svg>
+            </span>
+          </div>
+
+          <div class="login" id="loginBox">
+            <div class="login-body">
+              <div class="login-brand-block">
+                <div class="seal-lg">SHZK</div>
+                <div class="brand">数科云办公</div>
+                <div class="slogan">复杂有章 · 交付有信</div>
+              </div>
+
+              <div class="login-card">
+                <h2>登录管理工作台</h2>
+                <p class="sub">使用手机号账号登录</p>
+                <form id="loginForm" novalidate>
+                  <div class="field">
+                    <label for="phone">手机号</label>
+                    <input id="phone" inputmode="numeric" autocomplete="username" placeholder="请输入 11 位手机号" value="13800000001" />
+                  </div>
+                  <div class="field">
+                    <label for="pwd">密码</label>
+                    <div class="with-eye">
+                      <input id="pwd" type="password" autocomplete="current-password" placeholder="请输入登录密码" value="123456" />
+                      <button type="button" id="eye" aria-label="显示密码">
+                        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M2 12s3.6-6.5 10-6.5S22 12 22 12s-3.6 6.5-10 6.5S2 12 2 12z"/><circle cx="12" cy="12" r="2.6"/></svg>
+                      </button>
+                    </div>
+                  </div>
+                  <div class="alert" id="loginErr" hidden>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="flex:none;margin-top:1px"><circle cx="12" cy="12" r="9"/><path d="M12 8v4.5M12 16h.01"/></svg>
+                    <span id="loginErrText">手机号或密码错误</span>
+                  </div>
+                  <button class="btn-primary" type="submit" id="loginBtn">进入管理平台</button>
+                </form>
+              </div>
+
+              <p class="login-hintline">首屏即表单：无滚动、无横向偏移，键盘抬起时表单自动上移</p>
+            </div>
+
+            <!-- 模拟软键盘（仅原型演示，验证表单可用性） -->
+            <div class="keyboard" id="kb" aria-hidden="true">
+              <span>1</span><span>2</span><span>3</span><span>4</span><span>5</span><span>6</span><span>7</span><span>8</span><span>9</span><span>0</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- ============ 视图 2：App（含 Dock 与抽屉） ============ -->
+        <div class="view no-dock" id="view-app" hidden>
+          <div class="scrim" id="scrim"></div>
+
+          <div class="view-shift" id="shift" style="display:flex;flex-direction:column;flex:1;min-height:0">
+            <div class="statusbar" id="sb-app">
+              <span>9:41</span>
+              <span class="sb-right">
+                <svg width="17" height="11" viewBox="0 0 17 11" fill="currentColor"><rect x="0" y="7" width="3" height="4" rx="1"/><rect x="4.5" y="5" width="3" height="6" rx="1"/><rect x="9" y="2.5" width="3" height="8.5" rx="1"/><rect x="13.5" y="0" width="3" height="11" rx="1" opacity=".38"/></svg>
+                <svg width="16" height="11" viewBox="0 0 16 11" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M1 3.4a11 11 0 0 1 14 0"/><path d="M3.6 6a7.4 7.4 0 0 1 8.8 0"/><path d="M6.2 8.5a3.6 3.6 0 0 1 3.6 0"/></svg>
+                <svg width="25" height="12" viewBox="0 0 25 12" fill="none"><rect x=".6" y=".6" width="21" height="10.8" rx="3" stroke="currentColor" stroke-opacity=".45"/><rect x="2.4" y="2.4" width="16.5" height="7.2" rx="1.8" fill="currentColor"/><path d="M23.4 4.2v3.6a2 2 0 0 0 0-3.6z" fill="currentColor" fill-opacity=".5"/></svg>
+              </span>
+            </div>
+
+            <div class="appbar">
+              <div class="grow">
+                <div class="crumb" id="abCrumb">数科云办公 / 工作台</div>
+                <div class="title" id="abTitle">工作台</div>
+              </div>
+              <button class="iconbtn" id="btnBell" aria-label="通知">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 1 0-12 0c0 6-2 7-2 7h16s-2-1-2-7"/><path d="M10.3 20a2 2 0 0 0 3.4 0"/></svg>
+                <span class="dot" id="bellDot">3</span>
+              </button>
+              <div class="avatar">张</div>
+            </div>
+
+            <div class="ptr" id="ptr"><div class="ring"></div></div>
+
+            <!-- ---------- 工作台 ---------- -->
+            <div class="scroll" id="scroll-dashboard">
+              <div class="kpis">
+                <div class="kpi"><div class="k">我的项目</div><div class="v">5</div><div class="t">进行中 3</div></div>
+                <div class="kpi alert"><div class="k">逾期任务</div><div class="v">2</div><div class="t">我负责 1</div></div>
+                <div class="kpi"><div class="k">未读通知</div><div class="v">3</div><div class="t">审批结果会通知您</div></div>
+                <div class="kpi"><div class="k">本月支出</div><div class="v mono">¥48.2万</div><div class="t">仅计已通过</div></div>
+              </div>
+
+              <div class="sec-title">项目健康度 <span class="link" data-jump="projects">全部 ›</span></div>
+              <div class="list">
+                <div class="pcard" data-jump="detail">
+                  <div class="top">
+                    <div>
+                      <div class="nm">企业官网改版</div>
+                      <div class="code">PRJ-2026-001 · 研发</div>
+                    </div>
+                    <span class="badge doing">进行中</span>
+                  </div>
+                  <div class="bar"><i style="width:72%"></i></div>
+                  <div class="facts"><span>加权进度 <b>72%</b></span><span>执行率 <b>68%</b></span><span>逾期 <b style="color:var(--danger)">1</b></span></div>
+                </div>
+                <div class="pcard">
+                  <div class="top">
+                    <div>
+                      <div class="nm">CRM 系统一期实施</div>
+                      <div class="code">PRJ-2026-002 · 实施</div>
+                    </div>
+                    <span class="badge warn">风险</span>
+                  </div>
+                  <div class="bar warn"><i style="width:54%"></i></div>
+                  <div class="facts"><span>加权进度 <b>54%</b></span><span>执行率 <b style="color:var(--warn)">87%</b></span><span>停滞 <b>9 天</b></span></div>
+                </div>
+              </div>
+
+              <div class="sec-title">本周动态 <span class="sub">近 7 天填报 4 条</span></div>
+              <div class="mcard">
+                <ul class="timeline">
+                  <li><span class="t">09-17 15:20</span><span>任务 <b>#128</b> 填报 <b>72%</b> · 详情页完成，适配剩余 3 个断点</span></li>
+                  <li><span class="t">09-15 10:02</span><span>任务 <b>#131</b> 填报 <b>60%</b> · 产品详情页完成 80%</span></li>
+                  <li><span class="t">09-13 09:41</span><span>支出 <b>¥4.5万</b> 提交待审批 · 外包二期预付款</span></li>
+                </ul>
+              </div>
+            </div>
+
+            <!-- ---------- 项目台账 ---------- -->
+            <div class="scroll" id="scroll-projects" hidden>
+              <div class="filters">
+                <button class="fchip" aria-pressed="true">全部</button>
+                <button class="fchip">进行中</button>
+                <button class="fchip">我负责</button>
+                <button class="fchip">预警</button>
+              </div>
+              <div class="sec-title">共 9 个项目 <span class="sub">按健康度排序</span></div>
+              <div class="list">
+                <div class="pcard" data-jump="detail">
+                  <div class="top"><div><div class="nm">企业官网改版</div><div class="code">PRJ-2026-001 · 研发</div></div><span class="badge doing">进行中</span></div>
+                  <div class="bar"><i style="width:72%"></i></div>
+                  <div class="facts"><span>负责人 <b>张伟</b></span><span>进度 <b>72%</b></span><span>预算 <b>¥120万</b></span></div>
+                </div>
+                <div class="pcard">
+                  <div class="top"><div><div class="nm">CRM 系统一期实施</div><div class="code">PRJ-2026-002 · 实施</div></div><span class="badge warn">风险</span></div>
+                  <div class="bar warn"><i style="width:54%"></i></div>
+                  <div class="facts"><span>负责人 <b>李娜</b></span><span>进度 <b>54%</b></span><span>执行率 <b style="color:var(--warn)">87%</b></span></div>
+                </div>
+                <div class="pcard">
+                  <div class="top"><div><div class="nm">数据中台建设咨询</div><div class="code">PRJ-2026-003 · 咨询</div></div><span class="badge todo">已立项</span></div>
+                  <div class="bar"><i style="width:0%"></i></div>
+                  <div class="facts"><span>负责人 <b>张伟</b></span><span>进度 <b>0%</b></span><span>预算 <b>¥80万</b></span></div>
+                </div>
+                <div class="pcard">
+                  <div class="top"><div><div class="nm">智能仓储改造工程</div><div class="code">PRJ-2026-004 · 工程</div></div><span class="badge danger">超支特批</span></div>
+                  <div class="bar danger"><i style="width:96%"></i></div>
+                  <div class="facts"><span>负责人 <b>李娜</b></span><span>采购 <b style="color:var(--danger)">超 80%</b></span><span>状态 <b>暂停</b></span></div>
+                </div>
+                <div class="pcard">
+                  <div class="top"><div><div class="nm">移动端 App 重构</div><div class="code">PRJ-2026-005 · 研发</div></div><span class="badge done">已完成</span></div>
+                  <div class="bar"><i style="width:100%"></i></div>
+                  <div class="facts"><span>负责人 <b>王强</b></span><span>进度 <b>100%</b></span><span>执行率 <b>92%</b></span></div>
+                </div>
+              </div>
+            </div>
+
+            <!-- ---------- 项目详情（第二层：全屏推开） ---------- -->
+            <div class="scroll" id="scroll-detail" hidden style="padding-bottom:96px">
+              <div class="detail-hero" style="margin:-14px -14px 0;border-radius:0">
+                <div class="who">
+                  <div class="code">PRJ-2026-001</div>
+                  <h2>企业官网改版</h2>
+                  <div class="tags">
+                    <span class="tag">进行中</span>
+                    <span class="tag">研发 · 产品研发部</span>
+                    <span class="tag">负责人 张伟</span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="kpis" style="margin-top:12px">
+                <div class="kpi"><div class="k">预算合计</div><div class="v mono">¥120万</div><div class="t">已批 4 项</div></div>
+                <div class="kpi"><div class="k">已支出</div><div class="v mono">¥81.6万</div><div class="t">执行率 68%</div></div>
+                <div class="kpi"><div class="k">加权进度</div><div class="v">72%</div><div class="t">按任务权重</div></div>
+                <div class="kpi alert"><div class="k">逾期任务</div><div class="v">1</div><div class="t">多语言文案校对</div></div>
+              </div>
+
+              <div style="margin-top:14px" class="segmented" role="tablist">
+                <button role="tab" aria-selected="true">概览</button>
+                <button role="tab" aria-selected="false">进度</button>
+                <button role="tab" aria-selected="false">预算</button>
+                <button role="tab" aria-selected="false">跟进</button>
+              </div>
+
+              <div class="sec-title">里程碑 <span class="sub">4 个 · 1 个临近</span></div>
+              <div class="mcard">
+                <ul class="timeline">
+                  <li><span class="t">已完成</span><span>需求冻结 · 计划 06-15 / 实际 06-17</span></li>
+                  <li><span class="t">已完成</span><span>设计交付 · 计划 06-10 / 实际 06-12</span></li>
+                  <li><span class="t" style="color:var(--warn)">2 天后</span><span>一期上线 <span class="badge warn" style="margin-left:4px">临近</span></span></li>
+                  <li><span class="t">09-25</span><span>验收结项</span></li>
+                </ul>
+              </div>
+
+              <div class="sec-title">近期支出 <span class="link">全部 ›</span></div>
+              <div class="mcard">
+                <ul class="timeline">
+                  <li><span class="t">09-16</span><span>外包 · <b>¥4.5万</b> 待审批 · 外包二期预付款</span></li>
+                  <li><span class="t">09-12</span><span>采购 · <b>¥5.2万</b> 特批通过 · 显示器与测试机</span></li>
+                  <li><span class="t">09-08</span><span>人工 · <b>¥7.6万</b> 已通过 · 5 月人力成本</span></li>
+                </ul>
+              </div>
+            </div>
+
+            <div class="bottom-actions" id="detailActions" hidden>
+              <button class="btn-ghost" id="btnDetailBack">返回</button>
+              <button class="btn-ghost primary">填报进度</button>
+            </div>
+          </div>
+
+          <!-- ---------- 底部 Dock ---------- -->
+          <nav class="dock" id="dock" aria-label="主导航"></nav>
+
+          <!-- ---------- Dock 选中后的抽屉 ---------- -->
+          <section class="sheet closed" id="sheet" aria-label="快捷面板">
+            <div class="sheet-grip" id="sheetGrip"><span></span></div>
+            <div class="sheet-head" id="sheetHead">
+              <div class="ttl"><b id="sheetTitle">项目</b><span id="sheetSub">快速筛选与最近项目</span></div>
+              <button class="gobtn" id="sheetGo">进入模块 <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M9 5l7 7-7 7"/></svg></button>
+            </div>
+            <div class="sheet-body" id="sheetBody"></div>
+          </section>
+        </div>
+
+      </div>
+    </div>
+
+    <p style="max-width:420px;margin:0;color:var(--ink-2);font-size:12px;line-height:1.7;text-align:center">
+      提示：抽屉可上下拖拽（peek ↔ 半屏 ↔ 全屏），也可点遮罩或向下甩关闭；
+      「键盘抬起」用来验证登录页与表单类页面在软键盘占位下是否仍可用。
+    </p>
+  </section>
+
+  <!-- ==================== 右：方案说明 ==================== -->
+  <aside class="side">
+    <div class="panel">
+      <h2>信息架构：桌面 7 个入口 → 手机 5 个 Dock 位</h2>
+      <p>
+        桌面侧栏现在是 <code>工作台 / 项目台账 / 进度跟踪 / 支出记录 / 支出报表 / 通讯录 / 审批中心 / 系统管理</code>，
+        最多 8 项。手机 Dock 最多 5 位，硬塞会把标签压成 9px 不可读，因此按<b>「业务对象」而不是「页面」</b>分组：
+      </p>
+      <table class="spec-table">
+        <thead><tr><th>Dock 位</th><th>吸收的桌面入口</th><th>选中后的展开形态</th></tr></thead>
+        <tbody>
+          <tr><td><b>工作台</b></td><td>工作台</td><td>再次点按 → 上拉「快捷跳转卡」（待办 / 逾期 / 填报 / 支出）</td></tr>
+          <tr><td><b>项目</b></td><td>项目台账（含详情）</td><td>peek 抽屉：状态筛选 chips + 最近项目卡 + 进入台账</td></tr>
+          <tr><td><b>进度</b></td><td>进度跟踪</td><td>peek 抽屉：待填报 / 逾期 / 临近里程碑三张预览卡</td></tr>
+          <tr><td><b>费用</b></td><td>支出记录 + 支出报表</td><td>peek 抽屉：本月支出口径卡 + 两个模块卡</td></tr>
+          <tr><td><b>我的</b></td><td>通讯录 / 审批中心 / 系统管理 / 账号</td><td>半屏抽屉：账号卡 + 管理与审批入口（仅管理员）</td></tr>
+        </tbody>
+      </table>
+      <div class="stack-note">
+        <span>①</span>
+        <span>「费用」合并「支出记录 + 支出报表」不是偷懒——两者是同一个业务对象（支出）的录入面与汇总面，
+          在手机上并排做两个 Dock 位反而让用户每次都要先想「我要的是记录还是报表」。合并后 D 位只占 1 格，报表作为抽屉里的第二张卡进入。</span>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>展开形态：卡片（peek）与抽屉（half / full）是一套三态，不是两种控件</h2>
+      <p>同一张底部面板，按拖拽停靠位分三档，手势语义与 iOS 地图/Safari 一致：</p>
+      <table class="spec-table">
+        <thead><tr><th>档位</th><th>高度</th><th>遮罩</th><th>内容</th><th>用途</th></tr></thead>
+        <tbody>
+          <tr><td><b>peek</b></td><td>自适应（≤180px）</td><td>无</td><td>2–4 张预览卡</td><td>选中 Dock 的默认档：不打断当前页，一眼看到「有什么、要不要进去」</td></tr>
+          <tr><td><b>half</b></td><td>56%</td><td>有</td><td>卡片列表 + 筛选</td><td>需要比较几条记录时</td></tr>
+          <tr><td><b>full</b></td><td>整屏（保状态栏）</td><td>有</td><td>列表 + 分页</td><td>当筛选/详情必须全屏时，等价于进入模块列表</td></tr>
+        </tbody>
+      </table>
+      <div class="pill-list">
+        <span class="pill ok">点 Dock → 直接进 peek，不跳页</span>
+        <span class="pill ok">再点当前 Dock → 收起到 peek</span>
+        <span class="pill ok">上拖 → half → full</span>
+        <span class="pill ok">下甩 / 点遮罩 → 关闭</span>
+        <span class="pill ok">点卡片 → 进模块或详情</span>
+      </div>
+      <h3>为什么是「抽屉里放卡片」</h3>
+      <ol>
+        <li><b>抽屉</b>解决纵向层级（快捷面板与当前页共存），<b>卡片</b>解决横向信息密度（每张卡就是一条业务结论）。</li>
+        <li>peek 态不遮内容、不加遮罩，用户可以「看两眼就走」，这是手机端最高频的诉求。</li>
+        <li>需要深挖时手势上拖升级为 half/full，不需要重写第二套组件——与现有 <code>components/ui/Modal.tsx</code> 的 Drawer 复用同一套焦点与 Esc 逻辑。</li>
+      </ol>
+    </div>
+
+    <div class="panel">
+      <h2>登录页：从「上重下轻」改为真居中</h2>
+      <p>现状手机端是桌面 story 竖排——顶部深色大标题占掉半屏，表单被推到下面，需要抬手甚至滚动。改动：</p>
+      <ol>
+        <li>手机端只保留<b>垂直居中</b>的品牌块（印章 + 字标 + 一句话），删掉桌面的大标题与 01/02/03 卖点行。</li>
+        <li>表单组（输入 + 错误 + 按钮）用 <code>justify-content:center</code> 光学居中——居中基准是<b>表单组</b>而不是「品牌块 + 表单」，否则表单会偏下。</li>
+        <li>输入框高度 46px、字号 ≥16px（iOS <code>&lt;16px</code> 会自动缩放页面，是手机端最常见的「莫名放大」来源）。</li>
+        <li>软键盘抬起时用 <code>visualViewport</code> 把表单上移，错误提示与主按钮始终可见；密码框回车直接提交。</li>
+      </ol>
+      <div class="stack-note"><span>②</span><span>桌面 <code>login.module.css</code> 的 <code>@media (max-width:980px)</code> 只把两栏改成一栏，属于「窄屏适配」；本轮要的是<b>手机端专属布局</b>，建议按 <code>&lt;768px</code> 走独立分支并保留 story 的品牌资产（底色、网格、印章）。</span></div>
+    </div>
+
+    <div class="panel">
+      <h2>PWA 外壳：手机深度适配必须一起处理的 6 件事</h2>
+      <table class="spec-table">
+        <thead><tr><th>项</th><th>做法</th><th>不做的后果</th></tr></thead>
+        <tbody>
+          <tr><td class="mono">manifest<br>+ icons</td><td>新增 <code>app/manifest.ts</code>：<code>display: standalone</code>、<code>theme_color: #0F2742</code>、<code>background_color</code>、192/512 图标（含 maskable）、<code>shortcuts</code> 指向工作台/待审批</td><td>装到桌面仍是浏览器窗口，地址栏占掉 60px</td></tr>
+          <tr><td class="mono">safe-area</td><td>Dock 与底部操作条用 <code>padding-bottom: env(safe-area-inset-bottom)</code>；顶部状态栏用 <code>env(safe-area-inset-top)</code></td><td>iPhone 上 Dock 被 Home 指示条压住或页面被刘海遮挡</td></tr>
+          <tr><td class="mono">viewport</td><td><code>viewport-fit=cover</code> + 交互元素回避边缘 8px</td><td>横屏/圆角屏出现黑边或误触</td></tr>
+          <tr><td class="mono">overscroll</td><td><code>overscroll-behavior-y: contain</code>，自建下拉刷新（原型已实现）</td><td>standalone 下整页橡皮筋、误触刷新丢状态</td></tr>
+          <tr><td class="mono">点击延迟</td><td><code>touch-action: manipulation</code> + 所有可点元素 ≥44px</td><td>双指缩放误触、行内小按钮点不中</td></tr>
+          <tr><td class="mono">离线兜底</td><td>首版<b>不做</b>离线写缓存，只保证断网有明确错误与重试（复用 <code>LoadFailed</code>）</td><td>乐观写成离线会产生与审批/预算口径冲突的脏数据</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="panel">
+      <h2>请你拍的 4 个细节</h2>
+      <div class="qbox"><b>Q1 Dock 第 4 位叫「费用」还是「支出」？</b>
+        <p>原型用「费用」（含支出记录 + 支出报表）。若你希望报表单独立位，就要砍掉「进度」或把「进度」并进「项目」抽屉。</p></div>
+      <div class="qbox"><b>Q2 peek 抽屉是「预览卡」还是「直接进模块」？</b>
+        <p>原型默认 peek（不跳页）。若你更喜欢点 Dock 直接跳页、长按才出抽屉，手势要反过来——这会影响用户第一周的学习成本。</p></div>
+      <div class="qbox"><b>Q3 管理员入口放「我的」还是提升为第 6 个 Dock 位？</b>
+        <p>原型放在「我的」抽屉里并按需显示（非管理员看不到），Dock 上给「我的」加待办红点。若管理员用机频率很高，可以接受 6 位 Dock。</p></div>
+      <div class="qbox"><b>Q4 表格页（项目台账 / 审批中心）手机端是否改为卡片流？</b>
+        <p>原型改成卡片流（一屏 2–3 条可读结论）。若你希望保留表格横向滚动，我按现有 <code>@media (max-width:640px)</code> 继续补触控尺寸即可，但手机端体验会明显差。</p></div>
+    </div>
+  </aside>
+</div>
+
+<script>
+/* ==========================================================================
+   BLF-1127 原型交互
+   目标：把三件事做成可点、可拖、可回退的真状态机，而不是几张静态截图。
+   ========================================================================== */
+(function () {
+  "use strict";
+
+  var $ = function (sel, root) { return (root || document).querySelector(sel); };
+  var $$ = function (sel, root) { return Array.prototype.slice.call((root || document).querySelectorAll(sel)); };
+
+  var reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  /* 渲染助手：本原型的模板字符串全部是本文件里的静态字面量，不含任何用户输入
+     （手机号 / 密码只经 value 与 textContent）。这里用 Range 解析受信任的静态标记，
+     不经过 innerHTML，避免把「以后有人往模板里塞动态串」的口子留在代码里。 */
+  function frag(html) {
+    var r = document.createRange();
+    r.selectNode(document.body);
+    return r.createContextualFragment(html);
+  }
+
+  function mount(node, html) {
+    node.replaceChildren(frag(html));
+  }
+
+  /* ============================ 图标（与 layout.tsx 的 ICON 同源） ============================ */
+  var ICON = {
+    dashboard: '<rect x="3" y="3" width="7" height="9" rx="1.6"/><rect x="14" y="3" width="7" height="5" rx="1.6"/><rect x="14" y="12" width="7" height="9" rx="1.6"/><rect x="3" y="16" width="7" height="5" rx="1.6"/>',
+    projects: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M8 4v5"/>',
+    progress: '<path d="M3 17l5-6 4 4 6-8 3 3"/><path d="M3 21h18"/>',
+    costs: '<path d="M7 5l5 7 5-7M12 12v7M8 13h8M8 16h8"/>',
+    mine: '<path d="M5 4h12a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H5z"/><path d="M5 4H4a1 1 0 0 0-1 1v14a1 1 0 0 0 1 1h1"/><circle cx="12" cy="10" r="2.4"/><path d="M8.6 16.4a3.8 3.8 0 0 1 6.8 0"/>',
+    contacts: '<path d="M5 4h12a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H5z"/><path d="M5 4H4a1 1 0 0 0-1 1v14a1 1 0 0 0 1 1h1M9 9h5M9 13h5"/>',
+    approvals: '<path d="M9 11l3 3 8-8"/><path d="M20 12v7a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h9"/>',
+    admin: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-2.9 1.2 2 2 0 1 1-4 0 1.7 1.7 0 0 0-2.9-1.2l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1A1.7 1.7 0 0 0 3 15a2 2 0 1 1 0-4 1.7 1.7 0 0 0 1.5-2.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1A1.7 1.7 0 0 0 10 4.6a2 2 0 1 1 4 0 1.7 1.7 0 0 0 2.9 1.2l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1A1.7 1.7 0 0 0 21 11a2 2 0 1 1 0 4z"/>',
+    reports: '<path d="M5 3h14v18H5z"/><path d="M9 8h6M9 12h6M9 16h4"/>',
+    chev: '<path d="M9 5l7 7-7 7"/>',
+    plus: '<path d="M12 5v14M5 12h14"/>',
+    refresh: '<path d="M20 11a8 8 0 1 0-2.3 5.6"/><path d="M20 5v6h-6"/>'
+  };
+
+  function icon(name, size, stroke) {
+    var paths = ICON[name] || "";
+    return '<svg width="' + (size || 22) + '" height="' + (size || 22) + '" viewBox="0 0 24 24" fill="none" ' +
+      'stroke="currentColor" stroke-width="' + (stroke || 1.8) + '" stroke-linecap="round" stroke-linejoin="round">' +
+      paths + '</svg>';
+  }
+
+  /* ============================ 业务数据（取自 scripts/seed_mock.py 的演示项目） ============================ */
+
+  var PROJECT_CARDS = [
+    { name: "企业官网改版", code: "PRJ-2026-001 · 研发", tone: "doing", label: "进行中", pct: 72, facts: [["负责人", "张伟"], ["进度", "72%"], ["预算", "¥120万"]] },
+    { name: "CRM 系统一期实施", code: "PRJ-2026-002 · 实施", tone: "warn", label: "风险", pct: 54, warn: true, facts: [["负责人", "李娜"], ["进度", "54%"], ["执行率", "87%"]] }
+  ];
+  var PROGRESS_CARDS = [
+    { name: "多语言文案校对", code: "企业官网改版 · 逾期 6 天", tone: "danger", label: "逾期", pct: 30, danger: true, facts: [["负责人", "赵敏"], ["截止", "09-12"]] },
+    { name: "响应式适配", code: "企业官网改版 · 10 天后", tone: "warn", label: "进行中", pct: 45, warn: true, facts: [["负责人", "赵敏"], ["剩余", "3 断点"]] }
+  ];
+
+  /* Dock 定义：5 位固定 + 抽屉内容 = 手机端单一导航事实来源 */
+  var TABS = [
+    {
+      id: "dashboard", label: "工作台", icon: "dashboard", route: "工作台",
+      sheet: {
+        title: "工作台", sub: "再次点按 = 打开快捷跳转卡", go: null,
+        peek: function () {
+          return '<div class="pv-grid">' +
+            pv("待我审批", isAdmin() ? "3" : "—", isAdmin() ? "立项 1 · 预算调整 1 · 支出 1" : "非管理员无审批入口", "brand", isAdmin() ? "" : "pv disabled") + "</div>" +
+            '<div class="pv-grid" style="margin-top:10px">' +
+            pv("今日待填报", "2", "任务 #131 #134") +
+            pv("逾期任务", "2", "1 项由我负责", "", "danger") +
+            pv("临近里程碑", "1", "一期上线 · 2 天后", "", "warn") +
+            pv("本月支出", "¥48.2万", "仅计已通过", "", "", true) +
+            "</div>";
+        }
+      }
+    },
+    {
+      id: "projects", label: "项目", icon: "projects", route: "项目台账",
+      sheet: {
+        title: "项目", sub: "共 9 个 · 进行中 3 · 预警 2", go: { label: "进入台账", route: "项目台账" },
+        peek: function () {
+          return '<div class="filters" style="margin-bottom:10px">' +
+            '<button class="fchip" aria-pressed="true">全部</button>' +
+            '<button class="fchip">进行中</button><button class="fchip">我负责</button><button class="fchip">预警</button></div>' +
+            '<div class="list">' + PROJECT_CARDS.map(cardHtml).join("") + "</div>" +
+            note("筛选条件与分页沿用桌面端 URL 状态（q / status / owner / page），手机端抽屉与台账页共享同一份 URL 参数，来回切换不丢筛选。");
+        }
+      }
+    },
+    {
+      id: "progress", label: "进度", icon: "progress", route: "进度跟踪",
+      sheet: {
+        title: "进度", sub: "待填报 2 · 逾期 2 · 临近 1", go: { label: "进入跟踪", route: "进度跟踪" },
+        peek: function () {
+          return '<div class="pv-grid">' +
+            pv("待填报", "2", "今天 18:00 前") + pv("逾期", "2", "1 项由我负责", "", "danger") + "</div>" +
+            '<div class="sec-title" style="margin:14px 2px 8px">需要处理的条目</div>' +
+            '<div class="list">' + PROGRESS_CARDS.map(cardHtml).join("") + "</div>" +
+            note("手机端填报入口做成卡片上的直接操作（点卡片 → 底部填报抽屉），不用先跳进任务详情再找按钮。");
+        }
+      }
+    },
+    {
+      id: "costs", label: "费用", icon: "costs", route: "支出记录",
+      sheet: {
+        title: "费用", sub: "支出记录 + 支出报表（同一业务对象）", go: { label: "记一笔支出", route: "支出记录" },
+        peek: function () {
+          return '<div class="pv-grid one">' +
+            pv("本月支出", "¥48.2万", "预算合计 ¥286万 · 执行率 68%", "brand", "", true) + "</div>" +
+            '<div class="pv-grid" style="margin-top:10px">' +
+            pv("支出记录", "登记与审批", "本月 14 笔待处理 3", "", "", false, "costs") +
+            pv("支出报表", "汇总与分析", "科目 / 人员 / 项目维度", "", "", false, "reports") + "</div>" +
+            note("口径提示放在抽屉里而不是藏在报表页：成本为项目管理口径，已支出只统计「已通过 / 特批通过」，与财务账存在差异。");
+        }
+      }
+    },
+    {
+      id: "mine", label: "我的", icon: "mine", route: "我的", badge: 3,
+      sheet: {
+        title: "我的", sub: "账号与管理与审批入口", go: null, level: 2,
+        peek: function () {
+          var adminRows = isAdmin()
+            ? '<div class="sec-title" style="margin:14px 2px 6px">管理与审批</div>' +
+              rowlink("approvals", "审批中心", "立项 1 · 预算调整 1 · 支出 1 待处理") +
+              rowlink("contacts", "通讯录", "合作方与内部联系人") +
+              rowlink("admin", "系统管理", "用户 / 字典 / 参数")
+            : '<div class="sec-title" style="margin:14px 2px 6px">我的参与</div>' +
+              rowlink("projects", "我参与的项目", "5 个 · 进行中 3") +
+              note("当前账号为普通用户：管理与审批入口不会出现，也不会看到必然 403 的按钮（沿用 /meta/me/menus 单一入口契约）。");
+
+          return '<div class="mcard" style="display:flex;align-items:center;gap:12px">' +
+            '<div class="avatar" style="width:44px;height:44px;font-size:17px;background:var(--brand);color:#fff;border-radius:999px;display:grid;place-items:center">张</div>' +
+            '<div style="flex:1;min-width:0">' +
+            '<div style="font-size:15px;font-weight:650">张伟</div>' +
+            '<div style="font-size:11.5px;color:var(--ink-3);margin-top:2px">' +
+            (isAdmin() ? "管理员 · 全局管理与审批" : "项目负责人 / 成员 · 产品研发部") +
+            "</div></div>" +
+            '<span class="badge ' + (isAdmin() ? "doing" : "todo") + '">' + (isAdmin() ? "管理员" : "项目成员") + "</span></div>" +
+            adminRows +
+            '<div class="sec-title" style="margin:16px 2px 6px">账号</div>' +
+            rowlink("switch", "切换账号", "演示管理员 / 张伟 / 李娜") +
+            rowlink("logout", "退出登录", "将清除本地会话与权限缓存");
+        }
+      }
+    }
+  ];
+
+  function isAdmin() { return document.body.dataset.admin === "1"; }
+
+  function pv(k, v, t, cls, vcls, mono, iconName) {
+    return '<button type="button" class="pv ' + (cls || "") + '">' +
+      (iconName ? '<span class="ico">' + icon(iconName, 18) + "</span>" : "") +
+      '<span class="pv-k">' + k + "</span>" +
+      '<span class="pv-v' + (mono ? " mono" : "") + (vcls ? " " + vcls : "") + '">' + v + "</span>" +
+      '<span class="pv-t">' + t + "</span></button>";
+  }
+
+  function rowlink(act, title, sub) {
+    return '<div class="rowlink" data-act="' + act + '"><span class="ic">' + icon("chev", 15, 2.2) + "</span>" +
+      '<span class="tx"><b>' + title + "</b><span>" + sub + "</span></span>" +
+      '<span class="chev">' + icon("chev", 15, 2) + "</span></div>";
+  }
+
+  function note(text) {
+    return '<div class="stack-note"><span>' + icon("refresh", 13, 2) + '</span><span>' + text + "</span></div>";
+  }
+
+  function cardHtml(p) {
+    return '<div class="pcard" data-jump="detail">' +
+      '<div class="top"><div><div class="nm">' + p.name + '</div><div class="code">' + p.code + "</div></div>" +
+      '<span class="badge ' + p.tone + '">' + p.label + "</span></div>" +
+      '<div class="bar' + (p.warn ? " warn" : p.danger ? " danger" : "") + '"><i style="width:' + p.pct + '%"></i></div>' +
+      '<div class="facts">' + p.facts.map(function (f) { return "<span>" + f[0] + " <b>" + f[1] + "</b></span>"; }).join("") + "</div></div>";
+  }
+
+  /* ============================ 状态机 ============================ */
+
+  var ST = {
+    view: "login",          // login | app
+    route: "工作台",         // 当前模块（决定 Dock 高亮）
+    listView: "dashboard",   // dashboard | projects | detail
+    sheetTab: null,          // 打开的抽屉对应的 Dock id
+    level: 0,                // 0 关闭 / 1 peek / 2 half / 3 full
+    keyboard: false,
+    admin: false
+  };
+
+  var el = {
+    viewLogin: $("#view-login"),
+    viewApp: $("#view-app"),
+    dock: $("#dock"),
+    sheet: $("#sheet"),
+    sheetBody: $("#sheetBody"),
+    sheetGrip: $("#sheetGrip"),
+    sheetHead: $("#sheetHead"),
+    sheetTitle: $("#sheetTitle"),
+    sheetSub: $("#sheetSub"),
+    sheetGo: $("#sheetGo"),
+    scrim: $("#scrim"),
+    shift: $("#shift"),
+    abTitle: $("#abTitle"),
+    abCrumb: $("#abCrumb"),
+    sbApp: $("#sb-app"),
+    scrolls: { dashboard: $("#scroll-dashboard"), projects: $("#scroll-projects"), detail: $("#scroll-detail") },
+    detailActions: $("#detailActions")
+  };
+
+  /* ---------- Dock 渲染 ---------- */
+  function renderDock() {
+    mount(el.dock, TABS.map(function (t) {
+      var current = (ST.view === "app" && ST.route === t.route) || (ST.sheetTab === t.id);
+      var badge = (t.id === "mine" && isAdmin()) ? '<span class="badge-dot">3</span>' : "";
+      return '<button class="tab" data-tab="' + t.id + '" aria-current="' + (current ? "true" : "false") + '" aria-label="' + t.label + '">' +
+        '<span class="pill"></span>' + icon(t.icon, 22) + badge +
+        '<span class="lbl">' + t.label + "</span></button>";
+    }).join(""));
+    $$(".tab", el.dock).forEach(function (b) {
+      b.addEventListener("click", function () { onTab(b.dataset.tab); });
+    });
+  }
+
+  function tabDef(id) {
+    for (var i = 0; i < TABS.length; i++) if (TABS[i].id === id) return TABS[i];
+    return null;
+  }
+
+  /* ---------- 列表视图切换 ---------- */
+  function showList(name) {
+    ST.listView = name;
+    Object.keys(el.scrolls).forEach(function (k) { el.scrolls[k].hidden = (k !== name); });
+    el.detailActions.hidden = (name !== "detail");
+    el.viewApp.classList.toggle("no-dock", name === "detail");
+    el.dock.hidden = (name === "detail");
+    el.scrolls[name].scrollTop = 0;
+  }
+
+  function setRoute(label, crumb) {
+    ST.route = label;
+    el.abTitle.textContent = label;
+    el.abCrumb.textContent = "数科云办公 / " + (crumb || label);
+    renderDock();
+  }
+
+  /* ---------- 抽屉 ---------- */
+  /**
+   * 打开/切换抽屉。level 为期望档位（1 peek / 2 half / 3 full）。
+   *
+   * 再次点当前 Dock 时的约定（与原型右侧「手势表」一致）：
+   *   · 已是 peek → 收起
+   *   · 已是 half/full → 降回 peek
+   * 这样用户永远只需记住「点一下展开、再点一下收回」，不会出现点了没反应的死键。
+   */
+  function openSheet(tabId, level) {
+    var t = tabDef(tabId);
+    if (!t) return;
+    var req = level || t.sheet.level || 1;
+    var sameTab = ST.sheetTab === tabId && !el.sheet.classList.contains("closed");
+
+    if (sameTab) {
+      if (ST.level >= 2) ST.level = 1;    // 降回 peek
+      else { closeSheet(); return; }      // peek → 收起
+    } else {
+      ST.level = req;
+    }
+
+    ST.sheetTab = tabId;
+
+    el.sheetTitle.textContent = t.sheet.title;
+    el.sheetSub.textContent = t.sheet.sub;
+    if (t.sheet.go) {
+      el.sheetGo.hidden = false;
+      el.sheetGo.firstChild.nodeValue = t.sheet.go.label + " ";
+    } else {
+      el.sheetGo.hidden = true;
+    }
+    mount(el.sheetBody, t.sheet.peek());
+    el.sheetBody.scrollTop = 0;
+    el.sheet.classList.remove("closed");
+    applyLevel(true);
+    bindSheetBody();
+    renderDock();
+  }
+
+  function applyLevel(animate) {
+    var lv = ST.level;
+    el.sheet.classList.remove("peek", "half", "full", "open");
+    if (!animate) el.sheet.classList.add("dragging");
+    if (lv === 1) el.sheet.classList.add("peek", "open");
+    if (lv === 2) el.sheet.classList.add("half", "open");
+    if (lv === 3) el.sheet.classList.add("full", "open");
+    el.scrim.classList.toggle("on", lv >= 2);
+    el.shift.classList.toggle("lift", lv >= 2);
+    // peek 态抽屉高度即内容高度，超出时由 CSS max-height 截断
+    if (lv === 1) {
+      var need = el.sheetHead.offsetHeight + 16 + el.sheetGrip.offsetHeight +
+        Math.min(el.sheetBody.scrollHeight, 190) + 26;
+      el.sheet.style.height = Math.min(need, 236) + "px";
+    } else if (lv === 2) {
+      el.sheet.style.height = "56%";
+    } else {
+      el.sheet.style.height = "";
+    }
+  }
+
+  function closeSheet() {
+    ST.level = 0;
+    ST.sheetTab = null;
+    el.sheet.classList.remove("open", "peek", "half", "full");
+    el.sheet.style.transform = "";
+    el.scrim.classList.remove("on");
+    el.shift.classList.remove("lift");
+    // 动画结束后才彻底关掉命中，避免下滑动画中途就能点穿
+    setTimeout(function () { if (ST.level === 0) el.sheet.classList.add("closed"); }, reduced ? 0 : 280);
+    renderDock();
+  }
+
+  /* ---------- 拖拽：peek ↔ half ↔ full ↔ 关闭 ---------- */
+  (function drag() {
+    var startY = 0, startLv = 1, dragging = false, moved = 0;
+
+    function point(e) {
+      var t = e.touches ? e.touches[0] : e;
+      return { y: t.clientY };
+    }
+
+    function down(e) {
+      if (ST.level === 0) return;
+      // 只有在 sheet-body 顶部时才允许整体拖拽，避免抢走列表滚动
+      var inBody = e.target.closest && e.target.closest(".sheet-body");
+      if (inBody && el.sheetBody.scrollTop > 0) return;
+      dragging = true; moved = 0;
+      startY = point(e).y; startLv = ST.level;
+      el.sheet.classList.add("dragging");
+    }
+
+    function move(e) {
+      if (!dragging) return;
+      var dy = point(e).y - startY;
+      moved = dy;
+      var base = el.sheet.getBoundingClientRect().height;
+      var shift = Math.max(dy, -base + 80);
+      el.sheet.style.transform = "translateY(" + shift + "px)";
+      if (e.cancelable) e.preventDefault();
+    }
+
+    function up() {
+      if (!dragging) return;
+      dragging = false;
+      el.sheet.classList.remove("dragging");
+      el.sheet.style.transform = "";
+      var dy = moved;
+      moved = 0;
+      if (dy > 96) {                       // 下甩：降档或关闭
+        if (startLv === 1) closeSheet();
+        else { ST.level = startLv - 1; applyLevel(true); }
+      } else if (dy < -56) {               // 上拖：升档
+        ST.level = Math.min(3, startLv + 1);
+        applyLevel(true);
+      } else {
+        applyLevel(true);
+      }
+    }
+
+    ["mousedown", "touchstart"].forEach(function (ev) { el.sheetGrip.addEventListener(ev, down); el.sheetHead.addEventListener(ev, down); el.sheet.addEventListener(ev, down); });
+    ["mousemove", "touchmove"].forEach(function (ev) { document.addEventListener(ev, move, { passive: false }); });
+    ["mouseup", "touchend", "touchcancel"].forEach(function (ev) { document.addEventListener(ev, up); });
+  })();
+
+  /* ---------- 抽屉内点击 ---------- */
+  function bindSheetBody() {
+    $$(".fchip", el.sheetBody).forEach(function (b) {
+      b.addEventListener("click", function () {
+        $$(".fchip", el.sheetBody).forEach(function (o) { o.setAttribute("aria-pressed", "false"); });
+        b.setAttribute("aria-pressed", "true");
+      });
+    });
+    $$("[data-jump='detail']", el.sheetBody).forEach(function (c) {
+      c.addEventListener("click", function () { closeSheet(); goDetail(); });
+    });
+    $$(".pv", el.sheetBody).forEach(function (c) {
+      c.addEventListener("click", function () {
+        var label = $(".pv-k", c).textContent;
+        if (label === "支出报表") { closeSheet(); setRoute("支出报表"); showList("dashboard"); return; }
+        if (label === "支出记录") { closeSheet(); setRoute("支出记录"); showList("dashboard"); return; }
+        closeSheet();
+      });
+    });
+    $$("[data-act]", el.sheetBody).forEach(function (r) {
+      r.addEventListener("click", function () {
+        var a = r.dataset.act;
+        if (a === "approvals") { closeSheet(); setRoute("审批中心", "管理与审批 / 审批中心"); showList("dashboard"); }
+        if (a === "contacts") { closeSheet(); setRoute("通讯录", "管理与审批 / 通讯录"); showList("dashboard"); }
+        if (a === "admin") { closeSheet(); setRoute("系统管理", "管理与审批 / 系统管理"); showList("dashboard"); }
+        if (a === "projects") { closeSheet(); setRoute("项目台账"); showList("projects"); }
+        if (a === "logout" || a === "switch") { closeSheet(); goLogin(); }
+      });
+    });
+  }
+
+  /* ---------- Dock 点击 ---------- */
+  function onTab(id) {
+    var t = tabDef(id);
+    if (!t) return;
+
+    // 视图内导航（台账/详情）先退回模块根视图
+    if (ST.listView !== "dashboard") showList("dashboard");
+
+    if (id === "dashboard") {
+      setRoute("工作台"); scrollToTop("dashboard");
+      openSheet("dashboard", 1);   // 工作台：再点一次出快捷跳转卡
+      return;
+    }
+    if (id === "projects") { setRoute("项目台账"); scrollToTop("projects"); openSheet("projects", 1); return; }
+    if (id === "progress") { setRoute("进度跟踪"); openSheet("progress", 1); return; }
+    if (id === "costs") { setRoute("支出记录"); openSheet("costs", 1); return; }
+    if (id === "mine") { setRoute("我的"); openSheet("mine", 2); return; }
+  }
+
+  function scrollToTop(name) { if (el.scrolls[name]) el.scrolls[name].scrollTop = 0; }
+
+  /* ---------- 路由：详情 / 登录 ---------- */
+  function goDetail() {
+    ST.route = "项目台账";
+    showList("detail");
+    renderDock();
+    el.abTitle.textContent = "企业官网改版";
+    el.abCrumb.textContent = "项目台账 / PRJ-2026-001";
+  }
+
+  function goApp(routeLabel) {
+    ST.view = "app";
+    el.viewLogin.hidden = true;
+    el.viewApp.hidden = false;
+    setRoute(routeLabel || "工作台");
+    showList(routeLabel === "项目台账" ? "projects" : "dashboard");
+    ST.sheetTab = null; ST.level = 0;
+  }
+
+  function goLogin() {
+    ST.view = "login";
+    closeSheet();
+    el.viewApp.hidden = true;
+    el.viewLogin.hidden = false;
+    ST.keyboard = false;
+    document.body.dataset.admin = "0";
+    el.viewLogin.classList.remove("is-keyboard");
+    el.keyboardBtn.setAttribute("aria-pressed", "false");
+    el.adminBtn.setAttribute("aria-pressed", "false");
+  }
+
+  /* ---------- 登录交互 ---------- */
+  $("#loginForm").addEventListener("submit", function (e) {
+    e.preventDefault();
+    var phone = $("#phone").value.replace(/\D/g, "");
+    var pwd = $("#pwd").value;
+    var err = $("#loginErr");
+    if (!/^1\d{10}$/.test(phone)) {
+      $("#loginErrText").textContent = "请输入 11 位手机号账号";
+      err.hidden = false; return;
+    }
+    if (!pwd) { $("#loginErrText").textContent = "请输入密码"; err.hidden = false; return; }
+    err.hidden = true;
+    var btn = $("#loginBtn");
+    btn.disabled = true; btn.textContent = "正在验证…";
+    setTimeout(function () {
+      btn.disabled = false; btn.textContent = "进入管理平台";
+      goApp("工作台");
+    }, reduced ? 0 : 520);
+  });
+
+  $("#eye").addEventListener("click", function () {
+    var p = $("#pwd");
+    p.type = p.type === "password" ? "text" : "password";
+  });
+
+  $$(".fchip").forEach(function (b) {
+    b.addEventListener("click", function () {
+      var wrap = b.parentNode;
+      $$(".fchip", wrap).forEach(function (o) { o.setAttribute("aria-pressed", "false"); });
+      b.setAttribute("aria-pressed", "true");
+    });
+  });
+
+  /* 场景跳转统一入口：① 登录 ② 工作台 ③ 台账 ④ 详情 ⑤ Dock peek ⑥ 全屏抽屉
+     （三个 data-jump 监听块曾各自绑定，合并成一个派发器，避免同一按钮触发多次跳转） */
+  $$("[data-jump]").forEach(function (n) {
+    n.addEventListener("click", function () {
+      var j = n.dataset.jump;
+
+      // 工具条按钮：同步 aria-pressed
+      if (j === "login" || j === "dashboard" || j === "projects" || j === "detail" || j === "sheet" || j === "full") {
+        $$("[data-jump]").forEach(function (o) {
+          if (o.classList.contains("tbtn")) o.setAttribute("aria-pressed", "false");
+        });
+        if (n.classList.contains("tbtn")) n.setAttribute("aria-pressed", "true");
+      }
+
+      if (j === "login") { goLogin(); return; }
+      if (ST.view !== "app") goApp("工作台");
+      if (j === "dashboard") { closeSheet(); setRoute("工作台"); showList("dashboard"); }
+      else if (j === "projects") { closeSheet(); setRoute("项目台账"); showList("projects"); }
+      else if (j === "detail") { closeSheet(); goDetail(); }
+      else if (j === "sheet") { closeSheet(); setRoute("项目台账"); showList("projects"); openSheet("projects", 1); }
+      else if (j === "full") {
+        closeSheet(); setRoute("项目台账"); showList("projects"); openSheet("projects", 1);
+        setTimeout(function () { ST.level = 3; applyLevel(true); }, 60);
+      }
+    });
+  });
+
+  $$(".segmented").forEach(function (seg) {
+    $$("button", seg).forEach(function (b) {
+      b.addEventListener("click", function () {
+        $$("button", seg).forEach(function (o) { o.setAttribute("aria-selected", "false"); });
+        b.setAttribute("aria-selected", "true");
+      });
+    });
+  });
+
+  $("#btnDetailBack").addEventListener("click", function () { showList("projects"); setRoute("项目台账"); });
+
+  $("#sheetGo").addEventListener("click", function () {
+    var t = tabDef(ST.sheetTab);
+    if (!t || !t.sheet.go) return;
+    closeSheet();
+    if (t.id === "projects") showList("projects");
+    setRoute(t.sheet.go.route);
+  });
+
+  $("#scrim").addEventListener("click", closeSheet);
+
+  /* ---------- 下拉刷新（standalone 下浏览器自带刷新被禁用，必须自建） ---------- */
+  (function ptr() {
+    var scroller = el.scrolls.dashboard;
+    var startY = 0, pulling = false;
+    function down(e) {
+      if (scroller.scrollTop > 0) return;
+      pulling = true; startY = (e.touches ? e.touches[0] : e).clientY;
+    }
+    function move(e) {
+      if (!pulling) return;
+      var dy = (e.touches ? e.touches[0] : e).clientY - startY;
+      if (dy > 56) {
+        pulling = false;
+        $("#ptr").classList.add("show");
+        setTimeout(function () { $("#ptr").classList.remove("show"); }, reduced ? 0 : 700);
+      }
+    }
+    function up() { pulling = false; }
+    scroller.addEventListener("mousedown", down);
+    scroller.addEventListener("touchstart", down, { passive: true });
+    document.addEventListener("mousemove", move);
+    document.addEventListener("touchmove", move, { passive: true });
+    document.addEventListener("mouseup", up);
+    document.addEventListener("touchend", up);
+  })();
+
+  /* ---------- 顶部工具按钮（原型控制，不属于产品） ---------- */
+  el.keyboardBtn = $("#btnKeyboard");
+  el.adminBtn = $("#btnAdmin");
+
+  el.keyboardBtn.addEventListener("click", function () {
+    ST.keyboard = !ST.keyboard;
+    el.viewLogin.classList.toggle("is-keyboard", ST.keyboard);
+    this.setAttribute("aria-pressed", ST.keyboard ? "true" : "false");
+  });
+
+  el.adminBtn.addEventListener("click", function () {
+    ST.admin = !ST.admin;
+    document.body.dataset.admin = ST.admin ? "1" : "0";
+    this.setAttribute("aria-pressed", ST.admin ? "true" : "false");
+    renderDock();
+    if (ST.sheetTab) openSheet(ST.sheetTab, ST.level || 1);
+  });
+
+  function setWidth(cls) {
+    var d = $("#device");
+    d.classList.remove("narrow", "wide");
+    if (cls) d.classList.add(cls);
+    $$("#btnWidth, #btnWidth2").forEach(function (b) { b.setAttribute("aria-pressed", "false"); });
+    if (cls === "narrow") $("#btnWidth").setAttribute("aria-pressed", "true");
+    if (cls === "wide") $("#btnWidth2").setAttribute("aria-pressed", "true");
+    if (ST.level) applyLevel(false);
+  }
+  $("#btnWidth").addEventListener("click", function () { setWidth("narrow"); });
+  $("#btnWidth2").addEventListener("click", function () { setWidth("wide"); });
+
+  $("#btnReset").addEventListener("click", function () {
+    goLogin();
+    setWidth(null);
+    $$("[data-jump]").forEach(function (b) {
+      if (b.classList.contains("tbtn")) b.setAttribute("aria-pressed", b.dataset.jump === "login" ? "true" : "false");
+    });
+  });
+
+  /* ---------- 初始化 ---------- */
+  document.body.dataset.admin = "0";
+  renderDock();
+  window.addEventListener("resize", function () { if (ST.level) applyLevel(false); });
+})();
+</script>
+</body>
+</html>
