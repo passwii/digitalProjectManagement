@@ -183,7 +183,10 @@ PostgreSQL 是整个系统的 **System of Record**。预算审批、支出状态
 - `[现状]` 外键、唯一索引和复合索引保护基础完整性；高频查询按 `project_id + status`、`user_id + read_at` 等访问模式建索引。
 - `[现状]` `progress_logs` 只允许追加，任务 `progress` 是可重建的当前快照，避免覆盖历史。
 - `[现状]` 项目软删除通过 `deleted_at` 控制；普通查询和子表查询统一排除软删除项目。
-- `[现状]` 金额字段迁移为 `NUMERIC(18,2)` 或等价 Decimal 类型，避免 `Float` 累积误差。
+- `[目标]` 金额字段迁移为 `NUMERIC(18,2)` 或等价 Decimal 类型，避免 `Float` 累积误差。
+  `[现状]` 金额列仍是 `double precision`（`api/models/__init__.py` 的 `Column(Float, ...)`，
+  生产库实测 `budgets.amount` / `expenses.amount` / `projects.budget_total` / `budget_adjusts.old_amount|new_amount` 均为
+  `double precision`），因此精度收敛仍待做。
 - `[目标]` 对管理员改参数、项目状态流转、审批决策增加乐观锁版本号或条件更新，防止并发覆盖。
 
 ### 4.4 时间口径（BLF-1138 定稿）
@@ -212,7 +215,7 @@ PostgreSQL 是整个系统的 **System of Record**。预算审批、支出状态
 - `[注]` 应用运行时不依赖进程 `TZ`：口径模块用 `ZoneInfo("Asia/Shanghai")`，入库值与会话时区、
   容器 `TZ` 无关（`api/requirements.txt` 带 `tzdata`，保证无系统时区库的镜像也能用）。
 
-### 4.4 查询与扩展
+### 4.5 查询与扩展
 
 - `[现状]` 列表查询通过分页信封、排序白名单和稳定主键排序实现可预测的翻页语义。
 - `[现状]` 审批待办采用聚合计数和批量名称映射，避免 N+1 查询。
