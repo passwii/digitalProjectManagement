@@ -27,6 +27,7 @@ import MotionStagger from "@/components/motion/MotionStagger";
 import { useActivity } from "@/lib/useActivity";
 import ExpenseActions, { type ExpenseAct } from "./ExpenseActions";
 import ExpenseDialog from "./ExpenseDialog";
+import ExpenseVouchersDialog from "./ExpenseVouchersDialog";
 
 const URL_DEFAULTS = {
   project_id: "",
@@ -57,6 +58,7 @@ function CostsInner() {
   const { hasProjects, probing, probeError, reloadProbe } = useProjectsProbe();
   const [expenseOpen, setExpenseOpen] = useState(false);
   const [resubmitOf, setResubmitOf] = useState<Expense | null>(null);
+  const [vouchersOf, setVouchersOf] = useState<Expense | null>(null);
   const [reasonOf, setReasonOf] = useState<Expense | null>(null);
   const [busy, setBusy] = useState(false);
   const [confirm, setConfirm] = useState<{
@@ -257,6 +259,9 @@ function CostsInner() {
                           </td>
                           <td className="no-print">
                             <span className="table-actions">
+                              <button className="btn-ghost btn-xs" onClick={() => setVouchersOf(x)}>
+                                票据
+                              </button>
                               {x.status === "rejected" && (
                                 <button className="btn-ghost btn-xs" onClick={() => { setResubmitOf(x); setExpenseOpen(true); }}>
                                   重新提交
@@ -294,6 +299,12 @@ function CostsInner() {
           else toast.ok(msg);
           reload();
         }}
+      />
+
+      <ExpenseVouchersDialog
+        open={!!vouchersOf}
+        onClose={() => setVouchersOf(null)}
+        expense={vouchersOf}
       />
 
       <Dialog

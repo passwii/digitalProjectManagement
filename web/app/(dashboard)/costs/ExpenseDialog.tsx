@@ -1,12 +1,19 @@
 "use client";
 // 支出登记 / 被驳回后修改重新提交弹窗。
 // 提交失败（超预算等业务错误）时**不清空表单**，用户改完可以直接重试。
+// 票据证明（BLF-1151）：先建单、再挂票据——支出 id 建单后才存在，待传文件暂存本地，
+// 建单成功后逐个上传到新单据；票据失败不关闭弹层、不丢表单（Toast + 行内提示）。
 import { useEffect, useState } from "react";
-import { errText, expensesApi, type Expense } from "@/lib/api";
+import { batchFailureToast } from "@/lib/uploadErrors";
+import { errText, expensesApi, type Attachment, type Expense } from "@/lib/api";
 import { EXPENSE_PEOPLE, todayISO } from "@/lib/labels";
+import { VOUCHER_ATTACHMENT_EXTENSIONS, VOUCHER_ATTACHMENT_HINT } from "@/lib/uploadLimits";
 import { useForm } from "@/lib/useForm";
+import { useUploadQueue } from "@/lib/useUploadQueue";
 import { Dialog } from "@/components/ui/Modal";
+import { useToast } from "@/components/ui/Toast";
 import Field from "@/components/ui/Field";
+import FileDropZone from "@/components/ui/FileDropZone";
 
 interface Values {
   subject: string;
@@ -42,6 +49,10 @@ export default function ExpenseDialog({
   onSaved: (msg: string, warn: boolean) => void;
 }) {
   const [formErr, setFormErr] = useState("");
+  const [files, setFiles] = useState<File[]>([]);
+  const [saving, setSaving] = useState(false);
+  const toast = useToast();
+  const uploads = useUploadQueue();
   const isResubmit = !!resubmitOf;
   const form = useForm<Values>(BLANK, {
     amount: {
@@ -55,8 +66,17 @@ export default function ExpenseDialog({
     if (!open) return;
     form.reset(resubmitOf ? fromExpense(resubmitOf) : { ...BLANK, exp_date: todayISO() });
     setFormErr("");
+    setFiles([]);
+    uploads.reset();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, resubmitOf?.id]);
+
+  // 弹层关闭即中止在途上传：避免「关掉弹层还在传」
+  useEffect(() => {
+    if (!open) uploads.abort();
+    // 只依赖 abort（稳定引用）：依赖整个 uploads 对象会在每次进度更新时重跑
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, uploads.abort]);
 
   async function submit() {
     setFormErr("");
@@ -69,8 +89,22 @@ export default function ExpenseDialog({
       exp_date: v.exp_date || null,
       note: v.note.trim(),
     };
+    setSaving(true);
     try {
       const saved = await expensesApi.create(payload);
+      // 票据挂到刚建好的单据上；单个失败不阻断其余文件，失败时留在弹层里
+      if (files.length) {
+        const result = await uploads.start<Attachment>(files, (file, options) =>
+          expensesApi.uploadVoucher(saved.id, file, options),
+        );
+        if (result.aborted) return;
+        if (result.failed) {
+          const msg = batchFailureToast(result.failures);
+          setFormErr(msg);
+          toast.err(msg);
+          return;
+        }
+      }
       const rate = saved.execution?.rate;
       const msg =
         saved.status === "pending"
@@ -78,16 +112,41 @@ export default function ExpenseDialog({
             ? "已重新提交，等待审批后计入执行"
             : "支出已提交，等待审批后计入执行"
           : `支出已登记并计入执行${rate != null ? `（执行率 ${(rate * 100).toFixed(1)}%）` : ""}`;
-      onSaved(msg, !!saved.execution?.warn);
+      onSaved(files.length ? `${msg}，票据 ${files.length} 份已上传` : msg, !!saved.execution?.warn);
+      setFiles([]);
       onClose();
     } catch (e) {
-      // 超预算等业务错误：**保留弹窗内容**（含已填数据），提示下一步可走的路径
+      // 超预算等业务错误：**保留弹窗内容**（含已填数据与待传票据），提示下一步可走的路径
       const msg = errText(e);
       setFormErr(
         /超预算/.test(msg)
           ? `${msg}。可调整预算，或先把单据提交为待审批再由管理员「特批放行」。`
           : msg,
       );
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  /**
+   * 补传一条失败的票据（文件还在队列里，不必重新选择，也不会重复上传已成功的那些）。
+   *
+   * 全部失败项都补完后才收尾关弹层；否则留在弹层里继续处理剩下的失败行。
+   */
+  async function retryUpload(id: number) {
+    const result = await uploads.retry<Attachment>(id);
+    if (result.aborted) return;
+    if (result.failures[0]) {
+      const msg = batchFailureToast(result.failures);
+      setFormErr(msg);
+      toast.err(msg);
+      return;
+    }
+    const remaining = uploads.items.filter((item) => item.id !== id && item.status !== "done");
+    if (!remaining.length) {
+      toast.ok("票据已补传成功");
+      setFiles([]);
+      onClose();
     }
   }
 
@@ -95,12 +154,14 @@ export default function ExpenseDialog({
     <Dialog
       open={open}
       onClose={onClose}
-      dirty={form.dirty}
+      dirty={form.dirty || files.length > 0}
       title={isResubmit ? `重新提交支出 · ${resubmitOf?.subject ?? ""}` : "添加支出"}
       footer={
         <>
-          <button className="btn-ghost" onClick={onClose}>取消</button>
-          <button className="btn-primary" onClick={submit}>{isResubmit ? "重新提交" : "提交支出"}</button>
+          <button className="btn-ghost" onClick={onClose} disabled={saving}>取消</button>
+          <button className="btn-primary" onClick={submit} disabled={saving}>
+            {saving ? "保存中…" : isResubmit ? "重新提交" : "提交支出"}
+          </button>
         </>
       }
     >
@@ -125,6 +186,54 @@ export default function ExpenseDialog({
         <Field label="费用说明" span>
           <input value={form.values.note} onChange={(e) => form.set("note", e.target.value)} placeholder="用途说明" />
         </Field>
+      </div>
+      <div className="form-section">
+        <div className="form-section-head">
+          <h3>票据证明</h3>
+        </div>
+        <div className="field span-2">
+          <span className="field-label">发票 PDF / 凭证图片</span>
+          <FileDropZone
+            extensions={VOUCHER_ATTACHMENT_EXTENSIONS}
+            items={uploads.items}
+            disabled={saving}
+            label={files.length ? `已选择 ${files.length} 个文件，随单据一起提交` : "选择票据文件"}
+            onRetry={retryUpload}
+            hint={
+              files.length
+                ? "可继续点击或拖拽追加文件"
+                : "点击选择，或把文件拖到这里；也可直接粘贴截图"
+            }
+            onFiles={(picked) =>
+              setFiles((prev) => [
+                ...prev,
+                // 同名同体积视为同一份，避免拖拽与选择器重复入队
+                ...picked.filter(
+                  (f) => !prev.some((x) => x.name === f.name && x.size === f.size),
+                ),
+              ])
+            }
+          />
+          <span className="field-hint">{VOUCHER_ATTACHMENT_HINT}</span>
+          {files.length > 0 && (
+            <ul className="pending-file-list">
+              {files.map((file, index) => (
+                <li key={`${file.name}-${file.size}-${index}`}>
+                  <span className="pending-file-name" title={file.name}>{file.name}</span>
+                  <button
+                    type="button"
+                    className="linklike danger-link"
+                    onClick={() =>
+                      setFiles((prev) => prev.filter((_, i) => i !== index))
+                    }
+                  >
+                    移除
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
       </div>
       {formErr && <div className="err-banner" style={{ marginTop: 10, marginBottom: 0 }} role="alert">{formErr}</div>}
       {isResubmit && <p className="tiny">原单保留，按审批意见修改后重新提交。</p>}

@@ -7,9 +7,9 @@
  */
 import type { BadgeTone } from "@/components/ui/Badge";
 
-/** 金额类指标（全站统一命名） */
+/** 金额类指标（全站统一命名；台账口径 BLF-1151：「预算」仅为展示层旧称，实为合同金额） */
 export const MONEY_LABEL = {
-  budget: "预算合计",
+  budget: "合同金额",
   spent: "已支出",
   balance: "可用余额",
   rate: "执行率",

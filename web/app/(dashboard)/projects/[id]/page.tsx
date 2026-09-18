@@ -561,6 +561,18 @@ function ProjectDetail({ pid }: { pid: number }) {
               <Badge status={project.contract_status || "未登记"} tone={project.contract_status === "已签订" ? "done" : "todo"} />
             </div>
             <div className="contract-card">
+              <span>合同金额</span>
+              <strong>{fmtMoney(project.budget_total)} 元</strong>
+            </div>
+            <div className="contract-card">
+              <span>客户联系人</span>
+              <strong>{project.client_contact || "-"}</strong>
+            </div>
+            <div className="contract-card">
+              <span>联系方式</span>
+              <strong>{project.client_phone || "-"}</strong>
+            </div>
+            <div className="contract-card">
               <span>前向合同（甲方）</span>
               <strong>{project.forward_contract || "-"}</strong>
             </div>
@@ -622,7 +634,7 @@ function ProjectDetail({ pid }: { pid: number }) {
           <div className="section-head">
             <div>
               <h2>项目支出</h2>
-              <p>项目预算 {fmtMoney(project.budget_total)} 元 · 已登记支出 {fmtMoney(spent)} 元</p>
+              <p>合同金额 {fmtMoney(project.budget_total)} 元 · 已登记支出 {fmtMoney(spent)} 元</p>
             </div>
             <button className="btn-primary" onClick={() => setExpenseOpen(true)}>+ 支出</button>
           </div>
