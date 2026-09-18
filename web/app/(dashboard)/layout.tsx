@@ -12,6 +12,7 @@ import Bell from "@/components/ui/Bell";
 import { ToastProvider } from "@/components/ui/Toast";
 import ActivityBar from "@/components/motion/ActivityBar";
 import MotionProvider from "@/components/motion/MotionProvider";
+import MobileDock from "@/components/mobile/MobileDock";
 import s from "@/components/ui/Shell.module.css";
 
 /**
@@ -96,12 +97,13 @@ interface NavItem {
   icon?: React.ReactNode;
 }
 
+/** 侧栏（桌面外壳）与 Dock（手机外壳）共用的同一份权限状态，避免两个外壳各自取一次 */
 function DashboardShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const [collapsed, setCollapsed] = useState(false);
   const { me, error: meError } = useMe();
-  const { menus, isAdmin, ready: permsReady, loading: permsLoading, error: permsError, reload: reloadMenus } = useMenus();
+  const { menus, isAdmin, ready: permsReady, loading: permsLoading, error: permsError, reload: reloadMenus, canApprove } = useMenus();
   const reduced = useReducedMotion();
 
   const current = Object.keys(CRUMB).find((k) => pathname === k || pathname.startsWith(k + "/"));
@@ -166,7 +168,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
     <>
     <a className="skip-link" href="#main-content">跳到主要内容</a>
     <div className={`${s.shell} ${collapsed ? s.collapsed : ""}`}>
-      <aside className={s.sidebar}>
+      <aside className={s.sidebar} data-shell="sidebar">
         <div className={s.ws}>
           <div className={s.wsName} title="数科云办公">
             <span className={s.brandSeal}>SHZK</span>
@@ -247,7 +249,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
       </aside>
 
       <div className={s.main}>
-        <header className={s.topbar}>
+        <header className={s.topbar} data-shell="topbar">
           <div className={s.topContext}>
             <span className={s.crumb}>数科云办公 / <b>{current ? CRUMB[current] : "控制台"}</b></span>
           </div>
@@ -290,6 +292,23 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
           </div>
         </main>
       </div>
+
+      {/*
+        手机外壳（BLF-1127 §7）：与上面 <aside> 里的侧栏**同时**在 DOM 里，
+        由 767px 断点的 CSS 决定谁在场——SSR 首帧判断不了断点，用 matchMedia
+        切外壳会先闪一次错误外壳（手机上闪一下桌面侧栏）。
+        权限状态复用上面同一个 useMenus()：两个外壳不会各自拿到不同批次的菜单。
+
+        顶栏 / 通知铃铛不在这里重复一份：它们本来就在 .main 里，≤767px 由
+        Shell.module.css 收窄成手机顶栏即可——重复渲染会得到两个 aria-label 相同的
+        铃铛（读屏与既有走查脚本都会撞上），并让未读数每分钟轮询两次。
+      */}
+      <MobileDock
+        menus={menus}
+        ready={permsReady}
+        failed={Boolean(permsError)}
+        canApprove={canApprove}
+      />
     </div>
     </>
   );

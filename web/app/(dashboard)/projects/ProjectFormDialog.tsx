@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { classifyTransferFailure, batchFailureToast, failureToast } from "@/lib/uploadErrors";
 import { errText, projectsApi, type Attachment, type Project } from "@/lib/api";
 import { useMeta } from "@/lib/useMeta";
 import { CONTRACT_STATUSES, PROJECT_OWNERS } from "@/lib/labels";
@@ -68,6 +69,8 @@ export default function ProjectFormDialog({
   const [existing, setExisting] = useState<Attachment[]>([]);
   const [saving, setSaving] = useState(false);
   const uploads = useUploadQueue();
+  /** 主记录已写入（项目已建/已改）但附件可能还失败：重试补传成功时用它收尾 */
+  const savedRef = useRef<Project | null>(null);
 
   const form = useForm<FormValues>(toValues(project), {
     name: { required: "项目名称不能为空", max: 60, label: "项目名称" },
@@ -131,13 +134,15 @@ export default function ProjectFormDialog({
         ? await projectsApi.update(project!.id, payload)
         : await projectsApi.create(payload as Partial<Project>);
       // 合同附件逐个上传并显示进度；单个失败不阻断其余文件
+      savedRef.current = saved;
       if (files.length) {
-        const result = await uploads.start(files, (file, options) =>
+        const result = await uploads.start<Attachment>(files, (file, options) =>
           projectsApi.upload(saved.id, file, "contract", options),
         );
         if (result.aborted) return;
         if (result.failed) {
-          setFormErr(`${result.failed} 个附件上传失败，请查看列表中的失败原因后重试`);
+          // 按档位说明（502 存储暂不可用可重试 / 404 已丢失 / 400 不合规），不一律「请重试」
+          setFormErr(batchFailureToast(result.failures));
           return;
         }
       }
@@ -152,13 +157,36 @@ export default function ProjectFormDialog({
     }
   }
 
+  /**
+   * 补传一条失败的合同附件（文件还在队列里，不必重新选择，也不会重复上传已成功的那些）。
+   *
+   * 全部失败项都补完后才收尾关弹层；否则留在弹层里继续处理剩下的失败行。
+   */
+  async function retryUpload(id: number) {
+    const result = await uploads.retry<Attachment>(id);
+    if (result.aborted) return;
+    if (result.failures[0]) {
+      setFormErr(batchFailureToast(result.failures));
+      return;
+    }
+    const remaining = uploads.items.filter((item) => item.id !== id && item.status !== "done");
+    const saved = savedRef.current;
+    if (!remaining.length && saved) {
+      onSaved(saved, !isEdit);
+      form.reset();
+      setFiles([]);
+      onClose();
+    }
+  }
+
   async function removeExisting(a: Attachment) {
     if (!project) return;
     try {
       await projectsApi.deleteAttachment(project.id, a.id);
       setExisting((rows) => rows.filter((x) => x.id !== a.id));
     } catch (e) {
-      setFormErr(errText(e));
+      // 删除失败同样分档：502 存储不可用时是「稍后重试」，404 才是「附件已丢失」
+      setFormErr(failureToast(classifyTransferFailure(e)));
     }
   }
 
@@ -264,6 +292,7 @@ export default function ProjectFormDialog({
                 items={uploads.items}
                 disabled={saving}
                 label={files.length ? `已选择 ${files.length} 个文件` : "选择合同附件"}
+                onRetry={retryUpload}
                 hint={
                   files.length
                     ? "可继续点击或拖拽追加文件"

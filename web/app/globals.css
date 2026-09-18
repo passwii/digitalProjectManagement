@@ -52,6 +52,19 @@
   --motion-number: 420ms;
   --motion-chart: 500ms;
   --ease-console: cubic-bezier(.2, .72, .2, 1);
+  /*
+   * 手机壳令牌（BLF-1127 设计契约 §7）。只在 ≤767px 的手机壳里生效。
+   * 断点取 767px 而不是上面那几个 900px：900px 更多是平板 / 窄窗口的
+   * 「窄屏适配」，767px 才是手机（安全区 / 触控尺寸 / 底部 Dock 的适用面）。
+   * 这几个值只在这里定义一次，Shell.module.css 与 mobile/MobileDock.module.css
+   * 都取 var()，避免两处各写一个高度然后慢慢漂移。
+   */
+  --m-dock-h: 58px;                            /* Dock 内容高度，不含安全区 */
+  --m-appbar-h: 52px;                          /* 手机顶栏高度（桌面是 64px） */
+  --m-sheet-r: 18px;                           /* 底部抽屉顶部圆角（S3 展开形态用） */
+  --m-tap: 44px;                               /* 最小触控目标（Dock 位 / 卡片按钮） */
+  /* iPhone Home 指示条：非全面屏与桌面浏览器上 env() 取不到值，回落到 0px */
+  --m-safe-b: env(safe-area-inset-bottom, 0px);
 }
 
 * { box-sizing: border-box; }
@@ -964,6 +977,15 @@ td.num, th.num { text-align: right; }
   font-family: var(--font-mono);
   font-size: 12px;
 }
+/* 预览加载失败（非图片/加载出错）：分层文案竖排，502 给重试入口（BLF-1137） */
+.asset-file.asset-failed {
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px;
+  text-align: center;
+  font-family: inherit;
+}
+.asset-file.asset-failed .tiny { line-height: 1.5; overflow-wrap: anywhere; }
 .asset-tile figcaption {
   padding: 8px 10px;
   display: flex;
