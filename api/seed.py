@@ -53,10 +53,6 @@ def main():
         dept = db.query(Department).filter_by(name="综合部").first()
         if dept is None:  # 上方循环已补齐，走到这里说明写入失败，直接报错而非继续
             raise RuntimeError("seed departments failed: 综合部 missing")
-        if dept is None:  # 上方循环已补齐，走到这里说明写入失败，直接报错而非继续
-            raise RuntimeError("seed departments failed: 综合部 missing")
-        if dept is None:  # 上方循环已补齐，走到这里说明写入失败，直接报错而非继续
-            raise RuntimeError("seed departments failed: 综合部 missing")
         for code, name in ROLES:
             if not db.query(Role).filter_by(code=code).first():
                 db.add(Role(code=code, name=name))
