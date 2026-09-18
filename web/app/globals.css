@@ -32,6 +32,17 @@
   --line-blue: #C7DBFF; --line-warn: #EFD29A; --line-danger: #EFC0BB; --line-done: #B7DDC8;
   --font-body: "Noto Sans SC", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", system-ui, sans-serif;
   --font-mono: "JetBrains Mono", "IBM Plex Mono", Menlo, Consolas, monospace;
+  /*
+   * 品牌字（「数科云办公」）：黑体。
+   *
+   * 旧值是一份宋体栈（Songti SC / STSong / Noto Serif SC），笔画细、字面小，
+   * 在深色侧边栏与登录大标题上发飘，且观感偏「文档」而非「产品」；这里换成
+   * 黑体栈并保留字重对比。顺序即优先级：
+   *   1. 思源黑体 / 苹方 —— 设计感与字面一致的现代黑体（macOS / 已装字体）；
+   *   2. 鸿蒙黑体 / 微软雅黑 —— Windows 与国产系统上的等效黑体；
+   *   3. system-ui —— 最终兜底，保证不会掉回衬线体。
+   */
+  --font-brand: "Noto Sans SC", "Source Han Sans SC", "PingFang SC", "HarmonyOS Sans SC", "Microsoft YaHei", "Hiragino Sans GB", system-ui, sans-serif;
   --shadow-card: 0 1px 2px rgba(23, 43, 77, 0.05), 0 8px 24px rgba(23, 43, 77, 0.035);
   --shadow-float: 0 14px 36px rgba(23, 43, 77, 0.16), 0 2px 8px rgba(23, 43, 77, 0.06);
   --motion: 140ms ease-out;
@@ -796,30 +807,30 @@ td.num, th.num { text-align: right; }
 }
 .detail-section { min-height: 320px; }
 
-.whiteboard-shell {
+.doc-shell {
   border: 1px solid var(--line);
   border-radius: 8px;
   background: #fff;
   box-shadow: var(--shadow-card);
   overflow: hidden;
 }
-.whiteboard-toolbar {
+.doc-toolbar {
   padding: 14px 16px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
   border-bottom: 1px solid var(--line);
-  background: #fbfdfc;
+  background: var(--th-bg);
 }
-.whiteboard-toolbar > div:first-child {
+.doc-toolbar > div:first-child {
   min-width: 0;
   display: flex;
   flex-direction: column;
+  gap: 2px;
 }
-.whiteboard-toolbar strong { color: var(--ink); font-size: 14px; }
-.whiteboard-toolbar .tiny { margin-top: 2px; }
-.whiteboard-actions {
+.doc-toolbar strong { color: var(--ink); font-size: 14px; }
+.doc-actions {
   display: flex;
   align-items: center;
   gap: 10px;
@@ -831,36 +842,91 @@ td.num, th.num { text-align: right; }
 .save-state.saving { color: var(--warn); }
 .save-state.saved { color: var(--done); }
 .save-state.error { color: var(--danger); }
-.whiteboard-editor {
-  min-height: 310px;
-  padding: 26px 30px;
+/* 文档正文：普通输入区，不再画白板的横格与页边竖线 */
+.doc-editor {
+  min-height: 260px;
+  padding: 20px 22px;
   border: 0;
   border-radius: 0;
-  background:
-    linear-gradient(90deg, transparent 31px, rgba(22,119,255,.10) 32px, transparent 33px),
-    repeating-linear-gradient(transparent, transparent 31px, #edf2f0 32px);
-  line-height: 32px;
+  background: var(--card);
+  line-height: 1.75;
   font-size: 15px;
   resize: vertical;
 }
-.whiteboard-editor:focus {
-  box-shadow: inset 0 0 0 2px rgba(22,119,255,.10);
+.doc-editor:focus {
+  background: #fff;
+  box-shadow: inset 0 0 0 2px rgba(22,119,255,.12);
 }
-.whiteboard-assets {
+/* 正文与附件区之间的分隔：两个 block 各自带标题与说明，靠上边框分开 */
+.doc-block {
   padding: 16px;
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
-  gap: 12px;
   border-top: 1px solid var(--line);
-  background: #f7faf9;
 }
-.whiteboard-empty {
-  grid-column: 1 / -1;
-  padding: 28px;
+.doc-block .section-head { margin-bottom: 12px; align-items: flex-end; }
+.doc-block .section-head h2 { font-size: 14px; }
+.doc-empty {
+  padding: 22px;
+  border: 1px dashed var(--line);
+  border-radius: 7px;
   color: var(--ink-3);
   text-align: center;
   font-size: 12px;
 }
+.doc-files {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  overflow: hidden;
+}
+.doc-file {
+  min-height: 46px;
+  padding: 8px 12px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border-bottom: 1px solid var(--line-soft);
+  transition: background 140ms ease;
+}
+.doc-file:last-child { border-bottom: 0; }
+.doc-file:hover { background: var(--row-hover); }
+.doc-file-type {
+  flex: none;
+  width: 44px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  background: var(--brand-soft);
+  color: var(--brand);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: .02em;
+}
+.doc-file-name {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.doc-file-size { flex: none; color: var(--ink-3); font-size: 12px; }
+.doc-file-actions { flex: none; display: inline-flex; gap: 12px; }
+.doc-file-actions .linklike { font-size: 12px; }
+.doc-assets {
+  padding: 14px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 12px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--th-bg);
+}
+.doc-assets .doc-empty { grid-column: 1 / -1; border-color: var(--line); background: #fff; }
 .asset-tile {
   margin: 0;
   overflow: hidden;
@@ -925,6 +991,37 @@ td.num, th.num { text-align: right; }
   border-radius: 6px;
   background: #eff4f2;
 }
+.preview-body { display: flex; flex-direction: column; gap: 12px; }
+.preview-meta {
+  margin-right: auto;
+  align-self: center;
+  font-family: var(--font-mono);
+  letter-spacing: .04em;
+}
+.preview-foot-actions { display: inline-flex; gap: 8px; margin-left: auto; }
+.preview-note {
+  padding: 12px 14px;
+  border: 1px dashed var(--line);
+  border-radius: 7px;
+  background: var(--th-bg);
+  color: var(--ink-2);
+  font-size: 13px;
+  text-align: center;
+}
+.preview-note-error {
+  border-style: solid;
+  border-color: var(--line-danger);
+  background: var(--danger-bg);
+  color: var(--danger);
+}
+/* PDF 预览：固定高度而不是 max-height，iframe 在 flex 容器里不会自己撑开 */
+.preview-frame {
+  width: 100%;
+  height: min(68vh, 640px);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--th-bg);
+}
 
 .contract-grid {
   display: grid;
@@ -954,10 +1051,14 @@ td.num, th.num { text-align: right; }
   line-height: 1.45;
 }
 
+/* 文档 Tab 窄屏：工具条堆叠、文件行拆两行，避免名称被挤到不可读 */
 @media (max-width: 900px) {
-  .whiteboard-toolbar { align-items: flex-start; flex-direction: column; }
-  .whiteboard-actions { width: 100%; justify-content: space-between; }
-  .whiteboard-editor { min-height: 260px; padding: 18px 20px; }
+  .doc-toolbar { align-items: flex-start; flex-direction: column; }
+  .doc-actions { width: 100%; justify-content: space-between; }
+  .doc-editor { min-height: 220px; padding: 16px 18px; }
+  .doc-file { flex-wrap: wrap; }
+  .doc-file-size { margin-left: auto; }
+  .doc-file-actions { width: 100%; justify-content: flex-end; }
   .contract-grid { grid-template-columns: 1fr; }
   .section-head { align-items: flex-start; flex-wrap: wrap; }
   .toolbar-field { align-items: flex-start; }

@@ -12,11 +12,16 @@ const currentDir = path.dirname(fileURLToPath(import.meta.url));
  *   · `test:motion` —— 本文件
  *
  * 命名约定（决定一个测试走哪套）：
- *   · `lib/*.test.ts`          → node:test，由 tsconfig.test.json 的 include 自动收走
- *   · `lib/*.vitest.test.ts`   → vitest，需要 vitest 的 expect/mock 或浏览器全局时用（纯逻辑）
- *   · `lib/*.vitest.test.tsx`  → vitest，需要 JSX 渲染真实组件时用（如 BLF-1125 的身份区）
+ *   · `lib/*.test.ts`            → node:test，由 tsconfig.test.json 的 include 自动收走；
+ *                                   tsconfig.test.json 只收 `.ts`，所以**不能放 JSX**
+ *   · `lib/*.vitest.test.ts`     → vitest，需要 vitest 的 expect/mock 或浏览器全局时用（纯逻辑）
+ *   · `lib/*.vitest.test.tsx`    → vitest，需要 JSX 渲染真实组件时用（如附件预览弹层、BLF-1125 的身份区）
  *   · `lib/activityCore.test.ts` → 历史遗留的 vitest 文件（main 的动效工作引入），
- *                                 保留原名以免与在途 PR 冲突，由下面显式包含
+ *                                  保留原名以免与在途 PR 冲突，由下面显式包含
+ *
+ * ⚠️ include 必须同时覆盖 `.tsx`：曾经只写了 `*.vitest.test.ts`，
+ * 新增的 `.tsx` 组件测试被静默忽略 —— `vitest run` 全绿，但它一条都没跑。
+ * 新增测试文件后请确认它真的出现在 `vitest run` 的输出里。
  *
  * 环境按文件选择：默认 node（`api.ts` 那类 mock 浏览器全局的测试自己 mock），
  * 但需要真实 DOM 的测试（如 `lib/modalFocus.dom.vitest.test.ts`）用文件顶部的

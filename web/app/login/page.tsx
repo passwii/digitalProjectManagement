@@ -4,7 +4,20 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { authApi, errText, saveSession, UnauthorizedError } from "@/lib/api";
 import PasswordInput from "@/components/ui/PasswordInput";
+import StorySteps from "@/components/motion/StorySteps";
 import st from "./login.module.css";
+
+/**
+ * 登录页左栏的三段式步骤文案。
+ *
+ * 顺序即业务顺序（先立台账 → 再留进度 → 后归集支出），动效按此顺序逐条推进；
+ * 文案与序号都在这里，动效组件只负责编排节奏（不写死业务词）。
+ */
+const STORY_STEPS = [
+  { no: "01", label: "统一台账" },
+  { no: "02", label: "进度留痕" },
+  { no: "03", label: "支出归集" },
+] as const;
 
 export default function LoginPage() {
   const router = useRouter();
@@ -58,9 +71,7 @@ export default function LoginPage() {
           </p>
         </div>
         <div className={st.storyFoot}>
-          <div><b>01</b><span>统一台账</span></div>
-          <div><b>02</b><span>进度留痕</span></div>
-          <div><b>03</b><span>支出归集</span></div>
+          <StorySteps steps={STORY_STEPS} />
         </div>
       </section>
 
