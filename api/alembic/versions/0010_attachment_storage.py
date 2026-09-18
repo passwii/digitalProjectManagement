@@ -4,8 +4,7 @@
 
   · `storage_backend`：`local` / `r2`；**服务端默认 `local`** —— 存量行全部是本地的，
     默认值让老数据无需回填即自洽，新写入由应用按 `STORAGE_BACKEND` 决定。
-  · `object_key`：对象存储的键（README §5.3 的业务目录命名 `{业务域}/{yyyy}/{原名}__{随机}.{ext}`，
-    方案 A 于 2026-09-18 取代早期的 `tenant/default/...`），本地行为空。
+  · `object_key`：对象存储的键（README §5.3 的 `tenant/default/...` 命名），本地行为空。
   · `etag`：对象存储返回的内容指纹，用于上传后核对与对账。
 
 `attachments.path` 语义随之扩展：local = 磁盘路径；r2 = 对象公开 URL（保留人可读性，
