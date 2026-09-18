@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useEffect, useMemo, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { m, useReducedMotion } from "framer-motion";
@@ -97,6 +97,235 @@ interface NavItem {
   icon?: React.ReactNode;
 }
 
+/**
+ * 鼠标从 chip 移到菜单要跨过 8px 间隙，立刻关会「碰一下就闪」；留一段容错时间，
+ * 期间移进菜单（mouseenter 冒泡到同一容器）会取消关闭。
+ */
+const MENU_CLOSE_DELAY = 180;
+
+/**
+ * 顶栏右上角身份区：头像 + 姓名，hover / focus / tap 出账号菜单（BLF-1141）。
+ *
+ * 身份与账号操作原本挤在侧栏底部（`sideFoot`），用户反馈那一块是冗余的（尤其
+ * 「全局管理与审批」这类角色权限文案），这里把**账号操作**搬到顶栏：
+ *   · hover 进 chip 或菜单 → 打开；移出 → 延时关闭（跨间隙不闪）；
+ *   · 键盘 Tab 聚焦 chip → 打开；方向键 / Home / End 在菜单项之间移动；Esc 关闭并还焦；
+ *   · 触屏（≤767px 没有 hover，且 chip 文字被 CSS 隐藏）→ tap 头像打开同一个菜单；
+ *   · 关闭时菜单**不渲染**（而不是 visibility 隐藏），所以不在 Tab 序列里。
+ *
+ * 菜单只放账号操作：角色 / 权限文案（`identity.role` / `roleShort`）不再出现在这里，
+ * 也不再出现在 chip 上。
+ */
+function UserMenu({ name, onLogout }: { name: string | null; onLogout: () => void }) {
+  const [open, setOpen] = useState(false);
+  const wrapRef = useRef<HTMLDivElement | null>(null);
+  const chipRef = useRef<HTMLButtonElement | null>(null);
+  const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** 方向键打开的落点序号：菜单是打开后才渲染的，得等挂载完那一帧再聚焦 */
+  const pendingFocus = useRef<number | null>(null);
+  /** 指针按下过：tap / click 也会触发 focus，不能让 focus 先开、click 再关（触屏会打不开菜单） */
+  const pointerDown = useRef(false);
+  /** Esc 还焦给 chip 时会触发它的 focus 处理器：跳过那一次自动展开，见 onKey 里的注释 */
+  const skipFocusOpen = useRef(false);
+
+  const cancelClose = useCallback(() => {
+    if (closeTimer.current !== null) {
+      clearTimeout(closeTimer.current);
+      closeTimer.current = null;
+    }
+  }, []);
+  const openMenu = useCallback(() => {
+    cancelClose();
+    setOpen(true);
+  }, [cancelClose]);
+  const closeMenu = useCallback(() => {
+    cancelClose();
+    setOpen(false);
+  }, [cancelClose]);
+  const closeLater = useCallback(() => {
+    cancelClose();
+    closeTimer.current = setTimeout(() => {
+      closeTimer.current = null;
+      setOpen(false);
+    }, MENU_CLOSE_DELAY);
+  }, [cancelClose]);
+
+  // 卸载（例如登出跳转途中）时清掉待执行的关闭定时器
+  useEffect(() => cancelClose, [cancelClose]);
+
+  function menuItems(): HTMLElement[] {
+    const found = wrapRef.current?.querySelectorAll<HTMLElement>('[role="menuitem"]');
+    return found ? Array.from(found) : [];
+  }
+
+  function focusItem(index: number) {
+    const list = menuItems();
+    if (list.length === 0) return;
+    list[(index + list.length) % list.length].focus();
+  }
+
+  /** 在菜单项之间移动；焦点还在 chip 上时（`at === -1`）落向首项 / 末项 */
+  function moveFocus(step: number) {
+    const list = menuItems();
+    const at = list.indexOf(document.activeElement as HTMLElement);
+    focusItem(at === -1 ? (step > 0 ? 0 : -1) : at + step);
+  }
+
+  useEffect(() => {
+    if (!open) return;
+    if (pendingFocus.current !== null) {
+      focusItem(pendingFocus.current);
+      pendingFocus.current = null;
+    }
+    function onKey(e: KeyboardEvent) {
+      // Esc 关闭并把焦点还给 chip，键盘用户不丢位置。
+      // 还焦会同步触发 chip 的 focus 处理器，用一次性标记让它别再展开 ——
+      // 否则 Esc 关掉的菜单会被这次还焦立刻重新打开。
+      if (e.key === "Escape") {
+        skipFocusOpen.current = true;
+        closeMenu();
+        chipRef.current?.focus();
+        // chip 本来就持有焦点时 focus() 不发事件（标记没被消费），下一轮清掉
+        setTimeout(() => {
+          skipFocusOpen.current = false;
+        }, 0);
+      }
+    }
+    function onDown(e: MouseEvent) {
+      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) closeMenu();
+    }
+    document.addEventListener("keydown", onKey);
+    document.addEventListener("mousedown", onDown);
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.removeEventListener("mousedown", onDown);
+    };
+  }, [open, closeMenu]);
+
+  return (
+    <div
+      className={s.userChipWrap}
+      ref={wrapRef}
+      onMouseEnter={openMenu}
+      onMouseLeave={() => {
+        // 指针中途离开（按下后拖走）也要复位，否则下一次键盘聚焦打不开菜单
+        pointerDown.current = false;
+        closeLater();
+      }}
+      onBlur={(e) => {
+        // 焦点在身份区内移动（chip ↔ 菜单项）不关，离开整块才关
+        if (!wrapRef.current?.contains(e.relatedTarget as Node | null)) closeMenu();
+      }}
+    >
+      <button
+        ref={chipRef}
+        type="button"
+        className={s.userChip}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-label={name === null ? "账号菜单，身份加载中" : `账号菜单：${name}`}
+        onPointerDown={() => {
+          pointerDown.current = true;
+        }}
+        onFocus={() => {
+          // 还焦 / 指针引起的 focus 不该展开菜单，只有键盘主动聚焦才展开
+          if (skipFocusOpen.current || pointerDown.current) {
+            skipFocusOpen.current = false;
+            pointerDown.current = false;
+            return;
+          }
+          openMenu();
+        }}
+        onClick={() => {
+          pointerDown.current = false;
+          if (open) closeMenu();
+          else openMenu();
+        }}
+        onKeyDown={(e) => {
+          if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+            e.preventDefault();
+            const first = e.key === "ArrowDown" ? 0 : -1;
+            if (open) moveFocus(e.key === "ArrowDown" ? 1 : -1);
+            else {
+              pendingFocus.current = first;
+              openMenu();
+            }
+            return;
+          }
+          // 键盘聚焦已经把菜单打开了：Enter / Space 顺势进入菜单，而不是把刚看到的面板关掉
+          if ((e.key === "Enter" || e.key === " ") && open) {
+            e.preventDefault();
+            focusItem(0);
+          }
+        }}
+      >
+        {name === null ? (
+          <>
+            <span className={`skel ${s.avatarSkel}`} aria-hidden="true" />
+            <span className={s.userChipText}>
+              <span className={`skel ${s.nameSkel}`} aria-hidden="true" />
+              <small className="sr-only">身份加载中</small>
+            </span>
+          </>
+        ) : (
+          <>
+            <Avatar name={name} size={30} />
+            <span className={s.userChipText}>
+              <b>{name}</b>
+            </span>
+          </>
+        )}
+      </button>
+
+      {open && (
+        <div
+          className={s.userMenu}
+          role="menu"
+          aria-label="账号"
+          onKeyDown={(e) => {
+            if (e.key === "ArrowDown") {
+              e.preventDefault();
+              moveFocus(1);
+            } else if (e.key === "ArrowUp") {
+              e.preventDefault();
+              moveFocus(-1);
+            } else if (e.key === "Home") {
+              e.preventDefault();
+              focusItem(0);
+            } else if (e.key === "End") {
+              e.preventDefault();
+              focusItem(-1);
+            }
+          }}
+        >
+          <Link href="/change-password" role="menuitem" className={s.userMenuItem} onClick={closeMenu}>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <circle cx="8" cy="15" r="4" />
+              <path d="M10.9 12.1L20 3M17 6l2.5 2.5M14.5 8.5L17 11" />
+            </svg>
+            修改密码
+          </Link>
+          <button
+            type="button"
+            role="menuitem"
+            className={`${s.userMenuItem} ${s.userMenuItemDanger}`}
+            onClick={() => {
+              closeMenu();
+              onLogout();
+            }}
+          >
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+              <path d="M16 17l5-5-5-5M21 12H9" />
+            </svg>
+            退出登录
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 /** 侧栏（桌面外壳）与 Dock（手机外壳）共用的同一份权限状态，避免两个外壳各自取一次 */
 function DashboardShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -150,8 +379,10 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
     permsFailed: Boolean(permsError),
     identityFailed: Boolean(meError),
   });
-  // 取出为局部常量：TS 才能在 `name !== null` 分支里把类型缩窄给 <Avatar> 用
-  const { name: displayName, role: roleLine, roleShort } = identity;
+  // 取出为局部常量：TS 才能在 `name !== null` 分支里把类型缩窄给 <Avatar> 用。
+  // BLF-1141：外壳只消费姓名 —— 角色权限文案不再是展示内容（用户反馈为冗余信息），
+  // 所以这里不再解构 role / roleShort，派生逻辑仍留在 identityViewOf 供其它调用方使用。
+  const { name: displayName } = identity;
 
   async function logout() {
     try {
@@ -215,28 +446,11 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
             <button className={s.navRetry} onClick={reloadMenus}>重试</button>
           </div>
         )}
-        <div className={s.sideFoot}>
-          <div className={s.userRow}>
-            {displayName === null ? (
-              <span className={`skel ${s.avatarSkel}`} aria-hidden="true" />
-            ) : (
-              <Avatar name={displayName} size={28} />
-            )}
-            <div className={s.userMeta}>
-              {displayName === null ? (
-                <>
-                  <span className={`skel ${s.nameSkel}`} aria-hidden="true" />
-                  <span className="sr-only">身份加载中</span>
-                </>
-              ) : (
-                <>
-                  <div className={s.n}>{displayName}</div>
-                  {roleLine && <div className={s.r} title={roleLine.tip}>{roleLine.text}</div>}
-                </>
-              )}
-            </div>
-            <button className={s.logoutBtn} onClick={logout} aria-label="退出登录">登出</button>
-          </div>
+        {/*
+          侧栏底部只剩折叠开关（BLF-1141）：身份区与「登出」已搬到顶栏右上角的账号菜单，
+          这里不再有用户名 / 角色 / 登出按钮。
+        */}
+        <div className={s.collapseBar}>
           <button
             className={s.collapseBtn}
             onClick={() => setCollapsed((v) => !v)}
@@ -256,25 +470,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
           <div className={s.topActions}>
             <span className={s.topDate}>{today}</span>
             <Bell />
-            <div className={s.userChip}>
-              {displayName === null ? (
-                <>
-                  <span className={`skel ${s.avatarSkel}`} aria-hidden="true" />
-                  <span className={s.userChipText}>
-                    <span className={`skel ${s.nameSkel}`} aria-hidden="true" />
-                    <small className="sr-only">身份加载中</small>
-                  </span>
-                </>
-              ) : (
-                <>
-                  <Avatar name={displayName} size={30} />
-                  <span className={s.userChipText}>
-                    <b>{displayName}</b>
-                    {roleShort && <small>{roleShort}</small>}
-                  </span>
-                </>
-              )}
-            </div>
+            <UserMenu name={displayName} onLogout={logout} />
           </div>
           <ActivityBar />
         </header>

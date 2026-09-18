@@ -12,12 +12,16 @@
  *   2. 水合后读到 localStorage 快照 —— 名字即刻就位（这正是修复后不闪的原因）；
  *   3. 快照缺失 + `/auth/me` 慢/失败 —— 保持骨架或中性文案，绝不插默认值。
  *
+ * BLF-1141 起这里还覆盖「身份区搬到顶栏」的账号菜单：角色 / 权限文案整体退出外壳
+ * （用户反馈为冗余信息），所以原本断言「普通用户 · 参与项目业务」「管理员 · 全局管理
+ * 与审批」渲染出来的用例，反过来钉住它们**不再出现**。
+ *
  * 用 vitest（`test:motion`）的原因与 `lib/modalFocus.dom.vitest.test.ts` 相同：
  * 这里需要 JSX + React 渲染 + jsdom。另外本文件自带一个 localStorage 替身，
  * 原因见下方 `installStorage` 的注释。
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { Suspense } from "react";
 
 import { IDENTITY_STORAGE_KEY, serializeIdentitySnapshot } from "./identityCore";
@@ -50,9 +54,19 @@ function installStorage() {
 /** 可控的后端替身：两个接口的返回时机由各用例决定 */
 const pending: { me?: () => Promise<unknown>; menus?: () => Promise<unknown> } = {};
 
+/**
+ * 路由与登出接口的替身（BLF-1141 账号菜单要断言「点退出登录 → 清会话并回登录页」）。
+ * 用 `vi.hoisted` 是因为 `vi.mock` 的工厂会提到 import 之前执行，拿不到普通变量。
+ */
+const mocks = vi.hoisted(() => ({
+  logout: vi.fn(() => Promise.resolve({ ok: true })),
+  push: vi.fn(),
+  replace: vi.fn(),
+}));
+
 vi.mock("next/navigation", () => ({
   usePathname: () => "/dashboard",
-  useRouter: () => ({ replace: vi.fn(), push: vi.fn() }),
+  useRouter: () => ({ replace: mocks.replace, push: mocks.push }),
 }));
 
 vi.mock("@/lib/api", async () => {
@@ -62,6 +76,8 @@ vi.mock("@/lib/api", async () => {
     authApi: {
       ...actual.authApi,
       me: () => pending.me?.() ?? Promise.resolve(null as unknown as Me),
+      // 真实实现会打后端；菜单用例里「退出登录」必须走替身，否则测试会真的发请求
+      logout: () => mocks.logout(),
     },
     metaApi: {
       ...actual.metaApi,
@@ -79,6 +95,9 @@ vi.mock("@/lib/api", async () => {
 });
 
 import DashboardShell from "../app/(dashboard)/layout";
+
+/** 未被 vitest / React 接管的原始 console.error（下面的噪声过滤要把其它错误原样透出） */
+const realConsoleError = console.error.bind(console);
 
 const ME: Me = {
   id: 7,
@@ -129,6 +148,16 @@ beforeEach(() => {
   clearMetaCache();
   pending.me = undefined;
   pending.menus = undefined;
+  mocks.logout.mockClear();
+  mocks.push.mockClear();
+  mocks.replace.mockClear();
+  // jsdom 不做真实页面跳转：点「修改密码」的 <a> 与 clearSession() 的 location.assign
+  // 都会往 stderr 打 "Not implemented: navigation"。用例验证的是接口调用与路由 push，
+  // 跳转本身不在这里验证 —— 只吞这一条已知噪声，其它 console.error 原样透出。
+  vi.spyOn(console, "error").mockImplementation((...args: unknown[]) => {
+    if (String(args[0]).includes("Not implemented: navigation")) return;
+    realConsoleError(...args);
+  });
 });
 
 afterEach(() => {
@@ -224,26 +253,29 @@ describe("BLF-1125 刷新闪烁：各异步阶段都不能出现「当前用户�
     expect(container.textContent).not.toContain("普通用户");
   });
 
-  it("权限确认后角色行落地（非管理员）", async () => {
+  it("权限确认后也不再渲染角色行（BLF-1141：角色文案退出外壳）", async () => {
     seedSession();
     pending.me = () => Promise.resolve(ME);
     pending.menus = () => Promise.resolve(MENUS);
 
     const { container } = mount();
-    await waitFor(() => expect(screen.getAllByText("普通用户 · 参与项目业务").length).toBeGreaterThan(0));
+    await waitFor(() => expect(screen.getAllByText("张伟").length).toBeGreaterThan(0));
 
+    expect(container.textContent).not.toContain("普通用户");
+    expect(container.textContent).not.toContain("项目成员 · ");
     expect(container.textContent).not.toContain("当前用户");
   });
 
-  it("管理员确认后显示管理员文案（不得先显示普通用户）", async () => {
+  it("管理员确认后也不显示管理员文案（不得先显示普通用户，也不再显示任何角色）", async () => {
     seedSession();
     pending.me = () => Promise.resolve(ME);
     pending.menus = () => Promise.resolve({ ...MENUS, is_admin: true, can_approve: true });
 
     const { container } = mount();
-    await waitFor(() => expect(screen.getAllByText("管理员 · 全局管理与审批").length).toBeGreaterThan(0));
+    await waitFor(() => expect(screen.getAllByText("张伟").length).toBeGreaterThan(0));
 
-    expect(container.textContent).not.toContain("普通用户");
+    expect(container.textContent).not.toContain("管理员");
+    expect(container.textContent).not.toContain("全局管理与审批");
     expect(container.textContent).not.toContain("当前用户");
   });
 
@@ -253,10 +285,147 @@ describe("BLF-1125 刷新闪烁：各异步阶段都不能出现「当前用户�
     pending.menus = () => Promise.reject(new Error("API 500: boom"));
 
     const { container } = mount();
-    await waitFor(() => expect(screen.getAllByText("权限信息加载失败").length).toBeGreaterThan(0));
-
-    expect(container.textContent).not.toContain("管理员");
+    // 侧栏角色行已随身份区一并移除（BLF-1141），失败提示现在只剩导航下方那条
+    await waitFor(() => expect(screen.getAllByText(/权限信息加载失败/).length).toBeGreaterThan(0));
     expect(screen.getByText("重试")).toBeTruthy();
+    expect(container.textContent).not.toContain("管理员");
     expect(container.textContent).not.toContain("当前用户");
+  });
+});
+
+/**
+ * BLF-1141：身份与账号操作从侧栏底部搬到顶栏右上角。
+ *
+ * 真实的 hover / focus / tap 行为只能用真实 DOM 渲染来钉：这些断言覆盖「菜单在什么
+ * 条件下出现在 DOM 里」，而不是 CSS 怎么写 —— 关着的菜单**不渲染**（而不是靠
+ * visibility 隐藏），所以「不在 Tab 序列里」这一条等价于「DOM 里没有 menuitem」。
+ *
+ * 延时关闭用真实计时器（waitFor 轮询）验证，不引入 fake timers：本文件其它用例都依赖
+ * 真实的 promise/microtask 时序，混用两种计时器只会让失败变得难以复现。
+ */
+describe("BLF-1141 顶栏账号菜单（身份区已从侧栏搬走）", () => {
+  /** 顶栏身份区容器：触发按钮与菜单的共同父节点，也就是 hover 的进出边界 */
+  function chipWrap(): HTMLElement {
+    return screen.getByRole("button", { name: /^账号菜单/ }).parentElement as HTMLElement;
+  }
+
+  /** 已确认身份的外壳（快照 + 两个接口都返回），菜单用例的公共前置 */
+  async function mountSignedIn(admin = false) {
+    seedSession();
+    pending.me = () => Promise.resolve(ME);
+    pending.menus = () => Promise.resolve(admin ? { ...MENUS, is_admin: true, can_approve: true } : MENUS);
+    mount();
+    await waitFor(() => expect(screen.getAllByText("张伟").length).toBeGreaterThan(0));
+  }
+
+  it("侧栏底部不再有身份区与登出按钮（只剩折叠开关）", async () => {
+    await mountSignedIn();
+
+    const sidebar = document.querySelector('[data-shell="sidebar"]') as HTMLElement;
+    expect(sidebar, "桌面侧栏必须还在（删的是身份区，不是侧栏）").toBeTruthy();
+    expect(sidebar.textContent).not.toContain("张伟");
+    expect(sidebar.textContent).not.toContain("登出");
+    expect(sidebar.textContent).not.toContain("管理员");
+    // 侧栏里唯一剩下的按钮是折叠开关；旧版登出按钮（aria-label=退出登录）已不存在
+    const buttons = Array.from(sidebar.querySelectorAll("button"));
+    expect(buttons.map((b) => b.getAttribute("aria-label"))).toEqual(["收起侧边栏"]);
+  });
+
+  it("菜单与顶栏 chip 都不再出现角色权限文案", async () => {
+    await mountSignedIn(true);
+
+    fireEvent.mouseEnter(chipWrap());
+    expect(screen.getByRole("menu")).toBeTruthy();
+
+    expect(document.body.textContent).not.toContain("全局管理与审批");
+    expect(document.body.textContent).not.toContain("管理员");
+    expect(document.body.textContent).not.toContain("项目成员");
+  });
+
+  it("hover 打开菜单，移出后延时关闭（跨 8px 间隙不会一抖动就闪）", async () => {
+    await mountSignedIn();
+
+    expect(screen.queryByRole("menu"), "默认不渲染菜单").toBeNull();
+    fireEvent.mouseEnter(chipWrap());
+    expect(screen.getByRole("menu")).toBeTruthy();
+    expect(screen.getByRole("menuitem", { name: "修改密码" })).toBeTruthy();
+    expect(screen.getByRole("menuitem", { name: "退出登录" })).toBeTruthy();
+
+    fireEvent.mouseLeave(chipWrap());
+    expect(screen.queryByRole("menu"), "移出后立刻关闭会闪，必须留出容错时间").toBeTruthy();
+    await waitFor(() => expect(screen.queryByRole("menu")).toBeNull());
+  });
+
+  it("键盘可达：焦点进入 chip 即打开，方向键移动，Esc 关闭并把焦点还给 chip", async () => {
+    await mountSignedIn();
+
+    const chip = screen.getByRole("button", { name: /^账号菜单/ });
+    fireEvent.focus(chip);
+    expect(chip.getAttribute("aria-expanded")).toBe("true");
+    expect(screen.getByRole("menu")).toBeTruthy();
+
+    fireEvent.keyDown(chip, { key: "ArrowDown" });
+    expect(document.activeElement).toBe(screen.getByRole("menuitem", { name: "修改密码" }));
+    fireEvent.keyDown(screen.getByRole("menu"), { key: "ArrowDown" });
+    expect(document.activeElement).toBe(screen.getByRole("menuitem", { name: "退出登录" }));
+
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(screen.queryByRole("menu")).toBeNull();
+    expect(chip.getAttribute("aria-expanded")).toBe("false");
+    expect(document.activeElement).toBe(chip);
+  });
+
+  it("触屏：tap（pointerdown → focus → click）能打开，不会被 focus 抢先开后立刻关掉", async () => {
+    await mountSignedIn();
+
+    const chip = screen.getByRole("button", { name: /^账号菜单/ });
+    fireEvent.pointerDown(chip);
+    fireEvent.focus(chip);
+    fireEvent.click(chip);
+    expect(screen.getByRole("menu")).toBeTruthy();
+
+    fireEvent.click(chip); // 再点一次收起
+    expect(screen.queryByRole("menu")).toBeNull();
+  });
+
+  it("关闭状态下菜单项不在 DOM 里（不会留在 Tab 序列）", async () => {
+    await mountSignedIn();
+
+    expect(document.querySelectorAll('[role="menuitem"]').length).toBe(0);
+    expect(chipWrap().querySelector('[role="menu"]')).toBeNull();
+  });
+
+  it("「修改密码」指向 /change-password，点击后菜单收起", async () => {
+    await mountSignedIn();
+
+    fireEvent.mouseEnter(chipWrap());
+    const link = screen.getByRole("menuitem", { name: "修改密码" });
+    expect(link.getAttribute("href")).toBe("/change-password");
+
+    fireEvent.click(link);
+    expect(screen.queryByRole("menu")).toBeNull();
+  });
+
+  it("「退出登录」调用登出接口并回到登录页", async () => {
+    await mountSignedIn();
+
+    fireEvent.mouseEnter(chipWrap());
+    fireEvent.click(screen.getByRole("menuitem", { name: "退出登录" }));
+
+    await waitFor(() => expect(mocks.push).toHaveBeenCalledWith("/login"));
+    expect(mocks.logout).toHaveBeenCalled();
+  });
+
+  it("身份未确认时 chip 是骨架（无占位文字），但账号操作仍然可达", () => {
+    pending.me = () => new Promise(() => {});
+    pending.menus = () => new Promise(() => {});
+
+    const { container } = mount();
+    expect(container.textContent).not.toContain("当前用户");
+    expect(screen.getAllByText("身份加载中").length).toBeGreaterThan(0);
+
+    fireEvent.mouseEnter(chipWrap());
+    expect(screen.getByRole("menu")).toBeTruthy();
+    expect(screen.getByRole("menuitem", { name: "退出登录" })).toBeTruthy();
   });
 });
