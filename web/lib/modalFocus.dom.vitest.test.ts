@@ -53,6 +53,13 @@ function formBody() {
  * 必填项，`createElement` 的第三个参数不参与该重载的类型推导，会报
  * 「Property 'children' is missing」。
  */
+/*
+ * 局部关闭 `react/no-children-prop`：该规则针对的是「把 children 当普通 prop 传」的误用，
+ * 而这两个 helper 里 `children` 并进 props 是刻意的——`DialogProps/DrawerProps.children`
+ * 是必填项，`createElement` 的第三个参数不参与该重载的类型推导（会报 Property 'children'
+ * is missing），所以只能这么写。理由同上方的 helper 注释。
+ */
+/* eslint-disable react/no-children-prop */
 function dialog(props: Omit<DialogProps, "children">, children: ReactNode = formBody()) {
   return createElement(Dialog, { ...props, children });
 }
@@ -60,6 +67,7 @@ function dialog(props: Omit<DialogProps, "children">, children: ReactNode = form
 function drawer(props: Omit<DrawerProps, "children">, children: ReactNode = formBody()) {
   return createElement(Drawer, { ...props, children });
 }
+/* eslint-enable react/no-children-prop */
 
 function confirm(props: ConfirmProps) {
   return createElement(Confirm, props);
