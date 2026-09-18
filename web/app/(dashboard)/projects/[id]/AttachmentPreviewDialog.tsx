@@ -11,9 +11,15 @@
  * ⚠️ 内联预览的安全边界不在本组件，而在**传入的 `loadUrl`**：父级必须强制按扩展名定 blob 的
  * MIME（`fetchObjectUrl(path, previewBlobType(a))`）。本组件只负责把拿到的 URL 交给
  * `<img>` / `<iframe>`，无法判断那份字节是什么类型 —— 详见下面 iframe 处的注释。
+ *
+ * 失败分层（BLF-1137）：`loadUrl` 失败时**可以抛出原始异常**，本组件用 `uploadErrors` 定档 ——
+ *   · 502（存储暂不可用）→ 徽标「存储暂不可用」+「可重试」，并给出真的会重取的重试按钮；
+ *   · 404（正文确实不存在）→ 只说「附件已丢失，请联系管理员补传」，**不给**重试按钮。
+ * 把两者显示成同一句泛化文案，会让「R2 抖了一下」看起来像「文件没了」。
  */
 import { useEffect, useState } from "react";
 import type { Attachment } from "@/lib/api";
+import { classifyTransferFailure, failureLine, type TransferFailure } from "@/lib/uploadErrors";
 import {
   canPreviewInline,
   fileTypeLabel,
@@ -23,6 +29,19 @@ import {
 import { formatFileSize } from "@/lib/uploadLimits";
 import { Dialog } from "@/components/ui/Modal";
 
+/**
+ * `loadUrl` 返回空串（而非抛错）时的兜底分层：拿不到原因也要给出可读文案与下一步动作，
+ * 不能只给一个空白弹层。
+ */
+const EMPTY_URL_FAILURE: TransferFailure = {
+  kind: "unknown",
+  status: null,
+  message: "无法取到预览内容",
+  label: "预览加载失败",
+  hint: "可点击下方「下载」用本地应用打开",
+  retryable: false,
+};
+
 export default function AttachmentPreviewDialog({
   attachment,
   loadUrl,
@@ -31,14 +50,22 @@ export default function AttachmentPreviewDialog({
 }: {
   /** 当前预览的附件；`null` 表示关闭。 */
   attachment: Attachment | null;
-  /** 取附件的对象 URL；失败时返回空串（由本组件呈现可读错误）。 */
+  /**
+   * 取附件的对象 URL（父级负责走鉴权接口 + 按扩展名定 blob MIME）。
+   *
+   * 失败时返回空串、或抛出原始异常（`HttpError` / `NetworkError`…）：抛出时本组件把它
+   * 交给 `uploadErrors` 分层展示，502（可重试）与 404（已丢失）不会显示成同一句。
+   */
   loadUrl: (attachment: Attachment) => Promise<string>;
   onClose: () => void;
   onDownload: (attachment: Attachment) => void;
 }) {
   const [url, setUrl] = useState("");
   const [loading, setLoading] = useState(false);
-  const [failed, setFailed] = useState(false);
+  const [failure, setFailure] = useState<TransferFailure | null>(null);
+  /** 重试计数：可重试档点「重试」时要真的重取一次（靠依赖变化重跑下面的 effect）。 */
+  const [attempt, setAttempt] = useState(0);
+  const failed = !!failure;
 
   const kind = attachment ? previewKindOf(attachment) : "other";
   const inline = attachment ? canPreviewInline(attachment) : false;
@@ -49,14 +76,14 @@ export default function AttachmentPreviewDialog({
   useEffect(() => {
     if (!attachment || !inline) {
       setUrl("");
-      setFailed(false);
+      setFailure(null);
       setLoading(false);
       return;
     }
     let alive = true;
     let owned = "";
     setUrl("");
-    setFailed(false);
+    setFailure(null);
     setLoading(true);
     loadUrl(attachment)
       .then((next) => {
@@ -66,8 +93,12 @@ export default function AttachmentPreviewDialog({
           return;
         }
         owned = next;
-        if (!next) setFailed(true);
+        if (!next) setFailure(EMPTY_URL_FAILURE);
         setUrl(next);
+      })
+      .catch((e) => {
+        // 父级把原始异常交上来：在这里定档（502 给重试、404 说已丢失）
+        if (alive) setFailure(classifyTransferFailure(e));
       })
       .finally(() => {
         if (alive) setLoading(false);
@@ -76,7 +107,7 @@ export default function AttachmentPreviewDialog({
       alive = false;
       if (owned) URL.revokeObjectURL(owned);
     };
-  }, [attachment, inline, loadUrl]);
+  }, [attachment, inline, loadUrl, attempt]);
 
   return (
     <Dialog
@@ -106,9 +137,15 @@ export default function AttachmentPreviewDialog({
             <div className="preview-note" role="status">{previewUnsupportedText(attachment)}</div>
           )}
           {inline && loading && <div className="preview-note" role="status">正在加载预览…</div>}
-          {inline && !loading && failed && (
+          {inline && !loading && failure && (
             <div className="preview-note preview-note-error" role="alert">
-              预览加载失败，可点击下方「下载」用本地应用打开。
+              <span className={`chip ${failure.retryable ? "warn" : "danger"}`}>{failure.label}</span>
+              <span>{failureLine(failure)}</span>
+              {failure.retryable && (
+                <button type="button" className="btn-ghost btn-xs" onClick={() => setAttempt((n) => n + 1)}>
+                  重试
+                </button>
+              )}
             </div>
           )}
           {inline && !failed && url && kind === "image" && (
