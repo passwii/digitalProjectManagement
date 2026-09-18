@@ -1,0 +1,198 @@
+/*
+ * 三态底部抽屉的几何（BLF-1127 §4 / §7 + 决策 D2）。
+ *
+ * 三档（§4 表）：peek 自适应（≤236px、无遮罩）/ half 56%（有遮罩）/
+ * full 整屏但保留状态栏（有遮罩）。手势与档位判定不在 CSS 里，见
+ * `lib/sheetGesture.ts`（阈值是契约，纯函数钉住）。
+ *
+ * 与 Dock 的层级关系是本文件最要紧的一条：Dock 是**常驻 chrome，永远压在抽屉之上**
+ * （原型 z-index: dock 20 > sheet 16），所以
+ *   · 抽屉底部预留一条「Dock 带」（见 .panel 的 padding-bottom），内容不落在 Dock 底下；
+ *   · 遮罩（36）盖住页面但不盖 Dock（40）→「再点当前位降回 peek / 收起」（D2）始终可用。
+ * 反过来把抽屉压在 Dock 之上，D2 的再点降档就只能在 peek 档成立，half / full 会变成死键。
+ */
+
+.root {
+ /* 手机壳令牌：§7 的清单里没有「状态栏留白」，先放这里；S6（PWA 外壳收口）时
+     再决定要不要并进 globals.css。 */
+ --m-sheet-top: max(
+  42px,
+  env(safe-area-inset-top, 0px)
+ ); /* full 档顶部留白（契约 ≥40px） */
+ --m-sheet-peek: 236px; /* peek 档高度上限（契约 ≤236px；TSX 的 PEEK_MAX 同值） */
+ --m-sheet-motion: 260ms; /* 换档 / 进退场时长（TSX 的 EXIT_MS 同值） */
+ --m-sheet-gap: 10px;
+
+ position: fixed;
+ inset: 0;
+ /* 高于侧栏（30）低于 Dock（40）：抽屉在页面之上、Dock 之下 */
+ z-index: 36;
+ /* 默认不吃命中：peek 档不加遮罩、不打断当前页，页面照常可点；
+     升到 half / full 才由遮罩接管命中。 */
+ pointer-events: none;
+}
+
+.root[data-scrim="true"] {
+ pointer-events: auto;
+}
+
+/* 退场中（open=false）：面板还在屏上（下滑动画没播完），但已经不该吃任何点击。
+   这是「[hidden] / 残留元素拦截点击」那一类 bug 的正面写法 —— 命中链在关闭的那一帧
+   就断开，不等动画结束。 */
+.root[data-open="false"] {
+ pointer-events: none;
+}
+.root[data-open="false"] .panel {
+ pointer-events: none;
+}
+
+.scrim {
+ position: absolute;
+ inset: 0;
+ background: rgba(15, 39, 66, 0.34);
+ opacity: 0;
+ pointer-events: none;
+ transition: opacity var(--m-sheet-motion) var(--ease-console);
+}
+/* 打开时同时恢复 opacity 与命中：只改 opacity 的遮罩看得见却点不透（原型同款坑） */
+.scrim[data-on="true"] {
+ opacity: 1;
+ pointer-events: auto;
+}
+
+.panel {
+ position: absolute;
+ left: 0;
+ right: 0;
+ bottom: 0;
+ /* 同级里排在遮罩之后即在其上，不另设 z-index */
+ display: flex;
+ flex-direction: column;
+ max-height: calc(100% - var(--m-sheet-top));
+ background: var(--card);
+ border-radius: var(--m-sheet-r) var(--m-sheet-r) 0 0;
+ box-shadow: 0 -12px 40px rgba(23, 43, 77, 0.18);
+ /* 「Dock 带」：Dock 高度 + 安全区。Dock 压在抽屉之上，这一段是它的地盘 */
+ padding-bottom: calc(var(--m-dock-h) + var(--m-safe-b));
+ pointer-events: auto;
+ /* 面板自己接管手势：拖动时不要把页面一起滚走（列表另有 pan-y，见 .body） */
+ touch-action: none;
+ will-change: transform;
+ animation: sheet-in var(--m-sheet-motion) var(--ease-console);
+ transition:
+  transform var(--m-sheet-motion) var(--ease-console),
+  height var(--m-sheet-motion) var(--ease-console),
+  max-height var(--m-sheet-motion) var(--ease-console);
+}
+
+/* 三档几何（§4）。peek 的确定高度由 TSX 量出来写进 inline style（height 从 auto
+   过渡不了，换档就没动画），这里只兜住上限。 */
+.panel[data-sheet="peek"] {
+ max-height: var(--m-sheet-peek);
+}
+.panel[data-sheet="half"] {
+ height: 56%;
+}
+.panel[data-sheet="full"] {
+ height: calc(100% - var(--m-sheet-top));
+}
+
+/* 关闭态下滑出屏：拖拽后的 inline transform 只是过程值，最终位置由这条规则给 */
+.panel[data-open="false"] {
+ transform: translateY(100%);
+}
+
+/* 拖拽中：禁掉过渡与入场动画，让 inline transform 逐帧跟手
+   （CSS 动画的优先级高于 inline style，不禁掉的话入场那 260ms 内拖不动） */
+.panel[data-dragging="true"] {
+ transition: none;
+ animation: none;
+}
+
+/* 抓握区：把手 + 头部整块可拖（手机上比只有 4px 的把手好抓得多） */
+.grip {
+ flex: none;
+ display: grid;
+ place-items: center;
+ padding: 8px 0 2px;
+ cursor: grab;
+ touch-action: none;
+}
+.grip span {
+ width: 38px;
+ height: 4px;
+ border-radius: 999px;
+ background: #d2dae5;
+}
+
+.head {
+ flex: none;
+ display: flex;
+ align-items: center;
+ gap: 10px;
+ padding: 4px 16px 12px;
+ cursor: grab;
+ touch-action: none;
+}
+.ttl {
+ flex: 1;
+ min-width: 0;
+}
+.ttl b {
+ display: block;
+ overflow: hidden;
+ color: var(--ink);
+ font-size: 16px;
+ font-weight: 700;
+ letter-spacing: 0.01em;
+ text-overflow: ellipsis;
+ white-space: nowrap;
+}
+.ttl span {
+ display: block;
+ margin-top: 2px;
+ color: var(--ink-3);
+ font-size: 11.5px;
+}
+
+.body {
+ flex: 1;
+ min-height: 0;
+ display: grid;
+ align-content: start;
+ grid-template-columns: 1fr;
+ gap: var(--m-sheet-gap);
+ padding: 0 16px 16px;
+ overscroll-behavior-y: contain;
+ -webkit-overflow-scrolling: touch;
+}
+/* peek 只做预览：内容更高时由面板高度裁掉（滚动留给 half / full）。
+   touch-action 也归面板 —— peek 没有可滚内容，整块都该能拖。 */
+.panel[data-sheet="peek"] .body {
+ grid-template-columns: 1fr 1fr;
+ overflow: hidden;
+ touch-action: none;
+}
+/* half / full：可滚列表。pan-y 让纵向手势先归列表滚动，
+   列表滚到顶（scrollTop=0）时面板才接手势 —— §4「滚动不抢手势」的正面实现。 */
+.panel[data-sheet="half"] .body,
+.panel[data-sheet="full"] .body {
+ overflow-y: auto;
+ touch-action: pan-y;
+}
+
+@keyframes sheet-in {
+ from {
+  transform: translateY(100%);
+ }
+}
+
+@media (prefers-reduced-motion: reduce) {
+ .panel {
+  animation: none;
+  transition: none;
+ }
+ .scrim {
+  transition: none;
+ }
+}
