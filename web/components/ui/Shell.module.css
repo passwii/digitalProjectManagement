@@ -137,76 +137,19 @@
 }
 .collapsed .navError { display: none; }
 
-.sideFoot {
+/*
+  侧栏底部只剩折叠开关（BLF-1141）：身份区与「登出」已搬到顶栏右上角的用户菜单。
+  这里只留一条分隔 + 内边距，`.nav` 依旧 `flex: 1` 吃掉剩余高度 ——
+  删掉用户区后不会出现塌陷或多余空白。
+*/
+.collapseBar {
   flex: none;
-  padding: 14px 12px 16px;
+  padding: 10px 12px 16px;
   border-top: 1px solid rgba(255,255,255,.08);
 }
-.userRow { display: flex; align-items: center; gap: 9px; }
-.userMeta { min-width: 0; flex: 1; }
-
-/*
-  身份骨架（BLF-1125）：姓名/头像未确认时占位，**不渲染任何文字**。
-  刻意不复用全局 .skel：它假定浅色底（--line-soft 系），而侧栏是深海军蓝，
-  直接用会看不出来；这里用半透明白，顶栏浅底版本另见 .nameSkel 的覆盖。
-*/
-.avatarSkel {
-  flex: 0 0 auto;
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, .14);
-  animation: identityPulse 1.2s ease-in-out infinite;
-}
-.nameSkel {
-  display: block;
-  width: 72px;
-  height: 13px;
-  border-radius: 4px;
-  background: rgba(255, 255, 255, .14);
-  animation: identityPulse 1.2s ease-in-out infinite;
-}
-@keyframes identityPulse {
-  0%, 100% { opacity: .55; }
-  50% { opacity: 1; }
-}
-
-.userMeta .n {
-  overflow: hidden;
-  color: #fff;
-  font-size: 13px;
-  font-weight: 600;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.userMeta .r {
-  overflow: hidden;
-  color: rgba(221, 233, 250, .56);
-  font-size: 11px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.logoutBtn {
-  height: 28px;
-  padding: 0 9px;
-  border: 1px solid rgba(255,255,255,.16);
-  border-radius: var(--radius-sm);
-  color: rgba(241, 252, 250, .78);
-  background: transparent;
-  font-size: 12px;
-  white-space: nowrap;
-}
-.logoutBtn:hover {
-  color: #ffd6d0;
-  border-color: rgba(255, 148, 132, .46);
-}
-.collapsed .userMeta,
-.collapsed .logoutBtn { display: none; }
-
 .collapseBtn {
   width: 100%;
   height: 30px;
-  margin-top: 10px;
   border: 0;
   border-radius: var(--radius-sm);
   color: rgba(221, 233, 250, .58);
@@ -251,32 +194,116 @@
   font-family: var(--font-mono);
   font-size: 11px;
 }
+.userChipWrap {
+  position: relative;
+  padding-left: 16px;
+  border-left: 1px solid var(--line);
+}
+/*
+  顶栏右上角身份区（BLF-1141）：hover / focus / tap 出账号菜单。
+  它从侧栏底部搬到这里后是唯一的账号入口，所以 chip 是真正的 <button>，
+  得先把浏览器默认按钮外观抹平；`margin-right: -6px` 让悬停底色向外扩，
+  姓名仍与顶栏右内边距对齐。
+*/
 .userChip {
   display: flex;
   align-items: center;
   gap: 9px;
-  padding-left: 16px;
-  border-left: 1px solid var(--line);
+  min-height: 38px;
+  padding: 4px 6px;
+  margin-right: -6px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: inherit;
+  font: inherit;
 }
+.userChip:hover,
+.userChip[aria-expanded="true"] { background: var(--th-bg); }
 .userChipText { display: flex; flex-direction: column; line-height: 1.2; }
 .userChipText b { color: var(--ink); font-size: 13px; font-weight: 650; }
-.userChipText small { margin-top: 2px; color: var(--ink-3); font-size: 10px; }
 
-/* 顶栏是浅色底：骨架换成浅灰蓝，尺寸与头像/姓名对齐避免身份就位时布局跳动 */
+/*
+  身份骨架（BLF-1125）：姓名/头像未确认时占位，**不渲染任何文字**。
+  侧栏那份深色底版本已随身份区一起删掉（BLF-1141），只剩顶栏这一份。
+  选择器保留 .userChip 前缀：既压住全局 .skel 的底色/动画，
+  又让下面 prefers-reduced-motion 用同特异性覆盖得住。
+*/
 .userChip .avatarSkel {
+  flex: 0 0 auto;
   width: 30px;
   height: 30px;
+  border-radius: 50%;
   background: var(--line-soft);
+  animation: identityPulse 1.2s ease-in-out infinite;
 }
 .userChip .nameSkel {
+  display: block;
   width: 56px;
   height: 12px;
+  border-radius: 4px;
   background: var(--line-soft);
+  animation: identityPulse 1.2s ease-in-out infinite;
+}
+@keyframes identityPulse {
+  0%, 100% { opacity: .55; }
+  50% { opacity: 1; }
+}
+
+/*
+  账号菜单（BLF-1141）：只在打开时渲染（见 layout.tsx），
+  所以「关闭状态」天然不在 Tab 序列里，不需要 visibility / inert 兜底。
+  与 chip 之间 8px 的间隙由 JS 的延时关闭容错（MENU_CLOSE_DELAY）。
+*/
+.userMenu {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 40;
+  min-width: 168px;
+  max-width: calc(100vw - 24px);
+  padding: 6px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-float);
+  animation: userMenuIn 120ms ease-out;
+}
+.userMenuItem {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  min-height: 36px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--ink);
+  font-size: 13px;
+  text-align: left;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.userMenuItem:hover {
+  color: var(--ink);
+  background: var(--row-hover);
+  text-decoration: none;
+}
+.userMenuItem svg { flex: none; color: var(--ink-3); }
+.userMenuItemDanger { color: var(--danger); }
+.userMenuItemDanger:hover { color: var(--danger); background: var(--danger-bg); }
+.userMenuItemDanger svg { color: var(--danger); }
+@keyframes userMenuIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: none; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .avatarSkel,
-  .nameSkel { animation: none; opacity: .8; }
+  /* 选择器要与上面同为 (0,2,0)，否则压不住 .userChip .avatarSkel 的 animation */
+  .userChip .avatarSkel,
+  .userChip .nameSkel { animation: none; opacity: .8; }
+  .userMenu { animation: none; }
 }
 
 .content {
@@ -333,7 +360,7 @@
   .collapsed .navLink .label { display: inline; }
   .navActive { box-shadow: inset 0 -2px 0 #68AEFF; }
   .navGroupLabel,
-  .sideFoot,
+  .collapseBar,
   .navError { display: none; }
   .topbar {
     height: 58px;
@@ -343,7 +370,7 @@
   .topDate,
   .userChipText { display: none; }
   .topActions { gap: 10px; }
-  .userChip { padding-left: 12px; }
+  .userChipWrap { padding-left: 12px; }
   .content { padding: 20px 14px 36px; }
 }
 
@@ -384,6 +411,9 @@
     flex-basis: var(--m-appbar-h);
   }
   .crumb b { font-weight: 600; }
+
+  /* 手机没有 hover：chip 整块可点，菜单项放大到触控尺寸 */
+  .userMenuItem { min-height: var(--m-tap); }
 
   /* 底部给 Dock 让位：Dock 是 fixed 定位、不占文档流，不留白就会盖住最后一屏内容
      （58 + 安全区 + 18 的呼吸位，与 MobileDock.module.css 的高度口径一致） */
