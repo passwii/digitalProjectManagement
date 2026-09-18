@@ -8,7 +8,7 @@
 
     合同/2026/2026-024-xx采购合同-534万__a1b2c3d4.pdf
     项目/2026/开票-设备费-60%__5e6f7a8b.png
-    凭证/2026/2026-09-差旅-发票__9c0d1e2f.pdf
+    凭证/2026/2026-09-差旅-发票__9c0d1e2f_20260918120000.pdf
     档案/张爱杰-身份证__3b4c5d6e.pdf          （人员档案量小，不分年）
 
 一级 = 业务域，二级 = 年份，文件名 = 可读原名 + 8 位随机后缀。**最多两级目录**。
@@ -20,8 +20,11 @@
 的对象）—— 分两步是为了随时可以回头比对，而不是靠一条命令的运气。
 
 · **默认 dry-run**：不加 `--apply` 只打印「旧键 → 新键」对照清单，不写库、不动桶。
-· **确定性新键**：8 位随机后缀优先沿用已有后缀，其次取旧键里的 uuid，同一行反复执行得到
-  同一个新键，因此重跑是幂等的（已在新键上的行直接跳过）。
+· **确定性新键（重跑是真无操作）**：新键只由**行自身**算 —— 8 位后缀优先沿用键里已有的，
+  其次取旧键里的 uuid；年份不取当前时间，而是「已是新键的行沿用键里的年份、旧键取该行
+  `uploaded_at` 的年份」；凭证键尾的上传标记（`__{后缀}_{时间戳}`）原样带过去。因此同一行
+  反复执行得到同一个键，已在新键上的行直接跳过，**跨年后重跑也不会把整批行算成新年的键**
+  （否则旧键会静默变成桶内孤儿）。
 · **先复制、后改库**：任一步失败都保留旧键与库内坐标，不会出现「库指向一个不存在的对象」；
   校验不过的复制品会被当场删掉，不在桶里留半成品。
 · **--verify**：把新旧对象**都完整读回来**比较 sha256 与字节数（不是只看 ETag），
@@ -74,6 +77,7 @@ from api.core.r2 import (
 )
 from api.core.storage import (
     build_object_key,
+    object_key_ext,
     r2_settings_complete,
     r2_settings_from_env,
     try_delete_object_quietly,
@@ -83,8 +87,11 @@ from scripts._attachment_rows import domain_for, int_of, text_of
 
 #: 旧键末段里的 uuid（32 位十六进制），用于取确定性的新键后缀
 _UUID_RE = re.compile(r"[0-9a-f]{32}")
-#: 新键末段里的 `__{8位后缀}`：已是新键的行要原样沿用这个后缀
-_TAG_RE = re.compile(r"__([0-9A-Za-z]{8})")
+#: 新键末段：`{可读原名}__{后缀}[_{上传标记}]`（标记是凭证的上传时间戳）。后缀长度写成
+#: `{8,}`：既认现在线上产出的 8 位，也不至于将来改成 12 位时把标记误当成后缀。
+_TAG_RE = re.compile(r"__([0-9A-Za-z]{8,})(?:_([0-9A-Za-z]+))?$")
+#: 新键里的年份目录段（`{业务域}/{yyyy}/`），旧键两级都是数字但取第二个
+_YEAR_RE = re.compile(r"^(?:19|20)\d{2}$")
 
 #: 方案 A 之前的命名空间前缀（回收只针对它，绝不碰新键）
 LEGACY_PREFIX = "tenant/default/"
@@ -116,6 +123,23 @@ class RekeyReport:
         return not self.failures
 
 
+def tag_and_marker(old_key: str) -> tuple[str, str]:
+    """拆当前键末段的 `(后缀, 上传标记)`；不是新键形态时返回 `("", "")`。
+
+    新键末段是 `{可读原名}__{后缀}[_{上传标记}]{ext}`，凭证的上传时间戳就是那个标记
+    （`api/routers/expenses.py` 传的 `suffix`）。重算目标键时必须把它原样带回去，否则
+    `凭证/…__tag_marker.pdf` 会被算成 `凭证/…__tag.pdf`：与当前键不等 → 重跑再复制一份，
+    把带标记的旧键留在桶里 —— 而 `--sweep-legacy` 只扫 `tenant/default/`，永远收不到它。
+    """
+    tail = text_of(old_key).rsplit("/", 1)[-1]
+    ext = object_key_ext(tail)
+    stem = tail[: -len(ext)] if ext else tail
+    match = _TAG_RE.search(stem)
+    if match is None:
+        return "", ""
+    return match.group(1).lower(), match.group(2) or ""
+
+
 def stable_tag(old_key: str) -> str:
     """从旧键里取稳定的 8 位后缀：优先沿用新键已有的后缀，其次 uuid，最后按旧键摘要。
 
@@ -123,23 +147,59 @@ def stable_tag(old_key: str) -> str:
     三种来源的顺序也保证了「改过的行不会再被改一次」：已是新键的行直接沿用原后缀，
     算出的目标键与当前键相等，即视为无需迁移。
     """
+    tag, _marker = tag_and_marker(old_key)
+    if tag:
+        return tag
     tail = text_of(old_key).rsplit("/", 1)[-1]
-    tags = _TAG_RE.findall(tail)
-    if tags:
-        return tags[-1].lower()
     match = _UUID_RE.search(tail)
     if match:
         return match.group(0)[:8]
     return hashlib.sha256(text_of(old_key).encode("utf-8")).hexdigest()[:8]
 
 
+def _year_from_key(old_key: str) -> int | None:
+    """取新键里的年份目录段（`{业务域}/{yyyy}/…`）；没有年份层（如档案）返回 `None`。"""
+    parts = [part for part in text_of(old_key).split("/") if part]
+    if len(parts) < 3 or not _YEAR_RE.match(parts[1]):
+        return None
+    try:
+        return int(parts[1])
+    except (TypeError, ValueError):  # 正则已挡过，这里只是不让异常变成一次崩溃
+        return None
+
+
+def _year_for(row, old_key: str) -> int | None:
+    """目标键的年份：已是新键的行沿用当前键里的年份，其它行取该行的上传年份。
+
+    年份必须来自「行」，绝不能取 `datetime.now()`：否则 2027 年再跑一次，2026 年迁好的
+    行会被整批算成 `2027/…`，旧键立刻变成没人引用的孤儿（`--sweep-legacy` 只认
+    `tenant/default/`，收不到它），而脚本仍会打印「失败 0」并以 0 退出。
+    取 `uploaded_at` 的年份顺带修掉「去年上传的文件被迁进今年目录」这个更老的偏差。
+    """
+    if tag_and_marker(old_key)[0]:
+        year = _year_from_key(old_key)
+        if year is not None:
+            return year
+    # 列值经 `getattr` 收敛：legacy `Column(...)` 风格下静态类型不是 datetime
+    year = getattr(getattr(row, "uploaded_at", None), "year", None)
+    return year if isinstance(year, int) else None
+
+
 def target_key(row) -> str:
-    """按方案 A 计算某一行应有的对象键（业务域目录 + 可读文件名 + 稳定后缀）。"""
+    """按方案 A 计算某一行应有的对象键（业务域 + 年份 + 可读名 + 稳定后缀 + 上传标记）。
+
+    只用**行自身**的数据（当前键、文件名、`uploaded_at`），不读时钟：
+    · 已在新键上的行算出的目标键 == 当前键 → 重跑是真的无操作（含凭证的时间戳标记）；
+    · 跨年后重跑也不会把旧年份的键算成新年的键，不会平白造出桶内孤儿。
+    """
     old_key = text_of(getattr(row, "object_key", ""))
+    tag, marker = tag_and_marker(old_key)
     return build_object_key(
         domain_for(row),
         text_of(getattr(row, "filename", "")) or "attachment",
-        disambiguator=stable_tag(old_key),
+        suffix=marker,
+        disambiguator=tag or stable_tag(old_key),
+        year=_year_for(row, old_key),
     )
 
 

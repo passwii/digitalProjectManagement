@@ -431,6 +431,7 @@ def build_object_key(
     owner_id: int | None = None,
     suffix: str = "",
     disambiguator: str = "",
+    year: int | None = None,
 ) -> str:
     """生成对象键：`{业务域}/{yyyy}/{可读原名}__{8位随机}{_标记}{ext}`。
 
@@ -439,6 +440,9 @@ def build_object_key(
     · 文件名 = 清洗后的原始名 + `__` + 8 位随机后缀，既可读可搜又不可枚举；
     · `suffix` 是调用方给的可读标记（如支出凭证的上传时间戳），只保留字母数字；
     · `disambiguator` 供迁移脚本传入**稳定**后缀，保证同一行反复生成的键一致；
+    · `year` 供迁移脚本传入**行内**年份（新键沿用键里已有的年份、旧键取 `uploaded_at`
+      的年份）：线上上传不传（默认当前 UTC 年份），迁移必须传，否则同一行跨年后会算出
+      另一个键，重跑就不再是幂等的 no-op；
     · 原始名仍完整保存在 `Attachment.filename`，键里的名字只是检索线索；
     · `owner_id` 仅用于**本地后端**的目录分片（便于排查），不进对象键，避免暴露用户 id。
     """
@@ -446,7 +450,7 @@ def build_object_key(
     folder = business_folder(domain)
     parts = [folder]
     if (domain or "").strip().lower() not in _NO_YEAR_DOMAINS:
-        parts.append(f"{now:%Y}")
+        parts.append(f"{now:%Y}" if not isinstance(year, int) else f"{year:04d}")
 
     raw_tag = disambiguator or uuid.uuid4().hex[:_RANDOM_TAG_LEN]
     tag = "".join(ch for ch in raw_tag if ch.isalnum())[:_RANDOM_TAG_LEN]
@@ -465,7 +469,9 @@ def build_object_key(
 def local_path_for(
     domain: str, filename: str, object_key: str, owner_id: int | None = None
 ) -> Path:
-    """本地后端的目标路径：`{STORAGE_LOCAL_ROOT}/{domain}/{owner?}/{uuid}{ext}`。
+    """本地后端的目标路径：`{STORAGE_LOCAL_ROOT}/{业务域}/{owner?}/{uuid}{ext}`。
+
+    `{业务域}` 是与对象键同一套中文目录名（`合同` / `项目` / `凭证` / `档案`）。
 
     这是**临时暂存路径，不是持久化存储**（见模块 docstring「唯一事实口径」）：
     只服务开发/测试与显式 `STORAGE_BACKEND=local`，落点由 `local_staging_root()` 校验。

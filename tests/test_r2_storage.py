@@ -1329,6 +1329,21 @@ def _seed_legacy_row(
     return row
 
 
+def _seed_r2_row(
+    session: Session,
+    fake_s3,
+    *,
+    key: str,
+    filename: str,
+    body: bytes,
+    ref_type: str = "contract",
+):
+    """造一条「已在 R2、键为 `key`」的行；`key` 可以是旧键，也可以是新键（方案 A）。"""
+    return _seed_legacy_row(
+        session, fake_s3, old_key=key, filename=filename, body=body, ref_type=ref_type
+    )
+
+
 def test_rekey_dry_run_lists_old_to_new_without_touching_anything(session, fake_s3):
     """默认 dry-run：只算「旧键 → 新键」对照，不复制、不改库、不删对象。"""
     old_key = _legacy_key("contract", "a" * 32 + ".pdf")
@@ -1346,9 +1361,11 @@ def test_rekey_dry_run_lists_old_to_new_without_touching_anything(session, fake_
     assert report.ok and report.rekeyed == 0 and report.up_to_date == 0
     assert len(report.plans) == 1
     plan = report.plans[0]
-    year = datetime.now(timezone.utc).strftime("%Y")
-    assert plan.old_key == old_key
-    assert plan.new_key == f"合同/{year}/2026-024-采购合同-534万__aaaaaaaa.pdf"
+    # 年份取该行 `uploaded_at` 的年份（**不是** `datetime.now()`）：跨年后重跑才算出同一个键
+    assert (
+        plan.new_key
+        == f"合同/{row.uploaded_at.year}/2026-024-采购合同-534万__aaaaaaaa.pdf"
+    )
     assert fake_s3.objects == before and fake_s3.copy_calls == []
     assert str(_row_of(session, row.id).object_key) == old_key
 
@@ -1382,6 +1399,77 @@ def test_rekey_apply_copies_verifies_updates_db_and_is_idempotent(session, fake_
 
     again = rekey(session, _settings(), apply=True, verify=True, echo=_quiet)
     assert again.ok and again.rekeyed == 0 and again.up_to_date == 1 and again.plans == []
+
+
+def test_rekey_is_noop_for_expense_key_with_suffix_marker(session, fake_s3):
+    """凭证键带上传时间戳标记：重跑必须原样沿用，不能算出「掉了标记」的第二份键。
+
+    标记就是 `api/routers/expenses.py` 上传时传的 `suffix`（UTC 时间戳）。漏掉它时
+    `凭证/…__tag_marker.pdf` 会被算成 `凭证/…__tag.pdf` —— 与当前键不等 → 再复制一份，
+    而带标记的旧键不属于 `tenant/default/`，`--sweep-legacy` 收不到，脚本还以 0 退出。
+    """
+    key = storage_mod.build_object_key(
+        "expense", "差旅-发票.pdf", suffix="20260918120000", disambiguator="9c0d1e2f"
+    )
+    assert key.startswith("凭证/") and key.endswith("__9c0d1e2f_20260918120000.pdf")
+    row = _seed_r2_row(
+        session,
+        fake_s3,
+        key=key,
+        filename="差旅-发票.pdf",
+        body=b"voucher",
+        ref_type="expense",
+    )
+
+    assert target_key(_row_of(session, row.id)) == key  # 目标键 == 当前键
+
+    report = rekey(session, _settings(), apply=True, verify=True, echo=_quiet)
+
+    assert report.ok and report.rekeyed == 0 and report.up_to_date == 1
+    assert report.plans == [] and fake_s3.copy_calls == []
+    assert list(fake_s3.objects) == [key]
+    assert reconcile(session, _settings(), echo=_quiet)["orphan"] == []
+
+
+def test_rekey_is_noop_after_year_rollover(session, fake_s3, monkeypatch):
+    """跨年后重跑：年份取自行里已有的键，不把 2026 的行整批算成 2027 的键。
+
+    这是「静默造孤儿」的第二条可达路径：年份取 `datetime.now()` 时，元旦之后再跑一次会
+    给每个分年的行算出一个新年份的键，旧键既不在 `tenant/default/` 下、又已无行引用。
+    """
+    old_key = _legacy_key("contract", "a" * 32 + ".pdf")
+    row = _seed_r2_row(
+        session,
+        fake_s3,
+        key=old_key,
+        filename="采购合同.pdf",
+        body=b"contract",
+        ref_type="contract",
+    )
+
+    first = rekey(session, _settings(), apply=True, verify=True, echo=_quiet)
+    assert first.ok and first.rekeyed == 1
+    new_key = first.plans[0].new_key
+    assert new_key.startswith("合同/") and new_key.endswith("__aaaaaaaa.pdf")
+    swept = sweep_legacy(session, _settings(), apply=True, echo=_quiet)
+    assert set(swept["swept"]) == {old_key}
+    assert set(fake_s3.objects) == {new_key}
+
+    # 时钟拨到次年：目标键仍须由「行」（键里的年份）算出，而不是新的 now
+    class _NextYearDatetime(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return cls(2027, 1, 1, tzinfo=tz) if tz is not None else cls(2027, 1, 1)
+
+    monkeypatch.setattr(storage_mod, "datetime", _NextYearDatetime)
+    assert target_key(_row_of(session, row.id)) == new_key
+
+    again = rekey(session, _settings(), apply=True, verify=True, echo=_quiet)
+
+    assert again.ok and again.rekeyed == 0 and again.up_to_date == 1
+    assert again.plans == [] and fake_s3.copy_calls == [(old_key, new_key)]
+    assert set(fake_s3.objects) == {new_key}  # 没有第二份对象，也没有桶内孤儿
+    assert reconcile(session, _settings(), echo=_quiet)["orphan"] == []
 
 
 def test_sweep_legacy_recycles_only_unreferenced_legacy_objects(session, fake_s3):
