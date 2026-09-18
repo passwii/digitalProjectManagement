@@ -74,7 +74,19 @@ export interface UploadQueue {
 
 type Executor = (file: File, options: UploadExecOptions) => Promise<unknown>;
 
-const EMPTY_RESULT: UploadBatchResult<never> = { ok: [], failed: 0, aborted: false, failures: [] };
+/** 一个文件的跑批结果：**三态互斥**，调用方不可能把「成功」与「失败」看串。 */
+type RunOutcome<T> =
+  | { status: "ok"; value: T }
+  | { status: "failed"; failure: TransferFailure }
+  | { status: "aborted" };
+
+/**
+ * 空批次结果。**每次新建**：`failures` 是数组，共用同一个实例的话，
+ * 某个调用方往里 push 一次就会污染后续所有空结果。
+ */
+function emptyResult<T>(): UploadBatchResult<T> {
+  return { ok: [], failed: 0, aborted: false, failures: [] };
+}
 
 export function useUploadQueue(): UploadQueue {
   const [items, setItems] = useState<UploadItem[]>([]);
@@ -123,23 +135,26 @@ export function useUploadQueue(): UploadQueue {
       file: File,
       exec: Executor,
       controller: AbortController,
-    ): Promise<{ value?: T; failure?: TransferFailure; aborted: boolean }> => {
+    ): Promise<RunOutcome<T>> => {
       try {
         const value = (await exec(file, {
           signal: controller.signal,
           onProgress: (progress) => settle((prev) => applyProgress(prev, id, progress)),
         })) as T;
         settle((prev) => applySuccess(prev, id));
-        return { value, aborted: false };
+        // `exec` resolve 出 `undefined`（例如 204 那类上传）也是**成功**：
+        // 用「值是不是 undefined」判成败会让它既不算 ok 也不算 failed，
+        // 调用方的 `if (result.ok.length)` 于是静默跳过刷新。
+        return { status: "ok", value };
       } catch (e) {
         if (isAbortError(e)) {
           // 主动取消：把这条从列表抹掉，不当作失败呈现给用户
           settle((prev) => removeItem(prev, id));
-          return { aborted: true };
+          return { status: "aborted" };
         }
         const failure = classifyTransferFailure(e);
         settle((prev) => applyFailure(prev, id, failure));
-        return { failure, aborted: false };
+        return { status: "failed", failure };
       }
     },
     [settle],
@@ -150,7 +165,7 @@ export function useUploadQueue(): UploadQueue {
       files: File[],
       exec: (file: File, options: UploadExecOptions) => Promise<T>,
     ): Promise<UploadBatchResult<T>> => {
-      if (!files.length) return { ...EMPTY_RESULT, ok: [] };
+      if (!files.length) return emptyResult<T>();
 
       // 新批次开始时取消上一批，避免两次上传的进度互相覆盖
       controllerRef.current?.abort();
@@ -170,12 +185,12 @@ export function useUploadQueue(): UploadQueue {
       for (const { id, file } of entries) {
         if (controller.signal.aborted) break;
         const outcome = await runOne<T>(id, file, exec as Executor, controller);
-        if (outcome.aborted) {
+        if (outcome.status === "aborted") {
           controllerRef.current = null;
           return { ok, failed: failures.length, aborted: true, failures };
         }
-        if (outcome.value !== undefined) ok.push(outcome.value);
-        else if (outcome.failure) failures.push(outcome.failure);
+        if (outcome.status === "failed") failures.push(outcome.failure);
+        else ok.push(outcome.value);
       }
 
       controllerRef.current = null;
@@ -186,28 +201,27 @@ export function useUploadQueue(): UploadQueue {
 
   const retry = useCallback(
     async <T = unknown,>(id: number): Promise<UploadBatchResult<T>> => {
+      // 有在途批次时**直接拒绝本次重试**，不碰在途的那条 controller：
+      // abort 它会让 `start` 的循环收到 aborted 就提前结束，把整批剩下的文件静默丢掉。
+      // 返回 `aborted: true` 表示「本次重试没跑」（调用方按取消处理：不提示成功、不刷新）。
+      if (controllerRef.current) return { ok: [], failed: 0, aborted: true, failures: [] };
+
       const file = filesRef.current.get(id);
       const exec = execRef.current;
       // 文件或执行器已经不在（组件重挂载 / 已 reset）：无可重试，静默返回
-      if (!file || !exec) return { ...EMPTY_RESULT, ok: [] };
+      if (!file || !exec) return emptyResult<T>();
 
-      controllerRef.current?.abort();
       const controller = new AbortController();
       controllerRef.current = controller;
       settle((prev) => applyRetry(prev, id));
 
       const outcome = await runOne<T>(id, file, exec, controller);
       controllerRef.current = null;
-      if (outcome.aborted) return { ok: [], failed: 0, aborted: true, failures: [] };
-      if (outcome.value !== undefined) {
+      if (outcome.status === "aborted") return { ok: [], failed: 0, aborted: true, failures: [] };
+      if (outcome.status === "ok") {
         return { ok: [outcome.value], failed: 0, aborted: false, failures: [] };
       }
-      return {
-        ok: [],
-        failed: outcome.failure ? 1 : 0,
-        aborted: false,
-        failures: outcome.failure ? [outcome.failure] : [],
-      };
+      return { ok: [], failed: 1, aborted: false, failures: [outcome.failure] };
     },
     [runOne, settle],
   );
