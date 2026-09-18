@@ -16,20 +16,36 @@ from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
-from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
+from ..core.attachments import (
+    attachment_response,
+    remove_attachment_blob,
+    store_attachment,
+)
 from ..core.audit import commit_audited, write_audit
 from ..core.costs import budget_total, execution, spent
-from ..core.database import ROOT, get_db, parse_date
+from ..core.database import get_db, parse_date
 from ..core.deps import get_current_user
 from ..core.limits import MAX_ATTACHMENT_SIZE, read_within_limit
 from ..core.paging import DEFAULT_PAGE_SIZE, paginate
-from ..core.rbac import (can_read_project, get_active_project, is_admin, require_admin,
-                         scope_child_query)
-from ..core.timeline import (ACTION_APPROVE, ACTION_EXCEPTION, ACTION_REJECT,
-                             ACTION_RESUBMIT, ACTION_SUBMIT, KIND_EXPENSE, timeline)
+from ..core.rbac import (
+    can_read_project,
+    get_active_project,
+    is_admin,
+    require_admin,
+    scope_child_query,
+)
+from ..core.timeline import (
+    ACTION_APPROVE,
+    ACTION_EXCEPTION,
+    ACTION_REJECT,
+    ACTION_RESUBMIT,
+    ACTION_SUBMIT,
+    KIND_EXPENSE,
+    timeline,
+)
 from ..core.validation import check_amount, check_choice
 from ..models import Attachment, Expense, Project, SysParam, User
 
@@ -287,17 +303,15 @@ def upload_voucher(eid: int, file: UploadFile = File(...), db: Session = Depends
     data = read_within_limit(file, VOUCHER_MAX_SIZE)
     if not data:
         raise HTTPException(400, "凭证文件为空")
-    d = ROOT / "data" / "files" / f"expense_{eid}"
-    d.mkdir(parents=True, exist_ok=True)
     safe_name = Path(file.filename or f"voucher{ext}").name
-    fp = d / f"{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}_{safe_name}"
-    fp.write_bytes(data)
-    a = Attachment(project_id=e.project_id, filename=safe_name, path=str(fp),
-                   size=len(data), content_type=file.content_type or "",
-                   uploaded_by=user.id, uploaded_at=datetime.now(timezone.utc),
-                   ref_type="expense", ref_id=eid)
-    db.add(a)
-    db.flush()
+    # 正文落位（本地磁盘 / R2）由 core.attachments 收口；suffix 保留上传时间戳便于排查
+    a = store_attachment(
+        db, domain="expense", filename=safe_name,
+        content_type=file.content_type or "", data=data,
+        project_id=e.project_id, ref_type="expense", ref_id=eid,
+        uploaded_by=user.id,
+        suffix=datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S"),
+    )
     commit_audited(db, user.id, "upload_expense_voucher", "attachments", a.id, safe_name)
     return _voucher(a)
 
@@ -316,19 +330,12 @@ def list_vouchers(eid: int, db: Session = Depends(get_db),
 def download_voucher(eid: int, aid: int, db: Session = Depends(get_db),
                      user: User = Depends(get_current_user)):
     """凭证下载：校验支出可见性 + 附件归属，防越权取件。"""
-    from urllib.parse import quote
-
     _expense_for_read(db, eid, user)
     a = db.query(Attachment).filter_by(id=aid, ref_type="expense", ref_id=eid).first()
     if not a:
         raise HTTPException(404, "凭证不存在")
-    fp = Path(a.path)
-    if not fp.exists():
-        raise HTTPException(404, "凭证文件已丢失，请联系管理员")
     write_audit(db, user.id, "download_expense_voucher", "attachments", a.id, a.filename)
-    return FileResponse(
-        fp, media_type=a.content_type or "application/octet-stream", filename=a.filename,
-        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{quote(a.filename)}"})
+    return attachment_response(a)
 
 
 @router.delete("/{eid}/vouchers/{aid}")
@@ -342,10 +349,8 @@ def delete_voucher(eid: int, aid: int, db: Session = Depends(get_db),
         raise HTTPException(404, "凭证不存在")
     if a.uploaded_by != user.id and not is_admin(user):
         raise HTTPException(403, "仅上传者或管理员可删除凭证")
-    try:
-        Path(a.path).unlink(missing_ok=True)
-    except OSError:
-        pass
+    # 先删正文、再删元数据：R2 删不掉时抛 502 并保留元数据，避免产生孤儿对象
+    remove_attachment_blob(a)
     name = a.filename
     db.delete(a)
     commit_audited(db, user.id, "delete_expense_voucher", "attachments", aid, name)

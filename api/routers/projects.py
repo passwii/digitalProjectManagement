@@ -3,14 +3,18 @@ from datetime import date, datetime, timezone
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
-from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from sqlalchemy import or_
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from ..core.attachments import (
+    attachment_response,
+    remove_attachment_blob,
+    store_attachment,
+)
 from ..core.audit import commit_audited, write_audit
-from ..core.database import ROOT, get_db, parse_date
+from ..core.database import get_db, parse_date
 from ..core.deps import get_current_user
 from ..core.limits import MAX_ATTACHMENT_SIZE, read_within_limit
 from ..core.paging import DEFAULT_PAGE_SIZE, paginate
@@ -387,8 +391,13 @@ def change_status(pid: int, body: dict, db: Session = Depends(get_db),
                          by_id=user.id, at=now))
     # 立项审批的最终状态也进时间线（申请人可查「谁在什么时候批/驳了什么」）
     if old in ("pending", "draft") and to in ("filed", "cancelled"):
-        from ..core.timeline import (ACTION_APPROVE, ACTION_REJECT, ACTION_SUBMIT,
-                                     KIND_PROJECT_FILING, record as record_timeline)
+        from ..core.timeline import (
+            ACTION_APPROVE,
+            ACTION_REJECT,
+            ACTION_SUBMIT,
+            KIND_PROJECT_FILING,
+        )
+        from ..core.timeline import record as record_timeline
         record_timeline(db, KIND_PROJECT_FILING, pid, ACTION_SUBMIT, from_status="draft",
                         to_status="pending", project_id=pid, actor_id=p.owner_id)
         record_timeline(db, KIND_PROJECT_FILING, pid,
@@ -421,16 +430,13 @@ def upload(pid: int, file: UploadFile = File(...), ref_type: str = Form(""),
     data = read_within_limit(file, MAX_SIZE)
     if ref_type not in ("", "contract"):
         raise HTTPException(400, "附件类型不支持")
-    d = ROOT / "data" / "files" / str(pid) / (ref_type or "project")
-    d.mkdir(parents=True, exist_ok=True)
-    fp = d / file.filename
-    fp.write_bytes(data)
-    a = Attachment(project_id=pid, filename=file.filename, path=str(fp),
-                   size=len(data), content_type=file.content_type or "",
-                   uploaded_by=user.id, uploaded_at=datetime.now(timezone.utc),
-                   ref_type=ref_type, ref_id=None)
-    db.add(a)
-    db.flush()
+    # 正文落位（本地磁盘 / R2）由 core.attachments 收口，本处只管业务语义与鉴权
+    a = store_attachment(
+        db, domain="contract" if ref_type == "contract" else "project",
+        filename=file.filename or "attachment", content_type=file.content_type or "",
+        data=data, project_id=pid, ref_type=ref_type, ref_id=None,
+        uploaded_by=user.id,
+    )
     commit_audited(db, user.id, "upload_attachment", "attachments", a.id, file.filename)
     return {"id": a.id, "filename": a.filename, "size": a.size}
 
@@ -468,8 +474,6 @@ def download_attachment(pid: int, aid: int, db: Session = Depends(get_db),
     只允许项目级附件；支出凭证要经 `/expenses/{id}/vouchers/{aid}/download` 取，
     以保证「支出可见性」与「凭证可见性」永远同源。
     """
-    from urllib.parse import quote
-
     _get(db, pid, user)
     a = db.query(Attachment).filter(
         Attachment.id == aid, Attachment.project_id == pid,
@@ -477,16 +481,8 @@ def download_attachment(pid: int, aid: int, db: Session = Depends(get_db),
     ).first()
     if not a:
         raise HTTPException(404, "附件不存在")
-    fp = Path(a.path)
-    if not fp.exists():
-        raise HTTPException(404, "附件文件已丢失，请联系管理员")
     write_audit(db, user.id, "download_attachment", "attachments", a.id, a.filename)
-    return FileResponse(
-        fp,
-        media_type=a.content_type or "application/octet-stream",
-        filename=a.filename,
-        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{quote(a.filename)}"},
-    )
+    return attachment_response(a)
 
 
 @router.delete("/{pid}/attachments/{aid}")
@@ -502,10 +498,8 @@ def delete_attachment(pid: int, aid: int, db: Session = Depends(get_db),
         raise HTTPException(404, "附件不存在")
     if a.uploaded_by != user.id and not is_admin(user):
         raise HTTPException(403, "仅上传者或管理员可删除附件")
-    try:
-        Path(a.path).unlink(missing_ok=True)
-    except OSError:
-        pass
+    # 先删正文、再删元数据：R2 删不掉时抛 502 并保留元数据，避免产生无人追踪的孤儿对象
+    remove_attachment_blob(a)
     name = a.filename
     db.delete(a)
     db.flush()

@@ -199,35 +199,50 @@ PostgreSQL 是整个系统的 **System of Record**。预算审批、支出状态
 
 ## 5. 对象存储架构：Cloudflare R2（S3 兼容）
 
-### 5.1 `[现状]` 本地文件系统
+### 5.1 `[ 现状／已实现 ]` 本地文件系统 + Cloudflare R2 双后端
 
-当前附件正文写入 `pm-data` 持久卷，`attachments.path` 保存服务器文件路径；数据库仅保存文件名、大小、MIME、归属和分类。项目附件、支出凭证、通讯录证件和劳动合同共用 `attachments` 表，通过 `ref_type`、`ref_id`、`category` 区分。
+附件正文自 BLF-1136 起支持两个后端，由 `STORAGE_BACKEND` 选择（`auto` / `local` / `r2`）：
 
-该实现适合单机 MVP，但存在明确架构约束：
+- `auto`（默认）：`R2_*` 配齐就用 R2，否则回落本地磁盘——本地开发与 CI 不需要 R2 凭据；
+- `r2`：强制对象存储，配置不全时启动即报错（不允许「以为在用 R2、其实写容器磁盘」）；
+- `local`：强制本地磁盘（离线演示 / 回滚开关）。
 
-- 应用实例具有本地状态，无法直接做无状态水平扩展。
-- 文件写入与数据库提交不是一个原子操作，异常时可能产生孤儿文件或失效元数据。
-- 备份、迁移、CDN 分发和生命周期管理均与宿主机耦合。
-- `path` 暴露基础存储布局，不利于多租户或跨云迁移。
+本地后端仍写入 `pm-data` 持久卷，`attachments.path` 保存服务器文件路径。项目附件、支出凭证、通讯录证件和劳动合同共用 `attachments` 表，通过 `ref_type`、`ref_id`、`category` 区分。
 
-### 5.2 `[目标]` 存储抽象
+实现位置：
 
-引入供应商无关的 `StorageProvider`，将 PostgreSQL 定义为 **Attachment Control Plane**，将 Cloudflare R2 定义为 **Binary Data Plane**。R2 对外提供 S3-compatible API，因此业务代码只依赖 S3 协议和配置，不依赖 Cloudflare 专有 SDK。
+- `api/core/r2.py` —— S3 兼容传输层（单例客户端、key 清洗、URL 编码、结构化删除结果、404 与「R2 不可用」的区分）；
+- `api/core/storage.py` —— 后端抽象（`LocalBackend` / `R2Backend`）+ 对象键命名 + 配置解析；
+- `api/core/attachments.py` —— 三个上传入口共用的「写正文 / 下载响应 / 删正文」；
+- `api/routers/{projects,contacts,expenses}.py` —— 只负责鉴权与业务语义。
+
+剩余约束（`[目标]`）：写入与数据库提交仍不是一个原子操作；对账与生命周期任务尚未实现（见 5.7）。
+
+### 5.2 `[ 现状／已实现 ]` 存储抽象
+
+PostgreSQL 是 **Attachment Control Plane**，Cloudflare R2 是 **Binary Data Plane**。业务代码只依赖 S3 协议与配置，不依赖 Cloudflare 专有 SDK（仅用 `boto3`）。
 
 ```python
-class StorageProvider:
-    def initiate_upload(self, intent): ...
-    def complete_upload(self, object_key): ...
-    def presign_upload(self, object_key, content_type, max_size): ...
-    def presign_download(self, object_key, ttl_seconds): ...
-    def head_object(self, object_key): ...
-    def delete_object(self, object_key): ...
+class StorageBackend(Protocol):
+    def put(self, data, key, local_path, content_type) -> StoredObject: ...
+    def stream(self, object_key, local_path) -> tuple[Iterator[bytes], int]: ...
+    def delete(self, object_key, local_path) -> None: ...
+    def exists(self, object_key, local_path) -> bool: ...
+    def url_for(self, object_key, local_path) -> str: ...
 ```
 
 适配器：
 
-- `LocalStorageProvider`：兼容现有机房或开发环境。
-- `S3StorageProvider`：目标实现，通过 S3-compatible Endpoint、签名和存储桶访问 Cloudflare R2。
+- `LocalBackend`：兼容现有机房或开发环境（本地行 `object_key` 为空）。
+- `R2Backend`：通过 S3-compatible Endpoint、SigV4 签名和存储桶访问 Cloudflare R2。
+
+失败语义（务必区分，否则会把「R2 挂了」误报成「文件丢了」）：
+
+| 情况 | `core.r2` | 下载响应 |
+|---|---|---|
+| 对象不存在 | `R2ObjectMissing` | `404 附件文件已丢失` |
+| 网络 / 凭据 / 5xx | `R2Unavailable` | `502 文件存储不可用，请稍后重试` |
+| 删除失败 | `R2DeleteResult(success=False)` | 删除接口 `502` 且**保留元数据** |
 
 ### 5.3 附件元数据模型
 

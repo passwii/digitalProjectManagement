@@ -7,5 +7,7 @@ python-jose[cryptography]
 passlib[bcrypt]
 python-multipart
 openpyxl
+# 附件对象存储（Cloudflare R2 走 S3 兼容协议，只依赖 boto3；BLF-1136）
+boto3
 pytest
 httpx

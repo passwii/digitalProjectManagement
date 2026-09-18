@@ -1,7 +1,18 @@
 """全表模型。"""
 from datetime import datetime, timezone
-from sqlalchemy import (Boolean, Column, Date, DateTime, Float, ForeignKey, Index,
-                        Integer, String, Text)
+
+from sqlalchemy import (
+    Boolean,
+    Column,
+    Date,
+    DateTime,
+    Float,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    Text,
+)
 from sqlalchemy.orm import relationship
 
 from ..core.database import Base
@@ -154,6 +165,11 @@ class Attachment(Base):
     ref_id = Column(Integer, nullable=True)
     # 细分分类：项目合同、支出凭证、通讯录证件/合同等共用附件表时用于前端分组
     category = Column(String(32), default="")
+    # 存储坐标（BLF-1136）：正文在哪个后端、对象键是什么、指纹是多少。
+    # `path` 语义随后端变化：local = 磁盘路径；r2 = 对象公开 URL（便于排查）。
+    storage_backend = Column(String(16), default="local", server_default="local")
+    object_key = Column(String(512), default="")
+    etag = Column(String(128), default="")
     __table_args__ = (Index("ix_attachments_ref", "ref_type", "ref_id"),)
 
 

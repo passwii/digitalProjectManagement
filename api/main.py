@@ -3,11 +3,24 @@ import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from .routers import (admin, approvals, auth, budgets, contacts, dashboard, expenses,
-                      meta, milestones, notifications, projects, reports, tasks)
-
 # 确保模型注册
 from . import models  # noqa: F401
+from .core.storage import storage_profile
+from .routers import (
+    admin,
+    approvals,
+    auth,
+    budgets,
+    contacts,
+    dashboard,
+    expenses,
+    meta,
+    milestones,
+    notifications,
+    projects,
+    reports,
+    tasks,
+)
 
 app = FastAPI(
     title="项目管理系统 API",
@@ -91,4 +104,12 @@ for r in (auth.router, meta.router, admin.router, contacts.router, projects.rout
 
 @app.get("/health")
 def health():
-    return {"ok": True}
+    """健康检查：额外回报附件存储后端，便于确认「是否真的接上了 R2」。
+
+    只回后端名与桶名，**不含任何密钥**；`local` 表示尚未接对象存储。
+    """
+    profile = storage_profile()
+    body = {"ok": True, "storage_backend": profile["backend"]}
+    if "bucket" in profile:
+        body["storage_bucket"] = profile["bucket"]
+    return body

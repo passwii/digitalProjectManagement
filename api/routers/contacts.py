@@ -1,19 +1,21 @@
 """管理员通讯录花名册：人员主数据、可选账号关联与证件/合同附件。"""
 import re
-import uuid
 from datetime import date, datetime, timezone
 from pathlib import Path
-from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
-from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from sqlalchemy import func, or_
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from ..core.attachments import (
+    attachment_response,
+    remove_attachment_blob,
+    store_attachment,
+)
 from ..core.audit import commit_audited, write_audit
-from ..core.database import ROOT, get_db
+from ..core.database import get_db
 from ..core.deps import get_current_user
 from ..core.limits import MAX_ATTACHMENT_SIZE, read_within_limit
 from ..core.paging import DEFAULT_PAGE_SIZE, paginate
@@ -499,25 +501,12 @@ def upload_attachment(cid: int, file: UploadFile = File(...),
     # 有界读取：超限在读完 limit+1 字节时就 400，不会把无界数据读进内存
     data = read_within_limit(file, MAX_SIZE)
 
-    directory = ROOT / "data" / "files" / "contacts" / str(cid) / category
-    directory.mkdir(parents=True, exist_ok=True)
-    stored = directory / f"{uuid.uuid4().hex}_{original}"
-    stored.write_bytes(data)
-
-    row = Attachment(
-        project_id=None,
-        filename=original,
-        path=str(stored),
-        size=len(data),
-        content_type=file.content_type or "",
-        uploaded_by=user.id,
-        uploaded_at=datetime.now(timezone.utc),
-        ref_type="contact",
-        ref_id=cid,
-        category=category,
+    # 正文落位（本地磁盘 / R2）由 core.attachments 收口
+    row = store_attachment(
+        db, domain="contact", filename=original, content_type=file.content_type or "",
+        data=data, project_id=None, ref_type="contact", ref_id=cid,
+        category=category, uploaded_by=user.id,
     )
-    db.add(row)
-    db.flush()
     commit_audited(db, user.id, "upload_contact_attachment", "attachments",
                    row.id, f"{cid}:{category}:{original}")
     return _attachment(row)
@@ -536,19 +525,10 @@ def download_attachment(cid: int, aid: int, db: Session = Depends(get_db),
     ).first()
     if not row:
         raise HTTPException(404, "附件不存在")
-    path = Path(row.path)
-    if not path.exists():
-        raise HTTPException(404, "附件文件已丢失，请联系管理员")
     filename = row.filename
-    content_type = row.content_type or "application/octet-stream"
     write_audit(db, user.id, "download_contact_attachment", "attachments", row.id,
                 f"{cid}:{filename}")
-    return FileResponse(
-        path,
-        media_type=content_type,
-        filename=filename,
-        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{quote(filename)}"},
-    )
+    return attachment_response(row)
 
 
 @router.delete("/{cid}/attachments/{aid}")
@@ -565,10 +545,8 @@ def delete_attachment(cid: int, aid: int, db: Session = Depends(get_db),
     if not row:
         raise HTTPException(404, "附件不存在")
     filename = row.filename
-    try:
-        Path(row.path).unlink(missing_ok=True)
-    except OSError:
-        pass
+    # 先删正文、再删元数据：R2 删不掉时抛 502 并保留元数据，避免产生孤儿对象
+    remove_attachment_blob(row)
     db.delete(row)
     db.flush()
     commit_audited(db, user.id, "delete_contact_attachment", "attachments", aid,
