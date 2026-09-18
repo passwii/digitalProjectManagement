@@ -5,6 +5,7 @@ They create a temporary schema per fixture and remove it afterwards.
 """
 import os
 import sys
+import tempfile
 import uuid
 from pathlib import Path
 
@@ -16,6 +17,16 @@ from sqlalchemy.orm import sessionmaker
 TEST_DATABASE_URL = (os.getenv("TEST_DATABASE_URL") or "").strip()
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
+
+# 附件存储（BLF-1136）：测试固定用**本地临时暂存**后端——不触网、不需要 R2 凭据，
+# 也不往应用目录写文件。显式赋值（而非 setdefault）：避免开发机导出了真实 R2 凭据时
+# 测试跑去碰真实桶。用例需要验证 r2 / auto 行为时用 monkeypatch 局部覆盖。
+os.environ["STORAGE_BACKEND"] = "local"
+os.environ["APP_ENV"] = "test"
+os.environ.setdefault(
+    "STORAGE_LOCAL_ROOT", tempfile.mkdtemp(prefix="pm-test-staging-")
+)
+
 if not TEST_DATABASE_URL:
     # api.main imports the database module at collection time. Keep that import
     # non-connecting; fixtures below skip when no real test database is set.

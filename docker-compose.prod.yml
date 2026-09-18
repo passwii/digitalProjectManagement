@@ -14,6 +14,9 @@ services:
       APP_SECRET: "${APP_SECRET:?APP_SECRET must be set}"
       DATABASE_URL: "${DATABASE_URL:?DATABASE_URL must be set to a PostgreSQL URL}"
       CORS_ORIGINS: "${CORS_ORIGINS:-http://145.79.143.98:3001}"
+      # 生产环境：本地后端被直接拒绝，附件正文只能进 R2（见 api/core/storage.py）。
+      APP_ENV: production
+      STORAGE_BACKEND: "${STORAGE_BACKEND:-r2}"
 
   web:
     restart: unless-stopped

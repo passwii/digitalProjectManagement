@@ -1,4 +1,4 @@
-"""附件存储抽象：本地磁盘 / Cloudflare R2 双后端，一个上传入口。
+"""附件存储抽象：Cloudflare R2（唯一持久化口径）+ 本地临时暂存（仅开发/测试）。
 
 定位
 ----
@@ -6,15 +6,21 @@
 本模块把「写字节 / 取字节 / 删字节」收敛到一个 `StorageBackend` 协议，
 业务 router 不再关心正文落在磁盘还是 R2。
 
-后端选择
---------
-`STORAGE_BACKEND` 是**新写入的默认后端**，取 `auto`（默认）/ `local` / `r2`：
+唯一事实口径（重要）
+--------------------
+**R2 是附件正文唯一的持久化存储**。服务器磁盘只允许在上传途中「短暂停留」
+（`UploadFile` 的 spool 文件、内存缓冲），任何代码路径都不允许把正文落盘持久化：
 
-  · `auto`：R2 配置齐全 → R2；配置缺失（例如凭据轮转期被清空）时回落本地磁盘，
-    且回落会记一条 warning —— 保证「没配对象存储也能起服务」，但绝不静默。
-  · `r2`  ：强制 R2；配置不全直接报错，避免「以为在用 R2、其实写到容器磁盘」。
-  · `local`：新写入落本地磁盘。**它不是整体回滚开关**：已经上 R2 的存量行不受影响，
-    仍按行内 `storage_backend` 走 R2（见下「读旧的、写新的」）。
+  · `r2`（默认）：新写入强制走 R2；`R2_*` 配置不全 → **启动即失败**，
+    绝不「以为在用 R2、其实写进容器磁盘」。
+  · `auto`：`R2_*` 配齐就用 R2；配不齐 → **启动即失败**（不再静默回落本地盘）。
+    静默回落会让正文只存在容器磁盘上、重建即丢，与「R2 是唯一口径」直接矛盾。
+  · `local`：**仅开发/测试**显式可用。正文写进 `local_staging_root()` 指定的
+    **临时暂存目录**（默认系统临时目录），不是持久卷；`APP_ENV=production` 时
+    该取值直接被拒绝，因此生产环境不可能把正文写到 VPS 磁盘。
+
+本地后端的落点另有硬校验：**不允许落在应用目录内**（`ROOT`，容器里即 `/app`，
+含 `data` 持久卷）。「VPS 不落盘」因此不是靠约定，而是配置一错就起不来。
 
 读旧的、写新的（重要）
 ----------------------
@@ -46,6 +52,7 @@ from __future__ import annotations
 
 import logging
 import os
+import tempfile
 import uuid
 from collections.abc import Iterator
 from dataclasses import dataclass
@@ -72,7 +79,7 @@ from .r2 import (
 __all__ = [
     "BACKEND_LOCAL",
     "BACKEND_R2",
-    "FILES_ROOT",
+    "STAGING_ROOT",
     "LocalBackend",
     "R2Backend",
     "StoredObject",
@@ -81,6 +88,7 @@ __all__ = [
     "get_backend",
     "get_backend_for_row",
     "get_storage_settings",
+    "local_staging_root",
     "resolve_backend_name",
     "resolve_backend_name_from",
     "storage_enabled",
@@ -93,12 +101,49 @@ logger = logging.getLogger(__name__)
 BACKEND_LOCAL = "local"
 BACKEND_R2 = "r2"
 
-#: 本地后端根目录。共享 `data/files` 这个根，但子目录布局与 BLF-1136 之前的
-#: `data/files/{pid}/...` 不同（见 `local_path_for`），存量附件不受影响（按行内 `path` 读）。
-FILES_ROOT = ROOT / "data" / "files"
+#: 本地后端的默认落点：**系统临时目录下的暂存目录，不是持久卷**。
+#: 可用 `STORAGE_LOCAL_ROOT` 覆盖，但覆盖值不许落在应用目录内（见 `local_staging_root()`）。
+STAGING_ROOT = Path(tempfile.gettempdir()) / "pm-attachment-staging"
 
 #: 允许的 key 前缀（防止 domain 参数被拼成 `../` 之类的越界路径）
 _ALLOWED_DOMAIN = {"project", "contract", "expense", "contact"}
+
+#: 视为生产环境的 `APP_ENV` 取值（生产环境禁止本地后端）
+_PRODUCTION_ENVS = {"prod", "production"}
+
+
+def _is_within(path: Path, parent: Path) -> bool:
+    """`path` 是否就是 `parent`，或位于 `parent` 之下。"""
+    return path == parent or parent in path.parents
+
+
+def local_staging_root() -> Path:
+    """本地后端的落点（每次调用重新读环境变量，便于测试注入）。
+
+    默认 `STAGING_ROOT`（系统临时目录）。**必须落在应用目录之外**：应用目录在容器里
+    就是 `/app`（含 `data` 持久卷），正文落进去就等于「在 VPS 上持久化」，与
+    「R2 是唯一事实口径」矛盾，所以这里直接报错而不是警告。
+    """
+    raw = _env("STORAGE_LOCAL_ROOT")
+    root = Path(raw).expanduser() if raw else STAGING_ROOT
+    if not root.is_absolute():
+        root = ROOT / root
+    app_root = ROOT.resolve()
+    try:
+        resolved = root.resolve()
+    except OSError:  # pragma: no cover - 极端文件系统错误
+        resolved = root
+    if _is_within(resolved, app_root):
+        raise RuntimeError(
+            f"STORAGE_LOCAL_ROOT 不能指向应用目录（{app_root}）：本地后端只是上传途中的"
+            "临时暂存，附件正文的唯一持久化口径是 R2，不允许写进应用数据卷。"
+        )
+    return resolved
+
+
+def _is_production() -> bool:
+    """是否生产环境（`APP_ENV`，默认 `development`）。"""
+    return _env("APP_ENV", "development").lower() in _PRODUCTION_ENVS
 
 
 @dataclass(frozen=True)
@@ -154,7 +199,12 @@ def _env(name: str, default: str = "") -> str:
 
 
 def get_storage_settings() -> _Settings:
-    """解析 `STORAGE_BACKEND` 与 `R2_*` 配置（单一来源：环境变量，见 .env.docker.example）。"""
+    """解析 `STORAGE_BACKEND` 与 `R2_*` 配置（单一来源：环境变量，见 .env.docker.example）。
+
+    这里定义「什么情况下进程可以起来」，是「R2 是附件正文唯一持久化口径」的执行点：
+    任何会让正文落到服务器磁盘的配置组合（缺凭据的 `r2` / `auto`、生产环境的 `local`）
+    都在这里直接抛错，而不是回落本地盘。
+    """
     r2 = R2Settings(
         endpoint_url=_env("R2_ENDPOINT_URL"),
         access_key_id=_env("R2_ACCESS_KEY_ID"),
@@ -166,24 +216,40 @@ def get_storage_settings() -> _Settings:
     complete = bool(
         r2.endpoint_url and r2.access_key_id and r2.secret_access_key and r2.bucket
     )
-    requested = _env("STORAGE_BACKEND", "auto").lower()
+    requested = _env("STORAGE_BACKEND", BACKEND_R2).lower()
+    if requested not in {"auto", BACKEND_LOCAL, BACKEND_R2}:
+        raise RuntimeError(
+            f"STORAGE_BACKEND 取值无法识别：{requested!r}（只支持 r2 / auto / local）"
+        )
     if requested == BACKEND_R2 and not complete:
         raise RuntimeError(
             "STORAGE_BACKEND=r2 但 R2 配置不完整（需要 R2_ENDPOINT_URL / R2_ACCESS_KEY_ID / "
             "R2_SECRET_ACCESS_KEY / R2_BUCKET_NAME）"
         )
     if requested == "auto" and not complete:
-        # `auto` 的回落是「没配凭据」的兜底，但运维凭据轮转期漏配、或同一份配置在
-        # 不同环境漂移时也会落到这里：记一条 warning，不让它被静默掩盖。
-        logger.warning(
-            "STORAGE_BACKEND=auto 且 R2 配置不完整（%s），新上传将回落本地磁盘",
-            _missing_r2_fields(r2),
+        raise RuntimeError(
+            "STORAGE_BACKEND=auto 但 R2 配置不完整（缺 "
+            f"{_missing_r2_fields(r2)}）：R2 是附件正文唯一的持久化口径，不回落本地磁盘。"
+            "本地开发请显式设 STORAGE_BACKEND=local（正文只写临时暂存目录，不持久化）。"
         )
     backend = (
         BACKEND_R2
         if (requested == BACKEND_R2 or (requested == "auto" and complete))
         else BACKEND_LOCAL
     )
+    if backend == BACKEND_LOCAL:
+        if _is_production():
+            raise RuntimeError(
+                f"APP_ENV={_env('APP_ENV')} 下不允许 STORAGE_BACKEND={requested}："
+                "R2 是附件正文唯一的持久化口径，生产环境必须配置 R2_* 并设 "
+                "STORAGE_BACKEND=r2。"
+            )
+        # 只报落点与变量名，**绝不回显密钥**。
+        logger.warning(
+            "附件正文使用本地临时暂存目录（%s）：仅限开发/测试，重启或临时目录清理后"
+            "即消失，不是持久化存储。",
+            local_staging_root(),
+        )
     try:
         ttl = int(_env("R2_PRESIGN_TTL_SECONDS", "3600"))
     except ValueError:
@@ -218,8 +284,8 @@ def _missing_r2_fields(r2: R2Settings) -> str:
 def validate_storage_settings() -> _Settings:
     """启动期校验：配置与 `STORAGE_BACKEND` 自相矛盾时立刻抛错，不让进程绿着起来。
 
-    `r2` 强制模式配置不全时由 `get_storage_settings()` 抛 `RuntimeError`；
-    这里把校验从「首个请求」提前到应用启动（`api.main` 的 lifespan 调用）。
+    由 `get_storage_settings()` 抛出的错误包括：`r2`/`auto` 强制模式下 `R2_*` 不全、
+    生产环境选本地后端、本地落点落在应用目录内。调用点见 `api.main` 的 lifespan。
     """
     return get_storage_settings()
 
@@ -301,8 +367,14 @@ def build_object_key(
 def local_path_for(
     domain: str, filename: str, object_key: str, owner_id: int | None = None
 ) -> Path:
-    """本地后端的目标路径：`data/files/{domain}/{owner?}/{uuid}{ext}`（与既有布局同构）。"""
-    parts = [FILES_ROOT, domain if domain in _ALLOWED_DOMAIN else "other"]
+    """本地后端的目标路径：`{STORAGE_LOCAL_ROOT}/{domain}/{owner?}/{uuid}{ext}`。
+
+    这是**临时暂存路径，不是持久化存储**（见模块 docstring「唯一事实口径」）：
+    只服务开发/测试与显式 `STORAGE_BACKEND=local`，落点由 `local_staging_root()` 校验。
+    接入 R2 之前的存量附件按行内 `path` 读，不受这里的布局变化影响。
+    只为本地后端调用；R2 写入不生成磁盘路径。
+    """
+    parts = [local_staging_root(), domain if domain in _ALLOWED_DOMAIN else "other"]
     if owner_id is not None:
         parts.append(str(owner_id))
     ext = Path(object_key).suffix

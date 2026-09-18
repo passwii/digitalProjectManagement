@@ -28,15 +28,15 @@ from .routers import (
 async def lifespan(_app: FastAPI):
   """启动期校验：配置自相矛盾就**不让进程起来**，而不是绿着启动、每个请求才炸。
 
-  `STORAGE_BACKEND=r2` 而 `R2_*` 不全时 `validate_storage_settings()` 抛
-  `RuntimeError`，uvicorn 启动失败（容器重启并留在日志里）；`auto` 回落本地
-  只记 warning，不会阻断启动。
+  `STORAGE_BACKEND=r2`/`auto` 而 `R2_*` 不全、或生产环境选本地后端时
+  `validate_storage_settings()` 抛 `RuntimeError`，uvicorn 启动失败
+  （容器重启并留在日志里）——这是「R2 是附件正文唯一持久化口径」的执行点。
   """
   settings = validate_storage_settings()
   if settings.backend == "r2" and settings.r2 is not None:
-    print(f"[storage] 附件后端：r2（bucket={settings.r2.bucket}）")
+    print(f"[storage] 附件后端：r2（bucket={settings.r2.bucket}）——正文唯一持久化口径")
   else:
-    print("[storage] 附件后端：本地磁盘（未接对象存储）")
+    print("[storage] 附件后端：本地临时暂存（仅开发/测试，正文不持久化）")
   yield
 
 

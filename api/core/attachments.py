@@ -34,6 +34,7 @@ from sqlalchemy.orm import Session
 from ..models import Attachment
 from .r2 import R2ObjectMissing, R2Unavailable
 from .storage import (
+    BACKEND_LOCAL,
     BACKEND_R2,
     StorageBackend,
     build_object_key,
@@ -85,12 +86,22 @@ def store_attachment(
     调用方负责鉴权、体积/类型校验与 `commit_audited()`；本函数只做正文落位与元数据组装，
     保证「业务行 + 审计」仍是一次事务提交（README §3.5 / ADR-004）。
     """
-    target = backend or get_backend()
     object_key = build_object_key(domain, filename, owner_id=uploaded_by, suffix=suffix)
-    _reject_duplicate_object_key(db, target.name, object_key)
-    local_path = local_path_for(domain, filename, object_key, owner_id=uploaded_by)
     try:
+        # `get_backend()` 也会抛 `RuntimeError`（配置自相矛盾），必须在 try 内：
+        # 否则它会以裸 500 冒出，既不是承诺的 502，调用方也看不出是配置错误。
+        target = backend or get_backend()
+        _reject_duplicate_object_key(db, target.name, object_key)
+        # 只有本地后端才需要磁盘路径；R2 上传不生成也不使用磁盘落点
+        local_path = (
+            local_path_for(domain, filename, object_key, owner_id=uploaded_by)
+            if target.name == BACKEND_LOCAL
+            else Path()
+        )
         stored = target.put(data, object_key, local_path, content_type)
+    except HTTPException:
+        # 重复对象键等已在下方抛出的 HTTP 语义（500）原样冒出去，不要被当成存储不可用
+        raise
     except R2Unavailable as exc:
         # 正文没写成功 → 不产生任何元数据，客户端可安全重试
         raise HTTPException(502, f"文件存储不可用，请稍后重试（{exc}）") from exc
@@ -142,7 +153,12 @@ def attachment_response(
     name = filename or row.filename or "attachment"
     media_type = content_type or row.content_type or "application/octet-stream"
     disposition = {"Content-Disposition": f"attachment; filename*=UTF-8''{quote(name)}"}
-    backend_name, object_key, local_path = _row_coords(row)
+    try:
+        # 行内坐标不合法（如 `storage_backend` 写错）也要收敛成 502，不能裸 500：
+        # 客户端的处理方式是「可重试的服务不可用」，而 500 看起来像服务端 bug。
+        backend_name, object_key, local_path = _row_coords(row)
+    except RuntimeError as exc:
+        raise HTTPException(502, f"文件存储不可用，请稍后重试（{exc}）") from exc
 
     if backend_name != BACKEND_R2:
         path = Path(local_path)
@@ -188,18 +204,24 @@ def _guarded(
     `Content-Length` 已经由响应头声明为 `size`，中途少发字节时客户端会把截断文件
     当成功下载存盘（100MB 附件静默损坏）。所以这里记 error 日志，并附上已发字节数
     与声明的总长，便于对账；响应本身只能截断（头部已发出，无法改状态码）。
+
+    捕类范围刻意是 `Exception`：传输层的失败未必都是 `R2Unavailable`
+    （botocore 的 `ClientError`、连接重置等会以其他类型冒出），只捕 `R2Unavailable`
+    会让这些路径**没有日志**——正是这里要避免的「静默截断」。
     """
     sent = 0
     try:
         for chunk in chunks:
             sent += len(chunk)
             yield chunk
-    except R2Unavailable as exc:
+    except Exception as exc:  # noqa: BLE001 - 任何传输失败都要留对账线索
         logger.error(
-            "附件下载流中断：filename=%s 已发送=%d/%d 字节（%s）——客户端收到的文件可能不完整",
+            "附件下载流中断：filename=%s 已发送=%d/%d 字节（%s: %s）"
+            "——客户端收到的文件可能不完整",
             filename,
             sent,
             size,
+            type(exc).__name__,
             exc,
         )
         return
@@ -234,8 +256,10 @@ def remove_attachment_blob(row, *, strict: bool = True) -> bool:
     后端按**行内坐标**取：全局 `STORAGE_BACKEND` 改成 `local` 时，已有 R2 行仍然
     删 R2 对象（配置不全则报 502 并保留元数据），不会出现「返回 200、对象还在」的孤儿。
     """
-    backend_name, object_key, local_path = _row_coords(row)
     try:
+        # 行内坐标不合法（如 `storage_backend` 写错）也走下面的 `RuntimeError` → 502 +
+        # 保留元数据，绝不能变成「裸 500 且元数据已被摘掉」。
+        backend_name, object_key, local_path = _row_coords(row)
         if backend_name == BACKEND_R2 and object_key:
             get_backend_for_row(row).delete(object_key, local_path)
         elif local_path and not local_path.startswith(("http://", "https://")):
