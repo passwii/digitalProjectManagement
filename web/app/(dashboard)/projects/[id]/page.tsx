@@ -7,6 +7,13 @@ import {
   errText, expensesApi, fetchObjectUrl, projectsApi, tasksApi, unwrapPaged,
   type Attachment, type Expense, type Project, type ProjectChange, type Task,
 } from "@/lib/api";
+import {
+  batchFailureToast,
+  classifyTransferFailure,
+  failureLine,
+  failureToast,
+  type TransferFailure,
+} from "@/lib/uploadErrors";
 import { useMeta } from "@/lib/useMeta";
 import { expenseStatusLabel, expenseTone, fmtDate, fmtDateTime, fmtMoney } from "@/lib/labels";
 import {
@@ -57,6 +64,8 @@ function ProjectDetail({ pid }: { pid: number }) {
   const [contracts, setContracts] = useState<Attachment[]>([]);
   /** 图片附件的对象 URL（缩略图用）；调用方负责 revoke，见 previewUrlsRef。 */
   const [previews, setPreviews] = useState<Record<number, string>>({});
+  /** 缩略图取不到的分层结果（502 可重试 / 404 已丢失）：与「还没有缩略图」区分开，见 BLF-1137。 */
+  const [previewFailures, setPreviewFailures] = useState<Record<number, TransferFailure>>({});
   const [changes, setChanges] = useState<ProjectChange[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
@@ -74,18 +83,23 @@ function ProjectDetail({ pid }: { pid: number }) {
   const [filePreview, setFilePreview] = useState<Attachment | null>(null);
   const previewUrlsRef = useRef<string[]>([]);
   const hydratedRef = useRef(false);
-  const objectUrlFor = useCallback(async (a: Attachment) => {
-    try {
+  /**
+   * 取附件预览的对象 URL：**一律走鉴权下载接口**（`Attachment.path` 是私有桶 S3 URL，不可热链）。
+   *
+   * 失败时**抛出**原始异常，由调用方各自收口 —— 两处需要的收尾不同：
+   *   · 缩略图：`loadAll` / `retryPreview` 捕获后按 `uploadErrors` 存成分层结果（502/404 分开显示）；
+   *   · 预览弹层：`AttachmentPreviewDialog` 自己捕获并分层渲染（502 给「重试」，404 只说已丢失）。
+   */
+  const fetchPreviewUrl = useCallback(
+    async (a: Attachment): Promise<string> =>
       // 强制按扩展名定 blob MIME：这份 URL 会交给 <img> / <iframe>，
       // 不能让上传时客户端声明的 Content-Type 决定字节怎么被解释（存储型 XSS）。
-      return await fetchObjectUrl(
+      fetchObjectUrl(
         `/projects/${pid}/attachments/${a.id}/download`,
         previewBlobType(a) ?? undefined,
-      );
-    } catch {
-      return "";
-    }
-  }, [pid]);
+      ),
+    [pid],
+  );
 
   // 图片与文档分开呈现：素材墙是缩略图网格，附件资料是文件行，
   // 两者共用同一份后端列表（都是项目级附件），因此不重复展示同一个文件。
@@ -126,21 +140,35 @@ function ProjectDetail({ pid }: { pid: number }) {
       previewUrlsRef.current = [];
       // 缩略图只为图片附件生成：PDF 的 blob 动辄数 MB，缩略图位置实际用不到。
       const imageRows = assetRows.filter(isImageAttachment);
-      const pairs = await Promise.all(imageRows.map(async (a) => [a.id, await objectUrlFor(a)] as const));
+      const outcomes = await Promise.all(
+        imageRows.map(async (a) => {
+          try {
+            return { id: a.id, url: await fetchPreviewUrl(a), failure: null };
+          } catch (e) {
+            // 缩略图取不到不是页面级错误：按分层记下来，行内给「重试」而不是整页报错
+            return { id: a.id, url: "", failure: classifyTransferFailure(e) };
+          }
+        }),
+      );
       const next: Record<number, string> = {};
-      for (const [id, url] of pairs) {
-        if (!url) continue;
-        next[id] = url;
-        previewUrlsRef.current.push(url);
+      const nextFailures: Record<number, TransferFailure> = {};
+      for (const { id, url, failure } of outcomes) {
+        if (url) {
+          next[id] = url;
+          previewUrlsRef.current.push(url);
+        } else if (failure) {
+          nextFailures[id] = failure;
+        }
       }
       setPreviews(next);
+      setPreviewFailures(nextFailures);
     } catch (e) {
       setErr(errText(e));
     } finally {
       setLoading(false);
       finish();
     }
-  }, [beginActivity, objectUrlFor, pid]);
+  }, [beginActivity, fetchPreviewUrl, pid]);
 
   useEffect(() => { loadAll(); }, [loadAll]);
   useEffect(() => () => previewUrlsRef.current.forEach(URL.revokeObjectURL), []);
@@ -194,13 +222,52 @@ function ProjectDetail({ pid }: { pid: number }) {
       if (result.ok.length) {
         toast.ok(result.ok.length === 1 ? "图片已上传" : `${result.ok.length} 张图片已上传`);
       }
-      if (result.failed) toast.err(`${result.failed} 个文件上传失败，请查看失败原因`);
+      // 失败原因按档位给（502 可重试 / 404 已丢失 / 400 不合规），不再一律「请查看失败原因」
+      if (result.failed) toast.err(batchFailureToast(result.failures));
       await loadAll();
     } catch (e) {
-      toast.err(errText(e));
+      toast.err(failureToast(classifyTransferFailure(e)));
     } finally {
       setBusy(false);
       finish();
+    }
+  }
+
+  /** 重试一条失败的项目图片上传（原文件还在内存里，不必让用户重选） */
+  async function retryImage(id: number) {
+    const finish = beginActivity({ label: "重试上传项目图片", scope: "form" });
+    setBusy(true);
+    try {
+      const result = await imageUploads.retry(id);
+      if (result.aborted) return;
+      if (result.ok.length) {
+        toast.ok("图片已上传");
+        await loadAll();
+      } else if (result.failures[0]) {
+        toast.err(failureToast(result.failures[0]));
+      }
+    } catch (e) {
+      toast.err(failureToast(classifyTransferFailure(e)));
+    } finally {
+      setBusy(false);
+      finish();
+    }
+  }
+
+  /** 重试一张缩略图：502 存储抖一下之后不必刷新整页 */
+  async function retryPreview(a: Attachment) {
+    try {
+      const url = await fetchPreviewUrl(a);
+      previewUrlsRef.current.push(url);
+      setPreviews((prev) => ({ ...prev, [a.id]: url }));
+      setPreviewFailures((prev) => {
+        const next = { ...prev };
+        delete next[a.id];
+        return next;
+      });
+    } catch (e) {
+      const failure = classifyTransferFailure(e);
+      setPreviewFailures((prev) => ({ ...prev, [a.id]: failure }));
     }
   }
 
@@ -217,10 +284,31 @@ function ProjectDetail({ pid }: { pid: number }) {
       if (result.ok.length) {
         toast.ok(result.ok.length === 1 ? "附件已上传" : `${result.ok.length} 个附件已上传`);
       }
-      if (result.failed) toast.err(`${result.failed} 个文件上传失败，请查看失败原因`);
+      if (result.failed) toast.err(batchFailureToast(result.failures));
       await loadAll();
     } catch (e) {
-      toast.err(errText(e));
+      toast.err(failureToast(classifyTransferFailure(e)));
+    } finally {
+      setBusy(false);
+      finish();
+    }
+  }
+
+  /** 重试一条失败的项目附件上传 */
+  async function retryDocument(id: number) {
+    const finish = beginActivity({ label: "重试上传项目附件", scope: "form" });
+    setBusy(true);
+    try {
+      const result = await documentUploads.retry(id);
+      if (result.aborted) return;
+      if (result.ok.length) {
+        toast.ok("附件已上传");
+        await loadAll();
+      } else if (result.failures[0]) {
+        toast.err(failureToast(result.failures[0]));
+      }
+    } catch (e) {
+      toast.err(failureToast(classifyTransferFailure(e)));
     } finally {
       setBusy(false);
       finish();
@@ -237,10 +325,31 @@ function ProjectDetail({ pid }: { pid: number }) {
       );
       if (result.aborted) return;
       if (result.ok.length) toast.ok("合同附件已上传");
-      if (result.failed) toast.err(`${result.failed} 个附件上传失败，请查看失败原因`);
+      if (result.failed) toast.err(batchFailureToast(result.failures));
       setContracts(await projectsApi.attachments(pid, "contract"));
     } catch (e) {
-      toast.err(errText(e));
+      toast.err(failureToast(classifyTransferFailure(e)));
+    } finally {
+      setBusy(false);
+      finish();
+    }
+  }
+
+  /** 重试一条失败的合同附件上传 */
+  async function retryContract(id: number) {
+    const finish = beginActivity({ label: "重试上传合同附件", scope: "form" });
+    setBusy(true);
+    try {
+      const result = await contractUploads.retry(id);
+      if (result.aborted) return;
+      if (result.ok.length) {
+        toast.ok("合同附件已上传");
+        setContracts(await projectsApi.attachments(pid, "contract"));
+      } else if (result.failures[0]) {
+        toast.err(failureToast(result.failures[0]));
+      }
+    } catch (e) {
+      toast.err(failureToast(classifyTransferFailure(e)));
     } finally {
       setBusy(false);
       finish();
@@ -252,7 +361,8 @@ function ProjectDetail({ pid }: { pid: number }) {
     try {
       await projectsApi.downloadAttachment(pid, a.id, a.filename);
     } catch (e) {
-      toast.err(errText(e));
+      // 下载失败同样分档：502 提示稍后重试，404 才说文件已丢失
+      toast.err(failureToast(classifyTransferFailure(e)));
     } finally {
       finish();
     }
@@ -266,7 +376,7 @@ function ProjectDetail({ pid }: { pid: number }) {
       toast.ok("附件已移除");
       await loadAll();
     } catch (e) {
-      toast.err(errText(e));
+      toast.err(failureToast(classifyTransferFailure(e)));
     } finally {
       setBusy(false);
       finish();
@@ -348,6 +458,7 @@ function ProjectDetail({ pid }: { pid: number }) {
                 label={documentUploads.uploading ? "上传中…" : "上传附件"}
                 ariaLabel="上传项目附件"
                 onFiles={uploadDocuments}
+                onRetry={retryDocument}
               />
             </div>
             {documentRows.length === 0 ? (
@@ -387,6 +498,7 @@ function ProjectDetail({ pid }: { pid: number }) {
                 label={imageUploads.uploading ? "上传中…" : "上传图片"}
                 ariaLabel="上传项目图片"
                 onFiles={uploadImages}
+                onRetry={retryImage}
               />
             </div>
             <div className="doc-assets">
@@ -398,6 +510,17 @@ function ProjectDetail({ pid }: { pid: number }) {
                     <button type="button" className="asset-preview" onClick={() => setFilePreview(a)} aria-label={`预览 ${a.filename}`}>
                       <img src={previews[a.id]} alt={a.filename} />
                     </button>
+                  ) : previewFailures[a.id] ? (
+                    // 缩略图取不到：分层文案 + 只在可重试档给「重试」（404 给重试按钮是误导）
+                    <div className="asset-file asset-failed">
+                      <span className={`chip ${previewFailures[a.id].retryable ? "warn" : "danger"}`}>
+                        {previewFailures[a.id].label}
+                      </span>
+                      <span className="tiny">{failureLine(previewFailures[a.id])}</span>
+                      {previewFailures[a.id].retryable && (
+                        <button type="button" className="linklike" onClick={() => retryPreview(a)}>重试</button>
+                      )}
+                    </div>
                   ) : (
                     <div className="asset-file">{fileTypeLabel(a)}</div>
                   )}
@@ -429,6 +552,7 @@ function ProjectDetail({ pid }: { pid: number }) {
               label={contractUploads.uploading ? "上传中…" : "上传合同附件"}
               ariaLabel="上传合同附件"
               onFiles={uploadContract}
+              onRetry={retryContract}
             />
           </div>
           <div className="contract-grid">
@@ -577,7 +701,7 @@ function ProjectDetail({ pid }: { pid: number }) {
       />
       <AttachmentPreviewDialog
         attachment={filePreview}
-        loadUrl={objectUrlFor}
+        loadUrl={fetchPreviewUrl}
         onClose={() => setFilePreview(null)}
         onDownload={download}
       />

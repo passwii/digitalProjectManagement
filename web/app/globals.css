@@ -964,6 +964,15 @@ td.num, th.num { text-align: right; }
   font-family: var(--font-mono);
   font-size: 12px;
 }
+/* 预览加载失败（非图片/加载出错）：分层文案竖排，502 给重试入口（BLF-1137） */
+.asset-file.asset-failed {
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px;
+  text-align: center;
+  font-family: inherit;
+}
+.asset-file.asset-failed .tiny { line-height: 1.5; overflow-wrap: anywhere; }
 .asset-tile figcaption {
   padding: 8px 10px;
   display: flex;

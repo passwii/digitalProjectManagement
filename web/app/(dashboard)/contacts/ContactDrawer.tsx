@@ -8,6 +8,10 @@ import {
   type ContactAttachment,
   type ContactAttachmentCategory,
 } from "@/lib/api";
+import {
+  classifyTransferFailure,
+  failureToast,
+} from "@/lib/uploadErrors";
 import { useMeta } from "@/lib/useMeta";
 import { useForm } from "@/lib/useForm";
 import { ATTACHMENT_HINT, CONTACT_ATTACHMENT_EXTENSIONS } from "@/lib/uploadLimits";
@@ -288,7 +292,7 @@ export default function ContactDrawer({
     setUploading(true);
     setFormErr("");
     try {
-      const result = await uploads.start([file], (picked, options) =>
+      const result = await uploads.start<ContactAttachment>([file], (picked, options) =>
         contactsApi.upload(contact.id, category, picked, options),
       );
       if (result.aborted) return;
@@ -305,6 +309,39 @@ export default function ContactDrawer({
     }
   }
 
+  /** 重试一条失败的上传（原文件还在内存里，不必让用户重新选） */
+  async function retryUpload(id: number) {
+    if (!contact) return;
+    setUploading(true);
+    try {
+      const result = await uploads.retry<ContactAttachment>(id);
+      if (result.aborted) return;
+      if (result.ok.length) {
+        setAttachments((rows) => [result.ok[0], ...rows]);
+        setContact((current) =>
+          current ? { ...current, attachment_count: current.attachment_count + 1 } : current
+        );
+        toast.ok("附件已上传");
+      } else if (result.failures[0]) {
+        toast.err(failureToast(result.failures[0]));
+      }
+    } catch (e) {
+      toast.err(failureToast(classifyTransferFailure(e)));
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  /** 下载走鉴权接口；失败分档提示（502 可重试 / 404 已丢失）—— 不能让 rejection 静默丢失 */
+  async function downloadAttachment(item: ContactAttachment) {
+    if (!contact) return;
+    try {
+      await contactsApi.downloadAttachment(contact.id, item.id, item.filename);
+    } catch (e) {
+      toast.err(failureToast(classifyTransferFailure(e)));
+    }
+  }
+
   async function removeAttachment() {
     if (!contact || !deleting) return;
     try {
@@ -318,7 +355,7 @@ export default function ContactDrawer({
       toast.ok("附件已删除");
       setDeleting(null);
     } catch (e) {
-      toast.err(errText(e));
+      toast.err(failureToast(classifyTransferFailure(e)));
     }
   }
 
@@ -577,6 +614,7 @@ export default function ContactDrawer({
                       multiple={false}
                       label={uploading ? "上传中…" : "上传附件"}
                       ariaLabel="上传证件与合同附件"
+                      onRetry={retryUpload}
                       onFiles={(picked) => {
                         // 该入口是单附件语义（`multiple={false}`）：组件对点击选择 /
                         // 拖拽 / 粘贴三条路径都已裁剪为至多 1 个，多出的文件会在上传区
@@ -598,7 +636,7 @@ export default function ContactDrawer({
                           <button
                             type="button"
                             className="linklike"
-                            onClick={() => contactsApi.downloadAttachment(contact.id, item.id, item.filename)}
+                            onClick={() => downloadAttachment(item)}
                           >
                             下载
                           </button>

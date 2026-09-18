@@ -7,11 +7,44 @@ import {
 } from "./identityCore";
 import { uploadPercent, type UploadProgress } from "./uploadZone";
 
+/**
+ * `process` 的模块内声明。
+ *
+ * Next 只会把**字面形式**的 `process.env.NEXT_PUBLIC_*` 在构建期静态替换成常量，
+ * 所以这个访问形式不能改写（换成 `globalThis.process?.env` 会失去替换、上线指错后端）。
+ * 这里声明一次，让「不在 web/ 项目上下文里的类型检查器」（拿不到 `@types/node`）
+ * 也能通过；声明是纯类型，编译后会被抹掉，不影响构建期替换与运行时行为。
+ */
+declare const process: { env: Record<string, string | undefined> };
+
 export const API_BASE =
   process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8001/api/v1";
 
 export class UnauthorizedError extends Error {}
 export class NetworkError extends Error {}
+
+/**
+ * 带状态码与响应体的 HTTP 错误（非 2xx）。
+ *
+ * `message` 仍是 `API <status>: <body>` —— 历史上 `errText()` 用正则从这个格式里取值，
+ * 格式不能变；额外把 `status` / `body` **结构化**出来，让 `uploadErrors` 的
+ * 502（可重试）/ 404（文件已丢失）/ 400（体积类型不合规）分层不必靠字符串猜。
+ */
+export class HttpError extends Error {
+  readonly status: number;
+  /** 原始响应体（可能为空串） */
+  readonly body: string;
+  /** 响应为空时的兜底文本（fetch 的 statusText / XHR 的 statusText） */
+  readonly statusText: string;
+
+  constructor(status: number, body: string, statusText = "") {
+    super(`API ${status}: ${body || statusText}`);
+    this.name = "HttpError";
+    this.status = status;
+    this.body = body || "";
+    this.statusText = statusText || "";
+  }
+}
 
 const TOKEN_KEY = "pm_access_token";
 const REFRESH_KEY = "pm_refresh_token";
@@ -97,6 +130,9 @@ export function errText(e: unknown): string {
   } catch {
     /* 非 JSON，原样返回 */
   }
+  // 代理层错误页（例如 nginx / Vercel 边缘回的 502 HTML）：绝不把整页 HTML 丢进 UI，
+  // 那会让 502 与 404 一样「什么都看不出来」。附件传输的 502/404/400 分层见 uploadErrors。
+  if (/[<>]/.test(body)) return "请求失败，请稍后重试";
   return body || "请求失败";
 }
 
@@ -122,7 +158,7 @@ async function request<T>(path: string, init: RequestInit = {}, raw = false): Pr
   }
   if (!res.ok) {
     const body = await res.text().catch(() => "");
-    throw new Error(`API ${res.status}: ${body || res.statusText}`);
+    throw new HttpError(res.status, body, res.statusText);
   }
   if (raw) {
     // SAFETY: `raw` 只用于下载/二进制路径，调用方按泛型 T 自行解释响应体，这里不做运行时校验
@@ -215,7 +251,7 @@ export function apiUploadWithProgress<T>(
           }
           const text = xhr.responseText;
           if (xhr.status < 200 || xhr.status >= 300) {
-            reject(new Error(`API ${xhr.status}: ${text || xhr.statusText}`));
+            reject(new HttpError(xhr.status, text, xhr.statusText));
             return;
           }
           if (xhr.status === 204 || !text) {

@@ -25,6 +25,7 @@ import {
   partitionForZone,
   shouldHandlePaste,
 } from "@/lib/uploadZone";
+import { failureLine } from "@/lib/uploadErrors";
 // 条目类型与状态迁移的唯一来源：hook 与组件共用同一份定义，避免两处漂移
 import type { UploadItem } from "@/lib/uploadQueueCore";
 import st from "./FileDropZone.module.css";
@@ -40,6 +41,13 @@ export interface FileDropZoneProps {
   onFiles: (files: File[]) => void;
   /** 渲染中的条目（上传进度 / 结果）。 */
   items?: readonly UploadItem[];
+  /**
+   * 重试一个失败条目（按条目 id）。
+   *
+   * 只在条目的失败分层标了 `retryable` 时才渲染按钮：502（存储暂不可用）有按钮，
+   * 404（附件已丢失）与 400（不合规）**没有** —— 重试一万次也不会变。
+   */
+  onRetry?: (id: number) => void;
   /** 整体禁用（例如父级提交中）。 */
   disabled?: boolean;
   /**
@@ -70,6 +78,7 @@ export default function FileDropZone({
   extensions,
   onFiles,
   items = [],
+  onRetry,
   disabled = false,
   multiple = true,
   variant = "dropzone",
@@ -219,7 +228,29 @@ export default function FileDropZone({
           {item.status === "uploading" && <ProgressMeter percent={item.progress} />}
           {item.status === "done" && <span className={st.done}>已完成</span>}
           {item.status === "error" && (
-            <span className={st.fail} role="alert">{item.message ?? "上传失败"}</span>
+            <span className={st.failRow}>
+              {/* 徽标是「肉眼可分」的关键：502 与 404 不再是同一句泛化文案 */}
+              {item.failure && (
+                <span
+                  className={`${st.failTag} ${item.failure.retryable ? st.failTagRetry : st.failTagLost}`}
+                >
+                  {item.failure.label}
+                </span>
+              )}
+              <span className={st.fail} role="alert">
+                {item.failure ? failureLine(item.failure) : item.message ?? "上传失败"}
+              </span>
+              {item.failure?.retryable && onRetry && (
+                <button
+                  type="button"
+                  className={st.retry}
+                  disabled={disabled}
+                  onClick={() => onRetry(item.id)}
+                >
+                  重试
+                </button>
+              )}
+            </span>
           )}
         </li>
       ))}

@@ -16,10 +16,10 @@
  * `document.body`，不在 render 容器里，用 container 查会得到「什么都没渲染」。
  */
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { act, cleanup, render } from "@testing-library/react";
+import { act, cleanup, fireEvent, render } from "@testing-library/react";
 
 import AttachmentPreviewDialog from "../app/(dashboard)/projects/[id]/AttachmentPreviewDialog";
-import type { Attachment } from "../lib/api";
+import { HttpError, type Attachment } from "../lib/api";
 
 const att = (id: number, filename: string, contentType = ""): Attachment => ({
   id,
@@ -152,6 +152,65 @@ describe("附件预览：按类型给出正确的渲染方式", () => {
     );
     await act(async () => {});
     expect(getByText(/预览加载失败/)).not.toBeNull();
+    expect(document.querySelector("img.image-preview")).toBeNull();
+  });
+});
+
+describe("附件预览：失败分层（502 可重试 / 404 已丢失）", () => {
+  const renderWith = (loadUrl: (a: Attachment) => Promise<string>) =>
+    render(
+      <AttachmentPreviewDialog
+        attachment={att(10, "现场照片.png", "image/png")}
+        loadUrl={loadUrl}
+        onClose={() => {}}
+        onDownload={() => {}}
+      />,
+    );
+
+  it("502（存储暂不可用）：说清可重试、给重试按钮，点重试后真的重取并渲染", async () => {
+    let calls = 0;
+    const loadUrl = vi.fn(async () => {
+      calls += 1;
+      if (calls === 1) {
+        throw new HttpError(
+          502,
+          '{"detail":"文件存储不可用，请稍后重试（R2 读取失败（ClientError））"}',
+        );
+      }
+      return "blob:preview-10-retry";
+    });
+    const { getByText } = renderWith(loadUrl);
+    await act(async () => {});
+
+    // 与 404 的关键区别：不说「已丢失」，而是「可重试」
+    expect(getByText(/存储暂不可用/)).not.toBeNull();
+    expect(getByText(/可重试/)).not.toBeNull();
+    expect(document.body.textContent).not.toContain("已丢失");
+
+    const retry = getByText("重试");
+    expect(retry).not.toBeNull();
+    await act(async () => {
+      fireEvent.click(retry);
+    });
+    await act(async () => {});
+
+    expect(loadUrl).toHaveBeenCalledTimes(2);
+    expect(document.querySelector("img.image-preview")?.getAttribute("src")).toBe(
+      "blob:preview-10-retry",
+    );
+  });
+
+  it("404（正文确实不存在）：只说已丢失，不给重试按钮", async () => {
+    const loadUrl = vi.fn(async () => {
+      throw new HttpError(404, '{"detail":"附件文件已丢失，请联系管理员"}');
+    });
+    const { getByText, queryByText } = renderWith(loadUrl);
+    await act(async () => {});
+
+    expect(getByText(/附件已丢失/)).not.toBeNull();
+    expect(getByText(/请联系管理员/)).not.toBeNull();
+    // 重试无效就不该给按钮：给了等于引导用户做徒劳操作
+    expect(queryByText("重试")).toBeNull();
     expect(document.querySelector("img.image-preview")).toBeNull();
   });
 });
