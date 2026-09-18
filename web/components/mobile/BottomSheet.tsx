@@ -133,11 +133,39 @@ export default function BottomSheet({
   }, [open, present, stop, panelRef, children]);
 
   const bodyRef = useRef<HTMLDivElement | null>(null);
+  // 列表顶部继续往下拉时，把手势从浏览器手里拿回来。
+  // 原生滚动已经到头（scrollTop=0 再往下拉）：浏览器的「接管」只会空耗掉这次
+  // 下甩（pointercancel），面板的降档手势永远接不上。scrollTop>0 或上滑时绝不拦
+  // —— 滚动优先；只有「滚无可滚却想降档」这一下才归面板。
+  // 注意不能走 React 的 onTouchMove：React 在 root 把 touchmove 挂成 passive，
+  // preventDefault 会被忽略，这里必须用原生 listener + { passive: false }。
+  useEffect(() => {
+    const scroller = bodyRef.current;
+    if (!open || !present || !scroller) return;
+    let startY = 0;
+    const onStart = (e: TouchEvent) => {
+      startY = e.touches[0]?.clientY ?? 0;
+    };
+    const onMove = (e: TouchEvent) => {
+      const dy = (e.touches[0]?.clientY ?? startY) - startY;
+      if (scroller.scrollTop <= 0 && dy > DRAG_SLOP && e.cancelable)
+        e.preventDefault();
+    };
+    scroller.addEventListener("touchstart", onStart, { passive: true });
+    scroller.addEventListener("touchmove", onMove, { passive: false });
+    return () => {
+      scroller.removeEventListener("touchstart", onStart);
+      scroller.removeEventListener("touchmove", onMove);
+    };
+  }, [open, present]);
   const dragRef = useRef<{
     startY: number;
     from: SheetStop;
     dy: number;
     moved: boolean;
+    /** 起手是否落在可滚列表里：是则浏览器拥有滚动优先权，面板只在
+        列表顶部（scrollTop=0）且浏览器没接管时才跟手（见 onPointerMove） */
+    startedInBody: boolean;
   } | null>(null);
   /** 拖拽结束后的那一次 click 不是「点卡片」：置位后由捕获阶段吃掉 */
   const suppressClickRef = useRef(false);
@@ -154,30 +182,44 @@ export default function BottomSheet({
     if (!open) return;
     if (event.pointerType === "mouse" && event.button !== 0) return;
     const scroller = bodyRef.current;
+    const target = event.target as Node;
+    const inBody = scroller ? scroller.contains(target) : false;
     // §4「滚动不抢手势」：列表已经滚过顶部时，整体拖拽必须让位给列表滚动。
     // 列表在顶部（scrollTop=0）时才允许面板接管 —— 这正是「往下滑先是滚列表，
     // 滚到底才收抽屉」的手感来源。
-    if (
-      scroller &&
-      scroller.contains(event.target as Node) &&
-      scroller.scrollTop > 0
-    )
-      return;
+    // （touch-action 的配合见 BottomSheet.module.css：面板是 pan-y 而不是 none，
+    // 否则 body 的 pan-y 会被祖先进交集吃掉，原生滚动永远起不来。）
+    if (inBody && scroller && scroller.scrollTop > 0) return;
     suppressClickRef.current = false;
     dragRef.current = {
       startY: event.clientY,
       from: stop,
       dy: 0,
       moved: false,
+      startedInBody: inBody,
     };
     setDragging(true);
-    event.currentTarget.setPointerCapture?.(event.pointerId);
+    // 只在把手 / 头部起手时才抓指针：落在列表里时不抓 —— 浏览器可能下一刻
+    // 就要接管这次触摸去滚列表（随后会收到 pointercancel 复位）；抓了反而
+    // 跟原生滚动抢。列表顶部且浏览器没接管时，move 事件照常冒泡到面板，拖拽不断。
+    if (!inBody) event.currentTarget.setPointerCapture?.(event.pointerId);
   }
 
   function onPointerMove(event: React.PointerEvent<HTMLDivElement>) {
     const drag = dragRef.current;
     const panel = panelRef.current;
     if (!drag || !panel) return;
+    // 从列表起手、但列表已经滚起来了（浏览器先接管、pointercancel 还在路上）：
+    // 这次手势归滚动，面板复位、不改档。
+    if (drag.startedInBody) {
+      const scroller = bodyRef.current;
+      if (scroller && scroller.scrollTop > 0) {
+        dragRef.current = null;
+        setDragging(false);
+        resetDragStyle();
+        return;
+      }
+    }
     const dy = event.clientY - drag.startY;
     drag.dy = dy;
     if (!drag.moved) {
