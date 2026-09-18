@@ -22,7 +22,7 @@
 ### 1.2 领域边界
 
 | 领域 | 核心职责 | 主要模块 |
-|---|---|---|
+| --- | --- | --- |
 | 身份与访问 | 登录、会话、密码策略、RBAC、项目管理边界 | `auth`、`meta`、`admin`、`core.rbac` |
 | 组织与通讯录 | 部门、账号主数据、员工档案、证件与合同附件 | `contacts` |
 | 项目治理 | 项目生命周期、成员、合同、附件、跟进记录 | `projects` |
@@ -70,7 +70,7 @@ flowchart LR
 ### 2.2 前端分层
 
 | 层 | 职责 | 典型实现 |
-|---|---|---|
+| --- | --- | --- |
 | Route / Composition | 页面编排、路由参数、权限态加载 | `app/(dashboard)/**/page.tsx` |
 | Feature UI | 业务弹窗、抽屉、筛选、表格和操作反馈 | `*Dialog`、`*Drawer`、Feature Page |
 | Shared UI | 按钮、字段、分页、Toast、导航壳 | `components/ui/*` |
@@ -87,7 +87,7 @@ flowchart LR
 ### 2.4 前端安全问题与目标架构
 
 | 事项 | `[现状]` | `[目标]` |
-|---|---|---|
+| --- | --- | --- |
 | 会话载体 | localStorage + 非 httpOnly Cookie | BFF 或同源网关签发 httpOnly、Secure、SameSite Cookie |
 | API 访问 | 浏览器直连 API 域名 | 同源 `/api` 反向代理，减少 CORS 与令牌暴露面 |
 | 接口契约 | 手写 TypeScript 类型 | 基于 OpenAPI 生成 Client 与类型，CI 校验契约漂移 |
@@ -114,7 +114,7 @@ flowchart TB
 ```
 
 | 层 | 责任 | 不应承担 |
-|---|---|---|
+| --- | --- | --- |
 | Transport | 路由、依赖注入、认证、状态码、响应模型 | 复杂业务规则和跨聚合一致性 |
 | Application | 用例编排、权限校验顺序、事务边界、审计原子提交 | SQL 方言和前端展示逻辑 |
 | Domain | 状态机、金额与日期约束、审批动作、预警规则 | HTTP 细节 |
@@ -167,7 +167,7 @@ PostgreSQL 是整个系统的 **System of Record**。预算审批、支出状态
 ### 4.2 领域数据分组
 
 | 数据域 | 代表表 | 关键约束 |
-|---|---|---|
+| --- | --- | --- |
 | IAM | `users`、`roles`、`user_roles`、`token_blacklist` | 手机号唯一、角色唯一、失效 token 可追踪 |
 | 组织与通讯录 | `departments`、`contact_profiles`、`attachments` | 人员主数据、账号可选关联、工号唯一、附件归属明确 |
 | 项目治理 | `projects`、`project_members`、`project_changes`、`followups` | 项目编号唯一、软删除、字段变更留痕 |
@@ -199,42 +199,76 @@ PostgreSQL 是整个系统的 **System of Record**。预算审批、支出状态
 
 ## 5. 对象存储架构：Cloudflare R2（S3 兼容）
 
-### 5.1 `[现状]` 本地文件系统
+### 5.1 `[ 现状／已实现 ]` 本地文件系统 + Cloudflare R2 双后端
 
-当前附件正文写入 `pm-data` 持久卷，`attachments.path` 保存服务器文件路径；数据库仅保存文件名、大小、MIME、归属和分类。项目附件、支出凭证、通讯录证件和劳动合同共用 `attachments` 表，通过 `ref_type`、`ref_id`、`category` 区分。
+附件正文自 BLF-1136 起支持两个后端。`STORAGE_BACKEND` 只决定**新上传**落到哪里（`auto` / `local` / `r2`）：
 
-该实现适合单机 MVP，但存在明确架构约束：
+- `auto`（默认）：`R2_*` 配齐就用 R2，否则回落本地磁盘（回落会记一条 warning，不静默）；
+- `r2`：新上传强制走对象存储，配置不全时**应用 lifespan 启动即失败**（不允许「以为在用 R2、其实写容器磁盘」）；
+- `local`：新上传落本地磁盘（离线演示）。**它不是整体回滚开关**。
 
-- 应用实例具有本地状态，无法直接做无状态水平扩展。
-- 文件写入与数据库提交不是一个原子操作，异常时可能产生孤儿文件或失效元数据。
-- 备份、迁移、CDN 分发和生命周期管理均与宿主机耦合。
-- `path` 暴露基础存储布局，不利于多租户或跨云迁移。
+已存在附件的下载与删除**永远按行内坐标**（`attachments.storage_backend` / `object_key` / `path`）选后端，
+与当前 `STORAGE_BACKEND` 无关（`storage.get_backend_for_row()`）。所以把开关改回 `local` 后：
+存量 R2 附件照常从 R2 下载、删除时也真的删掉 R2 对象，只是新上传改落本地盘（「读旧的、写新的」）。
+反之，行在 R2 而 `R2_*` 缺失时会返回 `502` 并**保留元数据**（绝不静默 404 或假装删除成功）。
 
-### 5.2 `[目标]` 存储抽象
+本地后端仍在 `pm-data` 持久卷的 `data/files` 下，但目录布局自 BLF-1136 起为
+`data/files/{domain}/{owner_id}/{uuid}{ext}`（**与接入前的 `data/files/{pid}/...` 不同**）：
+存量附件按行内 `path` 读、不受影响，但新写入的文件不再落在旧目录、磁盘上也不再保留原始文件名
+（原名只存库里）。`scripts/seed_mock.py` 的演示数据仍用旧布局，与新写入不互通，属已知差异。
 
-引入供应商无关的 `StorageProvider`，将 PostgreSQL 定义为 **Attachment Control Plane**，将 Cloudflare R2 定义为 **Binary Data Plane**。R2 对外提供 S3-compatible API，因此业务代码只依赖 S3 协议和配置，不依赖 Cloudflare 专有 SDK。
+项目附件、支出凭证、通讯录证件和劳动合同共用 `attachments` 表，通过 `ref_type`、`ref_id`、`category` 区分。
+
+实现位置：
+
+- `api/core/r2.py` —— S3 兼容传输层（单例客户端、key 清洗、URL 编码、结构化删除结果、404 与「R2 不可用」的区分）；
+- `api/core/storage.py` —— 后端抽象（`LocalBackend` / `R2Backend`）+ 对象键命名 + 配置解析；
+- `api/core/attachments.py` —— 三个上传入口共用的「写正文 / 下载响应 / 删正文」；
+- `api/routers/{projects,contacts,expenses}.py` —— 只负责鉴权与业务语义。
+
+剩余约束（`[目标]`）：写入与数据库提交仍不是一个原子操作；对账与生命周期任务尚未实现（见 5.7）。
+
+### 5.2 `[ 现状／已实现 ]` 存储抽象
+
+PostgreSQL 是 **Attachment Control Plane**，Cloudflare R2 是 **Binary Data Plane**。业务代码只依赖 S3 协议与配置，不依赖 Cloudflare 专有 SDK（仅用 `boto3`）。
 
 ```python
-class StorageProvider:
-    def initiate_upload(self, intent): ...
-    def complete_upload(self, object_key): ...
-    def presign_upload(self, object_key, content_type, max_size): ...
-    def presign_download(self, object_key, ttl_seconds): ...
-    def head_object(self, object_key): ...
-    def delete_object(self, object_key): ...
+class StorageBackend(Protocol):
+    def put(self, data, key, local_path, content_type) -> StoredObject: ...
+    def stream(self, object_key, local_path) -> tuple[Iterator[bytes], int]: ...
+    def delete(self, object_key, local_path) -> None: ...
+    def exists(self, object_key, local_path) -> bool: ...
+    def url_for(self, object_key, local_path) -> str: ...
 ```
+
+取后端实例有两个入口，读写**已存在**附件只能用第二个：
+
+- `get_backend()` —— 按全局 `STORAGE_BACKEND`，仅用于新上传与回填脚本；
+- `get_backend_for_row(row)` —— 按行内坐标，下载/删除/存在性判定一律用这个。
 
 适配器：
 
-- `LocalStorageProvider`：兼容现有机房或开发环境。
-- `S3StorageProvider`：目标实现，通过 S3-compatible Endpoint、签名和存储桶访问 Cloudflare R2。
+- `LocalBackend`：兼容现有机房或开发环境（本地行 `object_key` 为空）。
+- `R2Backend`：通过 S3-compatible Endpoint、SigV4 签名和存储桶访问 Cloudflare R2。
+
+能力差异：R2 下载走 `StreamingResponse`，**不支持 Range 断点续传**（本地后端走 `FileResponse`，支持）。
+100MB 附件的中断重传会从 0 开始，前端目前是 blob 全量下载，暂无功能回归。
+
+失败语义（务必区分，否则会把「R2 挂了」误报成「文件丢了」）：
+
+| 情况 | `core.r2` | 下载响应 |
+| --- | --- | --- |
+| 对象不存在 | `R2ObjectMissing` | `404 附件文件已丢失` |
+| 网络 / 凭据 / 5xx | `R2Unavailable` | `502 文件存储不可用，请稍后重试` |
+| R2 行但 `R2_*` 配置缺失 | `RuntimeError` | `502`（保留元数据，不静默 404） |
+| 删除失败 | `R2DeleteResult(success=False)` | 删除接口 `502` 且**保留元数据** |
 
 ### 5.3 附件元数据模型
 
 目标结构在 `attachments` 上扩展：
 
 | 字段 | 语义 |
-|---|---|
+| --- | --- |
 | `storage_backend` | `local` / `s3`（`s3` 指向 Cloudflare R2） |
 | `bucket` | 对象存储桶 |
 | `object_key` | 与供应商解耦的对象键 |
@@ -353,7 +387,7 @@ S3_FORCE_PATH_STYLE=false
 ### 6.2 数据安全分级
 
 | 等级 | 数据 | 控制 |
-|---|---|---|
+| --- | --- | --- |
 | Internal | 项目名称、进度、一般任务 | 登录访问、项目成员边界 |
 | Confidential | 预算、支出、客户、审批意见 | 管理员或项目参与人、审计 |
 | Restricted | 身份证号、劳动合同、证件扫描件 | 管理员专属、字段脱敏、对象存储私有桶、访问审计 |
@@ -365,7 +399,7 @@ S3_FORCE_PATH_STYLE=false
 系统区分三个证据面：
 
 | 证据面 | 表 / 机制 | 服务对象 | 语义 |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | 管理审计面 | `audit_logs` | 管理员、安全审计 | 谁在何时对什么资源执行了什么动作 |
 | 业务时间线 | `approval_records` | 申请人、审批人 | 单据经历了哪些状态变化和审批意见 |
 | 字段变更面 | `project_changes`、进度日志 | 业务用户 | 关键字段、进度和计划的历史变化 |
@@ -415,7 +449,7 @@ Business Change
 ### 6.6 威胁模型
 
 | 威胁 | 典型风险 | 缓解 |
-|---|---|---|
+| --- | --- | --- |
 | 令牌窃取 | XSS 读取 localStorage | httpOnly Cookie、CSP、短会话、Refresh 轮换 |
 | 越权访问 | 普通用户调用管理接口 | 服务端 RBAC、默认拒绝、权限先于读写 |
 | 横向数据泄露 | 通过项目 ID 访问其他项目 | 项目可见性条件下推到 SQL，统一返回 `404` |
@@ -473,7 +507,7 @@ flowchart TB
 ## 8. 质量属性
 
 | 质量属性 | 架构策略 | 目标指标 |
-|---|---|---|
+| --- | --- | --- |
 | Consistency | PostgreSQL 事务、状态机、原子审计 | 关键业务不得出现半提交状态 |
 | Security | RBAC、默认拒绝、最小权限、敏感分级 | 未授权访问稳定 `401/403/404`，敏感操作全留痕 |
 | Auditability | 业务时间线 + 管理审计 + 哈希链 | 任一关键变更可还原 actor、time、before/after |
@@ -488,7 +522,7 @@ flowchart TB
 ## 9. 演进路线
 
 | 阶段 | 架构主题 | 关键交付 |
-|---|---|---|
+| --- | --- | --- |
 | Phase A | 存储解耦 | `StorageProvider`、Cloudflare R2 S3-compatible Adapter、Presigned URL、元数据扩展 |
 | Phase B | 安全加固 | httpOnly 会话、Refresh 轮换、密钥管理、IP 限速、PII 加密 |
 | Phase C | 审计强化 | Correlation ID、哈希链、审计分区、WORM 锚定、SIEM 导出 |
@@ -501,7 +535,7 @@ flowchart TB
 ## 10. Architecture Decisions
 
 | ADR | 决策 | 理由 | 代价 |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | ADR-001 | 采用模块化单体，而非立即微服务 | 当前规模下优先保证事务一致性和交付效率 | 后续需要严格控制模块边界 |
 | ADR-002 | PostgreSQL 作为唯一 System of Record | 复杂审批、预算和项目关系需要强一致事务 | 数据库承担较高核心责任 |
 | ADR-003 | 前端展示权限，后端执行权限 | 防止 UI 隐藏被误当成安全边界 | 接口契约必须保持单一来源 |
