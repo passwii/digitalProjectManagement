@@ -143,6 +143,33 @@
 }
 .userRow { display: flex; align-items: center; gap: 9px; }
 .userMeta { min-width: 0; flex: 1; }
+
+/*
+  身份骨架（BLF-1125）：姓名/头像未确认时占位，**不渲染任何文字**。
+  刻意不复用全局 .skel：它假定浅色底（--line-soft 系），而侧栏是深海军蓝，
+  直接用会看不出来；这里用半透明白，顶栏浅底版本另见 .nameSkel 的覆盖。
+*/
+.avatarSkel {
+  flex: 0 0 auto;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, .14);
+  animation: identityPulse 1.2s ease-in-out infinite;
+}
+.nameSkel {
+  display: block;
+  width: 72px;
+  height: 13px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, .14);
+  animation: identityPulse 1.2s ease-in-out infinite;
+}
+@keyframes identityPulse {
+  0%, 100% { opacity: .55; }
+  50% { opacity: 1; }
+}
+
 .userMeta .n {
   overflow: hidden;
   color: #fff;
@@ -233,6 +260,23 @@
 .userChipText { display: flex; flex-direction: column; line-height: 1.2; }
 .userChipText b { color: var(--ink); font-size: 13px; font-weight: 650; }
 .userChipText small { margin-top: 2px; color: var(--ink-3); font-size: 10px; }
+
+/* 顶栏是浅色底：骨架换成浅灰蓝，尺寸与头像/姓名对齐避免身份就位时布局跳动 */
+.userChip .avatarSkel {
+  width: 30px;
+  height: 30px;
+  background: var(--line-soft);
+}
+.userChip .nameSkel {
+  width: 56px;
+  height: 12px;
+  background: var(--line-soft);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .avatarSkel,
+  .nameSkel { animation: none; opacity: .8; }
+}
 
 .content {
   flex: 1;

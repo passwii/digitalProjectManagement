@@ -13,7 +13,8 @@ const currentDir = path.dirname(fileURLToPath(import.meta.url));
  *
  * 命名约定（决定一个测试走哪套）：
  *   · `lib/*.test.ts`          → node:test，由 tsconfig.test.json 的 include 自动收走
- *   · `lib/*.vitest.test.ts`   → vitest，需要 vitest 的 expect/mock 或浏览器全局时用
+ *   · `lib/*.vitest.test.ts`   → vitest，需要 vitest 的 expect/mock 或浏览器全局时用（纯逻辑）
+ *   · `lib/*.vitest.test.tsx`  → vitest，需要 JSX 渲染真实组件时用（如 BLF-1125 的身份区）
  *   · `lib/activityCore.test.ts` → 历史遗留的 vitest 文件（main 的动效工作引入），
  *                                 保留原名以免与在途 PR 冲突，由下面显式包含
  *
@@ -35,6 +36,6 @@ export default defineConfig({
   },
   test: {
     environment: "node",
-    include: ["lib/*.vitest.test.ts", "lib/activityCore.test.ts"],
+    include: ["lib/*.vitest.test.ts", "lib/*.vitest.test.tsx", "lib/activityCore.test.ts"],
   },
 });
