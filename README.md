@@ -183,9 +183,34 @@ PostgreSQL 是整个系统的 **System of Record**。预算审批、支出状态
 - `[现状]` 外键、唯一索引和复合索引保护基础完整性；高频查询按 `project_id + status`、`user_id + read_at` 等访问模式建索引。
 - `[现状]` `progress_logs` 只允许追加，任务 `progress` 是可重建的当前快照，避免覆盖历史。
 - `[现状]` 项目软删除通过 `deleted_at` 控制；普通查询和子表查询统一排除软删除项目。
-- `[目标]` 金额字段迁移为 `NUMERIC(18,2)` 或等价 Decimal 类型，避免 `Float` 累积误差。
-- `[目标]` 时间字段统一为 `TIMESTAMPTZ`，并明确 UTC 存储、`Asia/Shanghai` 展示。
+- `[现状]` 金额字段迁移为 `NUMERIC(18,2)` 或等价 Decimal 类型，避免 `Float` 累积误差。
 - `[目标]` 对管理员改参数、项目状态流转、审批决策增加乐观锁版本号或条件更新，防止并发覆盖。
+
+### 4.4 时间口径（BLF-1138 定稿）
+
+时间列都是 `timestamp without time zone`，**列约定 = `Asia/Shanghai` 的 naive 墙钟值**。
+唯一入口是 `api/core/timeutil.py`，所有写入 / 读取 / 出参都必须走它：
+
+| 场景 | 用什么 | 说明 |
+| --- | --- | --- |
+| 写库、SQL 过滤值 | `app_now()` / `to_db(x)` | naive 北京时间。naive 入 naive 列，PostgreSQL 不做任何时区折算 |
+| 计算、比较 | `as_app(x)` / `app_now_aware()` | 离开 DB 边界立刻变 aware（`+08:00`）；**不要**在同一段算术里混用 naive 与 aware |
+| 出参 | `iso(x)` | 带偏移的 ISO8601（`2026-09-18T17:32:28+08:00`）；前端 `fmtDateTime` 是纯字符串裁剪，显示不变 |
+| 业务日（今天） | `app_today()` | 不依赖进程 `TZ` |
+| epoch 换算（JWT `exp`） | `from_timestamp()` | JWT 的 `exp` 本身仍必须是 aware UTC（`core/security.py`），不要改 |
+
+为什么必须收口：写入侧历史上给的是**带时区的 UTC**，PostgreSQL 在
+`timestamptz → timestamp` 隐式转换时按**会话时区**折算 —— 会话时区是 `Asia/Shanghai` 时
+看起来「正好对」（纯属巧合），换库 / 改 `TZ` / 新环境默认 UTC 就会全站偏 8 小时且不报错；
+读取侧再把 naive 值贴回 UTC 标签，同一根因就让「配置 15 分钟的登录锁定」实际生效
+8 小时 15 分。回归用例见 `tests/test_time_contract.py`（含「把会话 `TimeZone` 改成 `UTC`
+后落库值与出参不变」的断言）。
+
+- `[目标]` 时间列整体迁到 `TIMESTAMPTZ`（`USING col AT TIME ZONE 'Asia/Shanghai'`），库里改存
+  真正的 UTC 瞬时值。收益是口径最正，代价是一次生产 schema 迁移 + 全量校验；
+  在上述约定下这不是正确性必需项（`timeutil` 是唯一入口，两套口径可平滑切换）。
+- `[注]` 应用运行时不依赖进程 `TZ`：口径模块用 `ZoneInfo("Asia/Shanghai")`，入库值与会话时区、
+  容器 `TZ` 无关（`api/requirements.txt` 带 `tzdata`，保证无系统时区库的镜像也能用）。
 
 ### 4.4 查询与扩展
 

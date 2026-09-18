@@ -56,7 +56,6 @@ import tempfile
 import uuid
 from collections.abc import Iterator
 from dataclasses import dataclass
-from datetime import datetime, timezone
 from pathlib import Path
 from typing import Protocol
 
@@ -75,6 +74,7 @@ from .r2 import (
     try_delete_object,
     upload_object,
 )
+from .timeutil import app_now
 
 __all__ = [
     "BACKEND_LOCAL",
@@ -353,7 +353,7 @@ def build_object_key(
     · `owner_id` 仅用于**本地后端**的目录分片（便于排查），不进对象键，避免暴露用户 id。
     """
     safe_domain = domain if domain in _ALLOWED_DOMAIN else "other"
-    now = datetime.now(timezone.utc)
+    now = app_now()
     ext = Path(sanitize_key(filename or "")).suffix.lower()
     # 扩展名再过滤一次：只保留 `.` + 字母数字，杜绝 `..` / 斜杠进入 key
     ext = ext if len(ext) > 1 and ext[1:].isalnum() else ""

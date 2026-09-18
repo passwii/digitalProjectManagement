@@ -1,5 +1,5 @@
 """Stage 0：登录/登出/刷新/我。5 错锁 15min（sys_params 可配），成功失败都审计。"""
-from datetime import datetime, timedelta, timezone
+from datetime import timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel
@@ -8,8 +8,14 @@ from sqlalchemy.orm import Session
 from ..core.audit import write_audit
 from ..core.database import get_db
 from ..core.deps import get_current_user
-from ..core.security import (create_access_token, create_refresh_token,
-                             decode_token, hash_password, verify_password)
+from ..core.security import (
+    create_access_token,
+    create_refresh_token,
+    decode_token,
+    hash_password,
+    verify_password,
+)
+from ..core.timeutil import app_now, app_now_aware, as_app, from_timestamp
 from ..models import SysParam, TokenBlacklist, User
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -40,7 +46,9 @@ def _fail(db, user, username, ip, reason):
     minutes = int(_param(db, "login_lock_minutes", "15"))
     locked = False
     if user.failed_count >= limit:
-        user.locked_until = datetime.now(timezone.utc) + timedelta(minutes=minutes)
+        # 列约定是「北京时间 naive 墙钟」（core/timeutil.py）：写 naive、读 aware，
+        # 否则 PG 会按会话时区再折一次，配置 15 分钟实际锁 8 小时 15 分（BLF-1138）。
+        user.locked_until = app_now() + timedelta(minutes=minutes)
         user.status = "locked"
         locked = True
     db.commit()
@@ -61,7 +69,7 @@ def login(body: LoginIn, request: Request, db: Session = Depends(get_db)):
     if user.status == "disabled":
         raise HTTPException(403, "账号已停用")
     if user.status == "locked":
-        if user.locked_until and user.locked_until.replace(tzinfo=timezone.utc) > datetime.now(timezone.utc):
+        if user.locked_until and as_app(user.locked_until) > app_now_aware():
             raise HTTPException(403, "账号已锁定，请稍后再试")
         user.status, user.failed_count, user.locked_until = "active", 0, None
         db.commit()
@@ -82,7 +90,7 @@ def logout(request: Request, db: Session = Depends(get_db), user: User = Depends
     try:
         payload = decode_token(token, kind="access")
         db.add(TokenBlacklist(jti=payload["jti"], user_id=user.id,
-                              expires_at=datetime.fromtimestamp(payload["exp"], tz=timezone.utc)))
+                              expires_at=from_timestamp(payload["exp"])))
         db.commit()
     except Exception:
         pass

@@ -3,7 +3,6 @@
 权限契约（Stage 1 收敛）：所有接口统一走 core.rbac.require_admin，非管理员恒定 403。
 """
 import re
-from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
@@ -16,7 +15,17 @@ from ..core.deps import get_current_user
 from ..core.paging import DEFAULT_PAGE_SIZE, paginate
 from ..core.rbac import require_admin
 from ..core.security import hash_password
-from ..models import AuditLog, ContactProfile, Dict, Project, Role, SysParam, User, UserRole
+from ..core.timeutil import app_now, iso
+from ..models import (
+    AuditLog,
+    ContactProfile,
+    Dict,
+    Project,
+    Role,
+    SysParam,
+    User,
+    UserRole,
+)
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 PHONE_RE = re.compile(r"^1\d{10}$")
@@ -81,7 +90,7 @@ def create_user(body: UserIn, db: Session = Depends(get_db), user: User = Depend
     u = User(username=username, pwd_hash=hash_password(password),
              real_name=body.real_name, dept_id=body.dept_id,
              must_change_pwd=True,
-             created_at=datetime.now(timezone.utc))
+             created_at=app_now())
     db.add(u)
     db.flush()
     contact = db.query(ContactProfile).filter(
@@ -235,7 +244,7 @@ def export_logs(action: str = "", user_id: int = 0, limit: int = 5000,
     ws = wb.active
     ws.append(["时间", "操作人ID", "动作", "资源", "资源ID", "详情", "IP"])
     for l in rows:
-        ws.append([l.created_at.isoformat() if l.created_at else "", l.user_id, l.action,
+        ws.append([iso(l.created_at) if l.created_at else "", l.user_id, l.action,
                    l.resource, l.resource_id, l.detail, l.ip])
     buf = io.BytesIO()
     wb.save(buf)
@@ -261,7 +270,7 @@ def list_logs(action: str = "", user_id: int = 0, sort: str = "-id",
     def _log(l: AuditLog):
         return {"id": l.id, "user_id": l.user_id, "action": l.action, "resource": l.resource,
                 "resource_id": l.resource_id, "detail": l.detail, "ip": l.ip,
-                "created_at": l.created_at.isoformat() if l.created_at else None}
+                "created_at": iso(l.created_at)}
 
     return paginate(q, page=page, size=size, allowed=LOG_SORTS,
                     default_sort="-id", sort=sort, map_row=_log)

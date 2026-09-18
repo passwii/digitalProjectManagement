@@ -9,12 +9,14 @@
     改为「距上次推送不足 N 天则跳过」，同一到期记录不会被无限重复灌入。
   · 去重键含引用 id（如 `overdue_task:12`），因此不同任务/里程碑/支出/跟进互不影响。
 """
-from datetime import datetime, timedelta, timezone
+from collections.abc import Sequence
+from datetime import timedelta
 
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from ..models import Notification, Role, SysParam, UserRole
+from .timeutil import app_now, to_db
 
 # 默认去重窗口（天）：可由 sys_params.notify_dedup_days 覆盖
 DEFAULT_DEDUP_DAYS = 1
@@ -28,14 +30,13 @@ STATE_IGNORED = "ignored"
 REF_TYPES = ("project", "task", "milestone", "expense", "budget_adjust", "followup")
 
 
-def utcnow() -> datetime:
-    return datetime.now(timezone.utc)
+def _db_ts(ts):
+    """把库里的时间列统一到入库口径（naive 北京时间，见 core/timeutil.py）。
 
-
-def _aware(ts: datetime | None) -> datetime | None:
-    if ts is None:
-        return None
-    return ts if ts.tzinfo else ts.replace(tzinfo=timezone.utc)
+    去重窗口是「两个时间点之差」，两边必须在同一口径里相减：
+    naive 与 aware 相减会直接 `TypeError`，而混着用就是历史 bug 的来源。
+    """
+    return to_db(ts)
 
 
 def dedup_days(db: Session) -> int:
@@ -78,7 +79,7 @@ def _dedup_hit(db: Session, user_id: int, dedup_key: str, days: int) -> bool:
     """
     if days <= 0:
         return False
-    cutoff = utcnow() - timedelta(days=days)
+    cutoff = app_now() - timedelta(days=days)
     pat = _like_prefix(dedup_key)
     rows = db.query(Notification.created_at).filter(
         Notification.user_id == user_id,
@@ -87,7 +88,7 @@ def _dedup_hit(db: Session, user_id: int, dedup_key: str, days: int) -> bool:
             Notification.dedup_key.like(f"{pat}@%", escape="\\")),
     ).all()
     for (created,) in rows:
-        if created is None or _aware(created) >= cutoff:
+        if created is None or _db_ts(created) >= cutoff:
             return True
     return False
 
@@ -135,14 +136,14 @@ def push(
         user_id=user_id, type=ntype, title=title[:128], body=body,
         channel="inapp", ref_type=ref_type, ref_id=ref_id,
         project_id=project_id, dedup_key=key, state=STATE_PENDING,
-        created_at=utcnow(),
+        created_at=app_now(),
     ))
     return True
 
 
 def push_many(
     db: Session,
-    user_ids: list[int],
+    user_ids: Sequence[int | None],
     ntype: str,
     title: str,
     body: str = "",
@@ -177,14 +178,14 @@ def mark_state(db: Session, notification: Notification, state: str, user_id: int
     if state == STATE_PENDING:
         notification.handled_at, notification.handled_by, notification.handle_note = None, None, ""
     else:
-        notification.handled_at, notification.handled_by = utcnow(), user_id
+        notification.handled_at, notification.handled_by = app_now(), user_id
         notification.handle_note = note or ""
     return notification
 
 
 def purge_old(db: Session, keep_days: int = 90) -> int:
     """清理历史通知，避免无限增长（供 jobs CLI 调用）。"""
-    cutoff = utcnow() - timedelta(days=keep_days)
+    cutoff = app_now() - timedelta(days=keep_days)
     rows = db.query(Notification).filter(Notification.created_at < cutoff).all()
     for r in rows:
         db.delete(r)
