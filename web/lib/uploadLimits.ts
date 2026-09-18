@@ -44,11 +44,26 @@ export const CONTACT_ATTACHMENT_EXTENSIONS: readonly string[] = [
 ];
 
 /**
- * 图片类附件的可上传扩展名（项目白板素材）。
- * 后端附件接口只放行这三种图片格式，白板原先的 `accept="image/*"` 会放进
+ * 图片类附件的可上传扩展名（项目文档 Tab 的图片素材）。
+ * 后端附件接口只放行这三种图片格式，历史上 `accept="image/*"` 会放进
  * gif/webp 等必被服务端 400 的格式——这里收敛到真实可用的子集。
  */
 export const IMAGE_ATTACHMENT_EXTENSIONS: readonly string[] = [".png", ".jpg", ".jpeg"];
+
+/**
+ * 项目文档附件白名单（Excel / Word / PDF + 图片）。
+ *
+ * 后端 `ALLOWED_EXT` 同一集合（见 `api/routers/projects.py`），
+ * `ref_type=""` 的项目级附件即文档附件，与合同附件（`contract`）分开存放。
+ */
+export const DOCUMENT_ATTACHMENT_EXTENSIONS: readonly string[] = [
+  ".xlsx",
+  ".docx",
+  ".pdf",
+  ".png",
+  ".jpg",
+  ".jpeg",
+];
 
 /** 由白名单生成 `<input accept>` 值（无空格，顺序与白名单一致）。 */
 export function acceptFor(extensions: readonly string[]): string {

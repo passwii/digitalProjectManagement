@@ -7,6 +7,8 @@ import {
   CONTRACT_ATTACHMENT_EXTENSIONS,
   CONTACT_ATTACHMENT_ACCEPT,
   CONTACT_ATTACHMENT_EXTENSIONS,
+  DOCUMENT_ATTACHMENT_EXTENSIONS,
+  IMAGE_ATTACHMENT_EXTENSIONS,
   MAX_ATTACHMENT_SIZE,
   MAX_ATTACHMENT_SIZE_LABEL,
 } from "./uploadLimits";
@@ -44,5 +46,26 @@ describe("附件上传限制单一来源", () => {
     assert.equal(CONTACT_ATTACHMENT_ACCEPT, BACKEND_CONTACT_EXT.join(","));
     assert.ok(!CONTRACT_ATTACHMENT_ACCEPT.includes(" "));
     assert.ok(!CONTACT_ATTACHMENT_ACCEPT.includes(" "));
+  });
+
+  it("文档与图片白名单是后端可接受集合的子集（不提供必被 400 的格式）", () => {
+    // 前端允许什么，用户就会选什么；一旦白名单里出现后端不接受的扩展名，
+    // 用户只会看到一个没解释的失败。两个窄白名单必须都落在后端集合内。
+    for (const [name, list] of [
+      ["文档附件", DOCUMENT_ATTACHMENT_EXTENSIONS],
+      ["图片素材", IMAGE_ATTACHMENT_EXTENSIONS],
+    ] as const) {
+      for (const ext of list) {
+        assert.ok(
+          BACKEND_CONTRACT_EXT.includes(ext),
+          `${name}白名单含后端不接受的扩展名：${ext}`,
+        );
+      }
+      assert.equal(new Set(list).size, list.length, `${name}白名单存在重复项`);
+    }
+    // 文档附件区要能上传需求里的三种文档类型，缺一个这条功能就不完整
+    for (const ext of [".pdf", ".docx", ".xlsx"]) {
+      assert.ok(DOCUMENT_ATTACHMENT_EXTENSIONS.includes(ext), `文档白名单缺 ${ext}`);
+    }
   });
 });

@@ -329,10 +329,19 @@ export async function downloadFile(path: string, filename: string) {
   }
 }
 
-/** 需要鉴权的文件转浏览器对象 URL（用于图片预览，调用方负责 revokeObjectURL）。 */
-export async function fetchObjectUrl(path: string): Promise<string> {
+/**
+ * 需要鉴权的文件转浏览器对象 URL（图片 / PDF 预览用，调用方负责 revokeObjectURL）。
+ *
+ * `type` 是**安全参数**，不是装饰：下载响应头里的 `Content-Type` 来自上传时的客户端声明，
+ * 后端只校验扩展名、不校验 type，因此它不可信（`任意.pdf` + `text/html` 会原样回放）。
+ * blob URL 继承创建者源，而 token 在 `localStorage`，把这个类型交给 `<iframe>` 就等于
+ * 以应用同源执行攻击者写的 HTML。传入由**扩展名**定权的类型（见 `previewBlobType`）即可断开该链路：
+ * `blob.slice` 只改写类型、不重编码字节。不传 `type` 时保持原行为（如下载/缩略图路径的调用方）。
+ */
+export async function fetchObjectUrl(path: string, type?: string): Promise<string> {
   const res = await request<Response>(path, {}, true);
-  return URL.createObjectURL(await res.blob());
+  const blob = await res.blob();
+  return URL.createObjectURL(type ? blob.slice(0, blob.size, type) : blob);
 }
 
 // ---------------- 类型（对齐后端返回） ----------------

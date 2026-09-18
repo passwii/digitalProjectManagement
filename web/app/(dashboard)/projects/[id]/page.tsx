@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useCallback, useEffect, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
@@ -9,28 +9,30 @@ import {
 } from "@/lib/api";
 import { useMeta } from "@/lib/useMeta";
 import { expenseStatusLabel, expenseTone, fmtDate, fmtDateTime, fmtMoney } from "@/lib/labels";
-import { CONTRACT_ATTACHMENT_EXTENSIONS, IMAGE_ATTACHMENT_EXTENSIONS } from "@/lib/uploadLimits";
+import {
+  CONTRACT_ATTACHMENT_EXTENSIONS, DOCUMENT_ATTACHMENT_EXTENSIONS, IMAGE_ATTACHMENT_EXTENSIONS,
+  MAX_ATTACHMENT_SIZE_LABEL, formatFileSize,
+} from "@/lib/uploadLimits";
+import {
+  canPreviewInline, fileTypeLabel, isImageAttachment, previewBlobType,
+} from "@/lib/contentPreview";
+import { PROJECT_TABS, parseProjectTab, type ProjectTab } from "@/lib/projectTabs";
 import Badge from "@/components/ui/Badge";
 import Empty from "@/components/ui/Empty";
 import { LoadingBlock } from "@/components/ui/PageState";
-import { Dialog } from "@/components/ui/Modal";
 import FileDropZone from "@/components/ui/FileDropZone";
 import { useToast } from "@/components/ui/Toast";
 import MotionTabs from "@/components/motion/MotionTabs";
 import { useActivity } from "@/lib/useActivity";
 import { useUploadQueue } from "@/lib/useUploadQueue";
 import ProjectFormDialog from "../ProjectFormDialog";
+import AttachmentPreviewDialog from "./AttachmentPreviewDialog";
 import ProgressNodeDialog from "../../progress/ProgressNodeDialog";
 import ExpenseDialog from "../../costs/ExpenseDialog";
 
-const TABS = ["白板", "合同", "进度", "支出", "变更"] as const;
-type Tab = (typeof TABS)[number];
-
-function parseTab(raw: string | null): Tab {
-  if (raw && (TABS as readonly string[]).includes(raw)) return raw as Tab;
-  if (raw === "基本" || raw === "附件" || raw === "跟进") return "白板";
-  return "白板";
-}
+/** Tab 定义与 `?tab=` 兼容规则在 `@/lib/projectTabs`（纯逻辑、有单测）。 */
+const TABS = PROJECT_TABS;
+type Tab = ProjectTab;
 
 export default function ProjectDetailPage({ params }: { params: { id: string } }) {
   return (
@@ -46,35 +48,55 @@ function ProjectDetail({ pid }: { pid: number }) {
   const { userName } = useMeta();
   const toast = useToast();
   const { beginActivity } = useActivity();
-  const [tab, setTab] = useState<Tab>(() => parseTab(search.get("tab")));
+  const [tab, setTab] = useState<Tab>(() => parseProjectTab(search.get("tab")));
   const [project, setProject] = useState<Project | null>(null);
   const [content, setContent] = useState("");
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
-  const [assets, setAssets] = useState<Attachment[]>([]);
+  /** 项目级附件（`ref_type=""`）：图片进素材墙，其余（PDF/Word/Excel）进附件资料列表。 */
+  const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [contracts, setContracts] = useState<Attachment[]>([]);
+  /** 图片附件的对象 URL（缩略图用）；调用方负责 revoke，见 previewUrlsRef。 */
   const [previews, setPreviews] = useState<Record<number, string>>({});
   const [changes, setChanges] = useState<ProjectChange[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
-  const assetUploads = useUploadQueue();
+  const imageUploads = useUploadQueue();
+  const documentUploads = useUploadQueue();
   const contractUploads = useUploadQueue();
   const [err, setErr] = useState("");
   const [editOpen, setEditOpen] = useState(false);
   const [nodeOpen, setNodeOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [expenseOpen, setExpenseOpen] = useState(false);
+  /** 打开预览的文件（`null` = 未打开）。图片与 PDF 内联渲染，其余给出下载引导。 */
   const [filePreview, setFilePreview] = useState<Attachment | null>(null);
   const previewUrlsRef = useRef<string[]>([]);
   const hydratedRef = useRef(false);
   const objectUrlFor = useCallback(async (a: Attachment) => {
     try {
-      return await fetchObjectUrl(`/projects/${pid}/attachments/${a.id}/download`);
+      // 强制按扩展名定 blob MIME：这份 URL 会交给 <img> / <iframe>，
+      // 不能让上传时客户端声明的 Content-Type 决定字节怎么被解释（存储型 XSS）。
+      return await fetchObjectUrl(
+        `/projects/${pid}/attachments/${a.id}/download`,
+        previewBlobType(a) ?? undefined,
+      );
     } catch {
       return "";
     }
   }, [pid]);
+
+  // 图片与文档分开呈现：素材墙是缩略图网格，附件资料是文件行，
+  // 两者共用同一份后端列表（都是项目级附件），因此不重复展示同一个文件。
+  const documentRows = useMemo(
+    () => attachments.filter((a) => !isImageAttachment(a)),
+    [attachments],
+  );
+  const imageRows = useMemo(
+    () => attachments.filter(isImageAttachment),
+    [attachments],
+  );
 
   const loadAll = useCallback(async () => {
     const finish = beginActivity({ label: "加载项目档案", scope: "content" });
@@ -93,7 +115,7 @@ function ProjectDetail({ pid }: { pid: number }) {
       const pagedExpenses = unwrapPaged<Expense>(expenseRows);
       setProject(p);
       setContent(p.description || "");
-      setAssets(assetRows);
+      setAttachments(assetRows);
       setContracts(contractRows);
       setChanges(changeRows);
       setTasks(pagedTasks.items);
@@ -102,7 +124,8 @@ function ProjectDetail({ pid }: { pid: number }) {
 
       previewUrlsRef.current.forEach(URL.revokeObjectURL);
       previewUrlsRef.current = [];
-      const imageRows = assetRows.filter((a) => (a.content_type || "").startsWith("image/"));
+      // 缩略图只为图片附件生成：PDF 的 blob 动辄数 MB，缩略图位置实际用不到。
+      const imageRows = assetRows.filter(isImageAttachment);
       const pairs = await Promise.all(imageRows.map(async (a) => [a.id, await objectUrlFor(a)] as const));
       const next: Record<number, string> = {};
       for (const [id, url] of pairs) {
@@ -122,7 +145,7 @@ function ProjectDetail({ pid }: { pid: number }) {
   useEffect(() => { loadAll(); }, [loadAll]);
   useEffect(() => () => previewUrlsRef.current.forEach(URL.revokeObjectURL), []);
   useEffect(() => {
-    const t = parseTab(search.get("tab"));
+    const t = parseProjectTab(search.get("tab"));
     setTab(t);
   }, [search]);
 
@@ -130,7 +153,7 @@ function ProjectDetail({ pid }: { pid: number }) {
     if (!project || !hydratedRef.current) return;
     if (content === (project.description || "")) return;
     const timer = window.setTimeout(async () => {
-      const finish = beginActivity({ label: "保存项目白板", scope: "form" });
+      const finish = beginActivity({ label: "保存项目文档", scope: "form" });
       setSaveState("saving");
       try {
         const saved = await projectsApi.update(pid, { description: content });
@@ -152,18 +175,47 @@ function ProjectDetail({ pid }: { pid: number }) {
     router.replace(`/projects/${pid}?${q.toString()}`, { scroll: false });
   }
 
-  async function uploadAssets(files: File[]) {
+  /**
+   * 上传图片素材（素材墙）。
+   *
+   * 图片与文档走后端同一个项目级附件接口（`ref_type=""`），
+   * 分开的只是前端闸口：素材墙只收图片，附件区收 PDF/Word/Excel。
+   */
+  async function uploadImages(files: File[]) {
     if (!files.length) return;
-    const finish = beginActivity({ label: "上传项目素材", scope: "form" });
+    const finish = beginActivity({ label: "上传项目图片", scope: "form" });
     setBusy(true);
     try {
-      const result = await assetUploads.start(files, (file, options) =>
+      const result = await imageUploads.start(files, (file, options) =>
         projectsApi.upload(pid, file, "", options),
       );
       // 取消（切走页签 / 卸载）不算失败，也不刷新列表
       if (result.aborted) return;
       if (result.ok.length) {
-        toast.ok(result.ok.length === 1 ? "图片已上传到项目白板" : `${result.ok.length} 张图片已上传`);
+        toast.ok(result.ok.length === 1 ? "图片已上传" : `${result.ok.length} 张图片已上传`);
+      }
+      if (result.failed) toast.err(`${result.failed} 个文件上传失败，请查看失败原因`);
+      await loadAll();
+    } catch (e) {
+      toast.err(errText(e));
+    } finally {
+      setBusy(false);
+      finish();
+    }
+  }
+
+  /** 上传文档附件（PDF / Word / Excel / 图片，同一项目级附件接口）。 */
+  async function uploadDocuments(files: File[]) {
+    if (!files.length) return;
+    const finish = beginActivity({ label: "上传项目附件", scope: "form" });
+    setBusy(true);
+    try {
+      const result = await documentUploads.start(files, (file, options) =>
+        projectsApi.upload(pid, file, "", options),
+      );
+      if (result.aborted) return;
+      if (result.ok.length) {
+        toast.ok(result.ok.length === 1 ? "附件已上传" : `${result.ok.length} 个附件已上传`);
       }
       if (result.failed) toast.err(`${result.failed} 个文件上传失败，请查看失败原因`);
       await loadAll();
@@ -206,12 +258,12 @@ function ProjectDetail({ pid }: { pid: number }) {
     }
   }
 
-  async function removeAsset(a: Attachment) {
-    const finish = beginActivity({ label: "移除项目素材", scope: "form" });
+  async function removeAttachment(a: Attachment) {
+    const finish = beginActivity({ label: "移除项目附件", scope: "form" });
     setBusy(true);
     try {
       await projectsApi.deleteAttachment(pid, a.id);
-      toast.ok("素材已移除");
+      toast.ok("附件已移除");
       await loadAll();
     } catch (e) {
       toast.err(errText(e));
@@ -261,55 +313,104 @@ function ProjectDetail({ pid }: { pid: number }) {
         onChange={selectTab}
       >
 
-      {tab === "白板" && (
-        <section className="whiteboard-shell">
-          <div className="whiteboard-toolbar">
+      {tab === "文档" && (
+        <section className="doc-shell">
+          <div className="doc-toolbar">
             <div>
-              <strong>项目白板</strong>
+              <strong>项目文档</strong>
+              <span className="tiny">项目背景、目标、会议结论与下一步安排</span>
             </div>
-            <div className="whiteboard-actions">
-              <span className={`save-state ${saveState}`}>
+            <div className="doc-actions">
+              <span className={`save-state ${saveState}`} role="status">
                 {saveState === "saving" ? "保存中…" : saveState === "saved" ? "已自动保存" : saveState === "error" ? "保存失败" : "自动保存"}
               </span>
-              <FileDropZone
-                variant="button"
-                extensions={IMAGE_ATTACHMENT_EXTENSIONS}
-                items={assetUploads.items}
-                disabled={busy}
-                multiple
-                label={assetUploads.uploading ? "上传中…" : "上传图片"}
-                ariaLabel="上传项目白板图片"
-                onFiles={uploadAssets}
-              />
             </div>
           </div>
           <textarea
-            className="whiteboard-editor"
+            className="doc-editor"
             value={content}
             onChange={(e) => { setSaveState("idle"); setContent(e.target.value); }}
+            aria-label="项目文档正文"
             placeholder="在这里记录项目背景、目标、会议结论、现场情况或下一步安排…"
           />
-          <div className="whiteboard-assets">
-            {assets.length === 0 ? (
-              <div className="whiteboard-empty">上传的图片会依次显示在这里，形成项目素材墙。</div>
-            ) : assets.map((a) => (
-              <figure className="asset-tile" key={a.id}>
-                {(a.content_type || "").startsWith("image/") && previews[a.id] ? (
-                  <button type="button" className="asset-preview" onClick={() => setFilePreview(a)}>
-                    <img src={previews[a.id]} alt={a.filename} />
-                  </button>
-                ) : (
-                  <div className="asset-file">FILE</div>
-                )}
-                <figcaption>
-                  <span className="ellipsis" title={a.filename}>{a.filename}</span>
-                  <span className="asset-actions">
-                    <button type="button" onClick={() => download(a)}>下载</button>
-                    <button type="button" className="danger-link" onClick={() => removeAsset(a)}>移除</button>
-                  </span>
-                </figcaption>
-              </figure>
-            ))}
+
+          <div className="doc-block">
+            <div className="section-head">
+              <div>
+                <h2>附件资料</h2>
+                <p>支持 PDF / Word / Excel，单个文件不超过 {MAX_ATTACHMENT_SIZE_LABEL}；PDF 与图片可在窗口内直接预览。</p>
+              </div>
+              <FileDropZone
+                variant="button"
+                extensions={DOCUMENT_ATTACHMENT_EXTENSIONS}
+                items={documentUploads.items}
+                disabled={busy}
+                label={documentUploads.uploading ? "上传中…" : "上传附件"}
+                ariaLabel="上传项目附件"
+                onFiles={uploadDocuments}
+              />
+            </div>
+            {documentRows.length === 0 ? (
+              <div className="doc-empty">上传 PDF、Word 或 Excel 后，点「预览」可在窗口内查看；Word / Excel 浏览器无法渲染，下载后用本地应用打开。</div>
+            ) : (
+              <ul className="doc-files">
+                {documentRows.map((a) => (
+                  <li className="doc-file" key={a.id}>
+                    <span className="doc-file-type" aria-hidden="true">{fileTypeLabel(a)}</span>
+                    <span className="doc-file-name" title={a.filename}>{a.filename}</span>
+                    <span className="doc-file-size">{formatFileSize(a.size)}</span>
+                    <span className="doc-file-actions">
+                      <button type="button" className="linklike" onClick={() => setFilePreview(a)}>
+                        {canPreviewInline(a) ? "预览" : "查看"}
+                      </button>
+                      <button type="button" className="linklike" onClick={() => download(a)}>下载</button>
+                      <button type="button" className="linklike danger-link" onClick={() => removeAttachment(a)}>移除</button>
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+
+          <div className="doc-block">
+            <div className="section-head">
+              <div>
+                <h2>图片素材</h2>
+                <p>现场照片与截图，点击缩略图放大查看。</p>
+              </div>
+              <FileDropZone
+                variant="button"
+                extensions={IMAGE_ATTACHMENT_EXTENSIONS}
+                items={imageUploads.items}
+                disabled={busy}
+                multiple
+                label={imageUploads.uploading ? "上传中…" : "上传图片"}
+                ariaLabel="上传项目图片"
+                onFiles={uploadImages}
+              />
+            </div>
+            <div className="doc-assets">
+              {imageRows.length === 0 ? (
+                <div className="doc-empty">上传的图片会依次显示在这里，形成项目素材墙。</div>
+              ) : imageRows.map((a) => (
+                <figure className="asset-tile" key={a.id}>
+                  {previews[a.id] ? (
+                    <button type="button" className="asset-preview" onClick={() => setFilePreview(a)} aria-label={`预览 ${a.filename}`}>
+                      <img src={previews[a.id]} alt={a.filename} />
+                    </button>
+                  ) : (
+                    <div className="asset-file">{fileTypeLabel(a)}</div>
+                  )}
+                  <figcaption>
+                    <span className="ellipsis" title={a.filename}>{a.filename}</span>
+                    <span className="asset-actions">
+                      <button type="button" onClick={() => download(a)}>下载</button>
+                      <button type="button" className="danger-link" onClick={() => removeAttachment(a)}>移除</button>
+                    </span>
+                  </figcaption>
+                </figure>
+              ))}
+            </div>
           </div>
         </section>
       )}
@@ -474,17 +575,12 @@ function ProjectDetail({ pid }: { pid: number }) {
           setExpenses(unwrapPaged<Expense>(rows).items);
         }}
       />
-      <Dialog
-        open={!!filePreview}
+      <AttachmentPreviewDialog
+        attachment={filePreview}
+        loadUrl={objectUrlFor}
         onClose={() => setFilePreview(null)}
-        size="lg"
-        title={filePreview?.filename || "图片预览"}
-        footer={<button className="btn-primary" onClick={() => setFilePreview(null)}>关闭</button>}
-      >
-        {filePreview && previews[filePreview.id] && (
-          <img className="image-preview" src={previews[filePreview.id]} alt={filePreview.filename} />
-        )}
-      </Dialog>
+        onDownload={download}
+      />
     </div>
   );
 }

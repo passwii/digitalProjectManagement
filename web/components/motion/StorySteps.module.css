@@ -1,0 +1,62 @@
+/*
+ * 登录页三段式进度动效的视觉层。
+ *
+ * 线是「轨道 + 填充」两层：轨道常驻（深色背景上的细白线），
+ * 填充用 `transform-origin: left` + `scaleX` 由 0 推到 1。
+ * 用 transform 而不是 width，是为了让整条动效只走合成层、不触发重排
+ * （三条线同时演进时，layout 抖动在登录页这种首屏尤其明显）。
+ */
+.steps {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  max-width: 680px;
+}
+
+.step {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.track {
+  position: relative;
+  display: block;
+  height: 1px;
+  background: rgba(255, 255, 255, .22);
+}
+
+.fill {
+  position: absolute;
+  inset: 0;
+  display: block;
+  background: linear-gradient(90deg, rgba(104, 175, 255, .55), #68AFFF);
+  /* 从左往右推：与阅读方向一致，读起来就是「进度在往前走」 */
+  transform-origin: left center;
+  /* 推满后线尾留一个亮点，强化「这一步完成了」 */
+  box-shadow: 0 0 12px rgba(104, 175, 255, .45);
+}
+
+.meta {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.no {
+  font-family: var(--font-mono);
+  color: #68AFFF;
+  font-size: 12px;
+}
+
+.label {
+  color: rgba(244, 249, 255, .88);
+  font-size: 13px;
+  letter-spacing: 0.06em;
+}
+
+/* 窄屏：与旧样式一致地隐藏三段式，避免与标题争夺首屏高度 */
+@media (max-width: 980px) {
+  .steps { display: none; }
+}

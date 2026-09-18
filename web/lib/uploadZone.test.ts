@@ -127,7 +127,7 @@ describe("拖拽准入：白名单与体积上限（拒绝不静默）", () => {
     assert.equal(partitionFiles([doc], CONTACT_ATTACHMENT_EXTENSIONS).rejected.length, 0);
   });
 
-  it("白板图片只放行后端真正接受的三种图片格式", () => {
+  it("文档 Tab 的图片素材只放行后端真正接受的三种图片格式", () => {
     const gif = file("动图.gif", 1024, "image/gif");
     const { accepted, rejected } = partitionFiles([gif], IMAGE_ATTACHMENT_EXTENSIONS);
     assert.equal(accepted.length, 0);

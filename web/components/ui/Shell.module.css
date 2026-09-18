@@ -48,9 +48,10 @@
 .brandText { min-width: 0; display: flex; flex-direction: column; }
 .brandText b {
   color: #fff;
-  font-family: "Songti SC", "STSong", "Noto Serif SC", serif;
+  font-family: var(--font-brand);
   font-size: 16px;
-  letter-spacing: .08em;
+  font-weight: 700;
+  letter-spacing: .06em;
 }
 .collapsed .brandText { display: none; }
 

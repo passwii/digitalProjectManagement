@@ -67,10 +67,10 @@
 }
 
 .mark {
-  font-family: "Songti SC", "STSong", "Noto Serif SC", serif;
-  font-size: 20px;
+  font-family: var(--font-brand);
   font-weight: 700;
-  letter-spacing: 0.08em;
+  font-size: 20px;
+  letter-spacing: 0.06em;
 }
 
 .edition {
@@ -96,11 +96,11 @@
 
 .storyMain h1 {
   margin: 0;
-  font-family: "Songti SC", "STSong", "Noto Serif SC", serif;
+  font-family: var(--font-brand);
   font-size: clamp(48px, 6vw, 86px);
-  font-weight: 700;
+  font-weight: 800;
   line-height: 1.04;
-  letter-spacing: 0.02em;
+  letter-spacing: 0.01em;
 }
 
 .storyMain h1 span {
@@ -117,31 +117,9 @@
   line-height: 1.85;
 }
 
+/* 三段式进度的位置容器；线、编号、文案的外观与动效都在 StorySteps 自己那套样式里 */
 .storyFoot {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 14px;
   max-width: 680px;
-}
-
-.storyFoot div {
-  padding-top: 14px;
-  border-top: 1px solid rgba(255,255,255,.22);
-  display: flex;
-  align-items: baseline;
-  gap: 10px;
-}
-
-.storyFoot b {
-  font-family: var(--font-mono);
-  color: #68AFFF;
-  font-size: 12px;
-}
-
-.storyFoot span {
-  color: rgba(244,249,255,.88);
-  font-size: 13px;
-  letter-spacing: 0.06em;
 }
 
 .auth {
