@@ -94,6 +94,8 @@ def _p(p: Project):
         "budget_total": p.budget_total,
         "priority": p.priority,
         "client": p.client,
+        "client_contact": p.client_contact or "",
+        "client_phone": p.client_phone or "",
         "description": p.description,
         "contract_status": p.contract_status or "",
         "forward_contract": p.forward_contract or "",
@@ -188,6 +190,8 @@ class ProjectIn(BaseModel):
     budget_total: float = 0
     priority: str = "中"
     client: str = ""
+    client_contact: str = ""
+    client_phone: str = ""
     description: str = ""
     contract_status: str = ""
     forward_contract: str = ""
@@ -375,6 +379,8 @@ def create_project(
                 budget_total=body.budget_total,
                 priority=body.priority,
                 client=body.client,
+                client_contact=body.client_contact,
+                client_phone=body.client_phone,
                 description=body.description,
                 contract_status=body.contract_status,
                 forward_contract=body.forward_contract,
@@ -460,6 +466,8 @@ def update_project(
         "budget_total",
         "priority",
         "client",
+        "client_contact",
+        "client_phone",
         "description",
         "contract_status",
         "forward_contract",
