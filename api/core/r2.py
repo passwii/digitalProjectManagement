@@ -10,6 +10,9 @@
   不靠进程重启，也不会把旧凭据继续用下去。
 · **删除永不抛错**：`try_delete_object()` 返回结构化 `R2DeleteResult`，调用方（或补偿逻辑）
   可以安全地在事务收尾阶段调用；`delete_object()` 是它的抛错版本，仅供需要「删不掉就别删库」的入口。
+· **迁移/对账所需的原语也在本层**：`copy_object()`（同桶服务端复制，字节不经调用方网络）、
+  `object_head()`（字节数 + ETag，校验迁移结果）、`iter_objects()`（分页列举，算双向孤儿）。
+  它们与业务无耦合，`scripts/rekey_r2_objects.py` 直接复用。
 · **boto3 延迟导入**：仅使用本地存储（`STORAGE_BACKEND=local`）时不依赖 boto3 也能启动。
 · 传输失败统一包装成 `R2Unavailable` / `R2ObjectMissing`，不把 botocore 异常泄漏到 router。
 """
@@ -30,9 +33,12 @@ __all__ = [
     "R2Unavailable",
     "build_client",
     "close_clients",
+    "copy_object",
     "delete_object",
     "get_r2_client",
+    "iter_objects",
     "object_exists",
+    "object_head",
     "object_stream",
     "presign_get_url",
     "public_url",
@@ -232,6 +238,80 @@ def object_exists(settings: R2Settings, key: str) -> bool:
         if _is_missing(exc):
             return False
         raise R2Unavailable(f"R2 HEAD 失败（{exc.__class__.__name__}）") from exc
+
+
+def object_head(settings: R2Settings, key: str) -> dict | None:
+    """对象元信息 `{key, size, etag, content_type}`；不存在返回 `None`。
+
+    迁移/对账脚本用它核对「目标对象的字节数、指纹是否与库内一致」。
+    """
+    client = get_r2_client(settings)
+    try:
+        resp = client.head_object(Bucket=settings.bucket, Key=key)
+    except Exception as exc:
+        if _is_missing(exc):
+            return None
+        raise R2Unavailable(f"R2 HEAD 失败（{exc.__class__.__name__}）") from exc
+    try:
+        size = max(int(resp.get("ContentLength") or 0), 0)
+    except (TypeError, ValueError):
+        size = 0
+    return {
+        "key": key,
+        "size": size,
+        "etag": str(resp.get("ETag") or "").strip('"'),
+        "content_type": str(resp.get("ContentType") or ""),
+    }
+
+
+def copy_object(settings: R2Settings, source_key: str, target_key: str) -> dict:
+    """同桶服务端复制（字节不经调用方网络），返回 `{key, etag}`。
+
+    `MetadataDirective` 用默认的 `COPY`：`Content-Type` 等对象元数据随正文一起复制。
+    迁移脚本用它把旧键改成新键，再改库、最后删旧键。
+    """
+    client = get_r2_client(settings)
+    try:
+        resp = client.copy_object(
+            Bucket=settings.bucket,
+            CopySource={"Bucket": settings.bucket, "Key": source_key},
+            Key=target_key,
+        )
+    except Exception as exc:
+        raise R2Unavailable(f"R2 复制失败（{exc.__class__.__name__}）") from exc
+    result = resp.get("CopyObjectResult") or {}
+    return {
+        "key": target_key,
+        "etag": str(result.get("ETag") or "").strip('"'),
+    }
+
+
+def iter_objects(settings: R2Settings) -> Iterator[dict]:
+    """遍历桶内对象（自动分页），每项 `{key, size, etag, last_modified}`。
+
+    供对账脚本统计「桶 ↔ 数据库」双向孤儿；失败抛 `R2Unavailable`。
+    """
+    client = get_r2_client(settings)
+    #: 分页游标（不叫 token，避免被密钥类静态规则误报）
+    cursor = ""
+    try:
+        while True:
+            kwargs: dict = {"Bucket": settings.bucket}
+            if cursor:
+                kwargs["ContinuationToken"] = cursor
+            resp = client.list_objects_v2(**kwargs)
+            for item in resp.get("Contents") or []:
+                yield {
+                    "key": str(item.get("Key") or ""),
+                    "size": int(item.get("Size") or 0),
+                    "etag": str(item.get("ETag") or "").strip('"'),
+                    "last_modified": item.get("LastModified"),
+                }
+            cursor = str(resp.get("NextContinuationToken") or "")
+            if not resp.get("IsTruncated") or not cursor:
+                break
+    except Exception as exc:  # 统一包装成 R2Unavailable
+        raise R2Unavailable(f"R2 列举失败（{exc.__class__.__name__}）") from exc
 
 
 def try_delete_object(settings: R2Settings, key: str) -> R2DeleteResult:

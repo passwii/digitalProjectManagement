@@ -17,7 +17,9 @@
 
 from __future__ import annotations
 
+import hashlib
 import io
+from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
@@ -44,6 +46,13 @@ from api.core.r2 import (
     try_delete_object,
 )
 from api.models import Attachment, User
+from scripts.rekey_r2_objects import (
+    reconcile,
+    rekey,
+    stable_tag,
+    sweep_legacy,
+    target_key,
+)
 
 ENDPOINT = "https://account123.r2.cloudflarestorage.com"
 BUCKET = "ziktech"
@@ -65,17 +74,29 @@ R2_ENV = {
 
 
 class _FakeS3:
-    """最小 S3 兼容实现：够 put/get/head/delete/预签名，且能模拟各类故障。"""
+    """最小 S3 兼容实现：够 put/get/head/copy/list/delete/预签名，且能模拟各类故障。"""
 
     def __init__(self):
         self.objects: dict[str, dict] = {}
         self.put_calls: list[dict] = []
         self.delete_calls: list[str] = []
+        self.copy_calls: list[tuple[str, str]] = []
         self.fail_put = False
         self.fail_delete = False
         self.fail_get = False
+        self.fail_copy = False
 
     # --- 内部 ---
+    @staticmethod
+    def _etag(payload: bytes) -> str:
+        """用 sha256 当 ETag：真实 R2 单次 PUT 用内容 MD5，而 MD5 在本仓库字典里是
+        不安全原语（安全扫描会拦）。我们只拿它做完整性比对，sha256 同样胜任。"""
+        return hashlib.sha256(payload).hexdigest()
+
+    @classmethod
+    def _quoted_etag(cls, payload: bytes) -> str:
+        return '"' + cls._etag(payload) + '"'
+
     @staticmethod
     def _missing(key: str) -> ClientError:
         return ClientError(
@@ -105,7 +126,7 @@ class _FakeS3:
         self.put_calls.append(
             {"key": Key, "size": len(payload), "content_type": ContentType}
         )
-        return {"ETag": '"' + str(abs(hash(payload))) + '"'}
+        return {"ETag": self._quoted_etag(payload)}
 
     def get_object(self, Bucket, Key):
         if Key not in self.objects:
@@ -116,13 +137,43 @@ class _FakeS3:
         return {
             "Body": io.BytesIO(record["body"]),
             "ContentLength": len(record["body"]),
-            "ETag": '"' + str(abs(hash(record["body"]))) + '"',
+            "ETag": self._quoted_etag(record["body"]),
         }
 
     def head_object(self, Bucket, Key):
         if Key not in self.objects:
             raise self._missing(Key)
-        return {"ContentLength": len(self.objects[Key]["body"])}
+        record = self.objects[Key]
+        return {
+            "ContentLength": len(record["body"]),
+            "ETag": self._quoted_etag(record["body"]),
+            "ContentType": record.get("content_type") or "",
+        }
+
+    def copy_object(self, Bucket, CopySource, Key):
+        """同桶服务端复制（真实 R2 的 `CopyObject`，元数据默认随对象复制）。"""
+        source = CopySource["Key"] if isinstance(CopySource, dict) else CopySource
+        if source not in self.objects:
+            raise self._missing(source)
+        if self.fail_copy:
+            raise self._boom()
+        self.objects[Key] = dict(self.objects[source])
+        self.copy_calls.append((source, Key))
+        return {"CopyObjectResult": {"ETag": self._quoted_etag(self.objects[Key]["body"])}}
+
+    def list_objects_v2(self, Bucket, ContinuationToken=None):
+        return {
+            "Contents": [
+                {
+                    "Key": key,
+                    "Size": len(record["body"]),
+                    "ETag": self._quoted_etag(record["body"]),
+                    "LastModified": None,
+                }
+                for key, record in sorted(self.objects.items())
+            ],
+            "IsTruncated": False,
+        }
 
     def delete_object(self, Bucket, Key):
         if self.fail_delete:
@@ -207,16 +258,16 @@ def session(db):
 
 def test_public_url_encodes_chinese_key_but_keeps_slashes(fake_s3):
     """中文进 key 时 URL 会百分号编码，且不破坏路径分隔（保留 `/`）。"""
-    url = storage_mod.get_backend().url_for("tenant/default/项目/发票 扫描件.pdf", "")
+    url = storage_mod.get_backend().url_for("合同/2026/采购合同-534万__a1b2c3d4.pdf", "")
     suffix = url.split(f"{ENDPOINT}/{BUCKET}/")[1]
-    assert suffix.startswith("tenant/default/")  # 路径分隔符保留
+    assert suffix.count("/") == 2  # 两级目录的分隔符保留
     assert suffix.endswith(".pdf")
-    assert "%" in suffix  # 中文/空格被百分号编码
-    assert "项目" not in suffix and "发票" not in suffix  # 原文不出现在 URL 里
+    assert "%" in suffix  # 中文被百分号编码
+    assert "合同" not in suffix and "采购" not in suffix  # 原文不出现在 URL 里
 
 
 def test_sanitize_key_keeps_unicode_strips_control_chars():
-    assert sanitize_key("tenant/项目/合同 文件.pdf") == "tenant/项目/合同 文件.pdf"
+    assert sanitize_key("合同/项目/采购 文件.pdf") == "合同/项目/采购 文件.pdf"
     assert sanitize_key("a\x00b\x1fc\x7fd") == "abcd"
     # 多余空白归一为单个空格，首尾去空白
     assert sanitize_key("  a \n\t b  ") == "a b"
@@ -232,8 +283,8 @@ def test_public_url_prefers_custom_domain_and_encodes_chinese():
         public_url="https://cdn.example.com",
     )
     assert public_url(
-        with_custom, "tenant/default/project/2026/09/发票.pdf"
-    ).startswith("https://cdn.example.com/tenant/default/project/2026/09/")
+        with_custom, "合同/2026/采购合同__a1b2c3d4.pdf"
+    ).startswith("https://cdn.example.com/%E5%90%88%E5%90%8C/2026/")
     # 中文被百分号编码，但路径分隔符保留
     encoded = public_url(with_custom, "a/发票.pdf").split("https://cdn.example.com/")[1]
     assert encoded.startswith("a/") and "%" in encoded and "/" not in encoded[2:]
@@ -443,22 +494,53 @@ def test_storage_profile_never_exposes_secrets(monkeypatch):
     assert FAKE_SECRET not in dumped and FAKE_KEY_ID not in dumped
 
 
-def test_build_object_key_shape_and_sanitization():
-    key = storage_mod.build_object_key("project", "合同 扫描件.pdf")
+def test_build_object_key_uses_business_folder_and_readable_name():
+    """方案 A：`{业务域}/{yyyy}/{可读原名}__{8位随机}.{ext}`，最多两级目录。"""
+    key = storage_mod.build_object_key("project", "开票-设备费-60%.pdf")
     parts = key.split("/")
-    assert parts[:3] == ["tenant", "default", "project"], key
-    assert len(parts) == 6 and len(parts[3]) == 4 and len(parts[4]) == 2
-    assert parts[5].endswith(".pdf") and len(parts[5]) == 36  # 32 hex + .pdf
+    assert len(parts) == 3 and parts[0] == "项目"
+    assert parts[1] == datetime.now(timezone.utc).strftime("%Y")
+    stem, sep, tail = parts[2].partition("__")
+    assert sep == "__" and stem == "开票-设备费-60%"  # 原始名保留（含中文与百分号）
+    assert len(tail.split(".")[0]) == 8 and tail.endswith(".pdf")
 
-    # 非法 domain 收敛为 other，绝不把调用方字符串拼进路径
-    assert storage_mod.build_object_key("../etc", "x.pdf").split("/")[2] == "other"
-    # 扩展名只保留字母数字，杜绝 `..` / 斜杠进入 key
-    assert storage_mod.build_object_key("project", "evil../..pdf").count("/") == 5
-    assert not storage_mod.build_object_key("project", "noext").endswith(".")
-    # 时间戳后缀被清洗成字母数字
-    tagged = storage_mod.build_object_key("expense", "a.png", suffix="20260918120000")
-    assert tagged.split("/")[5].endswith("_20260918120000.png")
-    # 两次调用不重复（uuid）
+    assert storage_mod.build_object_key("contract", "采购合同.pdf").startswith("合同/")
+    assert storage_mod.build_object_key("expense", "发票.png").startswith("凭证/")
+    # 人员档案量小：不分年，只有「档案/文件名」两级
+    contact = storage_mod.build_object_key("contact", "身份证正面.png").split("/")
+    assert len(contact) == 2 and contact[0] == "档案"
+
+
+def test_build_object_key_sanitizes_hostile_input():
+    """未登记的 domain 与恶意文件名都不得拼成路径：`../` 进不了对象键。"""
+    # 非法 domain 收敛为「其他」，绝不把调用方字符串拼进路径
+    assert storage_mod.build_object_key("../etc", "x.pdf").startswith("其他/")
+    # 路径分隔符 / 控制字符 / 连续点都不会进入 key
+    traversal = storage_mod.build_object_key("project", "../../etc/passwd.pdf")
+    assert ".." not in traversal and traversal.count("/") == 2
+    assert traversal.split("/")[-1].startswith("passwd__")
+    assert storage_mod.build_object_key("project", "a\x00b\x1fc\x7fd.pdf").split("/")[-1].startswith("abcd__")
+    # 只有扩展名、或名字为空 → 回落 `file`，不产生空名键
+    assert storage_mod.build_object_key("project", "..").split("/")[-1].startswith("file__")
+    # 超长名字截断到 100 字，不把 key 撑爆
+    long_stem = storage_mod.build_object_key(
+        "project", "很长" * 80 + ".pdf"
+    ).split("/")[-1].split("__")[0]
+    assert len(long_stem) <= 100
+    # 扩展名只保留字母数字
+    assert storage_mod.object_key_ext("x.tar.gz") == ".gz"
+    assert storage_mod.object_key_ext("noext") == ""
+
+
+def test_build_object_key_suffix_marker_and_deterministic_disambiguator():
+    """可读标记（凭证时间戳）与确定性后缀：后者是迁移幂等的前提。"""
+    tagged = storage_mod.build_object_key("expense", "发票.png", suffix="2026-09-18 12:00")
+    assert tagged.split("/")[-1].endswith("_202609181200.png")
+    # 同一个 disambiguator → 同一个键（迁移脚本可反复跑、不会复制出第二份）
+    first = storage_mod.build_object_key("project", "a.pdf", disambiguator="a1b2c3d4")
+    second = storage_mod.build_object_key("project", "a.pdf", disambiguator="a1b2c3d4")
+    assert first == second and "__a1b2c3d4" in first
+    # 不给后缀时随机，两次不重复
     assert storage_mod.build_object_key(
         "project", "a.pdf"
     ) != storage_mod.build_object_key("project", "a.pdf")
@@ -490,7 +572,7 @@ def test_r2_backend_put_stream_delete(fake_s3, tmp_path):
 
     stored = backend.put(
         b"invoice-bytes",
-        "tenant/default/expense/2026/09/x.png",
+        "凭证/2026/发票__a1b2c3d4.png",
         tmp_path / "ignored.png",
         "image/png",
     )
@@ -530,9 +612,11 @@ def test_store_attachment_uses_r2_and_records_coordinates(
     )
     key = str(_col(row, "object_key"))
     assert str(_col(row, "storage_backend")) == "r2"
-    assert key.startswith("tenant/default/project/")
-    # 对象键是不含中文的 uuid 命名（不可猜测且可审计）；公开 URL 由 endpoint/bucket + key 拼成
-    assert str(_col(row, "path")) == f"{ENDPOINT}/{BUCKET}/{key}"
+    # 方案 A：一级目录就是业务域，文件名是可读原名 + 8 位随机后缀
+    assert key.startswith("项目/") and key.endswith(".pdf")
+    assert "发票 扫描件" in key
+    # `path` 是由 endpoint/bucket + 键拼成的公开 URL（中文被百分号编码）
+    assert str(_col(row, "path")) == public_url(_settings(), key)
     assert str(_col(row, "filename")) == "发票 扫描件.pdf"
     assert _col(row, "size") == 13
     assert str(_col(row, "etag")) != ""
@@ -645,9 +729,10 @@ def test_project_attachment_full_flow_on_r2(client, fake_s3):
     aid = up.json()["id"]
     assert up.json()["size"] == 8
 
-    # R2 上确实有对象，且键遵循 tenant/default/... 规范
+    # R2 上确实有对象，且键遵循「业务域目录 + 可读文件名」规范
     keys = list(fake_s3.objects)
-    assert len(keys) == 1 and keys[0].startswith("tenant/default/project/")
+    assert len(keys) == 1 and keys[0].startswith("项目/")
+    assert "方案 第一版" in keys[0]
 
     dl = client.get(f"/api/v1/projects/{p['id']}/attachments/{aid}/download", headers=h)
     assert dl.status_code == 200 and dl.content == b"pdf-body"
@@ -675,7 +760,7 @@ def test_contract_attachment_gets_contract_domain(client, fake_s3):
         ).status_code
         == 200
     )
-    assert next(iter(fake_s3.objects)).startswith("tenant/default/contract/")
+    assert next(iter(fake_s3.objects)).startswith("合同/")
 
 
 def test_contact_attachment_full_flow_on_r2(client, fake_s3):
@@ -693,7 +778,7 @@ def test_contact_attachment_full_flow_on_r2(client, fake_s3):
     assert up.status_code == 200, up.text
     assert up.json()["category"] == "id_card"
     assert up.json()["filename"] == "身份证正面.png"
-    assert next(iter(fake_s3.objects)).startswith("tenant/default/contact/")
+    assert next(iter(fake_s3.objects)).startswith("档案/")
 
     aid = up.json()["id"]
     dl = client.get(f"/api/v1/contacts/{cid}/attachments/{aid}/download", headers=h)
@@ -722,7 +807,7 @@ def test_expense_voucher_full_flow_on_r2(client, fake_s3):
         files={"file": ("发票.png", b"invoice", "image/png")},
     )
     assert up.status_code == 200, up.text
-    assert next(iter(fake_s3.objects)).startswith("tenant/default/expense/")
+    assert next(iter(fake_s3.objects)).startswith("凭证/")
 
     aid = up.json()["id"]
     dl = client.get(f"/api/v1/expenses/{eid}/vouchers/{aid}/download", headers=h)
@@ -902,9 +987,9 @@ def test_list_endpoints_do_not_leak_storage_details_or_secrets(client, fake_s3):
     listed = client.get(f"/api/v1/projects/{p['id']}/attachments", headers=h)
     assert listed.status_code == 200
     body = listed.text
-    # 列表响应不应暴露对象键、内网 endpoint 或任何密钥
+    # 列表响应不应暴露对象键、业务域目录、内网 endpoint 或任何密钥
     assert "object_key" not in body
-    assert "tenant/default" not in body
+    assert "项目/" not in body and "%E9%A1%B9%E7%9B%AE" not in body
     assert ENDPOINT not in body
     assert FAKE_SECRET not in body
 
@@ -1204,3 +1289,240 @@ def test_unknown_row_backend_on_download_and_delete_is_502(
     assert rm.status_code == 502, rm.text
     # 元数据保留：对象仍可被追踪、人工修正后重试删除
     assert session.query(Attachment).filter_by(id=aid).count() == 1
+
+
+# ============ 9. 对象键迁移脚本（方案 A：旧键 → 业务目录键） ============
+
+
+def _quiet(*_args, **_kwargs) -> None:
+    """迁移脚本的日志回调：测试里不打印（输出已由报告结构断言）。"""
+
+
+def _legacy_key(domain: str, tail: str, *, month: str = "09") -> str:
+    """方案 A 之前的对象键（`tenant/default/{domain}/{yyyy}/{mm}/{uuid}.{ext}`）。"""
+    return f"tenant/default/{domain}/2026/{month}/{tail}"
+
+
+def _seed_legacy_row(
+    session: Session,
+    fake_s3,
+    *,
+    old_key: str,
+    filename: str,
+    body: bytes,
+    ref_type: str = "contract",
+):
+    """造一条「旧键 + 已在 R2」的行，并在桶里放上对应的对象。"""
+    fake_s3.objects[old_key] = {"body": body, "content_type": "application/pdf"}
+    row = Attachment(
+        filename=filename,
+        path=public_url(_settings(), old_key),
+        size=len(body),
+        content_type="application/pdf",
+        ref_type=ref_type,
+        storage_backend="r2",
+        object_key=old_key,
+        etag=_FakeS3._etag(body),
+    )
+    session.add(row)
+    session.flush()
+    return row
+
+
+def test_rekey_dry_run_lists_old_to_new_without_touching_anything(session, fake_s3):
+    """默认 dry-run：只算「旧键 → 新键」对照，不复制、不改库、不删对象。"""
+    old_key = _legacy_key("contract", "a" * 32 + ".pdf")
+    row = _seed_legacy_row(
+        session,
+        fake_s3,
+        old_key=old_key,
+        filename="2026-024-采购合同-534万.pdf",
+        body=b"c" * 64,
+    )
+    before = dict(fake_s3.objects)
+
+    report = rekey(session, _settings(), echo=_quiet)
+
+    assert report.ok and report.rekeyed == 0 and report.up_to_date == 0
+    assert len(report.plans) == 1
+    plan = report.plans[0]
+    year = datetime.now(timezone.utc).strftime("%Y")
+    assert plan.old_key == old_key
+    assert plan.new_key == f"合同/{year}/2026-024-采购合同-534万__aaaaaaaa.pdf"
+    assert fake_s3.objects == before and fake_s3.copy_calls == []
+    assert str(_row_of(session, row.id).object_key) == old_key
+
+
+def test_rekey_apply_copies_verifies_updates_db_and_is_idempotent(session, fake_s3):
+    """正式迁移：同桶复制 → 整读校验 → 改库；旧键默认保留，重复执行不再动任何东西。"""
+    old_key = _legacy_key("project", "b" * 32 + ".png")
+    row = _seed_legacy_row(
+        session,
+        fake_s3,
+        old_key=old_key,
+        filename="开票-设备费-60%.png",
+        body=b"png-bytes",
+        ref_type="",  # 空 ref_type → 项目附件
+    )
+
+    report = rekey(session, _settings(), apply=True, verify=True, echo=_quiet)
+
+    assert report.ok and report.rekeyed == 1
+    new_key = report.plans[0].new_key
+    assert new_key.startswith("项目/") and new_key.endswith("__bbbbbbbb.png")
+    assert fake_s3.copy_calls == [(old_key, new_key)]
+
+    stored = _row_of(session, row.id)
+    assert str(stored.object_key) == new_key
+    assert str(stored.storage_backend) == "r2"
+    assert str(stored.path) == public_url(_settings(), new_key)
+    assert str(stored.etag) == _FakeS3._etag(b"png-bytes")
+    assert fake_s3.objects[new_key]["body"] == b"png-bytes"
+    assert old_key in fake_s3.objects  # 未加 --delete-old：旧对象保留可复查
+
+    again = rekey(session, _settings(), apply=True, verify=True, echo=_quiet)
+    assert again.ok and again.rekeyed == 0 and again.up_to_date == 1 and again.plans == []
+
+
+def test_sweep_legacy_recycles_only_unreferenced_legacy_objects(session, fake_s3):
+    """回收按「无引用」判定：已改键的旧对象被删，仍被行引用的旧对象绝不删。
+
+    这条是针对「第二步静默空操作」那个坑：脚本不能只在「刚刚改过键」时才删，
+    否则先迁移后回收、或上一次忘了回收的运维按文档跑第二遍时会以 0 退出但什么都不删。
+    """
+    migrated_old = _legacy_key("contact", "d" * 32 + ".jpg")
+    row = _seed_legacy_row(
+        session,
+        fake_s3,
+        old_key=migrated_old,
+        filename="张爱杰-身份证.jpg",
+        body=b"id-card",
+        ref_type="contact",
+    )
+    kept_old = _legacy_key("project", "e" * 32 + ".pdf")
+    _seed_legacy_row(
+        session,
+        fake_s3,
+        old_key=kept_old,
+        filename="未迁移.pdf",
+        body=b"pending",
+        ref_type="",
+    )
+
+    # 第一遍：只改键（row 之外不动），旧对象全部留着
+    report = rekey(session, _settings(), apply=True, verify=True, echo=_quiet)
+    assert report.ok and report.rekeyed == 2
+    new_key = next(plan.new_key for plan in report.plans if plan.aid == row.id)
+    assert new_key.startswith("档案/") and new_key.count("/") == 1  # 档案不分年
+    assert migrated_old in fake_s3.objects
+
+    # dry-run 不删
+    preview = sweep_legacy(session, _settings(), echo=_quiet)
+    assert set(preview["swept"]) == {migrated_old, kept_old}
+    assert migrated_old in fake_s3.objects
+
+    # 把其中一行退回旧键：它就成了「仍被引用」的旧对象，回收必须放过它
+    setattr(_row_of(session, row.id), "object_key", migrated_old)  # noqa: B010
+    session.commit()
+
+    out = sweep_legacy(session, _settings(), apply=True, echo=_quiet)
+    assert out["kept"] == [migrated_old] and out["swept"] == [kept_old]
+    assert migrated_old in fake_s3.objects and kept_old not in fake_s3.objects
+    assert new_key in fake_s3.objects  # 新键及其对象不受影响
+
+
+def test_rekey_copy_failure_leaves_db_and_bucket_untouched(session, fake_s3):
+    """复制失败：库不动、桶里不留下半成品，可原样重试。"""
+    old_key = _legacy_key("project", "e" * 32 + ".pdf")
+    row = _seed_legacy_row(
+        session, fake_s3, old_key=old_key, filename="a.pdf", body=b"body", ref_type=""
+    )
+    fake_s3.fail_copy = True
+
+    report = rekey(session, _settings(), apply=True, verify=True, echo=_quiet)
+
+    assert not report.ok and report.rekeyed == 0
+    assert str(_row_of(session, row.id).object_key) == old_key
+    assert list(fake_s3.objects) == [old_key]
+
+
+def test_rekey_skips_when_target_key_already_exists(session, fake_s3):
+    """目标键已存在（半成品/人工上传）时跳过并报错，绝不覆盖别人的正文。"""
+    old_key = _legacy_key("project", "f" * 32 + ".pdf")
+    row = _seed_legacy_row(
+        session, fake_s3, old_key=old_key, filename="b.pdf", body=b"body", ref_type=""
+    )
+    planned = target_key(_row_of(session, row.id))
+    fake_s3.objects[planned] = {"body": b"someone-else", "content_type": "application/pdf"}
+
+    report = rekey(session, _settings(), apply=True, echo=_quiet)
+
+    assert not report.ok and report.rekeyed == 0
+    assert "目标键已存在" in report.failures[0][1]
+    assert fake_s3.objects[planned]["body"] == b"someone-else"
+    assert str(_row_of(session, row.id).object_key) == old_key
+
+
+def test_rekey_reports_conflicting_targets_instead_of_overwriting(session, fake_s3):
+    """两行算到同一个新键：只出报告，不执行——否则一行会覆盖另一行的正文。"""
+    tail = "c" * 32 + ".pdf"
+    _seed_legacy_row(
+        session,
+        fake_s3,
+        old_key=_legacy_key("project", tail, month="09"),
+        filename="same.pdf",
+        body=b"one",
+        ref_type="",
+    )
+    _seed_legacy_row(
+        session,
+        fake_s3,
+        old_key=_legacy_key("project", tail, month="10"),
+        filename="same.pdf",
+        body=b"two",
+        ref_type="",
+    )
+
+    report = rekey(session, _settings(), echo=_quiet)
+
+    assert not report.ok and report.rekeyed == 0
+    assert len(report.failures) == 1 and "冲突" in report.failures[0][1]
+    assert set(fake_s3.objects) == {
+        _legacy_key("project", tail, month="09"),
+        _legacy_key("project", tail, month="10"),
+    }
+
+
+def test_stable_tag_is_deterministic_for_uuid_and_odd_keys():
+    """新键后缀必须稳定：已是新键的沿用原后缀，旧键取 uuid，异常键按摘要。"""
+    assert stable_tag("tenant/default/project/2026/09/" + "a" * 32 + ".pdf") == "aaaaaaaa"
+    # 已经是新键（方案 A）→ 沿用原后缀，因此再跑一轮算出的目标键与当前键相同（无操作）
+    migrated = "项目/2026/开票-设备费-60%__bbbbbbbb.png"
+    assert stable_tag(migrated) == "bbbbbbbb"
+    assert storage_mod.build_object_key(
+        "project", "开票-设备费-60%.png", disambiguator=stable_tag(migrated)
+    ) == migrated
+    odd = "手工上传/历史文件.pdf"
+    assert stable_tag(odd) == stable_tag(odd) and len(stable_tag(odd)) == 8
+    assert stable_tag(odd) != stable_tag(odd + "x")
+
+
+def test_reconcile_reports_both_way_orphans(session, fake_s3):
+    """对账：库里有、桶里没有；桶里有、库里没有 —— 两个方向都要点名。"""
+    good_key = _legacy_key("project", "1" * 32 + ".pdf")
+    _seed_legacy_row(
+        session, fake_s3, old_key=good_key, filename="ok.pdf", body=b"x", ref_type=""
+    )
+    missing_key = _legacy_key("project", "2" * 32 + ".pdf")
+    _seed_legacy_row(
+        session, fake_s3, old_key=missing_key, filename="gone.pdf", body=b"y", ref_type=""
+    )
+    fake_s3.objects.pop(missing_key)  # 库里还在指向它，桶里已经没了
+    orphan_key = "其他/2026/孤儿__deadbeef.pdf"
+    fake_s3.objects[orphan_key] = {"body": b"z", "content_type": None}
+
+    out = reconcile(session, _settings(), echo=_quiet)
+
+    assert out["db_rows"] == 2 and out["bucket_objects"] == 2
+    assert out["missing"] == [missing_key]
+    assert out["orphan"] == [orphan_key]

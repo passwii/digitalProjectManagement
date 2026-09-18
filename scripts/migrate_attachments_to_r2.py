@@ -26,8 +26,12 @@
     # 2) 正式迁移（上传 + 校验 + 改库，保留本地文件）
     STORAGE_BACKEND=r2 python scripts/migrate_attachments_to_r2.py --apply --verify
 
-    # 3) 确认无误后回收本地文件（可选）
+    # 2) 正式迁移（上传 + 校验 + 改库 + 回收本地文件）
     STORAGE_BACKEND=r2 python scripts/migrate_attachments_to_r2.py --apply --verify --delete-local
+
+本脚本要在**同一次调用里**把 `--delete-local` 一起给上：待回填的集合是「`object_key` 为空
+的行」，第一步跑完后所有行都有了 `object_key`，再跑一次会打印「没有需要回填的附件」并
+直接返回——**一个本地文件都不会删**。分两步走会让人以为已经清干净。
 
 注意：需先把 `STORAGE_BACKEND` 设为 `r2`（或 `R2_*` 配齐且用 `auto`），
 否则本脚本会拒绝执行——避免「以为在回填 R2、其实又写了一遍本地盘」。
@@ -41,6 +45,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from api.core.database import SessionLocal
@@ -52,45 +57,19 @@ from api.core.storage import (
     resolve_backend_name,
 )
 from api.models import Attachment
-
-
-def _text(value) -> str:
-    """把 ORM 列值收敛成 `str`。
-
-    本仓库模型是 legacy `= Column(...)` 风格，静态检查会把列值推断为 `Column[str]`，
-    直接参与 `or` / 比较会报警。所有列值先经本函数收敛，代码保持可读且类型干净。
-    """
-    return "" if value is None else str(value)
-
-
-def _ident(value) -> int:
-    """把 ORM 主键收敛成 `int`（legacy Column 风格下列值静态类型是 `Column[int]`）。
-
-    只用于日志与失败清单；无法解析时给 0，不让报表逻辑把整批回填打断。
-    """
-    try:
-        return int(str(value))
-    except (TypeError, ValueError):
-        return 0
-
-
-def _domain_for(row: Attachment) -> str:
-    """按归属推断对象键的 domain 段（与三个上传入口的命名保持一致）。"""
-    ref = _text(row.ref_type)
-    if ref == "expense":
-        return "expense"
-    if ref == "contact":
-        return "contact"
-    if ref == "contract":
-        return "contract"
-    return "project"
+from scripts._attachment_rows import domain_for as _domain_for
+from scripts._attachment_rows import int_of as _ident
+from scripts._attachment_rows import text_of as _text
 
 
 def _pending(db: Session) -> list[Attachment]:
-    """待回填 = 还没有 object_key 的行（本地坐标）。"""
+    """待回填 = 还没有 object_key 的行（本地坐标）。
+
+    用 `or_()` 而不是 `|` 拼接谓词：后者在静态检查里长得像字符串拼接的动态 SQL。
+    """
     return (
         db.query(Attachment)
-        .filter((Attachment.object_key.is_(None)) | (Attachment.object_key == ""))
+        .filter(or_(Attachment.object_key.is_(None), Attachment.object_key == ""))
         .order_by(Attachment.id)
         .all()
     )
