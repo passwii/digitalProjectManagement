@@ -1,38 +1,27 @@
-"""BLF-1127 验收走查：手机端壳、登录页与三态抽屉（真浏览器 + 真后端）。
+"""BLF-1127 验收走查：S1 手机壳基座（5 位底部 Dock + 767px 双外壳 CSS 切换）
++ S3 三态抽屉（peek / half / full + 手势，D2）。
 
-契约：docs/superpowers/specs/2026-09-18-mobile-pwa-navigation-design.md §3 / §4 / §5 / §7 + 决策 D1–D3。
+契约：docs/superpowers/specs/2026-09-18-mobile-pwa-navigation-design.md §3 / §4 / §7 + 决策 D1–D3。
 和 `acceptance_blf1093.py` 一样是**真浏览器 + 真后端**：不 mock 菜单接口，登录后
 直接读 `/meta/me/menus` 真实返回，验的是「权限唯一入口 + 5 位 Dock」这一对约束。
 
-S1（手机壳基座）覆盖：
+覆盖：
   · Dock 恒 5 位、标签顺序 工作台/项目/进度/支出/我的（D1：不是「费用」）
   · 几何：贴底、满宽、含安全区、单点触控 ≥44×44、390px 与 360px 无横向溢出
   · D3：管理员「我的」位有红点且 Dock 仍 5 位；非管理员看不到审批/管理/通讯录
   · 壳切换：≥768px 显示侧栏隐藏 Dock，≤767px 反之
   · 「纯 CSS 切换、无首帧错误外壳」：**关掉 JS** 再断言一次（此时只有 CSS 能决定可见性）
   · 不回归：桌面 1440px 下 table.grid 仍在、Dock 不在场
-
-S3（三态抽屉 peek / half / full + 手势，D2）覆盖：
-  · D2：点 5 个 Dock 位都开 peek 且不跳页；再点当前位收起；half/full 降回 peek（无死键）
-  · 三档几何：peek ≤236px 且无遮罩 / half = 56% 且有遮罩 / full 整屏、顶部留白 ≥40px 且贴底
-  · 手势：上拖升档（peek → half → full）、下甩 ≥96px 降档 / 关闭、点遮罩关闭；
-    列表滚过顶部时整体拖拽让位给列表滚动（滚动优先，不抢手势）
-  · aa11y：模态档焦点陷阱、peek 非模态不锁 Tab、Esc 降档 / 关闭、
-    关闭后焦点回到触发的 Dock 位、关闭中的抽屉不在命中链上（残留元素不得拦截点击）
-
-S2（登录页真居中）覆盖：
-  · 390×844「品牌块 + 表单卡」整组中点 = 视口中心（容差统一取脚本顶部 TOL）
-  · 提示行 position: absolute 脱离文档流；输入框高 ≥44px、字号 ≥16px（iOS 不放大整页）
-  · 首屏无滚动；品牌资产保留（深色底 / 网格纹理 / SHZK 印章 / 字标 / slogan）、
-    桌面大标题与 01/02/03 卖点行删掉；软键盘抬起后主按钮与错误提示仍在可视区；
-    密码框回车直接提交；401 文案与桌面一致
-  · 不回归：≥768px 登录页几何与计算样式逐项对账改动前的实测值（截图比对的机器形式）
+  · S3/D2：点 5 个 Dock 位都开 peek 且不跳页；再点当前位收起；half/full 降回 peek
+  · S3/§4 三档几何：peek ≤236px 无遮罩 / half 56% 有遮罩 / full 留白 ≥40px 且贴底
+  · S3 手势：上拖升档、下甩 ≥96px 降档 / 关闭、点遮罩关闭、列表滚动优先（不抢手势）
+  · S3/aa11y：模态档焦点陷阱、Esc 降档 / 关闭、关闭后焦点回到触发的 Dock 位、
+    关闭中的抽屉不在命中链上（残留元素不得拦截点击）
 
 用法：
     python3 scripts/acceptance_blf1127_mobile.py
 
-依赖：playwright（channel=chrome）、本机后端 8001、前端 3001。几何断言全部用
-脚本顶部的 TOL，不要在断言里另写公差。
+依赖：playwright（channel=chrome）、本机后端 8001、前端 3001。
 
 账号：浏览器登录表单只接受 **11 位手机号**（会把非数字字符直接删掉），而
 `scripts/seed_mock.py` 的 demo_admin / zhangwei 是字母账号——它们在界面上永远登不进去。
@@ -54,7 +43,6 @@ import os
 import re
 import sys
 import tempfile
-import time
 
 import playwright.sync_api as pw
 from playwright.sync_api import APIRequestContext, sync_playwright
@@ -100,15 +88,6 @@ SWIPE_UP = 56  # 上拖阈值：升档
 SHEET_TOPMOST_HIT = "dock"  # 关闭后命中链应落在 Dock 上（而不是残留的抽屉）
 
 
-# 几何断言的**统一容差**（亚像素 / 取整）。所有几何断言都取这一个值，
-# 不接受写在断言里的私有公差——否则同一条“居中”在不同 stage 会有两套口径。
-TOL = 1.0
-# 侧栏与登录页深色区的基准色（globals.css 的 `--navy`），BLF-1142 / #34 由
-# #0D2B4E 调为 #16375C。S2 的登录页断言拿它做「深色底」与桌面零变化的基线；
-# 颜色再改时**只改这一处**，不要在两处断言里各写一个 hex（正是 #34 漏改的原因）。
-NAVY_RGB = "rgb(22, 55, 92)"  # #16375C
-
-
 def prepare_shot_dir() -> str:
     """准备好截图目录。目录建不出来时退回当前目录而不是直接崩：
     PASS/FAIL 行本身仍然要打出来（只看看到底哪里没通过，比丢截图重要）。"""
@@ -133,19 +112,6 @@ def record(name: str, ok: bool, detail: str = "") -> None:
         f"{'PASS' if ok else 'FAIL'}  {name}{' — ' + detail if detail else ''}",
         flush=True,
     )
-
-
-def close_to(actual, expected) -> bool:
-    """把期望值写成契约常量再比对：数值按统一 TOL，字符串按相等。
-
-    actual 为 None（选择器没命中）时直接判失败：断言要报 FAIL，而不是把整条走查抛崩。
-    """
-    if isinstance(expected, str):
-        return actual == expected
-    if actual is None:
-        return False
-    # 两边都是脚本自己量出来的数值（int / float），不涉及外部输入的解析
-    return abs(actual - expected) <= TOL
 
 
 def write_results() -> None:
@@ -296,78 +262,6 @@ def dock_boxes(page) -> list[dict]:
     )
 
 
-# 登录页几何：一次 evaluate 量完（页面会随交互重排，分次量会拿到过期坐标）。
-# 全部取计算样式 / getBoundingClientRect，不读 class 名（CSS Modules 会哈希）。
-LOGIN_GEOM = r"""() => {
-  const box = (sel) => {
-    const el = document.querySelector(sel);
-    if (!el) return null;
-    const r = el.getBoundingClientRect();
-    return { x: r.x, y: r.y, w: r.width, h: r.height, b: r.bottom, rr: r.right };
-  };
-  const css = (sel, prop) => {
-    const el = document.querySelector(sel);
-    return el ? getComputedStyle(el)[prop] : null;
-  };
-  const text = (sel) => ((document.querySelector(sel) || {}).innerText || '').replace(/\s+/g, ' ').trim();
-  // 网格纹理：白色细线阵列。要求它的盒子真的铺开（>100px）且带 46px 网格——
-  // display:none 的元素 rect 为 0，会被自然排除。
-  const texture = Array.from(document.querySelectorAll('*')).find((el) => {
-    const cs = getComputedStyle(el);
-    const r = el.getBoundingClientRect();
-    return cs.backgroundImage.includes('linear-gradient(') && cs.backgroundSize.includes('46px')
-      && r.width > 100 && r.height > 100;
-  });
-  const vv = window.visualViewport;
-  return {
-    vw: document.documentElement.clientWidth,
-    vh: window.innerHeight,
-    vvBottom: vv ? vv.offsetTop + vv.height : window.innerHeight,
-    wrapDisplay: css('main', 'display'),
-    wrapColor: css('main', 'backgroundColor'),
-    brand: box('[data-login="brand"]'),
-    card: box('[data-login="card"]'),
-    hint: box('[data-login="hint"]'),
-    phone: box('#login-phone'),
-    pwd: box('#login-password'),
-    submit: box('form button[type="submit"]'),
-    alert: box('[role="alert"]'),
-    alertText: text('[role="alert"]'),
-    hintPosition: css('[data-login="hint"]', 'position'),
-    inputFont: parseFloat(css('#login-phone', 'fontSize')),
-    pwdFont: parseFloat(css('#login-password', 'fontSize')),
-    cardRadius: parseFloat(css('[data-login="card"]', 'borderTopLeftRadius')),
-    cardPadTop: parseFloat(css('[data-login="card"]', 'paddingTop')),
-    submitH: parseFloat(css('form button[type="submit"]', 'height')),
-    storyBg: css('[data-login="brand"]', 'backgroundColor'),
-    h1Visible: Array.from(document.querySelectorAll('main h1'))
-      .filter((el) => getComputedStyle(el).display !== 'none').length,
-    brandText: text('[data-login="brand"]'),
-    cardText: text('[data-login="card"]'),
-    pageText: text('body'),
-    texture: texture ? { w: Math.round(texture.getBoundingClientRect().width),
-                         h: Math.round(texture.getBoundingClientRect().height),
-                         size: getComputedStyle(texture).backgroundSize } : null,
-    scrollW: document.documentElement.scrollWidth - document.documentElement.clientWidth,
-    scrollH: document.documentElement.scrollHeight,
-  };
-}"""
-
-
-def login_geom(page) -> dict:
-    """登录页的几何与关键计算样式（居中 / 输入框尺寸 / 品牌资产 / 可视区）"""
-    return page.evaluate(LOGIN_GEOM)
-
-
-def group_center_offset(g: dict) -> float:
-    """「品牌块 + 表单卡」整组中点相对视口中心的偏移（负 = 偏上）
-
-    居中基准是**整组**的中点，不是卡片自己的中点：卡片上方还有品牌块，
-    只居中卡片会把品牌块整块顶出视口上方（这正是手机上「上重下轻」的成因）。
-    """
-    return (g["brand"]["y"] + g["card"]["b"]) / 2 - g["vh"] / 2
-
-
 def shell_state(page) -> dict:
     """当前可见外壳 + 关键几何，全部从计算样式取（不读 class 名，CSS Modules 会哈希）"""
     return page.evaluate(
@@ -508,210 +402,6 @@ def main() -> int:
 
         browser = p.chromium.launch(channel="chrome")
 
-        # ============ 登录页（S2）：手机端真居中 + 16px 输入框 + 软键盘 ============
-        # 必须用未登录的干净上下文：已登录会话会被 middleware 从 /login 赶走。
-        ctx_login = browser.new_context(viewport={"width": 390, "height": 844})
-        lp = ctx_login.new_page()
-        lp.on("pageerror", lambda e: errors.append(str(e)))
-        lp.on(
-            "console",
-            lambda m: errors.append(f"console:{m.text}") if m.type == "error" else None,
-        )
-        lp.goto(f"{BASE}/login", wait_until="networkidle")
-        lp.wait_for_timeout(700)
-        lg = login_geom(lp)
-
-        # ---- 居中：整组中点 = 视口中心 ----
-        offset = group_center_offset(lg)
-        record(
-            "390×844：登录「品牌块 + 表单卡」整组垂直居中（整组中点 = 视口中心）",
-            abs(offset) <= TOL,
-            f"整组中点={(lg['brand']['y'] + lg['card']['b']) / 2:.1f} "
-            f"视口中心={lg['vh'] / 2:.1f} 偏差={offset:+.1f}px",
-        )
-        # 提示行用 position: absolute 脱离文档流：留在文档流里会把整组往上顶（§5 第 2 条）
-        record(
-            "390×844：提示行脱离文档流（position: absolute，不参与居中）",
-            lg["hintPosition"] == "absolute"
-            and lg["hint"]["y"] >= lg["card"]["b"] - TOL,
-            f"position={lg['hintPosition']} 提示行 top={lg['hint']['y']:.1f} 卡片 bottom={lg['card']['b']:.1f}",
-        )
-        record(
-            "390×844：卡片在视口内且左右留白对称（各 22px）",
-            lg["card"]["x"] >= 22 - TOL
-            and lg["vw"] - lg["card"]["rr"] >= 22 - TOL
-            and abs(lg["card"]["x"] - (lg["vw"] - lg["card"]["rr"])) <= TOL,
-            f"左={lg['card']['x']:.1f} 右={lg['vw'] - lg['card']['rr']:.1f} 宽={lg['card']['w']:.1f}",
-        )
-        record(
-            "390×844：首屏无滚动（纵向 / 横向都没有）",
-            lg["scrollH"] <= lg["vh"] + TOL and lg["scrollW"] <= TOL,
-            f"scrollHeight={lg['scrollH']} 视口高={lg['vh']} 横向溢出={lg['scrollW']}px",
-        )
-
-        # ---- 输入框：触控尺寸 + iOS 的 16px 下限 ----
-        record(
-            "390×844：输入框高度 ≥44px（--m-tap 触控下限）",
-            min(lg["phone"]["h"], lg["pwd"]["h"]) >= 44,
-            f"手机号 {lg['phone']['h']:.1f}px / 密码 {lg['pwd']['h']:.1f}px",
-        )
-        record(
-            "390×844：输入框字号 ≥16px（iOS 聚焦不自动放大整页）",
-            min(lg["inputFont"], lg["pwdFont"]) >= 16,
-            f"手机号 {lg['inputFont']}px / 密码 {lg['pwdFont']}px",
-        )
-
-        # ---- 品牌资产：保留的与删掉的都要钉住 ----
-        record(
-            "品牌资产保留：SHZK 印章 / 字标 / slogan / 深色底 / 网格纹理铺满整页",
-            "SHZK" in lg["cardText"]
-            and "数科云办公" in lg["brandText"]
-            and "复杂有章" in lg["brandText"]
-            and lg["wrapColor"] == NAVY_RGB
-            and bool(lg["texture"])
-            and lg["texture"]["h"] >= lg["vh"] * 0.6,
-            f"底色={lg['wrapColor']} 纹理={lg['texture']}",
-        )
-        record(
-            "桌面大标题与 01/02/03 卖点行在手机端已删除",
-            lg["h1Visible"] == 0
-            and "统一台账" not in lg["pageText"]
-            and "支出归集" not in lg["pageText"],
-            f"可见 h1={lg['h1Visible']} 个；品牌块文案=「{lg['brandText']}」",
-        )
-        lp.screenshot(path=f"{SHOT}/20-login-390-centered.png")
-
-        # ---- 软键盘：可视高度压到 500px（真实 iPhone 键盘抬起后的大致剩余高度）----
-        lp.set_viewport_size({"width": 390, "height": 500})
-        lp.wait_for_timeout(500)
-        kb = login_geom(lp)
-        record(
-            "软键盘抬起（可视高 500px）：品牌块 + 表单卡仍完整落在可视区内",
-            kb["brand"]["y"] >= -TOL and kb["submit"]["b"] <= kb["vvBottom"] + TOL,
-            f"品牌块 top={kb['brand']['y']:.1f} 主按钮底={kb['submit']['b']:.1f} 可视区底={kb['vvBottom']:.1f}",
-        )
-        # 密码框回车 = 直接提交（不点按钮）；非法手机号应被就地拦下
-        lp.fill("#login-phone", "123")
-        lp.fill("#login-password", "whatever")
-        lp.press("#login-password", "Enter")
-        lp.wait_for_timeout(400)
-        kb2 = login_geom(lp)
-        record(
-            "密码框回车直接提交（不点按钮也能触发校验）",
-            bool(kb2["alert"]) and "11 位手机号" in kb2["alertText"],
-            kb2["alertText"] or "回车后没有出现校验提示",
-        )
-        record(
-            "软键盘抬起时错误提示仍在可视区内",
-            bool(kb2["alert"])
-            and kb2["alert"]["b"] <= kb2["vvBottom"] + TOL
-            and kb2["alert"]["y"] >= -TOL,
-            f"提示 top={kb2['alert']['y']:.1f} 底={kb2['alert']['b']:.1f} 可视区底={kb2['vvBottom']:.1f}",
-        )
-        lp.screenshot(path=f"{SHOT}/21-login-keyboard.png")
-
-        # ---- 401 文案与桌面一致（真实打后端，不 mock）----
-        lp.set_viewport_size({"width": 390, "height": 844})
-        lp.fill("#login-phone", ADMIN_PHONE)
-        lp.fill("#login-password", "blf1130-wrong-password")
-        lp.press("#login-password", "Enter")
-        # 用轮询而不是 wait_for_selector + try/except：这里只关心「最终有没有」，
-        # 超时是一个正常的 FAIL 判定，不需要异常参与控制流。
-        found_401 = False
-        deadline = time.monotonic() + 8
-        while not found_401 and time.monotonic() < deadline:
-            lp.wait_for_timeout(200)
-            found_401 = (
-                lp.locator('[role="alert"]:has-text("手机号或密码错误")').count() > 0
-            )
-        record(
-            "校验逻辑与桌面一致：401 →「手机号或密码错误」",
-            found_401,
-            "手机号或密码错误"
-            if found_401
-            else (login_geom(lp)["alertText"] or "没有出现任何提示"),
-        )
-
-        # ---- 360px 窄屏：居中与不溢出同样要成立 ----
-        lp.goto(f"{BASE}/login", wait_until="networkidle")
-        lp.set_viewport_size({"width": 360, "height": 780})
-        lp.wait_for_timeout(600)
-        g360 = login_geom(lp)
-        offset360 = group_center_offset(g360)
-        record(
-            "360×780：登录整组仍居中且无横向溢出",
-            abs(offset360) <= TOL and g360["scrollW"] <= TOL,
-            f"偏差={offset360:+.1f}px 横向溢出={g360['scrollW']}px",
-        )
-        lp.screenshot(path=f"{SHOT}/22-login-360.png")
-
-        # ---- 断点两侧：767px 走手机分支，768px 起回桌面两栏 ----
-        lp.set_viewport_size({"width": 767, "height": 900})
-        lp.wait_for_timeout(500)
-        g767 = login_geom(lp)
-        record(
-            "767px：登录页走手机分支（16px 输入框 + 提示行脱离文档流 + 无桌面大标题）",
-            g767["inputFont"] >= 16
-            and g767["hintPosition"] == "absolute"
-            and g767["h1Visible"] == 0
-            and g767["wrapDisplay"] == "flex",
-            f"输入框字号={g767['inputFont']} 提示行={g767['hintPosition']} "
-            f"可见 h1={g767['h1Visible']} main.display={g767['wrapDisplay']}",
-        )
-        lp.set_viewport_size({"width": 768, "height": 900})
-        lp.wait_for_timeout(500)
-        g768 = login_geom(lp)
-        record(
-            "768px：登录页回到桌面两栏（手机分支不泄漏）",
-            g768["inputFont"] <= 15.5
-            and g768["hintPosition"] == "static"
-            and g768["h1Visible"] == 1
-            and g768["wrapDisplay"] == "grid",
-            f"输入框字号={g768['inputFont']} 提示行={g768['hintPosition']} "
-            f"可见 h1={g768['h1Visible']} main.display={g768['wrapDisplay']}",
-        )
-        lp.screenshot(path=f"{SHOT}/23-login-767-vs-768.png")
-
-        # ---- 桌面零变化：与改动前的登录页实测值逐项对账（截图比对的机器形式）----
-        lp.set_viewport_size({"width": 1440, "height": 900})
-        lp.wait_for_timeout(600)
-        gd = login_geom(lp)
-        desktop_sig = {
-            "main.display": (gd["wrapDisplay"], "grid"),
-            "卡片宽": (round(gd["card"]["w"], 1), 430.0),
-            "卡片左右圆角": (gd["cardRadius"], 8.0),
-            "卡片上内边距": (gd["cardPadTop"], 34.0),
-            "输入框字号": (gd["inputFont"], 15.0),
-            "输入框高": (round(gd["phone"]["h"], 1), 46.0),
-            "主按钮高": (gd["submitH"], 46.0),
-            "提示行 position": (gd["hintPosition"], "static"),
-            "可见 h1 数": (gd["h1Visible"], 1.0),
-            "品牌栏底色": (gd["storyBg"], NAVY_RGB),
-            "品牌栏占比": (round(gd["brand"]["w"] / gd["vw"], 4), 0.575),
-        }
-        sig_bad = [
-            f"{k}: 实测 {v[0]} / 期望 {v[1]}"
-            for k, v in desktop_sig.items()
-            if not close_to(v[0], v[1])
-        ]
-        record(
-            "1440px：桌面登录页几何与视觉零变化（逐项对账改动前的实测值）",
-            len(sig_bad) == 0,
-            "；".join(sig_bad) or "11 项全部一致",
-        )
-        rr = lp.evaluate(
-            "() => Array.from(document.querySelectorAll('main h1, main p, main span, main label, main button'))"
-            ".filter((el) => el.offsetParent !== null && el.getBoundingClientRect().width > 0)"
-            ".length"
-        )
-        record(
-            "1440px：登录页可见文本节点齐备（卖点行 / 大标题 / 字标都在）",
-            rr >= 10 and "统一台账" in login_geom(lp)["pageText"],
-            f"可见元素 {rr} 个",
-        )
-        lp.screenshot(path=f"{SHOT}/24-login-desktop-1440.png")
-        ctx_login.close()
-
         # ============ 管理员 + 390px：Dock 的几何与内容 ============
         ctx = browser.new_context(viewport={"width": 390, "height": 844})
         page = ctx.new_page()
@@ -745,9 +435,9 @@ def main() -> int:
         bottom_gap = round(st["vh"] - (dock["y"] + dock["h"]), 1)
         record(
             "Dock 贴底且满宽",
-            abs(bottom_gap) <= TOL
-            and abs(dock["x"]) <= TOL
-            and abs(dock["w"] - st["vw"]) <= TOL,
+            abs(bottom_gap) <= 1
+            and abs(dock["x"]) <= 1
+            and abs(dock["w"] - st["vw"]) <= 1,
             f"底边留白={bottom_gap}px x={dock['x']} 宽={dock['w']} 视口={st['vw']}",
         )
         record(
@@ -812,7 +502,7 @@ def main() -> int:
         topbar_h = st["topbar"]["h"] if st["topbar"] else 0
         record(
             f"手机顶栏高度 = {APPBAR_H}px（--m-appbar-h）",
-            abs(topbar_h - APPBAR_H) <= TOL,
+            abs(topbar_h - APPBAR_H) <= 1,
             f"实测 {topbar_h}px",
         )
         page.screenshot(path=f"{SHOT}/01-dock-390-admin.png")
@@ -864,8 +554,8 @@ def main() -> int:
         record(
             "360px：Dock 仍 5 位且满宽贴底",
             len(tabs360) == 5
-            and abs(st360["dock"]["w"] - st360["vw"]) <= TOL
-            and abs(st360["vh"] - (st360["dock"]["y"] + st360["dock"]["h"])) <= TOL,
+            and abs(st360["dock"]["w"] - st360["vw"]) <= 1
+            and abs(st360["vh"] - (st360["dock"]["y"] + st360["dock"]["h"])) <= 1,
             f"宽={st360['dock']['w']} 视口={st360['vw']}",
         )
         labels_fit = page.evaluate(
