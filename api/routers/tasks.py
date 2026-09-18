@@ -13,19 +13,19 @@ Stage 4A 补齐的服务端校验（全部在任何写库动作之前执行，�
   · 任务上的 `progress` 是「最新填报的快照」，任何进度变化都会同时追加一条 log；
   · 因此 `progress` 永远可由 log 序列复现，不存在「历史被直接改写」的路径。
 """
-from datetime import date, datetime, timezone
+from datetime import date, datetime
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from ..core.audit import commit_audited, write_audit
+from ..core.audit import commit_audited
 from ..core.database import get_db, parse_date
 from ..core.deps import get_current_user
 from ..core.paging import DEFAULT_PAGE_SIZE, paginate
 from ..core.rbac import get_active_project, is_admin, scope_child_query
-from ..core.validation import (check_date_range, check_progress, check_weight,
-                               as_number)
+from ..core.timeutil import app_now, iso
+from ..core.validation import as_number, check_date_range, check_progress, check_weight
 from ..models import ProgressLog, Project, Task, User
 
 router = APIRouter(prefix="", tags=["tasks"])
@@ -62,7 +62,7 @@ def _t(t: Task):
             "plan_end": t.plan_end.isoformat() if t.plan_end else None,
             "weight": t.weight, "progress": t.progress, "status": t.status,
             "predecessor_id": t.predecessor_id,
-            "created_at": t.created_at.isoformat() if t.created_at else None}
+            "created_at": iso(t.created_at)}
 
 
 def _project(db: Session, pid: int, user: User, write=False) -> Project:
@@ -297,7 +297,7 @@ def update_task(tid: int, body: dict, db: Session = Depends(get_db),
         t.progress = new_progress
         db.add(ProgressLog(task_id=tid, project_id=t.project_id, user_id=user.id,
                            progress=new_progress, note=body.get("note", ""),
-                           created_at=datetime.now(timezone.utc)))
+                           created_at=app_now()))
 
     commit_audited(db, user.id, "update_task", "tasks", tid, str(sorted(body.keys())))
     return _t(t)
@@ -327,7 +327,7 @@ def _log(l: ProgressLog):
     return {"id": l.id, "task_id": l.task_id, "project_id": l.project_id,
             "user_id": l.user_id, "progress": l.progress, "note": l.note,
             "remaining_days": l.remaining_days,
-            "created_at": l.created_at.isoformat() if l.created_at else None}
+            "created_at": iso(l.created_at)}
 
 
 @router.get("/progress-logs")
@@ -382,7 +382,7 @@ def create_log(body: LogIn, db: Session = Depends(get_db),
     log = ProgressLog(task_id=t.id, project_id=t.project_id, user_id=user.id,
                       progress=progress, note=body.note,
                       remaining_days=body.remaining_days,
-                      created_at=datetime.now(timezone.utc))
+                      created_at=app_now())
     db.add(log)
     db.flush()
     commit_audited(db, user.id, "report_progress", "progress_logs", log.id,

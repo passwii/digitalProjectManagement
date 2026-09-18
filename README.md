@@ -183,9 +183,34 @@ PostgreSQL 是整个系统的 **System of Record**。预算审批、支出状态
 - `[现状]` 外键、唯一索引和复合索引保护基础完整性；高频查询按 `project_id + status`、`user_id + read_at` 等访问模式建索引。
 - `[现状]` `progress_logs` 只允许追加，任务 `progress` 是可重建的当前快照，避免覆盖历史。
 - `[现状]` 项目软删除通过 `deleted_at` 控制；普通查询和子表查询统一排除软删除项目。
-- `[目标]` 金额字段迁移为 `NUMERIC(18,2)` 或等价 Decimal 类型，避免 `Float` 累积误差。
-- `[目标]` 时间字段统一为 `TIMESTAMPTZ`，并明确 UTC 存储、`Asia/Shanghai` 展示。
+- `[现状]` 金额字段迁移为 `NUMERIC(18,2)` 或等价 Decimal 类型，避免 `Float` 累积误差。
 - `[目标]` 对管理员改参数、项目状态流转、审批决策增加乐观锁版本号或条件更新，防止并发覆盖。
+
+### 4.4 时间口径（BLF-1138 定稿）
+
+时间列都是 `timestamp without time zone`，**列约定 = `Asia/Shanghai` 的 naive 墙钟值**。
+唯一入口是 `api/core/timeutil.py`，所有写入 / 读取 / 出参都必须走它：
+
+| 场景 | 用什么 | 说明 |
+| --- | --- | --- |
+| 写库、SQL 过滤值 | `app_now()` / `to_db(x)` | naive 北京时间。naive 入 naive 列，PostgreSQL 不做任何时区折算 |
+| 计算、比较 | `as_app(x)` / `app_now_aware()` | 离开 DB 边界立刻变 aware（`+08:00`）；**不要**在同一段算术里混用 naive 与 aware |
+| 出参 | `iso(x)` | 带偏移的 ISO8601（`2026-09-18T17:32:28+08:00`）；前端 `fmtDateTime` 是纯字符串裁剪，显示不变 |
+| 业务日（今天） | `app_today()` | 不依赖进程 `TZ` |
+| epoch 换算（JWT `exp`） | `from_timestamp()` | JWT 的 `exp` 本身仍必须是 aware UTC（`core/security.py`），不要改 |
+
+为什么必须收口：写入侧历史上给的是**带时区的 UTC**，PostgreSQL 在
+`timestamptz → timestamp` 隐式转换时按**会话时区**折算 —— 会话时区是 `Asia/Shanghai` 时
+看起来「正好对」（纯属巧合），换库 / 改 `TZ` / 新环境默认 UTC 就会全站偏 8 小时且不报错；
+读取侧再把 naive 值贴回 UTC 标签，同一根因就让「配置 15 分钟的登录锁定」实际生效
+8 小时 15 分。回归用例见 `tests/test_time_contract.py`（含「把会话 `TimeZone` 改成 `UTC`
+后落库值与出参不变」的断言）。
+
+- `[目标]` 时间列整体迁到 `TIMESTAMPTZ`（`USING col AT TIME ZONE 'Asia/Shanghai'`），库里改存
+  真正的 UTC 瞬时值。收益是口径最正，代价是一次生产 schema 迁移 + 全量校验；
+  在上述约定下这不是正确性必需项（`timeutil` 是唯一入口，两套口径可平滑切换）。
+- `[注]` 应用运行时不依赖进程 `TZ`：口径模块用 `ZoneInfo("Asia/Shanghai")`，入库值与会话时区、
+  容器 `TZ` 无关（`api/requirements.txt` 带 `tzdata`，保证无系统时区库的镜像也能用）。
 
 ### 4.4 查询与扩展
 
@@ -285,21 +310,34 @@ class StorageBackend(Protocol):
 | `encryption_key_id` | KMS 或密钥管理服务引用 |
 | `status` | `pending` / `ready` / `deleting` / `deleted` |
 
-对象键使用不可猜测且可审计的命名规范：
+对象键命名（方案 A，2026-09-18 与用户确认：**一级目录就是业务**，最多两级、文件名可读）：
 
 ```text
-tenant/default/{domain}/{yyyy}/{mm}/{uuid}.{ext}
+{业务域}/{yyyy}/{可读原名}__{8位随机}.{ext}     # 合同 / 项目 / 凭证
+{业务域}/{可读原名}__{8位随机}.{ext}            # 档案（人员档案量小，不分年）
 ```
 
 示例：
 
 ```text
-tenant/default/project/2026/09/7f0d...e21.pdf
-tenant/default/expense/2026/09/1a4c...b90.png
-tenant/default/contact/2026/09/c8e2...731.jpg
+合同/2026/2026-024-昆山新一代电子政务外网部分节点建设项目采购合同-534万__a1b2c3d4.pdf
+项目/2026/开票-设备费-60%__5e6f7a8b.png
+凭证/2026/差旅-发票__9c0d1e2f_20260918120000.pdf
+档案/张爱杰-身份证__3b4c5d6e.jpg
+其他/2026/<未登记 domain>__deadbeef.bin
 ```
 
+- 一级目录 = 业务域（`合同` / `项目` / `凭证` / `档案`，未登记的收敛为 `其他`），控制台里直接可读；
+- 二级目录 = 年份（分片，避免单目录无限膨胀）；
+- 文件名 = 清洗后的原始名（去控制字符与路径分隔符、保留中文、限长 100 字）+ `__` + 8 位随机后缀
+  （防重名 + 防枚举）；凭证另带上传时间戳标记；原始名仍完整保存在 `Attachment.filename`；
+- 读取永远按行内 `object_key`，**不解析路径**，所以新旧键并存期间不会 404；
+- 存量对象改键用 `scripts/rekey_r2_objects.py`（默认 dry-run，先复制、再改库、最后删旧键）；
+  新键只由行自身算 —— 后缀、**键里的年份**以及凭证的上传时间戳标记全部沿用原键，因此重跑是
+  真的无操作，跨年后重跑也不会把旧年份的键算成新年份、在桶里留下孤儿；
+
 数据库只保存对象键，不保存带签名参数的 URL；下载 URL 必须即时签发、短期有效，避免凭据进入日志或浏览器历史。
+（当前 `path` 存的是私有 endpoint URL，仅作排查线索，真实取件始终走鉴权下载接口。）
 
 ### 5.4 `[目标]` 直传流程
 

@@ -10,6 +10,7 @@ from ..core.database import get_db, parse_date
 from ..core.deps import get_current_user
 from ..core.paging import DEFAULT_PAGE_SIZE, paginate
 from ..core.rbac import get_active_project, scope_child_query
+from ..core.timeutil import app_today
 from ..models import Milestone, SysParam, User
 
 router = APIRouter(prefix="/milestones", tags=["milestones"])
@@ -23,9 +24,9 @@ MILESTONE_SORTS = {
 
 
 def _m(m: Milestone, warn_days: int = 3):
-    overdue = bool(m.plan_date and not m.actual_date and m.plan_date < date.today())
+    overdue = bool(m.plan_date and not m.actual_date and m.plan_date < app_today())
     near = bool(m.plan_date and not m.actual_date and
-                0 <= (m.plan_date - date.today()).days <= warn_days)
+                0 <= (m.plan_date - app_today()).days <= warn_days)
     return {"id": m.id, "project_id": m.project_id, "name": m.name,
             "plan_date": m.plan_date.isoformat() if m.plan_date else None,
             "actual_date": m.actual_date.isoformat() if m.actual_date else None,

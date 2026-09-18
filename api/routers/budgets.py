@@ -8,21 +8,32 @@ Stage 4A 补齐：
   · 调整单带 `decision_reason` / `decided_at`，申请人可查「谁在什么时候因为什么批/驳」；
   · `GET /budget-adjusts/{aid}/timeline` 对申请人开放（不依赖管理员专属审计日志）。
 """
-from datetime import date, datetime, timezone
+from datetime import date
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from ..core.audit import commit_audited, write_audit
+from ..core.audit import commit_audited
 from ..core.costs import execution
-from ..core.database import get_db, parse_date
+from ..core.database import get_db
 from ..core.deps import get_current_user
 from ..core.paging import DEFAULT_PAGE_SIZE, paginate
-from ..core.rbac import (can_read_project, get_active_project, require_admin,
-                         scope_child_query)
-from ..core.timeline import (ACTION_APPROVE, ACTION_AUTO, ACTION_REJECT,
-                             ACTION_SUBMIT, KIND_BUDGET_ADJUST, timeline)
+from ..core.rbac import (
+    can_read_project,
+    get_active_project,
+    require_admin,
+    scope_child_query,
+)
+from ..core.timeline import (
+    ACTION_APPROVE,
+    ACTION_AUTO,
+    ACTION_REJECT,
+    ACTION_SUBMIT,
+    KIND_BUDGET_ADJUST,
+    timeline,
+)
+from ..core.timeutil import app_now, iso
 from ..core.validation import check_amount, check_choice, check_date_range
 from ..models import Budget, BudgetAdjust, Project, SysParam, User
 
@@ -61,9 +72,9 @@ def _adj_row(a: BudgetAdjust, subject: str = ""):
             "reason": a.reason, "status": a.status, "by_id": a.by_id,
             "approved_by": a.approved_by,
             "decision_reason": a.decision_reason or "",
-            "decided_at": a.decided_at.isoformat() if a.decided_at else None,
+            "decided_at": iso(a.decided_at),
             "can_approve_adjust": a.status == "pending",
-            "created_at": a.created_at.isoformat() if a.created_at else None}
+            "created_at": iso(a.created_at)}
 
 
 def _project(db: Session, pid: int, user: User, write=False) -> Project:
@@ -145,14 +156,14 @@ def adjust_request(bid: int, body: dict, db: Session = Depends(get_db),
 
     adj = BudgetAdjust(budget_id=bid, project_id=b.project_id, old_amount=b.amount,
                        new_amount=new_amount, reason=reason, by_id=user.id,
-                       created_at=datetime.now(timezone.utc))
+                       created_at=app_now())
     on = db.query(SysParam).filter_by(key="budget_approval_on").first()
     auto = not on or on.value == "0"
     if auto:
         b.amount = new_amount
         adj.status = "approved"
         adj.approved_by = None
-        adj.decided_at = datetime.now(timezone.utc)
+        adj.decided_at = app_now()
         adj.decision_reason = "审批开关关闭，系统自动生效"
     db.add(adj)
     db.flush()
@@ -243,7 +254,7 @@ def approve_adjust(aid: int, body: dict, db: Session = Depends(get_db),
     a.status = "approved" if ok else "rejected"
     a.approved_by = user.id
     a.decision_reason = reason
-    a.decided_at = datetime.now(timezone.utc)
+    a.decided_at = app_now()
     if ok and b:
         b.amount = a.new_amount
 

@@ -11,3 +11,7 @@ openpyxl
 boto3
 pytest
 httpx
+# 时间口径（BLF-1138）：ZoneInfo("Asia/Shanghai") 需要 IANA 时区数据。
+# python:*-slim 镜像不带 /usr/share/zoneinfo，缺了会在导入期抛 ZoneInfoNotFoundError；
+# PyPI 的 tzdata 是 zoneinfo 的官方兜底数据源。
+tzdata

@@ -13,7 +13,7 @@ Stage 4A 补齐的闭环：
   4. **申请人可查的时间线**：`GET /expenses/{id}/timeline`（非管理员也能读自己单据的流转）。
 """
 
-from datetime import date, datetime, timedelta, timezone
+from datetime import date, timedelta
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
@@ -47,6 +47,7 @@ from ..core.timeline import (
     KIND_EXPENSE,
     timeline,
 )
+from ..core.timeutil import app_now, app_today, iso
 from ..core.validation import check_amount, check_choice
 from ..models import Attachment, Expense, Project, SysParam, User
 
@@ -96,7 +97,7 @@ def _e(e: Expense):
         "by_id": e.by_id,
         "approved_by": e.approved_by,
         "decision_reason": e.decision_reason or "",
-        "decided_at": e.decided_at.isoformat() if e.decided_at else None,
+        "decided_at": iso(e.decided_at),
         "resubmit_count": e.resubmit_count or 0,
         "can_resubmit": e.status == "rejected",
     }
@@ -114,7 +115,7 @@ def _voucher(a: Attachment):
         "size": a.size,
         "content_type": a.content_type,
         "uploaded_by": a.uploaded_by,
-        "uploaded_at": a.uploaded_at.isoformat() if a.uploaded_at else None,
+        "uploaded_at": iso(a.uploaded_at),
     }
 
 
@@ -145,7 +146,7 @@ def _check_date(exp_date: date | None, project: Project) -> None:
         return
     if project.plan_start and exp_date < project.plan_start:
         raise HTTPException(400, "支出日期不能早于项目计划开始")
-    if exp_date > date.today() + timedelta(days=366):
+    if exp_date > app_today() + timedelta(days=366):
         raise HTTPException(400, "支出日期超出合理范围（距今超过 1 年），请核对")
 
 
@@ -236,7 +237,7 @@ def create_expense(
     if over and not approval_on:
         raise HTTPException(400, "超预算已拦截：请调预算或走特批")
     st = "pending" if (approval_on or over) else "approved"
-    now = datetime.now(timezone.utc)
+    now = app_now()
     e = Expense(
         project_id=body.project_id,
         subject=subject,
@@ -300,7 +301,7 @@ def expense_timeline(
         "id": e.id,
         "status": e.status,
         "decision_reason": e.decision_reason or "",
-        "decided_at": e.decided_at.isoformat() if e.decided_at else None,
+        "decided_at": iso(e.decided_at),
         "items": timeline(db, KIND_EXPENSE, eid),
     }
 
@@ -347,7 +348,7 @@ def resubmit(
     e.status = to
     e.resubmit_count = (e.resubmit_count or 0) + 1
     e.approved_by = None
-    e.decided_at = datetime.now(timezone.utc)
+    e.decided_at = app_now()
     e.decision_reason = ""
 
     from ..core.timeline import record as record_timeline
@@ -427,7 +428,7 @@ def upload_voucher(
         ref_type="expense",
         ref_id=eid,
         uploaded_by=user.id,
-        suffix=datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S"),
+        suffix=app_now().strftime("%Y%m%d%H%M%S"),
     )
     commit_audited(
         db, user.id, "upload_expense_voucher", "attachments", a.id, safe_name
@@ -507,7 +508,7 @@ def _decide(
     e.status = to_status
     e.approved_by = user.id
     e.decision_reason = reason or ""
-    e.decided_at = datetime.now(timezone.utc)
+    e.decided_at = app_now()
     record_timeline(
         db,
         KIND_EXPENSE,

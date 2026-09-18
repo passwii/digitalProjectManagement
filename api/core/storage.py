@@ -44,19 +44,26 @@
 切换 `STORAGE_BACKEND=r2` 之前请先跑 `validate_storage_settings()`
 （`api.main` 的 lifespan 已调用；脚本可单独调用），避免「进程绿着起来、每个请求才炸」。
 
-对象键命名遵循 README §5.3 的「不可猜测 + 可审计」要求：
-`tenant/default/{domain}/{yyyy}/{mm}/{uuid}.{ext}`（domain 例如 project / expense / contact）。
+对象键命名遵循 README §5.3 的「业务可读 + 不可枚举」要求（方案 A，2026-09-18 与用户确认）：
+
+    {业务域}/{yyyy}/{可读原名}__{8位随机}.{ext}      # 合同 / 项目 / 凭证
+    {业务域}/{可读原名}__{8位随机}.{ext}             # 档案（量小，不分年）
+
+一级目录 = 业务域（`合同` / `项目` / `凭证` / `档案`），在 R2 控制台里直接可读；
+二级目录 = 年份（分片，避免单目录无限膨胀）；文件名 = 清洗后的原始名 + 随机后缀，
+既可读可搜、又不可枚举。读取永远按**行内 `object_key`**，不解析路径，
+所以迁移期间新旧键并存不会出现 404。
 """
 
 from __future__ import annotations
 
 import logging
 import os
+import re
 import tempfile
 import uuid
 from collections.abc import Iterator
 from dataclasses import dataclass
-from datetime import datetime, timezone
 from pathlib import Path
 from typing import Protocol
 
@@ -75,6 +82,7 @@ from .r2 import (
     try_delete_object,
     upload_object,
 )
+from .timeutil import app_now
 
 __all__ = [
     "BACKEND_LOCAL",
@@ -85,10 +93,15 @@ __all__ = [
     "StoredObject",
     "backend_for_row_coords",
     "build_object_key",
+    "business_folder",
+    "clean_file_stem",
     "get_backend",
     "get_backend_for_row",
     "get_storage_settings",
     "local_staging_root",
+    "object_key_ext",
+    "r2_settings_complete",
+    "r2_settings_from_env",
     "resolve_backend_name",
     "resolve_backend_name_from",
     "storage_enabled",
@@ -105,8 +118,31 @@ BACKEND_R2 = "r2"
 #: 可用 `STORAGE_LOCAL_ROOT` 覆盖，但覆盖值不许落在应用目录内（见 `local_staging_root()`）。
 STAGING_ROOT = Path(tempfile.gettempdir()) / "pm-attachment-staging"
 
-#: 允许的 key 前缀（防止 domain 参数被拼成 `../` 之类的越界路径）
-_ALLOWED_DOMAIN = {"project", "contract", "expense", "contact"}
+#: 业务域（API 层 domain）→ 一级目录名。**一级目录就是业务**，控制台里直接可读。
+#: 未登记的 domain 一律收敛为 `其他`，绝不把调用方字符串直接拼成路径。
+_DOMAIN_FOLDER = {
+    "contract": "合同",
+    "project": "项目",
+    "expense": "凭证",
+    "contact": "档案",
+}
+_FALLBACK_FOLDER = "其他"
+
+#: 人员档案量小，不设年份二级目录（方案 A：该类只有「档案/文件名」两级）
+_NO_YEAR_DOMAINS = {"contact"}
+
+#: 可读文件名（不含扩展名）长度上限：太长的名字会把 key 撑大且控制台里显示不全
+_MAX_STEM_CHARS = 100
+
+#: 随机后缀长度（防重名 + 防枚举；桶虽是私有的，纵深防御不亏）
+_RANDOM_TAG_LEN = 8
+
+_CONTROL_CHARS = re.compile(r"[\x00-\x1f\x7f]")
+_WHITESPACE = re.compile(r"\s+")
+#: 文件名里不允许出现的字符：对象键分隔符 + Windows/URL 保留字符
+_UNSAFE_NAME_CHARS = re.compile(r'[/\\:*?"<>|]')
+#: 连续的点（`..`）不留在对象键里：看起来像路径穿越，排查时也是噪声
+_DOT_RUN = re.compile(r"\.{2,}")
 
 #: 视为生产环境的 `APP_ENV` 取值（生产环境禁止本地后端）
 _PRODUCTION_ENVS = {"prod", "production"}
@@ -198,14 +234,9 @@ def _env(name: str, default: str = "") -> str:
     return (os.getenv(name) or "").strip() or default
 
 
-def get_storage_settings() -> _Settings:
-    """解析 `STORAGE_BACKEND` 与 `R2_*` 配置（单一来源：环境变量，见 .env.docker.example）。
-
-    这里定义「什么情况下进程可以起来」，是「R2 是附件正文唯一持久化口径」的执行点：
-    任何会让正文落到服务器磁盘的配置组合（缺凭据的 `r2` / `auto`、生产环境的 `local`）
-    都在这里直接抛错，而不是回落本地盘。
-    """
-    r2 = R2Settings(
+def r2_settings_from_env() -> R2Settings:
+    """从环境变量读取 R2 连接参数（线上服务、行级后端、迁移脚本共用同一处解析）。"""
+    return R2Settings(
         endpoint_url=_env("R2_ENDPOINT_URL"),
         access_key_id=_env("R2_ACCESS_KEY_ID"),
         secret_access_key=_env("R2_SECRET_ACCESS_KEY"),
@@ -213,9 +244,27 @@ def get_storage_settings() -> _Settings:
         region=_env("R2_REGION", "auto"),
         public_url=_env("R2_PUBLIC_URL"),
     )
-    complete = bool(
-        r2.endpoint_url and r2.access_key_id and r2.secret_access_key and r2.bucket
+
+
+def r2_settings_complete(settings: R2Settings) -> bool:
+    """R2 必填项是否齐全（endpoint / key id / secret / bucket）。"""
+    return bool(
+        settings.endpoint_url
+        and settings.access_key_id
+        and settings.secret_access_key
+        and settings.bucket
     )
+
+
+def get_storage_settings() -> _Settings:
+    """解析 `STORAGE_BACKEND` 与 `R2_*` 配置（单一来源：环境变量，见 .env.docker.example）。
+
+    这里定义「什么情况下进程可以起来」，是「R2 是附件正文唯一持久化口径」的执行点：
+    任何会让正文落到服务器磁盘的配置组合（缺凭据的 `r2` / `auto`、生产环境的 `local`）
+    都在这里直接抛错，而不是回落本地盘。
+    """
+    r2 = r2_settings_from_env()
+    complete = r2_settings_complete(r2)
     requested = _env("STORAGE_BACKEND", BACKEND_R2).lower()
     if requested not in {"auto", BACKEND_LOCAL, BACKEND_R2}:
         raise RuntimeError(
@@ -343,38 +392,93 @@ def storage_profile() -> dict[str, object]:
     return profile
 
 
-def build_object_key(
-    domain: str, filename: str, owner_id: int | None = None, suffix: str = ""
-) -> str:
-    """生成对象键：`tenant/default/{domain}/{yyyy}/{mm}/{uuid}{suffix}{ext}`。
+def business_folder(domain: str) -> str:
+    """业务域 → 一级目录名（未登记的一律 `其他`）。"""
+    return _DOMAIN_FOLDER.get((domain or "").strip().lower(), _FALLBACK_FOLDER)
 
-    · domain 走白名单，非法值收敛为 `other`，绝不把调用方字符串直接拼成路径；
-    · 文件名只取扩展名，原始名留在 `Attachment.filename`，避免中文/空格/`..` 进 key；
+
+def clean_file_stem(filename: str) -> str:
+    """原始文件名 → 可读、可安全进对象键的基名（不含扩展名）。
+
+    · 先取 basename：正斜杠与反斜杠都当分隔符，`../x.pdf` 只剩 `x`；
+    · 去掉控制字符，把对象键/系统保留字符换成 `-`；
+    · 保留中文与空格（便于控制台搜索），空白归一、首尾的点/横线/空格去掉；
+    · 限长 `_MAX_STEM_CHARS`，截断后仍为空则回落 `file`（不产生空名键）。
+    """
+    base = (filename or "").replace("\\", "/").split("/")[-1]
+    base = _CONTROL_CHARS.sub("", base)
+    base = _UNSAFE_NAME_CHARS.sub("-", base)
+    ext = object_key_ext(base)
+    stem = base[: -len(ext)] if ext else base
+    stem = _DOT_RUN.sub("-", stem)
+    stem = _WHITESPACE.sub(" ", stem).strip(" .-")
+    stem = stem[:_MAX_STEM_CHARS].strip(" .-")
+    return stem or "file"
+
+
+def object_key_ext(filename: str) -> str:
+    """扩展名（小写，只保留字母数字），非法则返回空串。
+
+    只保留 `.` + 字母数字，杜绝 `..` / 路径分隔符之类的字符进入对象键。
+    """
+    ext = Path(sanitize_key(filename or "")).suffix.lower()
+    return ext if len(ext) > 1 and ext[1:].isalnum() else ""
+
+
+def build_object_key(
+    domain: str,
+    filename: str,
+    owner_id: int | None = None,
+    suffix: str = "",
+    disambiguator: str = "",
+    year: int | None = None,
+) -> str:
+    """生成对象键：`{业务域}/{yyyy}/{可读原名}__{8位随机}{_标记}{ext}`。
+
+    · 一级目录 = 业务域（`合同` / `项目` / `凭证` / `档案`），未登记的收敛为 `其他`；
+    · 二级目录 = 年份（`contact` 档案量小，不分年）；
+    · 文件名 = 清洗后的原始名 + `__` + 8 位随机后缀，既可读可搜又不可枚举；
+    · `suffix` 是调用方给的可读标记（如支出凭证的上传时间戳），只保留字母数字；
+    · `disambiguator` 供迁移脚本传入**稳定**后缀，保证同一行反复生成的键一致；
+    · `year` 供迁移脚本传入**行内**年份（新键沿用键里已有的年份、旧键取 `uploaded_at`
+      的年份）：线上上传不传（默认当前北京时间年份，`app_now()`），迁移必须传，否则同一行跨年后会算出
+      另一个键，重跑就不再是幂等的 no-op；
+    · 原始名仍完整保存在 `Attachment.filename`，键里的名字只是检索线索；
     · `owner_id` 仅用于**本地后端**的目录分片（便于排查），不进对象键，避免暴露用户 id。
     """
-    safe_domain = domain if domain in _ALLOWED_DOMAIN else "other"
-    now = datetime.now(timezone.utc)
-    ext = Path(sanitize_key(filename or "")).suffix.lower()
-    # 扩展名再过滤一次：只保留 `.` + 字母数字，杜绝 `..` / 斜杠进入 key
-    ext = ext if len(ext) > 1 and ext[1:].isalnum() else ""
-    # 可读后缀（如支出凭证的时间戳）统一加下划线，并只保留字母数字
-    tag = "".join(ch for ch in suffix if ch.isalnum())
-    tag = f"_{tag}" if tag else ""
-    key = f"tenant/default/{safe_domain}/{now:%Y}/{now:%m}/{uuid.uuid4().hex}{tag}{ext}"
-    return sanitize_key(key)
+    now = app_now()
+    folder = business_folder(domain)
+    parts = [folder]
+    if (domain or "").strip().lower() not in _NO_YEAR_DOMAINS:
+        parts.append(f"{now:%Y}" if not isinstance(year, int) else f"{year:04d}")
+
+    raw_tag = disambiguator or uuid.uuid4().hex[:_RANDOM_TAG_LEN]
+    tag = "".join(ch for ch in raw_tag if ch.isalnum())[:_RANDOM_TAG_LEN]
+    if not tag:
+        tag = uuid.uuid4().hex[:_RANDOM_TAG_LEN]
+    name = f"{clean_file_stem(filename)}__{tag}"
+
+    marker = "".join(ch for ch in suffix if ch.isalnum())
+    if marker:
+        name += f"_{marker}"
+    name += object_key_ext(filename)
+    parts.append(name)
+    return sanitize_key("/".join(parts))
 
 
 def local_path_for(
     domain: str, filename: str, object_key: str, owner_id: int | None = None
 ) -> Path:
-    """本地后端的目标路径：`{STORAGE_LOCAL_ROOT}/{domain}/{owner?}/{uuid}{ext}`。
+    """本地后端的目标路径：`{STORAGE_LOCAL_ROOT}/{业务域}/{owner?}/{uuid}{ext}`。
+
+    `{业务域}` 是与对象键同一套中文目录名（`合同` / `项目` / `凭证` / `档案`）。
 
     这是**临时暂存路径，不是持久化存储**（见模块 docstring「唯一事实口径」）：
     只服务开发/测试与显式 `STORAGE_BACKEND=local`，落点由 `local_staging_root()` 校验。
     接入 R2 之前的存量附件按行内 `path` 读，不受这里的布局变化影响。
     只为本地后端调用；R2 写入不生成磁盘路径。
     """
-    parts = [local_staging_root(), domain if domain in _ALLOWED_DOMAIN else "other"]
+    parts = [local_staging_root(), business_folder(domain)]
     if owner_id is not None:
         parts.append(str(owner_id))
     ext = Path(object_key).suffix
@@ -496,20 +600,8 @@ def backend_for_row_coords(
     name = resolve_backend_name_from(row_backend, path, object_key)
     if name == BACKEND_LOCAL:
         return LocalBackend()
-    settings = R2Settings(
-        endpoint_url=_env("R2_ENDPOINT_URL"),
-        access_key_id=_env("R2_ACCESS_KEY_ID"),
-        secret_access_key=_env("R2_SECRET_ACCESS_KEY"),
-        bucket=_env("R2_BUCKET_NAME"),
-        region=_env("R2_REGION", "auto"),
-        public_url=_env("R2_PUBLIC_URL"),
-    )
-    if not (
-        settings.endpoint_url
-        and settings.access_key_id
-        and settings.secret_access_key
-        and settings.bucket
-    ):
+    settings = r2_settings_from_env()
+    if not r2_settings_complete(settings):
         raise RuntimeError(
             "该附件的正文在 R2（storage_backend=r2），但当前 R2 配置不完整（缺 "
             f"{_missing_r2_fields(settings)}）；不能按本地磁盘读写该行。"

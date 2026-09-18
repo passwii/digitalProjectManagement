@@ -46,7 +46,9 @@ export default function LoginPage() {
       router.push(data.must_change_pwd ? "/change-password" : "/dashboard");
     } catch (err: unknown) {
       setApiErr(
-        err instanceof UnauthorizedError ? "手机号或密码错误" : errText(err),
+        err instanceof UnauthorizedError
+          ? "手机号或密码错误"
+          : errText(err),
       );
     } finally {
       setLoading(false);
@@ -64,7 +66,9 @@ export default function LoginPage() {
         <div className={st.storyMain}>
           <p className={st.kicker}>Digital Project Operations</p>
           <h1>数科云办公</h1>
-          <p className={st.storyText}>复杂有章，交付有信。</p>
+          <p className={st.storyText}>
+            复杂有章，交付有信。
+          </p>
         </div>
         <div className={st.storyFoot}>
           <StorySteps steps={STORY_STEPS} />
@@ -86,9 +90,7 @@ export default function LoginPage() {
               <input
                 id="login-phone"
                 value={username}
-                onChange={(e) =>
-                  setUsername(e.target.value.replace(/\D/g, "").slice(0, 11))
-                }
+                onChange={(e) => setUsername(e.target.value.replace(/\D/g, "").slice(0, 11))}
                 placeholder="请输入 11 位手机号"
                 inputMode="numeric"
                 autoComplete="username"
@@ -104,24 +106,14 @@ export default function LoginPage() {
                 autoComplete="current-password"
               />
             </div>
-            {fieldErr && (
-              <div className={`${st.alert} ${st.alertErr}`} role="alert">
-                {fieldErr}
-              </div>
-            )}
-            {apiErr && (
-              <div className={`${st.alert} ${st.alertErr}`} role="alert">
-                {apiErr}
-              </div>
-            )}
+            {fieldErr && <div className={`${st.alert} ${st.alertErr}`} role="alert">{fieldErr}</div>}
+            {apiErr && <div className={`${st.alert} ${st.alertErr}`} role="alert">{apiErr}</div>}
             <button className={st.submit} type="submit" disabled={loading}>
               {loading ? "正在验证…" : "进入管理平台"}
             </button>
           </form>
         </div>
-        <p className={st.copyright} data-login="hint">
-          数科云办公©2026
-        </p>
+        <p className={st.copyright} data-login="hint">数科云办公©2026</p>
       </section>
     </main>
   );
