@@ -51,14 +51,20 @@ def check(book: dict) -> list[str]:
         for i, li in enumerate(v["lines"], 1):
             d, c = D(li["debit"]), D(li["credit"])
             if (d > 0) == (c > 0):
-                errors.append(f"分录非单边 {v['period']} {v['no']} 行{i}: 借={d} 贷={c}")
+                errors.append(
+                    f"分录非单边 {v['period']} {v['no']} 行{i}: 借={d} 贷={c}"
+                )
             if li["account"] not in accounts:
-                errors.append(f"未知科目 {v['period']} {v['no']} 行{i}: {li['account']}")
+                errors.append(
+                    f"未知科目 {v['period']} {v['no']} 行{i}: {li['account']}"
+                )
             acct = accounts.get(li["account"], {})
             flags = acct.get("aux_flags", {})
             for dim in ("customer", "vendor", "dept", "employee", "project"):
                 if flags.get(dim) and not (li.get("aux") or {}).get(dim):
-                    errors.append(f"辅助核算缺失 {v['period']} {v['no']} 行{i}: 缺{dim}")
+                    errors.append(
+                        f"辅助核算缺失 {v['period']} {v['no']} 行{i}: 缺{dim}"
+                    )
 
     # 2. 凭证号唯一 + 断号
     seen: dict[tuple[str, str], int] = defaultdict(int)
@@ -69,7 +75,9 @@ def check(book: dict) -> list[str]:
             errors.append(f"凭证号重复 {p} {no} x{n}")
     for p in book["periods"]:
         try:
-            nums = sorted(int(v["no"].split("-")[1]) for v in vouchers if v["period"] == p)
+            nums = sorted(
+                int(v["no"].split("-")[1]) for v in vouchers if v["period"] == p
+            )
         except (ValueError, IndexError) as exc:
             errors.append(f"凭证号格式错误 {p}: {exc}")
             continue
@@ -97,24 +105,58 @@ def check(book: dict) -> list[str]:
         if td != tc:
             errors.append(f"试算不平 {p}: 借={td} 贷={tc}")
         # BS 恒等：资产借净 == 负债贷净 + 权益贷净 + 损益贷净
-        A = sum((x for c, x in net.items() if accounts[c]["category"] == "资产"), Decimal("0"))
-        L = sum((-x for c, x in net.items() if accounts[c]["category"] == "负债"), Decimal("0"))
-        E = sum((-x for c, x in net.items() if accounts[c]["category"] == "权益"), Decimal("0"))
-        P = sum((-x for c, x in net.items() if accounts[c]["category"] == "损益"), Decimal("0"))
+        A = sum(
+            (x for c, x in net.items() if accounts[c]["category"] == "资产"),
+            Decimal("0"),
+        )
+        L = sum(
+            (-x for c, x in net.items() if accounts[c]["category"] == "负债"),
+            Decimal("0"),
+        )
+        E = sum(
+            (-x for c, x in net.items() if accounts[c]["category"] == "权益"),
+            Decimal("0"),
+        )
+        P = sum(
+            (-x for c, x in net.items() if accounts[c]["category"] == "损益"),
+            Decimal("0"),
+        )
         if A != L + E + P:
-            errors.append(f"资产负债表不恒等 {p}: 资产={A} 负债={L} 权益={E} 损益净={P}")
+            errors.append(
+                f"资产负债表不恒等 {p}: 资产={A} 负债={L} 权益={E} 损益净={P}"
+            )
         # 现金流勾稽
         inflow = outflow = Decimal("0")
         for v in [x for x in vouchers if x["period"] <= p and x["status"] == "posted"]:
             for li in v["lines"]:
-                if any(li["account"].startswith(c) for c in CASH_ACCOUNTS) and li.get("cashflow"):
+                if any(li["account"].startswith(c) for c in CASH_ACCOUNTS) and li.get(
+                    "cashflow"
+                ):
                     inflow += D(li["debit"])
                     outflow += D(li["credit"])
-        cash_net = sum((x for c, x in net.items() if c[:4] in CASH_ACCOUNTS or any(c.startswith(k) for k in CASH_ACCOUNTS)), Decimal("0"))
-        cash_open = sum((D(b["debit"]) - D(b["credit"]) for b in book["opening_balances"] if any(b["account"].startswith(k) for k in CASH_ACCOUNTS)), Decimal("0"))
+        cash_net = sum(
+            (
+                x
+                for c, x in net.items()
+                if c[:4] in CASH_ACCOUNTS or any(c.startswith(k) for k in CASH_ACCOUNTS)
+            ),
+            Decimal("0"),
+        )
+        cash_open = sum(
+            (
+                D(b["debit"]) - D(b["credit"])
+                for b in book["opening_balances"]
+                if any(b["account"].startswith(k) for k in CASH_ACCOUNTS)
+            ),
+            Decimal("0"),
+        )
         if cash_net - cash_open != inflow - outflow:
-            errors.append(f"现金流勾稽不等 {p}: 净变动={cash_net - cash_open} 流入-流出={inflow - outflow}")
-        print(f"{p}: 试算借={td} 贷={tc} ｜ 资产={A} 负债={L} 权益={E} 损益净={P} ｜ 现金净变动={cash_net - cash_open}")
+            errors.append(
+                f"现金流勾稽不等 {p}: 净变动={cash_net - cash_open} 流入-流出={inflow - outflow}"
+            )
+        print(
+            f"{p}: 试算借={td} 贷={tc} ｜ 资产={A} 负债={L} 权益={E} 损益净={P} ｜ 现金净变动={cash_net - cash_open}"
+        )
     return errors
 
 
