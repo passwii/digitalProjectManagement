@@ -18,6 +18,8 @@ interface FormValues {
   owner_name: string;
   budget_total: string;
   client: string;
+  client_contact: string;
+  client_phone: string;
   description: string;
   contract_status: string;
   forward_contract: string;
@@ -30,6 +32,8 @@ const BLANK: FormValues = {
   owner_name: "",
   budget_total: "",
   client: "",
+  client_contact: "",
+  client_phone: "",
   description: "",
   contract_status: "未签订",
   forward_contract: "",
@@ -44,6 +48,8 @@ function toValues(p?: Project | null): FormValues {
     owner_name: p.owner_name || "",
     budget_total: p.budget_total == null ? "" : String(p.budget_total),
     client: p.client || "",
+    client_contact: p.client_contact || "",
+    client_phone: p.client_phone || "",
     description: p.description || "",
     contract_status: p.contract_status || "未签订",
     forward_contract: p.forward_contract || "",
@@ -77,13 +83,16 @@ export default function ProjectFormDialog({
     code: { required: "项目编号不能为空", max: 32, label: "项目编号" },
     owner_name: { required: "请选择项目负责人" },
     budget_total: {
-      label: "项目预算",
+      label: "合同金额",
       custom: (v) => {
         if (v === "") return null;
         const n = Number(v);
-        return Number.isFinite(n) && n >= 0 ? null : "预算须为不小于 0 的数字";
+        return Number.isFinite(n) && n >= 0 ? null : "合同金额须为不小于 0 的数字";
       },
     },
+    // 与后端一致：可选（默认空串），String(64) 上限
+    client_contact: { max: 64, label: "客户联系人" },
+    client_phone: { max: 64, label: "联系方式" },
   });
 
   useEffect(() => {
@@ -121,6 +130,8 @@ export default function ProjectFormDialog({
       owner_name: v.owner_name,
       budget_total: v.budget_total === "" ? 0 : Number(v.budget_total),
       client: v.client.trim(),
+      client_contact: v.client_contact.trim(),
+      client_phone: v.client_phone.trim(),
       description: v.description.trim(),
       contract_status: v.contract_status,
       forward_contract: v.contract_status === "已签订" ? v.forward_contract.trim() : "",
@@ -233,7 +244,7 @@ export default function ProjectFormDialog({
               {PROJECT_OWNERS.map((name) => <option key={name} value={name}>{name}</option>)}
             </select>
           </Field>
-          <Field label="项目预算（元）" error={form.errors.budget_total}>
+          <Field label="合同金额（元）" error={form.errors.budget_total}>
             <input
               value={form.values.budget_total}
               aria-invalid={!!form.errors.budget_total}
@@ -244,6 +255,12 @@ export default function ProjectFormDialog({
           </Field>
           <Field label="客户 / 委托方">
             <input value={form.values.client} onChange={(e) => form.set("client", e.target.value)} placeholder="填写客户或委托单位" />
+          </Field>
+          <Field label="客户联系人" error={form.errors.client_contact}>
+            <input value={form.values.client_contact} onChange={(e) => form.set("client_contact", e.target.value)} placeholder="填写客户联系人姓名" maxLength={64} />
+          </Field>
+          <Field label="联系方式" error={form.errors.client_phone}>
+            <input value={form.values.client_phone} onChange={(e) => form.set("client_phone", e.target.value)} placeholder="填写电话或手机" maxLength={64} inputMode="tel" />
           </Field>
           <Field label="项目简介" span>
             <textarea

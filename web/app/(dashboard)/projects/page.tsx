@@ -231,7 +231,7 @@ function ProjectsInner() {
                   <th>负责人</th>
                   <th>客户</th>
                   <th>合同</th>
-                  <th className="num">预算（元）</th>
+                  <th className="num">合同金额（元）</th>
                   <th className="num">进度</th>
                   <th>状态</th>
                   <th className="no-print" />
@@ -348,7 +348,9 @@ function ProjectsInner() {
               <div><dt>合同状态</dt><dd>{detail.contract_status || "-"}</dd></div>
               <div><dt>前向合同（甲方）</dt><dd>{detail.forward_contract || "-"}</dd></div>
               <div><dt>后向合同（乙方）</dt><dd>{detail.backward_contract || "-"}</dd></div>
-              <div><dt>预算总额</dt><dd className="mono">{fmtMoney(detail.budget_total)} 元</dd></div>
+              <div><dt>合同金额</dt><dd className="mono">{fmtMoney(detail.budget_total)} 元</dd></div>
+              <div><dt>客户联系人</dt><dd>{detail.client_contact || "-"}</dd></div>
+              <div><dt>联系方式</dt><dd>{detail.client_phone || "-"}</dd></div>
               <div><dt>项目简介</dt><dd>{detail.description || "-"}</dd></div>
             </dl>
 

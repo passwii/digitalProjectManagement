@@ -65,6 +65,24 @@ export const DOCUMENT_ATTACHMENT_EXTENSIONS: readonly string[] = [
   ".jpeg",
 ];
 
+/**
+ * 支出票据白名单（与 `api/routers/expenses.py` 的 `VOUCHER_EXT` 一致：发票 PDF 与凭证图片）。
+ *
+ * 集合上与合同附件相同，但以后端票据接口为准独立命名：票据口径变化时只改这里，
+ * 不会误伤合同附件入口。
+ */
+export const VOUCHER_ATTACHMENT_EXTENSIONS: readonly string[] = [
+  ".pdf",
+  ".docx",
+  ".xlsx",
+  ".png",
+  ".jpg",
+  ".jpeg",
+];
+
+/** 支出票据上传区统一提示文案（数字来自 {@link MAX_ATTACHMENT_SIZE}）。 */
+export const VOUCHER_ATTACHMENT_HINT = `支持发票 PDF / 凭证图片，单个文件不超过 ${MAX_ATTACHMENT_SIZE_LABEL}`;
+
 /** 由白名单生成 `<input accept>` 值（无空格，顺序与白名单一致）。 */
 export function acceptFor(extensions: readonly string[]): string {
   return extensions.join(",");
@@ -72,6 +90,9 @@ export function acceptFor(extensions: readonly string[]): string {
 
 /** 由合同附件白名单生成的 `<input accept>` 值。 */
 export const CONTRACT_ATTACHMENT_ACCEPT = acceptFor(CONTRACT_ATTACHMENT_EXTENSIONS);
+
+/** 由支出票据白名单生成的 `<input accept>` 值。 */
+export const VOUCHER_ATTACHMENT_ACCEPT = acceptFor(VOUCHER_ATTACHMENT_EXTENSIONS);
 
 /** 由人员档案附件白名单生成的 `<input accept>` 值。 */
 export const CONTACT_ATTACHMENT_ACCEPT = acceptFor(CONTACT_ATTACHMENT_EXTENSIONS);

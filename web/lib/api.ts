@@ -441,6 +441,8 @@ export interface Project {
   budget_total: number;
   priority: string;
   client: string;
+  client_contact: string;
+  client_phone: string;
   description: string;
   contract_status?: string;
   forward_contract?: string;
@@ -781,10 +783,31 @@ export const budgetsApi = {
     apiPost<Record<string, unknown>>(`/budget-adjusts/${id}/approve`, body),
 };
 
+/** 支出票据（后端 `GET /expenses/{id}/vouchers` 契约，BLF-1150/BLF-1151） */
+export interface ExpenseVoucher {
+  id: number;
+  filename: string;
+  size: number;
+  content_type?: string;
+  uploaded_by: number | null;
+  uploaded_at: string | null;
+}
+
 export const expensesApi = {
   list: (q = "", signal?: AbortSignal) =>
     apiGet<Expense[] | Paged<Expense>>(`/expenses${q}`, signal),
   create: (body: Record<string, unknown>) => apiPost<Expense>("/expenses", body),
+  vouchers: (eid: number, signal?: AbortSignal) =>
+    apiGet<ExpenseVoucher[]>(`/expenses/${eid}/vouchers`, signal),
+  uploadVoucher: (eid: number, file: File, options?: UploadOptions) => {
+    const fd = new FormData();
+    fd.append("file", file);
+    return apiUpload<ExpenseVoucher>(`/expenses/${eid}/vouchers`, fd, options);
+  },
+  downloadVoucher: (eid: number, aid: number, filename: string) =>
+    downloadFile(`/expenses/${eid}/vouchers/${aid}/download`, filename),
+  deleteVoucher: (eid: number, aid: number) =>
+    apiDelete<{ ok: boolean }>(`/expenses/${eid}/vouchers/${aid}`),
   approve: (id: number) => apiPost<Expense>(`/expenses/${id}/approve`, {}),
   reject: (id: number, reason: string) => apiPost<Expense>(`/expenses/${id}/reject`, { reason }),
   exception: (id: number, reason: string) => apiPost<Expense>(`/expenses/${id}/exception`, { reason }),
