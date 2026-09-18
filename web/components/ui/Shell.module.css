@@ -361,3 +361,31 @@
   .brandText b { font-size: 15px; }
   .crumb { max-width: 210px; }
 }
+
+/*
+ * 手机壳（BLF-1127 §7）：≤767px 侧栏整体退场，导航交给底部 Dock
+ * （`components/mobile/MobileDock`）。
+ *
+ * 与上面 900px 那一段是**叠加**关系，不是替代：768–900px 仍然是桌面侧栏的
+ * 横向紧凑形态（平板 / 窄窗口），767px 以下才是手机。切外壳完全靠这里的 CSS
+ * ——两份外壳的 DOM 都在（见 layout.tsx 里 MobileDock 的注释），所以首帧不会
+ * 先画出错误外壳。
+ */
+@media (max-width: 767px) {
+  /* 隐藏而不是不渲染：display:none 同时移出无障碍树与 Tab 序列，
+     侧栏里那些必然看不见的入口（账号 / 登出 / 管理组）也不会被读屏念出来。 */
+  .sidebar,
+  .collapsed .sidebar { display: none; }
+
+  /* 顶栏收窄到手机高度（--m-appbar-h）：现在它同时承担手机端 appbar 的职能
+     （品牌页签 + 通知 + 头像），且 52px 能让首屏多出一行表格内容 */
+  .topbar {
+    height: var(--m-appbar-h);
+    flex-basis: var(--m-appbar-h);
+  }
+  .crumb b { font-weight: 600; }
+
+  /* 底部给 Dock 让位：Dock 是 fixed 定位、不占文档流，不留白就会盖住最后一屏内容
+     （58 + 安全区 + 18 的呼吸位，与 MobileDock.module.css 的高度口径一致） */
+  .content { padding-bottom: calc(var(--m-dock-h) + var(--m-safe-b) + 18px); }
+}
