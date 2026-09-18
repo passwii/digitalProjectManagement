@@ -116,6 +116,8 @@ PROBE = r"""() => {
       clean(e.textContent) === title && !e.children.length && shown(e)).length : 0;
   const items = actions ? Array.from(actions.querySelectorAll('button,a')).map((e) => ({
     text: clean(e.textContent), disabled: e.disabled === true })) : [];
+  // 操作按钮自身的 box：铺没铺满要看按钮，不能只看 .page-head（block 容器宽度恒等于内容宽）。
+  const btns = actions ? Array.from(actions.querySelectorAll('button,a')).map(box) : [];
   const after = row ? row.nextElementSibling : null;
   return {
     vw: document.documentElement.clientWidth,
@@ -126,6 +128,9 @@ PROBE = r"""() => {
     hasRow: !!row,
     items,
     row: row ? box(row) : null,
+    actionsBox: actions ? box(actions) : null,
+    actionsJustify: actions ? getComputedStyle(actions).justifyContent : null,
+    btns,
     rowAfterGap: (row && after) ? (after.getBoundingClientRect().top - box(row).b) : null,
     innerBox: inner ? box(inner) : null,
     bodyText: clean(main.textContent),
@@ -190,18 +195,32 @@ def main() -> int:
                            f"命中={hit[:1]} 期望 disabled={disabled}")
 
                 # 4) 版式：桌面右对齐贴内容右缘；≤640px 铺满贴左；操作行与下一块的间隙正常
-                if g["row"] and g["innerBox"]:
-                    rowa, inb = g["row"], g["innerBox"]
+                #    注意量的是 .actions 与按钮自身的 box：.page-head.actions-only 是 block 级
+                #    flex 容器，宽度恒等于内容宽，量它永远 PASS（假绿）。
+                if g["actionsBox"] and g["innerBox"]:
+                    act, inb = g["actionsBox"], g["innerBox"]
                     if w > 640:
                         record(f"{tag} 操作行右对齐（贴内容右缘）",
-                               abs(rowa["r"] - inb["r"]) <= 24,
-                               f"row.right={rowa['r']:.1f} inner.right={inb['r']:.1f}")
+                               abs(act["r"] - inb["r"]) <= 24,
+                               f"actions.right={act['r']:.1f} inner.right={inb['r']:.1f}")
                     else:
-                        record(f"{tag} 操作行窄屏铺满贴左",
-                               abs(rowa["w"] - inb["w"]) <= 24 and rowa["l"] - inb["l"] <= 24,
-                               f"row.w={rowa['w']:.1f} inner.w={inb['w']:.1f} row.left={rowa['l']:.1f}")
-                    record(f"{tag} 操作行未超出内容宽度", rowa["r"] <= inb["r"] + 1,
-                           f"row.right={rowa['r']:.1f}")
+                        record(f"{tag} 操作行窄屏铺满贴左（量 .actions 自身）",
+                               abs(act["w"] - inb["w"]) <= 8 and act["l"] - inb["l"] <= 8
+                               and g["actionsJustify"] == "flex-start",
+                               f"actions.w={act['w']:.1f} inner.w={inb['w']:.1f}"
+                               f" actions.left={act['l']:.1f} inner.left={inb['l']:.1f}"
+                               f" justify={g['actionsJustify']}")
+                        if g["btns"]:
+                            # 按钮自身的跨度也要贴满内容宽：只量 .actions 的话，万一 .actions 自身
+                            # 被缩窄，按钮仍会「铺满 .actions」而假绿。
+                            span = g["btns"][-1]["r"] - g["btns"][0]["l"]
+                            record(f"{tag} 操作按钮铺满整行（不是右侧小胶囊）",
+                                   abs(span - inb["w"]) <= 8 and g["btns"][0]["l"] - inb["l"] <= 8,
+                                   f"按钮跨度={span:.1f} inner.w={inb['w']:.1f}"
+                                   f" 首按钮.left={g['btns'][0]['l']:.1f}"
+                                   f" 按钮宽={[round(b['w'], 1) for b in g['btns']]}")
+                    record(f"{tag} 操作行未超出内容宽度", act["r"] <= inb["r"] + 1,
+                           f"actions.right={act['r']:.1f}")
                     gap = g["rowAfterGap"]
                     record(f"{tag} 操作行与下一块间隙正常（无被删标题留下的空洞）",
                            gap is not None and -1 <= gap <= 32,
