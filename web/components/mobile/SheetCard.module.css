@@ -1,0 +1,129 @@
+/*
+  * 抽屉卡片（BLF-1127 §4.1 / §4.2）。一张卡两个形态，见 SheetCard.tsx 顶部注释。
+  *
+  * 触控目标一律 ≥ --m-tap(44px)：卡片是手机端最高频的点击面，
+  * 行高不足会让「点卡片进模块」变成误点。
+  */
+
+.card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: var(--m-tap);
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  background: var(--card);
+  color: var(--ink);
+  text-align: left;
+  text-decoration: none;
+  transition:
+    border-color var(--motion-fast) var(--ease-console),
+    transform 90ms var(--ease-console);
+}
+.card:hover {
+  border-color: var(--line-blue);
+  text-decoration: none;
+}
+.card:active {
+  transform: scale(0.985);
+}
+
+.text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.title {
+  overflow: hidden;
+  font-size: 13.5px;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.note {
+  overflow: hidden;
+  color: var(--ink-3);
+  font-size: 11.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.icon {
+  flex: none;
+  display: block;
+  height: 20px;
+  color: var(--brand);
+}
+
+/* 指标值：等宽字体，数字宽度一致才好上下比较（与桌面 KPI 卡同口径） */
+.value {
+  flex: none;
+  font-family: var(--font-mono);
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 1.1;
+}
+
+.chev {
+  flex: none;
+  color: var(--ink-3);
+}
+
+/* 指标语义色（超期 / 超预算一类需要立刻看见的口径） */
+.card[data-tone="brand"] .value {
+  color: var(--brand);
+}
+.card[data-tone="warn"] .value {
+  color: var(--warn);
+}
+.card[data-tone="danger"] .value {
+  color: var(--danger);
+}
+
+/* ---------- preview：peek 档的平铺预览卡 ---------- */
+/* peek 是 2 列网格（见 BottomSheet.module.css）：竖排、按内容高度走，
+      箭头在这一档是噪音（整块都可点），隐掉。 */
+.card[data-sheet-card="preview"] {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 12px;
+}
+.card[data-sheet-card="preview"] .chev {
+  display: none;
+}
+.card[data-sheet-card="preview"] .text {
+  flex: none;
+  gap: 3px;
+}
+.card[data-sheet-card="preview"] .value {
+  font-size: 19px;
+}
+
+/* 品牌底：模块卡在 peek 里区分「业务模块」与未来 S4 的指标卡 */
+.card[data-sheet-card="preview"][data-tone="brand"] {
+  background: linear-gradient(160deg, #f5faff, #fff);
+  border-color: var(--line-blue);
+}
+
+/* ---------- list：half / full 档的整宽行 ---------- */
+.card[data-sheet-card="list"] {
+  padding: 11px 12px;
+}
+.card[data-sheet-card="list"] .text {
+  flex-direction: row;
+  align-items: baseline;
+  gap: 8px;
+}
+.card[data-sheet-card="list"] .title {
+  flex: none;
+  max-width: 60%;
+}
+.card[data-sheet-card="list"] .note {
+  flex: 1;
+  min-width: 0;
+}
