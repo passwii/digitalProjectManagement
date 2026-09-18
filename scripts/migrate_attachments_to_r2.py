@@ -41,15 +41,17 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from api.core.database import SessionLocal  # noqa: E402
-from api.core.r2 import R2ObjectMissing, R2Unavailable  # noqa: E402
-from api.core.storage import (  # noqa: E402
+from sqlalchemy.orm import Session
+
+from api.core.database import SessionLocal
+from api.core.r2 import R2ObjectMissing, R2Unavailable
+from api.core.storage import (
     BACKEND_R2,
     build_object_key,
     get_backend,
     resolve_backend_name,
 )
-from api.models import Attachment  # noqa: E402
+from api.models import Attachment
 
 
 def _text(value) -> str:
@@ -84,7 +86,7 @@ def _domain_for(row: Attachment) -> str:
     return "project"
 
 
-def _pending(db) -> list[Attachment]:
+def _pending(db: Session) -> list[Attachment]:
     """待回填 = 还没有 object_key 的行（本地坐标）。"""
     return (
         db.query(Attachment)

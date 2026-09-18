@@ -8,12 +8,25 @@
 
 后端选择
 --------
-`STORAGE_BACKEND` 取 `auto`（默认）/ `local` / `r2`：
+`STORAGE_BACKEND` 是**新写入的默认后端**，取 `auto`（默认）/ `local` / `r2`：
 
-  · `auto`：R2 配置齐全 → R2；否则回落本地磁盘。保证「没配对象存储也能起服务」，
-    本地开发与 CI 不需要 R2 凭据。
+  · `auto`：R2 配置齐全 → R2；配置缺失（例如凭据轮转期被清空）时回落本地磁盘，
+    且回落会记一条 warning —— 保证「没配对象存储也能起服务」，但绝不静默。
   · `r2`  ：强制 R2；配置不全直接报错，避免「以为在用 R2、其实写到容器磁盘」。
-  · `local`：强制本地（离线演示、回滚开关）。
+  · `local`：新写入落本地磁盘。**它不是整体回滚开关**：已经上 R2 的存量行不受影响，
+    仍按行内 `storage_backend` 走 R2（见下「读旧的、写新的」）。
+
+读旧的、写新的（重要）
+----------------------
+正文的**读取与删除永远按行**（`Attachment.storage_backend` + `object_key` + `path`）
+选后端，只有**新写入**才看 `STORAGE_BACKEND`。因此有两个入口：
+
+  · `get_backend_for_row(row)` —— 读写某个已存在的附件，后端与行内坐标严格一致；
+  · `get_backend()` —— 新上传/回填用，按全局 `STORAGE_BACKEND` 解析。
+
+若两者不一致（典型场景：`STORAGE_BACKEND` 从 `r2` 改回 `local` 做演示、或本地开发
+连的是生产库），任何按「当前配置」去读/删 R2 行的做法都会退化成 404 + 漏删。
+所以行级后端不受全局开关影响，全局开关只改新写入的落点。
 
 元数据落库
 ----------
@@ -22,12 +35,16 @@
   · 本地后端：`path` = 磁盘绝对路径，`object_key` 留空；
   · R2 后端：`path` = 对象公开 URL（人可读、便于排查），`object_key` = 真实对象键。
 
+切换 `STORAGE_BACKEND=r2` 之前请先跑 `validate_storage_settings()`
+（`api.main` 的 lifespan 已调用；脚本可单独调用），避免「进程绿着起来、每个请求才炸」。
+
 对象键命名遵循 README §5.3 的「不可猜测 + 可审计」要求：
 `tenant/default/{domain}/{yyyy}/{mm}/{uuid}.{ext}`（domain 例如 project / expense / contact）。
 """
 
 from __future__ import annotations
 
+import logging
 import os
 import uuid
 from collections.abc import Iterator
@@ -59,18 +76,25 @@ __all__ = [
     "LocalBackend",
     "R2Backend",
     "StoredObject",
+    "backend_for_row_coords",
     "build_object_key",
     "get_backend",
+    "get_backend_for_row",
     "get_storage_settings",
     "resolve_backend_name",
+    "resolve_backend_name_from",
     "storage_enabled",
     "storage_profile",
+    "validate_storage_settings",
 ]
+
+logger = logging.getLogger(__name__)
 
 BACKEND_LOCAL = "local"
 BACKEND_R2 = "r2"
 
-#: 本地后端根目录（与既有 `data/files` 布局一致，存量附件无需搬迁）
+#: 本地后端根目录。共享 `data/files` 这个根，但子目录布局与 BLF-1136 之前的
+#: `data/files/{pid}/...` 不同（见 `local_path_for`），存量附件不受影响（按行内 `path` 读）。
 FILES_ROOT = ROOT / "data" / "files"
 
 #: 允许的 key 前缀（防止 domain 参数被拼成 `../` 之类的越界路径）
@@ -148,6 +172,13 @@ def get_storage_settings() -> _Settings:
             "STORAGE_BACKEND=r2 但 R2 配置不完整（需要 R2_ENDPOINT_URL / R2_ACCESS_KEY_ID / "
             "R2_SECRET_ACCESS_KEY / R2_BUCKET_NAME）"
         )
+    if requested == "auto" and not complete:
+        # `auto` 的回落是「没配凭据」的兜底，但运维凭据轮转期漏配、或同一份配置在
+        # 不同环境漂移时也会落到这里：记一条 warning，不让它被静默掩盖。
+        logger.warning(
+            "STORAGE_BACKEND=auto 且 R2 配置不完整（%s），新上传将回落本地磁盘",
+            _missing_r2_fields(r2),
+        )
     backend = (
         BACKEND_R2
         if (requested == BACKEND_R2 or (requested == "auto" and complete))
@@ -164,9 +195,70 @@ def get_storage_settings() -> _Settings:
     )
 
 
+def _presign_ttl() -> int:
+    """预签名 TTL（行级后端不依赖 `STORAGE_BACKEND`，单独解析一次）。"""
+    try:
+        ttl = int(_env("R2_PRESIGN_TTL_SECONDS", "3600"))
+    except ValueError:
+        ttl = 3600
+    return max(ttl, 60)
+
+
+def _missing_r2_fields(r2: R2Settings) -> str:
+    """列出缺失的 R2 必填项（只报变量名，**绝不回显值**）。"""
+    required = {
+        "R2_ENDPOINT_URL": r2.endpoint_url,
+        "R2_ACCESS_KEY_ID": r2.access_key_id,
+        "R2_SECRET_ACCESS_KEY": r2.secret_access_key,
+        "R2_BUCKET_NAME": r2.bucket,
+    }
+    return ", ".join(name for name, value in required.items() if not value) or "未设置"
+
+
+def validate_storage_settings() -> _Settings:
+    """启动期校验：配置与 `STORAGE_BACKEND` 自相矛盾时立刻抛错，不让进程绿着起来。
+
+    `r2` 强制模式配置不全时由 `get_storage_settings()` 抛 `RuntimeError`；
+    这里把校验从「首个请求」提前到应用启动（`api.main` 的 lifespan 调用）。
+    """
+    return get_storage_settings()
+
+
 def resolve_backend_name() -> str:
-    """当前生效的后端名（`local` / `r2`）——健康检查与响应体用。"""
+    """按 `STORAGE_BACKEND` 解析出的**新写入**后端名（`local` / `r2`）。"""
     return get_storage_settings().backend
+
+
+def resolve_backend_name_from(
+    row_backend: str, path: str = "", object_key: str = ""
+) -> str:
+    """按**某一行的坐标**解析后端名（读/删必须用这个，不能用全局开关）。
+
+    规则与 `attachments._row_coords()` 完全一致，两处不得各自演化：
+
+      · `storage_backend` 为空 → 存量行，按本地磁盘；
+      · `storage_backend='local'` 但 `path` 是 http(s) URL 或有 `object_key`
+        → 迁移过程中的行，按 R2（`path` 是 URL，不能当磁盘路径用）；
+      · 其余按行内 `storage_backend` 取值。
+
+    无法识别的取值**明确报错**，不静默降级成本地 —— 否则一个笔误的
+    `storage_backend` 就会变成「对象漏删 + 下载 404」。
+    """
+    declared = (row_backend or "").strip().lower()
+    key = (object_key or "").strip()
+    location = (path or "").strip()
+    if declared in ("", BACKEND_LOCAL) and (
+        key or location.startswith(("http://", "https://"))
+    ):
+        return BACKEND_R2
+    if declared in ("", BACKEND_LOCAL):
+        return BACKEND_LOCAL
+    if declared == BACKEND_R2:
+        return BACKEND_R2
+    raise RuntimeError(
+        f"附件行的存储后端无法识别：{row_backend!r}（只支持 local / r2；"
+        "请修正数据或补上对应后端实现，勿静默按本地磁盘处理）"
+    )
 
 
 def storage_enabled() -> bool:
@@ -309,11 +401,57 @@ class R2Backend:
 
 
 def get_backend() -> StorageBackend:
-    """按当前配置返回后端实例（无全局可变状态，环境变量变更即时生效）。"""
+    """按**当前配置**返回后端实例（新上传 / 回填用）。
+
+    已存在附件的读取与删除不要用这个 —— 用 `get_backend_for_row()`：行内坐标才是
+    那份正文真正的位置，与全局开关无关。
+    """
     settings = get_storage_settings()
     if settings.backend == BACKEND_R2 and settings.r2 is not None:
         return R2Backend(settings.r2, presign_ttl=settings.presign_ttl)
     return LocalBackend()
+
+
+def backend_for_row_coords(
+    row_backend: str, path: str, object_key: str
+) -> StorageBackend:
+    """按行内坐标取后端实例（读/删已存在附件的唯一正确入口）。
+
+    `local` 行没有 R2 依赖，即使 `R2_*` 被清空也照常删除磁盘文件；`r2` 行需要完整
+    的 `R2_*` 配置与桶名，缺失时**明确报错**，绝不静默退回本地盘去「删一个不存在的
+    路径」并把元数据删掉（那会造成无人追踪的 R2 孤儿对象）。
+    """
+    name = resolve_backend_name_from(row_backend, path, object_key)
+    if name == BACKEND_LOCAL:
+        return LocalBackend()
+    settings = R2Settings(
+        endpoint_url=_env("R2_ENDPOINT_URL"),
+        access_key_id=_env("R2_ACCESS_KEY_ID"),
+        secret_access_key=_env("R2_SECRET_ACCESS_KEY"),
+        bucket=_env("R2_BUCKET_NAME"),
+        region=_env("R2_REGION", "auto"),
+        public_url=_env("R2_PUBLIC_URL"),
+    )
+    if not (
+        settings.endpoint_url
+        and settings.access_key_id
+        and settings.secret_access_key
+        and settings.bucket
+    ):
+        raise RuntimeError(
+            "该附件的正文在 R2（storage_backend=r2），但当前 R2 配置不完整（缺 "
+            f"{_missing_r2_fields(settings)}）；不能按本地磁盘读写该行。"
+        )
+    return R2Backend(settings, presign_ttl=_presign_ttl())
+
+
+def get_backend_for_row(row) -> StorageBackend:
+    """`backend_for_row_coords()` 的便捷入口，直接吃 `Attachment` 行对象。"""
+    return backend_for_row_coords(
+        str(getattr(row, "storage_backend", "") or ""),
+        str(getattr(row, "path", "") or ""),
+        str(getattr(row, "object_key", "") or ""),
+    )
 
 
 def try_delete_object_quietly(object_key: str) -> None:

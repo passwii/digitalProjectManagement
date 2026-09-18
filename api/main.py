@@ -1,11 +1,12 @@
 import os
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 # 确保模型注册
 from . import models  # noqa: F401
-from .core.storage import storage_profile
+from .core.storage import storage_profile, validate_storage_settings
 from .routers import (
   admin,
   approvals,
@@ -22,9 +23,27 @@ from .routers import (
   tasks,
 )
 
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+  """启动期校验：配置自相矛盾就**不让进程起来**，而不是绿着启动、每个请求才炸。
+
+  `STORAGE_BACKEND=r2` 而 `R2_*` 不全时 `validate_storage_settings()` 抛
+  `RuntimeError`，uvicorn 启动失败（容器重启并留在日志里）；`auto` 回落本地
+  只记 warning，不会阻断启动。
+  """
+  settings = validate_storage_settings()
+  if settings.backend == "r2" and settings.r2 is not None:
+    print(f"[storage] 附件后端：r2（bucket={settings.r2.bucket}）")
+  else:
+    print("[storage] 附件后端：本地磁盘（未接对象存储）")
+  yield
+
+
 app = FastAPI(
   title="项目管理系统 API",
   version="0.1.0",
+  lifespan=lifespan,
   description="""
 ## 管理与审批边界契约（Stage 1 收敛，2026-09-16 确认）
 
@@ -121,6 +140,7 @@ def health():
   """健康检查：额外回报附件存储后端，便于确认「是否真的接上了 R2」。
 
   只回后端名与桶名，**不含任何密钥**；`local` 表示尚未接对象存储。
+  这里仍显式解析配置：若进程是在配置损坏后被探活，能直接报到 500（启动校验已经拦过一道）。
   """
   profile = storage_profile()
   body = {"ok": True, "storage_backend": profile["backend"]}

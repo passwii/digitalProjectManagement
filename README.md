@@ -201,13 +201,23 @@ PostgreSQL 是整个系统的 **System of Record**。预算审批、支出状态
 
 ### 5.1 `[ 现状／已实现 ]` 本地文件系统 + Cloudflare R2 双后端
 
-附件正文自 BLF-1136 起支持两个后端，由 `STORAGE_BACKEND` 选择（`auto` / `local` / `r2`）：
+附件正文自 BLF-1136 起支持两个后端。`STORAGE_BACKEND` 只决定**新上传**落到哪里（`auto` / `local` / `r2`）：
 
-- `auto`（默认）：`R2_*` 配齐就用 R2，否则回落本地磁盘——本地开发与 CI 不需要 R2 凭据；
-- `r2`：强制对象存储，配置不全时启动即报错（不允许「以为在用 R2、其实写容器磁盘」）；
-- `local`：强制本地磁盘（离线演示 / 回滚开关）。
+- `auto`（默认）：`R2_*` 配齐就用 R2，否则回落本地磁盘（回落会记一条 warning，不静默）；
+- `r2`：新上传强制走对象存储，配置不全时**应用 lifespan 启动即失败**（不允许「以为在用 R2、其实写容器磁盘」）；
+- `local`：新上传落本地磁盘（离线演示）。**它不是整体回滚开关**。
 
-本地后端仍写入 `pm-data` 持久卷，`attachments.path` 保存服务器文件路径。项目附件、支出凭证、通讯录证件和劳动合同共用 `attachments` 表，通过 `ref_type`、`ref_id`、`category` 区分。
+已存在附件的下载与删除**永远按行内坐标**（`attachments.storage_backend` / `object_key` / `path`）选后端，
+与当前 `STORAGE_BACKEND` 无关（`storage.get_backend_for_row()`）。所以把开关改回 `local` 后：
+存量 R2 附件照常从 R2 下载、删除时也真的删掉 R2 对象，只是新上传改落本地盘（「读旧的、写新的」）。
+反之，行在 R2 而 `R2_*` 缺失时会返回 `502` 并**保留元数据**（绝不静默 404 或假装删除成功）。
+
+本地后端仍在 `pm-data` 持久卷的 `data/files` 下，但目录布局自 BLF-1136 起为
+`data/files/{domain}/{owner_id}/{uuid}{ext}`（**与接入前的 `data/files/{pid}/...` 不同**）：
+存量附件按行内 `path` 读、不受影响，但新写入的文件不再落在旧目录、磁盘上也不再保留原始文件名
+（原名只存库里）。`scripts/seed_mock.py` 的演示数据仍用旧布局，与新写入不互通，属已知差异。
+
+项目附件、支出凭证、通讯录证件和劳动合同共用 `attachments` 表，通过 `ref_type`、`ref_id`、`category` 区分。
 
 实现位置：
 
@@ -231,10 +241,18 @@ class StorageBackend(Protocol):
     def url_for(self, object_key, local_path) -> str: ...
 ```
 
+取后端实例有两个入口，读写**已存在**附件只能用第二个：
+
+- `get_backend()` —— 按全局 `STORAGE_BACKEND`，仅用于新上传与回填脚本；
+- `get_backend_for_row(row)` —— 按行内坐标，下载/删除/存在性判定一律用这个。
+
 适配器：
 
 - `LocalBackend`：兼容现有机房或开发环境（本地行 `object_key` 为空）。
 - `R2Backend`：通过 S3-compatible Endpoint、SigV4 签名和存储桶访问 Cloudflare R2。
+
+能力差异：R2 下载走 `StreamingResponse`，**不支持 Range 断点续传**（本地后端走 `FileResponse`，支持）。
+100MB 附件的中断重传会从 0 开始，前端目前是 blob 全量下载，暂无功能回归。
 
 失败语义（务必区分，否则会把「R2 挂了」误报成「文件丢了」）：
 
@@ -242,6 +260,7 @@ class StorageBackend(Protocol):
 | --- | --- | --- |
 | 对象不存在 | `R2ObjectMissing` | `404 附件文件已丢失` |
 | 网络 / 凭据 / 5xx | `R2Unavailable` | `502 文件存储不可用，请稍后重试` |
+| R2 行但 `R2_*` 配置缺失 | `RuntimeError` | `502`（保留元数据，不静默 404） |
 | 删除失败 | `R2DeleteResult(success=False)` | 删除接口 `502` 且**保留元数据** |
 
 ### 5.3 附件元数据模型
