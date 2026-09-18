@@ -11,7 +11,7 @@ Stage 4A 补齐：
 引用三元组的完整性由 `core.notify.REF_TYPES` 白名单保证：
 预警/审批/提醒的写入点都必须给出 ref_type + ref_id + project_id，缺失时不写入无法解析的引用。
 """
-from datetime import datetime, timezone
+from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
@@ -19,8 +19,16 @@ from sqlalchemy.orm import Session
 from ..core.database import get_db
 from ..core.deps import get_current_user
 from ..core.jobs import sync_notifications
-from ..core.notify import (DEDUP_PARAM_KEY, REF_TYPES, STATE_DONE, STATE_IGNORED,
-                           STATE_PENDING, dedup_days, mark_state)
+from ..core.notify import (
+    DEDUP_PARAM_KEY,
+    REF_TYPES,
+    STATE_DONE,
+    STATE_IGNORED,
+    STATE_PENDING,
+    dedup_days,
+    mark_state,
+)
+from ..core.timeutil import app_now, app_now_aware, as_app, iso
 from ..models import Notification, Project, User
 
 router = APIRouter(prefix="/notifications", tags=["notifications"])
@@ -66,11 +74,11 @@ def _n(x: Notification) -> dict:
             "ref_complete": bool(x.ref_type and x.ref_id),
             "link": _link(x),
             "state": x.state or STATE_PENDING,
-            "handled_at": x.handled_at.isoformat() if x.handled_at else None,
+            "handled_at": iso(x.handled_at),
             "handled_by": x.handled_by,
             "handle_note": x.handle_note or "",
             "read": x.read_at is not None,
-            "created_at": x.created_at.isoformat() if x.created_at else None}
+            "created_at": iso(x.created_at)}
 
 
 def _sync(db: Session, force: bool = False):
@@ -84,14 +92,12 @@ def _sync(db: Session, force: bool = False):
     from ..models import SysParam
 
     key = "notifications_synced_at"
-    now = datetime.now(timezone.utc)
+    now = app_now_aware()
     try:
         row = db.query(SysParam).filter_by(key=key).first()
         if not force and row and row.value:
             try:
-                last = datetime.fromisoformat(row.value)
-                if last.tzinfo is None:
-                    last = last.replace(tzinfo=timezone.utc)
+                last = as_app(datetime.fromisoformat(row.value))
                 if (now - last) < timedelta(seconds=SYNC_INTERVAL):
                     return
             except ValueError:
@@ -178,7 +184,7 @@ def mark_read(nid: int, db: Session = Depends(get_db), user: User = Depends(get_
     if not x:
         raise HTTPException(404, "通知不存在")
     if not x.read_at:
-        x.read_at = datetime.now(timezone.utc)
+        x.read_at = app_now()
         db.commit()
     return {"ok": True, "id": x.id, "state": x.state or STATE_PENDING}
 
@@ -187,7 +193,7 @@ def mark_read(nid: int, db: Session = Depends(get_db), user: User = Depends(get_
 def mark_all_read(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     rows = db.query(Notification).filter(
         Notification.user_id == user.id, Notification.read_at.is_(None)).all()
-    now = datetime.now(timezone.utc)
+    now = app_now()
     for x in rows:
         x.read_at = now
     db.commit()
@@ -210,7 +216,7 @@ def handle_notification(nid: int, body: dict, db: Session = Depends(get_db),
         raise HTTPException(400, f"state 须为 {list(NOTIFY_STATES)} 之一，收到 {state!r}")
     mark_state(db, x, state, user.id, str(body.get("note", "") or ""))
     if not x.read_at:
-        x.read_at = datetime.now(timezone.utc)
+        x.read_at = app_now()
     db.commit()
     return _n(x)
 
@@ -230,7 +236,7 @@ def handle_all(body: dict, db: Session = Depends(get_db),
     if ntype:
         q = q.filter(Notification.type == ntype)
     rows = q.all()
-    now = datetime.now(timezone.utc)
+    now = app_now()
     note = str(body.get("note", "") or "")
     for x in rows:
         mark_state(db, x, state, user.id, note)

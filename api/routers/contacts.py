@@ -1,7 +1,7 @@
 """管理员通讯录花名册：人员主数据、可选账号关联与证件/合同附件。"""
 
 import re
-from datetime import date, datetime, timezone
+from datetime import date
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
@@ -21,6 +21,7 @@ from ..core.deps import get_current_user
 from ..core.limits import MAX_ATTACHMENT_SIZE, read_within_limit
 from ..core.paging import DEFAULT_PAGE_SIZE, paginate
 from ..core.rbac import require_admin
+from ..core.timeutil import app_now, app_today, iso
 from ..models import Attachment, ContactProfile, Department, User
 
 router = APIRouter(prefix="/contacts", tags=["contacts"])
@@ -225,7 +226,7 @@ def _serialize(
         "remark": profile.remark or "",
         "has_profile": True,
         "attachment_count": int(attachment_count or 0),
-        "updated_at": profile.updated_at.isoformat() if profile.updated_at else None,
+        "updated_at": iso(profile.updated_at),
     }
 
 
@@ -371,7 +372,7 @@ def _apply_payload(
         if field in data:
             setattr(profile, field, data[field])
 
-    if profile.birth_date and profile.birth_date > date.today():
+    if profile.birth_date and profile.birth_date > app_today():
         raise HTTPException(400, "出生日期不能晚于今天")
     if (
         profile.hire_date
@@ -419,7 +420,7 @@ def _apply_payload(
         account.dept_id = profile.dept_id
 
     profile.updated_by = actor_id
-    profile.updated_at = datetime.now(timezone.utc)
+    profile.updated_at = app_now()
 
 
 @router.get("")
@@ -567,7 +568,7 @@ def _attachment(a: Attachment) -> dict:
         "category": a.category or "",
         "content_type": a.content_type or "",
         "uploaded_by": a.uploaded_by,
-        "uploaded_at": a.uploaded_at.isoformat() if a.uploaded_at else None,
+        "uploaded_at": iso(a.uploaded_at),
     }
 
 

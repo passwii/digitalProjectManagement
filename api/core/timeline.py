@@ -9,11 +9,10 @@
 约定：每条记录 = 一次状态变化；`action` 与 `from_status → to_status` 必须同批写入，
 `actor_id` 是本次变化的操作人（提交 = 申请人，决策 = 管理员）。
 """
-from datetime import datetime, timezone
-
 from sqlalchemy.orm import Session
 
 from ..models import ApprovalRecord
+from .timeutil import app_now, iso
 
 KIND_EXPENSE = "expense"
 KIND_BUDGET_ADJUST = "budget_adjust"
@@ -48,7 +47,7 @@ def record(db: Session, kind: str, ref_id: int, action: str, *,
         kind=kind, ref_id=ref_id, project_id=project_id, action=action,
         from_status=from_status or "", to_status=to_status or "",
         actor_id=actor_id, reason=(reason or "")[:2000],
-        created_at=datetime.now(timezone.utc),
+        created_at=app_now(),
     )
     db.add(row)
     return row
@@ -70,7 +69,7 @@ def timeline(db: Session, kind: str, ref_id: int) -> list[dict]:
         "to_status": r.to_status,
         "actor_id": r.actor_id,
         "reason": r.reason,
-        "created_at": r.created_at.isoformat() if r.created_at else None,
+        "created_at": iso(r.created_at),
     } for r in rows]
 
 

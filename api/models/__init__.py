@@ -1,6 +1,11 @@
-"""全表模型。"""
+"""全表模型。
 
-from datetime import datetime, timezone
+时间列约定（BLF-1138）：所有 `DateTime` 列是 `timestamp without time zone`，存
+**`Asia/Shanghai` 的 naive 墙钟值**。统一走 `core/timeutil.py` 的 `app_now()`，
+不要在这里写 `datetime.now(timezone.utc)` —— 那会被 PG 按会话时区二次折算。
+"""
+
+from datetime import datetime
 
 from sqlalchemy import (
   Boolean,
@@ -17,10 +22,12 @@ from sqlalchemy import (
 from sqlalchemy.orm import relationship
 
 from ..core.database import Base
+from ..core.timeutil import app_now
 
 
-def _now():
-  return datetime.now(timezone.utc)
+def _now() -> datetime:
+  """DateTime 列的默认值：北京时间 naive 墙钟（见 core/timeutil.py）。"""
+  return app_now()
 
 
 class Department(Base):

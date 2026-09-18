@@ -2,7 +2,7 @@
 
 优化要点（Stage 5 一并落地）：全部用聚合查询（GROUP BY）取数，避免 项目×科目 的 N+1。
 """
-from datetime import date, datetime, timedelta, timezone
+from datetime import timedelta
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import func
@@ -12,8 +12,19 @@ from ..core.costs import PASS
 from ..core.database import get_db
 from ..core.deps import get_current_user
 from ..core.rbac import can_approve, is_admin, project_scope_condition
-from ..models import (Budget, BudgetAdjust, Expense, Milestone, Notification,
-                      ProgressLog, Project, ProjectMember, Task, User)
+from ..core.timeutil import app_now, app_today, iso, to_db
+from ..models import (
+    Budget,
+    BudgetAdjust,
+    Expense,
+    Milestone,
+    Notification,
+    ProgressLog,
+    Project,
+    ProjectMember,
+    Task,
+    User,
+)
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 
@@ -52,8 +63,8 @@ def summary(db: Session = Depends(get_db), user: User = Depends(get_current_user
     """工作台 KPI + 图表数据（趋势 / 科目占比）+ 项目健康度列表。"""
     projects = _visible(db, user)
     pids = [p.id for p in projects]
-    now = datetime.now(timezone.utc)
-    today = date.today()
+    now = app_now()
+    today = app_today()
     month = today.strftime("%Y-%m")
 
     # 我参与的项目（成员或负责人）
@@ -76,19 +87,19 @@ def summary(db: Session = Depends(get_db), user: User = Depends(get_current_user
     my_task_ids = {t.id for t in tasks if t.owner_id == user.id}
 
     # 停滞天数：按项目取最后一次填报时间（一次查询）
-    last_log = dict(
+    last_log = {
+        pid_: ts for pid_, ts in
         db.query(ProgressLog.project_id, func.max(ProgressLog.created_at))
         .filter(ProgressLog.project_id.in_(pids))
         .group_by(ProgressLog.project_id).all()
-    ) if pids else {}
+    } if pids else {}
     stagnant_days: dict[int, int] = {}
     for p in projects:
         ts = last_log.get(p.id)
         if ts is None:
             stagnant_days[p.id] = 999  # 从无填报
         else:
-            if ts.tzinfo is None:
-                ts = ts.replace(tzinfo=timezone.utc)
+            ts = to_db(ts)
             stagnant_days[p.id] = max(0, (now - ts).days)
 
     # 预算 / 支出：一次聚合（GROUP BY 项目、科目），替代逐项目逐科目查询
@@ -227,20 +238,18 @@ def my_weekly(project_id: int = 0, db: Session = Depends(get_db),
         if not projects:
             raise HTTPException(404, "项目不存在或无权访问")
     pids = [p.id for p in projects]
-    now = datetime.now(timezone.utc)
+    now = app_now()
     week_ago = now - timedelta(days=7)
 
     logs = db.query(ProgressLog).filter(ProgressLog.project_id.in_(pids)).all() if pids else []
     week_logs = []
     for l in logs:
-        ts = l.created_at
-        if ts and ts.tzinfo is None:
-            ts = ts.replace(tzinfo=timezone.utc)
+        ts = to_db(l.created_at)
         if ts and ts >= week_ago:
             week_logs.append(l)
 
     tasks = db.query(Task).filter(Task.project_id.in_(pids)).all() if pids else []
-    today = date.today()
+    today = app_today()
     overdue = [t for t in tasks
                if t.plan_end and t.plan_end < today and (t.progress or 0) < 100 and t.status != "done"]
     due_soon = [t for t in tasks
@@ -252,7 +261,7 @@ def my_weekly(project_id: int = 0, db: Session = Depends(get_db),
         "project_id": project_id or None,
         "progress_logs": [{"task_id": l.task_id, "project_id": l.project_id, "user_id": l.user_id,
                            "progress": l.progress, "note": l.note,
-                           "created_at": l.created_at.isoformat() if l.created_at else None}
+                           "created_at": iso(l.created_at)}
                           for l in sorted(week_logs, key=lambda x: x.id, reverse=True)][:50],
         "log_count": len(week_logs),
         "overdue": [{"id": t.id, "name": t.name, "project_id": t.project_id,

@@ -6,9 +6,9 @@
   · `write_audit()` 保持既有签名（先提交业务、再单独提交审计行），但**失败不再静默**：
     审计写入异常会 rollback 并抛 500，调用方与前端都能看到「留痕失败」，不允许被当成成功。
 """
-from datetime import datetime, timezone
-
 from fastapi import HTTPException
+
+from .timeutil import app_now
 
 AUDIT_FAIL_MSG = "审计写入失败，本次操作已回滚，请重试或联系管理员"
 
@@ -18,7 +18,7 @@ def _row(db, user_id, action: str, resource: str = "", resource_id="", detail: s
 
     return AuditLog(user_id=user_id, action=action, resource=resource,
                     resource_id=str(resource_id or ""), detail=detail or "", ip=ip or "",
-                    created_at=datetime.now(timezone.utc))
+                    created_at=app_now())
 
 
 def audit_row(db, user_id, action: str, resource: str = "", resource_id="",
@@ -44,9 +44,9 @@ def commit_audited(db, user_id, action: str, resource: str = "", resource_id="",
         db.commit()
     except HTTPException:
         raise
-    except Exception:
+    except Exception as exc:
         db.rollback()
-        raise HTTPException(500, AUDIT_FAIL_MSG)
+        raise HTTPException(500, AUDIT_FAIL_MSG) from exc
     return True
 
 

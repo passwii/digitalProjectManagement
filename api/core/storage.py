@@ -64,7 +64,6 @@ import tempfile
 import uuid
 from collections.abc import Iterator
 from dataclasses import dataclass
-from datetime import datetime, timezone
 from pathlib import Path
 from typing import Protocol
 
@@ -83,6 +82,7 @@ from .r2 import (
     try_delete_object,
     upload_object,
 )
+from .timeutil import app_now
 
 __all__ = [
     "BACKEND_LOCAL",
@@ -441,12 +441,12 @@ def build_object_key(
     · `suffix` 是调用方给的可读标记（如支出凭证的上传时间戳），只保留字母数字；
     · `disambiguator` 供迁移脚本传入**稳定**后缀，保证同一行反复生成的键一致；
     · `year` 供迁移脚本传入**行内**年份（新键沿用键里已有的年份、旧键取 `uploaded_at`
-      的年份）：线上上传不传（默认当前 UTC 年份），迁移必须传，否则同一行跨年后会算出
+      的年份）：线上上传不传（默认当前北京时间年份，`app_now()`），迁移必须传，否则同一行跨年后会算出
       另一个键，重跑就不再是幂等的 no-op；
     · 原始名仍完整保存在 `Attachment.filename`，键里的名字只是检索线索；
     · `owner_id` 仅用于**本地后端**的目录分片（便于排查），不进对象键，避免暴露用户 id。
     """
-    now = datetime.now(timezone.utc)
+    now = app_now()
     folder = business_folder(domain)
     parts = [folder]
     if (domain or "").strip().lower() not in _NO_YEAR_DOMAINS:

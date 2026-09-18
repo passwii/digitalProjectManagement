@@ -16,7 +16,6 @@ Stage 4A 补齐：
   · **时间线**：决策结果写入 `approval_records`，申请人（非管理员）可通过各域的 timeline 接口查到。
   · **决策意见**：驳回必须给意见，意见落到业务行（`decision_reason`）并随通知回传申请人。
 """
-from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
@@ -27,10 +26,17 @@ from ..core.database import get_db
 from ..core.deps import get_current_user
 from ..core.notify import push
 from ..core.rbac import can_approve, get_active_project, require_admin
-from ..core.timeline import (ACTION_APPROVE, ACTION_EXCEPTION, ACTION_REJECT,
-                             ACTION_SUBMIT, KIND_BUDGET_ADJUST, KIND_EXPENSE,
-                             KIND_PROJECT_FILING, timeline)
+from ..core.timeline import (
+    ACTION_APPROVE,
+    ACTION_EXCEPTION,
+    ACTION_REJECT,
+    KIND_BUDGET_ADJUST,
+    KIND_EXPENSE,
+    KIND_PROJECT_FILING,
+    timeline,
+)
 from ..core.timeline import record as record_timeline
+from ..core.timeutil import app_now
 from ..models import Budget, BudgetAdjust, Expense, Project, ProjectChange, User
 
 router = APIRouter(prefix="/approvals", tags=["approvals"])
@@ -174,7 +180,7 @@ def decide(kind: str, aid: int, body: dict, db: Session = Depends(get_db),
         old = p.status
         p.status = "filed" if approve else "cancelled"
         db.add(ProjectChange(project_id=p.id, field="status", old=old, new=p.status,
-                             by_id=user.id, at=datetime.now(timezone.utc)))
+                             by_id=user.id, at=app_now()))
         record_timeline(db, KIND_PROJECT_FILING, p.id,
                         ACTION_APPROVE if approve else ACTION_REJECT,
                         from_status=old, to_status=p.status, project_id=p.id,
@@ -197,7 +203,7 @@ def decide(kind: str, aid: int, body: dict, db: Session = Depends(get_db),
         a.status = "approved" if approve else "rejected"
         a.approved_by = user.id
         a.decision_reason = reason
-        a.decided_at = datetime.now(timezone.utc)
+        a.decided_at = app_now()
         b = db.query(Budget).filter_by(id=a.budget_id).first()
         if approve and b:
             b.amount = a.new_amount
@@ -231,7 +237,7 @@ def decide(kind: str, aid: int, body: dict, db: Session = Depends(get_db),
     e.status = "approved" if approve else "rejected"
     e.approved_by = user.id
     e.decision_reason = reason
-    e.decided_at = datetime.now(timezone.utc)
+    e.decided_at = app_now()
     record_timeline(db, KIND_EXPENSE, e.id, ACTION_APPROVE if approve else ACTION_REJECT,
                     from_status="pending", to_status=e.status, project_id=e.project_id,
                     actor_id=user.id, reason=reason)
@@ -263,7 +269,7 @@ def exception_by_center(eid: int, body: dict, db: Session = Depends(get_db),
     e.status = "exception"
     e.approved_by = user.id
     e.decision_reason = reason
-    e.decided_at = datetime.now(timezone.utc)
+    e.decided_at = app_now()
     record_timeline(db, KIND_EXPENSE, e.id, ACTION_EXCEPTION, from_status=old,
                     to_status="exception", project_id=e.project_id, actor_id=user.id,
                     reason=reason)
