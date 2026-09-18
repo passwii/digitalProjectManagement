@@ -1455,13 +1455,11 @@ def test_rekey_is_noop_after_year_rollover(session, fake_s3, monkeypatch):
     assert set(swept["swept"]) == {old_key}
     assert set(fake_s3.objects) == {new_key}
 
-    # 时钟拨到次年：目标键仍须由「行」（键里的年份）算出，而不是新的 now
-    class _NextYearDatetime(datetime):
-        @classmethod
-        def now(cls, tz=None):
-            return cls(2027, 1, 1, tzinfo=tz) if tz is not None else cls(2027, 1, 1)
-
-    monkeypatch.setattr(storage_mod, "datetime", _NextYearDatetime)
+    # 时钟拨到次年：目标键仍须由「行」（键里的年份）算出，而不是新的 now。
+    # BLF-1138 后 `build_object_key` 的默认年份取自 `api.core.timeutil.app_now()`
+    # （北京时间墙钟，不再是 `datetime.now(timezone.utc)`），所以注入点跟着口径模块走；
+    # 直接改口径函数而不是 `storage_mod.datetime`，避免守卫退化成永远通过的空断言。
+    monkeypatch.setattr(storage_mod, "app_now", lambda: datetime(2027, 1, 1))
     assert target_key(_row_of(session, row.id)) == new_key
 
     again = rekey(session, _settings(), apply=True, verify=True, echo=_quiet)

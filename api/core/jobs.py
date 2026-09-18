@@ -8,14 +8,23 @@ Stage 4A 补齐：
     `ref_type` + `ref_id` + `project_id` 可直接支撑前端定位到具体对象；
   · 预算预警的 `ref_id` 指向具体项目下的科目级预警，前端可定位到项目成本页。
 """
-from datetime import date, datetime, timedelta, timezone
+from datetime import datetime, timedelta
 
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from ..models import Budget, Expense, Followup, Milestone, ProgressLog, Project, SysParam, Task
+from ..models import (
+    Budget,
+    Expense,
+    Followup,
+    Milestone,
+    ProgressLog,
+    Project,
+    SysParam,
+    Task,
+)
 from .costs import PASS
-
+from .timeutil import app_now, app_today, iso, to_db
 
 STATE_PENDING = "pending"
 STATE_DONE = "done"
@@ -28,10 +37,15 @@ def _param(db: Session, key: str, default: str) -> str:
     return p.value if p and p.value else default
 
 
-def _aware(ts: datetime | None) -> datetime | None:
-    if ts is None:
-        return None
-    return ts if ts.tzinfo else ts.replace(tzinfo=timezone.utc)
+def _scan_now(now: datetime | None) -> datetime:
+    """扫描时刻统一到入库口径（naive 北京时间，见 core/timeutil.py）。
+
+    `now` 既用来做 SQL 过滤（`remind_at <= now`），也会直接写回列，所以必须是
+    naive；调用方传入 aware（如带 `+00:00` 的 UTC）时在这里折算，
+    绝不让 PG 拿会话时区做第二次折算。
+    """
+    value = to_db(now)
+    return value if value is not None else app_now()
 
 
 def due_followups(db: Session, now: datetime | None = None, limit: int = 500) -> list[dict]:
@@ -40,14 +54,14 @@ def due_followups(db: Session, now: datetime | None = None, limit: int = 500) ->
     只返回 `remind_state in (pending, none)` 的记录：已推送过的（done）不再重复返回，
     这样调用方无需自己去重，避免同一到期记录无限重复灌入通知。
     """
-    now = now or datetime.now(timezone.utc)
+    now = _scan_now(now)
     rows = db.query(Followup).filter(
         Followup.remind_at.isnot(None),
         Followup.remind_at <= now,
         Followup.remind_state.in_([STATE_PENDING, STATE_NONE, None]),
     ).order_by(Followup.remind_at).limit(limit).all()
     return [{"followup_id": f.id, "project_id": f.project_id, "user_id": f.user_id,
-             "remind_at": f.remind_at.isoformat() if f.remind_at else None,
+             "remind_at": iso(f.remind_at),
              "content": (f.content or "")[:200]} for f in rows]
 
 
@@ -56,7 +70,7 @@ def mark_followup_reminded(db: Session, followup_ids: list[int],
     """把已推送提醒的跟进标为 done，并记录推送时间（调用方负责提交）。"""
     if not followup_ids:
         return 0
-    now = now or datetime.now(timezone.utc)
+    now = _scan_now(now)
     rows = db.query(Followup).filter(Followup.id.in_(followup_ids)).all()
     for f in rows:
         if f.remind_state in (STATE_PENDING, STATE_NONE, None):
@@ -70,7 +84,7 @@ def handle_followup(db: Session, f: Followup, state: str, user_id: int | None,
     """处理一条跟进提醒（done 已处理 / ignored 已忽略 / pending 重新打开）。"""
     if state not in (STATE_PENDING, STATE_DONE, STATE_IGNORED):
         raise ValueError(f"非法处理状态：{state}")
-    now = now or datetime.now(timezone.utc)
+    now = _scan_now(now)
     f.remind_state = state
     if state == STATE_PENDING:
         f.handled_at, f.handled_by, f.handle_note = None, None, ""
@@ -93,8 +107,8 @@ def compute_warnings(db: Session, projects: list[Project]) -> dict:
     rate_line = float(_param(db, "budget_warn_rate", "0.8"))
     out = {"overdue_tasks": [], "milestones": [], "stagnant_projects": [],
            "budget_warnings": [], "followup_due": []}
-    today = date.today()
-    now = datetime.now(timezone.utc)
+    today = app_today()
+    now = app_now()
     pids = [p.id for p in projects]
     if not pids:
         return out
@@ -130,11 +144,12 @@ def compute_warnings(db: Session, projects: list[Project]) -> dict:
     ]
 
     # 3) 停滞项目：一次聚合取每个项目最后一次填报时间
-    last_map = dict(
+    last_map = {
+        pid_: ts for pid_, ts in
         db.query(ProgressLog.project_id, func.max(ProgressLog.created_at))
         .filter(ProgressLog.project_id.in_(pids))
         .group_by(ProgressLog.project_id).all()
-    )
+    }
     for p in projects:
         if p.status != "doing":
             continue
@@ -142,23 +157,26 @@ def compute_warnings(db: Session, projects: list[Project]) -> dict:
         if ts is None:
             days = stagnant          # 从无填报视为停滞（与原逻辑一致）
         else:
-            if ts.tzinfo is None:
-                ts = ts.replace(tzinfo=timezone.utc)
-            days = (now - ts).days
+            # 库里是 naive 北京时间，与 now 同一口径；aware 值先折算再相减
+            days = (now - to_db(ts)).days
         if days >= stagnant:
             out["stagnant_projects"].append(
                 {"project_id": p.id, "name": p.name, "days_no_log": days,
                  "ref_type": "project", "ref_id": p.id})
 
     # 4) 预算预警：预算与已通过支出各一次聚合（按 项目 × 科目）
-    bud = dict(((pid_, s), float(a or 0)) for pid_, s, a in
-               db.query(Budget.project_id, Budget.subject, func.sum(Budget.amount))
-               .filter(Budget.project_id.in_(pids))
-               .group_by(Budget.project_id, Budget.subject).all())
-    spd = dict(((pid_, s), float(a or 0)) for pid_, s, a in
-               db.query(Expense.project_id, Expense.subject, func.sum(Expense.amount))
-               .filter(Expense.project_id.in_(pids), Expense.status.in_(PASS))
-               .group_by(Expense.project_id, Expense.subject).all())
+    bud = {
+        (pid_, s): float(a or 0) for pid_, s, a in
+        db.query(Budget.project_id, Budget.subject, func.sum(Budget.amount))
+        .filter(Budget.project_id.in_(pids))
+        .group_by(Budget.project_id, Budget.subject).all()
+    }
+    spd = {
+        (pid_, s): float(a or 0) for pid_, s, a in
+        db.query(Expense.project_id, Expense.subject, func.sum(Expense.amount))
+        .filter(Expense.project_id.in_(pids), Expense.status.in_(PASS))
+        .group_by(Expense.project_id, Expense.subject).all()
+    }
     for (pid_, subject), b in bud.items():
         if not b:
             continue

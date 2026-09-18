@@ -24,7 +24,6 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Iterator
-from datetime import datetime, timezone
 from pathlib import Path
 
 from fastapi import HTTPException
@@ -43,6 +42,7 @@ from .storage import (
     local_path_for,
     resolve_backend_name_from,
 )
+from .timeutil import app_now
 
 logger = logging.getLogger(__name__)
 
@@ -117,7 +117,7 @@ def store_attachment(
         size=stored.size,
         content_type=content_type or "",
         uploaded_by=uploaded_by,
-        uploaded_at=datetime.now(timezone.utc),
+        uploaded_at=app_now(),
         ref_type=ref_type,
         ref_id=ref_id,
         category=category,

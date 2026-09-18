@@ -1,6 +1,6 @@
 """Stage 1：项目台账 CRUD + 状态机 + 变更留痕 + 附件 + 跟进 + 加权进度。"""
 
-from datetime import date, datetime, timezone
+from datetime import date, datetime
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
@@ -25,6 +25,7 @@ from ..core.rbac import (
     project_scope_condition,
     require_admin,
 )
+from ..core.timeutil import app_now, app_today, iso, to_db
 from ..models import (
     Attachment,
     Followup,
@@ -103,7 +104,7 @@ def _p(p: Project):
 
 
 def _next_code(db: Session) -> str:
-    y = date.today().year
+    y = app_today().year
     prefix = f"PJ-{y}-"
     last = (
         db.query(Project)
@@ -436,7 +437,7 @@ def update_project(
         "forward_contract",
         "backward_contract",
     }
-    now = datetime.now(timezone.utc)
+    now = app_now()
     for f, v in body.items():
         if f == "member_ids":
             continue
@@ -488,7 +489,7 @@ def update_project(
             v = parse_date(v)
         old = getattr(p, f)
         old_s = (
-            old.isoformat()
+            iso(old)
             if isinstance(old, date)
             else str(old if old is not None else "")
         )
@@ -554,7 +555,7 @@ def change_status(
         raise HTTPException(403, "仅管理员可解归档")
     old = p.status
     p.status = to
-    now = datetime.now(timezone.utc)
+    now = app_now()
     db.add(
         ProjectChange(
             project_id=pid, field="status", old=old, new=to, by_id=user.id, at=now
@@ -615,7 +616,7 @@ def list_changes(
             "old": c.old,
             "new": c.new,
             "by_id": c.by_id,
-            "at": c.at.isoformat() if c.at else None,
+            "at": iso(c.at),
         }
         for c in rows
     ]
@@ -684,7 +685,7 @@ def list_attachments(
             "ref_type": a.ref_type or "",
             "content_type": a.content_type or "",
             "uploaded_by": a.uploaded_by,
-            "uploaded_at": a.uploaded_at.isoformat() if a.uploaded_at else None,
+            "uploaded_at": iso(a.uploaded_at),
         }
         for a in rows
     ]
@@ -786,7 +787,7 @@ def set_members(
             old=",".join(map(str, old)),
             new=",".join(map(str, sorted(wanted))),
             by_id=user.id,
-            at=datetime.now(timezone.utc),
+            at=app_now(),
         )
     )
     db.commit()
@@ -805,7 +806,7 @@ def delete_project(
         raise HTTPException(404, "项目不存在")
     if p.status in ("doing", "filed"):
         raise HTTPException(400, "进行中/已立项项目不可删除，请先取消或归档")
-    p.deleted_at = datetime.now(timezone.utc)
+    p.deleted_at = app_now()
     db.commit()
     write_audit(db, user.id, "delete_project", "projects", pid, p.code)
     return {"ok": True, "id": pid}
@@ -847,7 +848,7 @@ def recycle_bin(
             "code": p.code,
             "name": p.name,
             "status": p.status,
-            "deleted_at": p.deleted_at.isoformat() if p.deleted_at else None,
+            "deleted_at": iso(p.deleted_at),
         }
 
     return paginate(
@@ -930,13 +931,13 @@ def list_followups(
             "method": f.method,
             "content": f.content,
             "next_step": f.next_step,
-            "remind_at": f.remind_at.isoformat() if f.remind_at else None,
+            "remind_at": iso(f.remind_at),
             "remind_state": f.remind_state or "none",
-            "reminded_at": f.reminded_at.isoformat() if f.reminded_at else None,
-            "handled_at": f.handled_at.isoformat() if f.handled_at else None,
+            "reminded_at": iso(f.reminded_at),
+            "handled_at": iso(f.handled_at),
             "handled_by": f.handled_by,
             "handle_note": f.handle_note or "",
-            "happened_at": f.happened_at.isoformat() if f.happened_at else None,
+            "happened_at": iso(f.happened_at),
         }
 
     return paginate(
@@ -970,16 +971,20 @@ def create_followup(
         and body.remind_at < body.happened_at
     ):
         raise HTTPException(400, "提醒时间不能早于跟进时间")
+    # 入参带偏移（如 `Z` / `+00:00`）时按瞬时折算成北京时间墙钟：
+    # 直接交给 PG 会按会话时区二次折算，同一请求在不同环境落不同的值（BLF-1138）。
+    happened_at = to_db(body.happened_at)
+    remind_at = to_db(body.remind_at)
     f = Followup(
         project_id=pid,
         user_id=user.id,
-        happened_at=body.happened_at or datetime.now(timezone.utc),
+        happened_at=happened_at or app_now(),
         method=method,
         content=body.content,
         next_step=body.next_step,
-        remind_at=body.remind_at,
-        remind_state="pending" if body.remind_at else "none",
-        created_at=datetime.now(timezone.utc),
+        remind_at=remind_at,
+        remind_state="pending" if remind_at else "none",
+        created_at=app_now(),
     )
     db.add(f)
     db.flush()
@@ -1011,14 +1016,15 @@ def update_followup(
         raise HTTPException(
             400, f"跟进方式须为 {sorted(FOLLOWUP_METHODS)} 之一，收到 {method!r}"
         )
-    new_remind = body.remind_at
+    new_remind = to_db(body.remind_at)
+    new_happened = to_db(body.happened_at)
     if (
         new_remind is not None
-        and (body.happened_at or f.happened_at)
-        and new_remind < (body.happened_at or f.happened_at)
+        and (new_happened or f.happened_at)
+        and new_remind < (new_happened or f.happened_at)
     ):
         raise HTTPException(400, "提醒时间不能早于跟进时间")
-    f.happened_at = body.happened_at or f.happened_at
+    f.happened_at = new_happened or f.happened_at
     f.method = method
     f.content = body.content
     f.next_step = body.next_step
@@ -1037,8 +1043,8 @@ def update_followup(
         "next_step": f.next_step,
         "method": f.method,
         "remind_state": f.remind_state or "none",
-        "happened_at": f.happened_at.isoformat() if f.happened_at else None,
-        "remind_at": f.remind_at.isoformat() if f.remind_at else None,
+        "happened_at": iso(f.happened_at),
+        "remind_at": iso(f.remind_at),
     }
 
 
@@ -1078,7 +1084,7 @@ def handle_followup_remind(
     return {
         "id": f.id,
         "remind_state": f.remind_state,
-        "handled_at": f.handled_at.isoformat() if f.handled_at else None,
+        "handled_at": iso(f.handled_at),
         "handled_by": f.handled_by,
         "handle_note": f.handle_note or "",
     }
@@ -1129,7 +1135,7 @@ def confirm_progress(
     den = sum((t.weight or 1) for t in tasks) or 1
     val = round(num / den, 2) if tasks else 0
     old = str(p.progress or 0)
-    now = datetime.now(timezone.utc)
+    now = app_now()
     p.progress = val
     db.add(
         ProjectChange(
@@ -1155,5 +1161,5 @@ def confirm_progress(
         "progress": val,
         "task_count": len(tasks),
         "confirmed_by": user.id,
-        "confirmed_at": now.isoformat(),
+        "confirmed_at": iso(now),
     }
