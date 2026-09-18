@@ -75,8 +75,12 @@
  /* 「Dock 带」：Dock 高度 + 安全区。Dock 压在抽屉之上，这一段是它的地盘 */
  padding-bottom: calc(var(--m-dock-h) + var(--m-safe-b));
  pointer-events: auto;
- /* 面板自己接管手势：拖动时不要把页面一起滚走（列表另有 pan-y，见 .body） */
- touch-action: none;
+ /* 手势接管范围只到把手 / 头部（见 .grip / .head 的 touch-action: none）：
+    面板本身必须是 pan-y 而不是 none —— touch-action 按祖先链取交集，
+    祖先的 none 会吃掉 half / full 下 .body 的 pan-y，原生纵向滚动永远起不来
+    （PR #36 的阻塞项）。pan-y 下拉起面板拖拽与列表滚动的仲裁交给 TSX：
+    列表滚过顶部时 onPointerDown 直接让位，顶部时才接管。 */
+ touch-action: pan-y;
  will-change: transform;
  animation: sheet-in var(--m-sheet-motion) var(--ease-console);
  transition:
