@@ -7,6 +7,10 @@ ROLES = [("admin", "系统管理员"), ("project_manager", "项目负责人"),
          ("dept_manager", "部门负责人"), ("member", "项目成员"),
          ("cost_admin", "成本管理员"), ("executive", "高层（只读）")]
 
+# 通讯录/人员部门维度（BLF-1148）：seed 幂等补齐，部署入口每次都会跑 seed。
+# 注意：不要改名/删除已存在的部门（users.dept_id 等外键引用 id），只新增缺失项。
+DEPARTMENTS = ["综合部", "行销部", "交付与服务部", "市场部", "总经办"]
+
 DICTS = [
     ("project_type", "research", "科研"), ("project_type", "construct", "工程"),
     ("project_type", "service", "服务"), ("project_type", "other", "其他"),
@@ -42,11 +46,13 @@ def main():
     Base.metadata.create_all(bind=engine)
     db = SessionLocal()
     try:
+        for dept_name in DEPARTMENTS:
+            if not db.query(Department).filter_by(name=dept_name).first():
+                db.add(Department(name=dept_name))
+        db.flush()
         dept = db.query(Department).filter_by(name="综合部").first()
-        if not dept:
-            dept = Department(name="综合部")
-            db.add(dept)
-            db.flush()
+        if dept is None:  # 上方循环已补齐，走到这里说明写入失败，直接报错而非继续
+            raise RuntimeError("seed departments failed: 综合部 missing")
         for code, name in ROLES:
             if not db.query(Role).filter_by(code=code).first():
                 db.add(Role(code=code, name=name))
