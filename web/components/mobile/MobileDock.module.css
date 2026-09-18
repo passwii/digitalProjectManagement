@@ -1,0 +1,112 @@
+/*
+ * 底部 Dock 的几何（BLF-1127 §3 / §7）。
+ *
+ * 断点 767px 与 Shell.module.css 里的手机壳分支**必须成对出现**：
+ * 侧栏在 ≤767px 退场，Dock 在 ≤767px 上场。两者都渲染、纯 CSS 切换
+ * （见 MobileDock.tsx 顶部注释：SSR 首帧判断不了断点）。
+ */
+
+/* ≥768px：桌面外壳在场，Dock 用 display:none 彻底退场（不占位、不进无障碍树、
+   不会被 Tab 键停住）。这里不隐藏整个文档流，只隐藏这一块。 */
+.dock { display: none; }
+
+@media (max-width: 767px) {
+  .dock {
+    /* fixed 而不是 sticky：Dock 贴底且不随内容滚动，页面滚到哪都在手边 */
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    /* 高度 = 内容高度 + 安全区；padding-bottom 把安全区留出来，
+       iPhone 的 Home 指示条压在 Dock 上时不会盖住标签或误触 */
+    height: calc(var(--m-dock-h) + var(--m-safe-b));
+    padding: 0 6px var(--m-safe-b);
+    z-index: 40;                       /* 高于侧栏 30 / 顶栏 20：Dock 永远在最上层 */
+    display: grid;
+    /* 五个位等宽铺满：不写死宽度，360px 与 390px 都由 1fr 自己算 */
+    grid-auto-flow: column;
+    grid-auto-columns: 1fr;
+    align-items: center;
+    background: rgba(255, 255, 255, .92);
+    backdrop-filter: saturate(180%) blur(16px);
+    -webkit-backdrop-filter: saturate(180%) blur(16px);
+    /* 上边缘一条实线 + 一层很轻的投影：手机上没有 hover，靠这两样造出层次 */
+    box-shadow: 0 -1px 0 var(--line), 0 -8px 24px rgba(23, 43, 77, .06);
+    /* 双击缩放会带来 ~300ms 的点击延迟，Dock 是最高频的入口，必须去掉 */
+    touch-action: manipulation;
+  }
+
+  .tab {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    /* 触控目标下限：--m-tap(44px) 与 --m-dock-h(58px) 取小仍 ≥44 */
+    min-height: var(--m-tap);
+    height: 46px;
+    margin: 0 1px;
+    border-radius: 12px;
+    color: var(--ink-3);
+    text-decoration: none;
+    transition: color var(--motion-fast) var(--ease-console), background var(--motion-fast) var(--ease-console);
+  }
+  .tab:hover { color: var(--ink-2); text-decoration: none; }
+
+  .icon { display: block; height: 22px; }
+
+  .label {
+    max-width: 100%;
+    overflow: hidden;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: .02em;
+    line-height: 1.1;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* 选中态：品牌色 + 药丸底。没有 hover 的设备上，颜色是唯一可靠的“我在哪”信号 */
+  .tabActive,
+  .tabActive:hover { color: var(--brand); }
+  .tabActive .label { font-weight: 700; }
+
+  .pill {
+    position: absolute;
+    inset: 2px 3px;
+    z-index: -1;
+    border-radius: 12px;
+    background: var(--brand-soft);
+    opacity: 0;
+    transform: scale(.9);
+    transition: opacity 180ms var(--ease-console), transform 180ms var(--ease-console);
+  }
+  .tabActive .pill { opacity: 1; transform: none; }
+
+  /* 待办红点（D3）：挂在「我的」位上。数字徽标最多两位（>99 收敛成 99+） */
+  .dot,
+  .badge {
+    position: absolute;
+    top: 3px;
+    left: 50%;
+    margin-left: 6px;
+    min-width: 16px;
+    height: 16px;
+    border: 1.5px solid #fff;
+    border-radius: 999px;
+    background: var(--danger);
+    color: #fff;
+    font-family: var(--font-mono);
+    font-size: 9.5px;
+    font-weight: 700;
+    line-height: 13px;
+    text-align: center;
+  }
+  .dot { padding: 0; }
+  .badge { padding: 0 4px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pill { transition: none; }
+}

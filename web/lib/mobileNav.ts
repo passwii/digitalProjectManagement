@@ -93,8 +93,10 @@ export interface DockMenuInput {
   /** 是否可审批（`useMenus().canApprove`，当前契约下与 `is_admin` 同判定） */
   canApprove?: boolean;
   /**
-   * 「我的」位的待办条数。已知时传数字（渲染成角标数字），省略则渲染纯红点。
-   * S1 不新开统计接口，所以默认走纯红点；S4 需要数字时把这里接上即可。
+   * 「我的」位的待办条数。
+   * · 省略（S1 默认）：数量未知 → 渲染纯红点；
+   * · 传数字：`> 0` 渲染角标数字，`0` 表示确实没有待办 → **不亮红点**（
+   *   亮一个「0 条待办」的点是假的信令）；S4 需要数字时把这里接上即可。
    */
   pendingCount?: number;
 }
@@ -122,7 +124,13 @@ export function buildDockItems({ menus, ready, failed, canApprove, pendingCount 
     // D3：待办红点挂在「我的」位。权限未确认或同步失败时**不发**红点
     // （先亮后灭会是一次可见的错误值，且猜测管理员身份本来就违反 §3.2）。
     if (slot.id === "mine" && ready && !failed && canApprove) {
-      item.badge = typeof pendingCount === "number" && pendingCount > 0 ? pendingCount : true;
+      if (typeof pendingCount === "number") {
+        // 已知条数：0 条就是没有待办，不亮红点
+        if (pendingCount > 0) item.badge = pendingCount;
+      } else {
+        // 数量未知（S1 不新开统计接口，默认走这条路）：纯红点
+        item.badge = true;
+      }
     }
     return item;
   });
