@@ -1327,10 +1327,12 @@ body {
   }
 
   function cardHtml(p) {
+    var tone = p.warn ? " warn" : "";
+    if (p.danger) tone = " danger";
     return '<div class="pcard" data-jump="detail">' +
       '<div class="top"><div><div class="nm">' + p.name + '</div><div class="code">' + p.code + "</div></div>" +
       '<span class="badge ' + p.tone + '">' + p.label + "</span></div>" +
-      '<div class="bar' + (p.warn ? " warn" : p.danger ? " danger" : "") + '"><i style="width:' + p.pct + '%"></i></div>' +
+      '<div class="bar' + tone + '"><i style="width:' + p.pct + '%"></i></div>' +
       '<div class="facts">' + p.facts.map(function (f) { return "<span>" + f[0] + " <b>" + f[1] + "</b></span>"; }).join("") + "</div></div>";
   }
 
