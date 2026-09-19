@@ -138,7 +138,8 @@ export default function DashboardPage() {
           {data.health.length === 0 ? (
             <div className="card"><Empty title="暂无项目" hint="新建项目后显示健康度。" /></div>
           ) : (
-            <table className="grid">
+            <div className="table-scroll health-table-scroll">
+              <table className="grid health-table">
               <thead>
                 <tr><th>项目</th><th>健康度</th><th>{PROGRESS_LABEL.weighted}</th><th className="num">{MONEY_LABEL.rate}</th><th className="num">逾期</th></tr>
               </thead>
@@ -158,7 +159,8 @@ export default function DashboardPage() {
                   </tr>
                 ))}
               </tbody>
-            </table>
+              </table>
+            </div>
           )}
         </div>
 
