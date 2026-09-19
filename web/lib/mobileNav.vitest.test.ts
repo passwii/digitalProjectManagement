@@ -9,7 +9,7 @@ import { DOCK_SIZE, DOCK_SLOTS, buildDockItems, dockIdForPath, type MenuLike } f
  * 红点信令、路径高亮都钉在纯函数上。
  */
 
-/** `/meta/me/menus` 的后端契约（api/routers/meta.py）：4 项参与性入口 + 管理员的 3 项 */
+/** `/meta/me/menus` 的后端契约（api/routers/meta.py）：4 项参与性入口 + 管理员的 4 项 */
 const USER_MENUS: MenuLike[] = [
   { key: "projects", label: "项目台账", href: "/projects" },
   { key: "progress", label: "进度跟踪", href: "/progress" },
@@ -20,6 +20,7 @@ const USER_MENUS: MenuLike[] = [
 const ADMIN_MENUS: MenuLike[] = [
   ...USER_MENUS,
   { key: "contacts", label: "通讯录", href: "/contacts" },
+  { key: "partners", label: "我的友商", href: "/partners" },
   { key: "approvals", label: "审批中心", href: "/approvals" },
   { key: "admin", label: "系统管理", href: "/admin" },
 ];
@@ -54,10 +55,10 @@ describe("buildDockItems（§3 + D1/D3）", () => {
     expect(items.find((i) => i.id === "mine")!.visible).toEqual([]);
   });
 
-  it("管理员：Dock 仍是 5 位（不随角色变形），三个管理入口只落到「我的」位", () => {
+  it("管理员：Dock 仍是 5 位（不随角色变形），四个管理入口只落到「我的」位", () => {
     const items = buildDockItems({ menus: ADMIN_MENUS, ready: true, canApprove: true });
     expect(items).toHaveLength(5);
-    expect(items.find((i) => i.id === "mine")!.visible.map((v) => v.key)).toEqual(["contacts", "approvals", "admin"]);
+    expect(items.find((i) => i.id === "mine")!.visible.map((v) => v.key)).toEqual(["contacts", "partners", "approvals", "admin"]);
   });
 
   it("D1：costs 位吸收「支出记录」与「支出报表」两条菜单", () => {
@@ -122,10 +123,11 @@ describe("dockIdForPath（当前位高亮）", () => {
     expect(dockIdForPath("/reports")).toBe("costs");
   });
 
-  it("D3：管理 / 审批 / 通讯录页高亮「我的」（它们只从「我的」抽屉进入）", () => {
+  it("D3：管理 / 审批 / 通讯录 / 友商页高亮「我的」（它们只从「我的」抽屉进入）", () => {
     expect(dockIdForPath("/approvals")).toBe("mine");
     expect(dockIdForPath("/admin")).toBe("mine");
     expect(dockIdForPath("/contacts")).toBe("mine");
+    expect(dockIdForPath("/partners")).toBe("mine");
     expect(dockIdForPath("/change-password")).toBe("mine");
   });
 

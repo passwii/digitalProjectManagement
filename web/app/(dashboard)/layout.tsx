@@ -72,6 +72,12 @@ const ICON: Record<string, React.ReactNode> = {
       <circle cx="9" cy="8" r="2" />
     </svg>
   ),
+  "/partners": (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="7" width="18" height="13" rx="2" />
+      <path d="M9 7V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2M3 12h18" />
+    </svg>
+  ),
 };
 
 const LABEL: Record<string, string> = {
@@ -82,12 +88,13 @@ const LABEL: Record<string, string> = {
   "/reports": "支出报表",
   "/approvals": "审批中心",
   "/contacts": "通讯录",
+  "/partners": "我的友商",
   "/admin": "系统管理",
 };
 
 /** 工作台恒可见（非管理与审批入口）；权限同步失败时退回这组参与性入口，绝不默认放行管理入口 */
 const BASE_HREFS = ["/dashboard", "/projects", "/progress", "/costs", "/reports"];
-const ADMIN_HREFS = ["/contacts", "/approvals", "/admin"];
+const ADMIN_HREFS = ["/contacts", "/partners", "/approvals", "/admin"];
 
 const CRUMB: Record<string, string> = LABEL;
 
