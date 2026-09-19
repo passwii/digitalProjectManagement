@@ -1,5 +1,6 @@
 """BLF-1127 验收走查：S1 手机壳基座（5 位底部 Dock + 767px 双外壳 CSS 切换）
-+ S3 三态抽屉（peek / half / full + 手势，D2）。
++ S3 三态抽屉（peek / half / full + 手势，D2）
++ S4 五个抽屉的内容与权限入口（D1/D3）。
 
 契约：docs/superpowers/specs/2026-09-18-mobile-pwa-navigation-design.md §3 / §4 / §7 + 决策 D1–D3。
 和 `acceptance_blf1093.py` 一样是**真浏览器 + 真后端**：不 mock 菜单接口，登录后
@@ -12,7 +13,7 @@
   · 壳切换：≥768px 显示侧栏隐藏 Dock，≤767px 反之
   · 「纯 CSS 切换、无首帧错误外壳」：**关掉 JS** 再断言一次（此时只有 CSS 能决定可见性）
   · 不回归：桌面 1440px 下 table.grid 仍在、Dock 不在场
-  · S3/D2：点 5 个 Dock 位都开 peek 且不跳页；再点当前位收起；half/full 降回 peek
+  · S3/D2：点 5 个 Dock 位都开到默认档（我的 = half，其余 = peek）且不跳页；
   · S3/§4 三档几何：peek ≤236px 无遮罩 / half 56% 有遮罩 / full 留白 ≥40px 且贴底
   · S3 手势：上拖升档、下甩 ≥96px 降档 / 关闭、点遮罩关闭、列表滚动优先（不抢手势）
   · S3/aa11y：模态档焦点陷阱、Esc 降档 / 关闭、关闭后焦点回到触发的 Dock 位、
@@ -643,9 +644,12 @@ def main() -> int:
         page.goto(f"{BASE}/projects", wait_until="networkidle")
         page.wait_for_timeout(1500)
 
-        # ---- D2：点 5 个 Dock 位都开 peek，且都不跳页 ----
+        # ---- D2：点 5 个 Dock 位都开到默认档，且都不跳页 ----
+        # S4 默认档位（§3 表格）：工作台 / 项目 / 进度 / 支出 = peek，我的 = half
+        DEFAULT_STOP = {"mine": "half"}
         opened_ids: list[str] = []
         for dock_id in DOCK_IDS:
+            expected = DEFAULT_STOP.get(dock_id, "peek")
             url_before = page.url
             page.click(f'[data-shell="dock"] [data-dock="{dock_id}"]')
             page.wait_for_timeout(450)
@@ -653,24 +657,27 @@ def main() -> int:
             ok = (
                 st is not None
                 and st["open"] == "true"
-                and st["stop"] == "peek"
+                and st["stop"] == expected
                 and page.url == url_before
             )
             record(
-                f"S3/D2：点「{dock_id}」位开 peek 且不跳页",
+                f"S3/D2+S4：点「{dock_id}」位开 {expected} 且不跳页",
                 ok,
                 f"档位={st['stop'] if st else '无面板'} URL={'未变' if page.url == url_before else page.url}",
             )
             if ok:
                 opened_ids.append(dock_id)
-            # 再点当前位 → peek 收起（D2：不存在点了没反应的死键）
+            # 再点当前位 → peek 收起 / half 降回 peek（D2：不存在点了没反应的死键）
             page.click(f'[data-shell="dock"] [data-dock="{dock_id}"]')
             page.wait_for_timeout(450)
         record(
-            "S3/D2：5 个 Dock 位都能开 peek",
+            "S3/D2+S4：5 个 Dock 位都能开到默认档",
             len(opened_ids) == 5,
             " / ".join(opened_ids) or "一个都没开",
         )
+        # 循环最后一个是「我的」：half 经一次再点只降到 peek，再点一次才收起
+        page.click('[data-shell="dock"] [data-dock="mine"]')
+        page.wait_for_timeout(450)
 
         # 关闭后：面板已退场，且不在命中链上（残留元素不得拦截点击）
         closed_state = sheet_state(page)
@@ -923,13 +930,13 @@ def main() -> int:
         page.wait_for_timeout(500)
 
         # ---- §4「抽屉内列表滚到顶部时才允许整体拖拽」 ----
-        # 用短屏（390×420）与卡片最多的「我的」位：half 档下列表必定高于容器，
+        # 用短屏（390×420）与内容最多的「我的」位：half 档下列表必定高于容器，
         # 才能真的验「列表滚过了就先滚列表」；正向 + 反向各一条，证明门不是堵死的墙。
+        # S4 起「我的」位默认就是 half，不用再拖一档。
         page.set_viewport_size({"width": 390, "height": 420})
         page.wait_for_timeout(400)
         page.click('[data-shell="dock"] [data-dock="mine"]')
         page.wait_for_timeout(500)
-        sheet_drag(page, -(SWIPE_UP + 70))  # peek → half
         st = sheet_present(page)
         record(
             "前置：half 档下列表可滚动（内容高于容器）",
@@ -1009,6 +1016,131 @@ def main() -> int:
         page.wait_for_timeout(400)
         page.keyboard.press("Escape")
         page.wait_for_timeout(600)
+
+        # ============ S4：5 个抽屉的内容与权限入口（D1/D3） ============
+        # 契约：方案文档 §3（IA 与各 Dock 位对应）+ §4.1。断言只走 data-* 契约表面与
+        # 真实文案，不读 CSS Modules 哈希类名；计数字段不断精确值（验收库随时在变）。
+        def sheet_text() -> str:
+            return " ".join(page.locator("[data-sheet-body]").inner_text().split())
+
+        def open_dock(dock_id: str) -> dict:
+            page.click(f'[data-shell="dock"] [data-dock="{dock_id}"]')
+            page.wait_for_timeout(1200)
+            return sheet_present(page)
+
+        def close_sheet() -> None:
+            page.keyboard.press("Escape")
+            page.wait_for_timeout(400)
+            if sheet_state(page) is not None:
+                # half / full 经一次 Esc 只降到 peek，再来一次才收起
+                page.keyboard.press("Escape")
+                page.wait_for_timeout(500)
+
+        # 工作台：5 张快捷跳转卡（待办 / 待填报 / 逾期 / 里程碑 / 本月支出）
+        open_dock("dashboard")
+        dash_txt = sheet_text()
+        dash_cards = page.locator("[data-sheet-card]").count()
+        record(
+            "S4：工作台抽屉有 5 张快捷跳转卡",
+            dash_cards >= 4 and all(k in dash_txt for k in ("逾期", "里程碑", "支出")),
+            f"{dash_cards} 张卡：{dash_txt[:60]}",
+        )
+        record(
+            "S4：管理员工作台含「待我审批」卡（非管理员无此卡）",
+            "待我审批" in dash_txt,
+            dash_txt[:60],
+        )
+        close_sheet()
+
+        # 项目：状态筛选 chips + 最近项目卡（落点是 /projects/:id）
+        open_dock("projects")
+        proj_txt = sheet_text()
+        chips = page.locator("[data-sheet-body] button[aria-pressed]").count()
+        proj_hrefs = page.evaluate(
+            """() => Array.from(document.querySelectorAll('[data-sheet-card]'))"""
+            """.map((el) => el.getAttribute('href'))"""
+        )
+        record(
+            "S4：项目抽屉有状态筛选 chips（全部 / 进行中 / 我负责…）",
+            chips >= 3 and all(k in proj_txt for k in ("全部", "进行中", "我负责")),
+            f"{chips} 个 chips",
+        )
+        record(
+            "S4：项目卡落点是项目详情（/projects/:id），不是死键",
+            len(proj_hrefs) > 0
+            and all(h and h.startswith("/projects/") for h in proj_hrefs),
+            f"{len(proj_hrefs)} 张卡，首个落点={proj_hrefs[0] if proj_hrefs else None}",
+        )
+        close_sheet()
+
+        # 进度：待填报 / 逾期 / 临近里程碑预览卡 + 待处理条目
+        open_dock("progress")
+        prog_txt = sheet_text()
+        record(
+            "S4：进度抽屉含待填报 / 逾期 / 里程碑三张预览卡",
+            all(k in prog_txt for k in ("待填报", "逾期", "里程碑")),
+            prog_txt[:80],
+        )
+        close_sheet()
+
+        # 支出（D1）：支出记录 + 支出报表两个入口 + 支出口径提示（在抽屉里）
+        open_dock("costs")
+        costs_txt = sheet_text()
+        costs_hrefs = page.evaluate(
+            """() => Array.from(document.querySelectorAll('[data-sheet-card]'))"""
+            """.map((el) => el.getAttribute('href'))"""
+        )
+        record(
+            "S4/D1：支出抽屉含「支出记录」与「支出报表」两个入口",
+            "支出记录" in costs_txt
+            and "支出报表" in costs_txt
+            and "/costs" in costs_hrefs
+            and "/reports" in costs_hrefs,
+            f"落点={costs_hrefs}",
+        )
+        record(
+            "S4/D1：支出口径提示在抽屉里（已通过 / 特批通过，与财务账有差异）",
+            "已通过" in costs_txt and "财务账" in costs_txt,
+            costs_txt[-60:],
+        )
+        # 卡片可点进模块：点「支出报表」应导航且抽屉收起
+        page.locator('[data-sheet-card][href="/reports"]').first.click()
+        page.wait_for_timeout(1200)
+        record(
+            "S4：点卡片进模块（支出报表），抽屉收起且路由跟上",
+            "/reports" in page.url and sheet_state(page) is None,
+            page.url,
+        )
+        page.goto(f"{BASE}/projects", wait_until="networkidle")
+        page.wait_for_timeout(800)
+
+        # 我的（D3）：默认 half + 账号卡 + 管理入口（仅管理员）+ 账号操作
+        mine_st = open_dock("mine")
+        mine_txt = sheet_text()
+        record(
+            "S4：我的抽屉默认 half 档（§3 表格）",
+            mine_st["stop"] == "half",
+            f"档位={mine_st['stop']}",
+        )
+        record(
+            "S4/D3：管理员「我的」抽屉出现审批中心 / 系统管理 / 通讯录",
+            all(k in mine_txt for k in ADMIN_ONLY_LABELS),
+            mine_txt[:80],
+        )
+        record(
+            "S4：我的抽屉有账号操作（修改密码 / 退出登录）",
+            "修改密码" in mine_txt and "退出登录" in mine_txt,
+            mine_txt[-60:],
+        )
+        record(
+            "S4：抽屉永不空白（账号卡 / 卡片 / 提示至少其一在场）",
+            page.locator(
+                "[data-sheet-body] [data-sheet-card], "
+                "[data-sheet-body] [data-sheet-account]"
+            ).count()
+            > 0,
+        )
+        close_sheet()
 
         # ============ 壳切换：767 / 768 两档 ============
         page.set_viewport_size({"width": 768, "height": 900})
@@ -1154,6 +1286,46 @@ def main() -> int:
                 "§3.2：非管理员侧栏同样没有这三个入口（权限唯一入口未变）",
                 all(x not in side2 for x in ADMIN_ONLY_LABELS),
                 side2[:90],
+            )
+            # S4/D3：非管理员的「我的」抽屉 —— 默认 half、有账号卡与账号操作，
+            # 但三个管理入口一个都不出现（不展示必然 403 的入口）
+            page2.click('[data-shell="dock"] [data-dock="mine"]')
+            page2.wait_for_timeout(1500)
+            mine2 = page2.evaluate(
+                """() => {const p = document.querySelector('[data-sheet]');"""
+                """ return p ? p.dataset.sheet : null; }"""
+            )
+            mine2_txt = " ".join(
+                page2.locator("[data-sheet-body]").inner_text().split()
+            )
+            record(
+                "S4：非管理员「我的」抽屉同样默认 half",
+                mine2 == "half",
+                f"档位={mine2}",
+            )
+            record(
+                "S4/D3：非管理员「我的」抽屉里没有审批中心 / 系统管理 / 通讯录",
+                all(x not in mine2_txt for x in ADMIN_ONLY_LABELS),
+                mine2_txt[:90],
+            )
+            record(
+                "S4：非管理员仍有账号操作（修改密码 / 退出登录），抽屉不空白",
+                "修改密码" in mine2_txt and "退出登录" in mine2_txt,
+                mine2_txt[-60:],
+            )
+            page2.keyboard.press("Escape")
+            page2.wait_for_timeout(500)
+            page2.keyboard.press("Escape")
+            page2.wait_for_timeout(500)
+            page2.click('[data-shell="dock"] [data-dock="dashboard"]')
+            page2.wait_for_timeout(1500)
+            dash2_txt = " ".join(
+                page2.locator("[data-sheet-body]").inner_text().split()
+            )
+            record(
+                "S4/D3：非管理员工作台抽屉没有「待我审批」卡",
+                "待我审批" not in dash2_txt and "逾期" in dash2_txt,
+                dash2_txt[:80],
             )
             page2.screenshot(path=f"{SHOT}/05-dock-390-nonadmin.png")
         ctx2.close()
