@@ -90,6 +90,7 @@ def upgrade():
             sa.Column("closed_by", sa.Integer(), sa.ForeignKey("users.id")),
             sa.Column("closed_at", sa.DateTime()),
             sa.Column("version", sa.Integer(), nullable=False, server_default="1"),
+            sa.UniqueConstraint("account_book_id", "id", name="uq_period_book_id"),
             sa.UniqueConstraint(
                 "account_book_id", "year", "month", name="uq_period_book_year_month"
             ),

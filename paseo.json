@@ -1,9 +1,0 @@
-{
-  "worktree": {
-    "setup": [
-      "cd web && npm ci --prefer-offline",
-      "SOURCE_ROOT=\"$(dirname \"$(git rev-parse --path-format=absolute --git-common-dir)\")\"; if [ -f \"$SOURCE_ROOT/.env\" ]; then cp \"$SOURCE_ROOT/.env\" .env; fi",
-      "SOURCE_ROOT=\"$(dirname \"$(git rev-parse --path-format=absolute --git-common-dir)\")\"; if [ -f \"$SOURCE_ROOT/web/.env.local\" ]; then cp \"$SOURCE_ROOT/web/.env.local\" web/.env.local; fi"
-    ]
-  }
-}
