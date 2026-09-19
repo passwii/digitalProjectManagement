@@ -44,6 +44,23 @@ LOG_SORTS = {
 }
 
 
+def _operator_name(user_id: int | None, account: User | None = None) -> str:
+    """返回审计日志中稳定、可读且可追溯的操作人展示值。
+
+    审计记录只保存 user_id，不能把姓名快照写回历史记录；读取时优先使用
+    当前账号姓名，其次账号，最后保留原始 ID。用户已删除或登录失败没有账号
+    记录时也返回明确的可读兜底，而不是让前端自行拼接展示文案。
+    """
+    if account is not None:
+        real_name = str(account.real_name or "").strip()
+        if real_name:
+            return real_name
+        username = str(account.username or "").strip()
+        if username:
+            return username
+    return f"用户#{user_id}" if user_id is not None else "未知用户"
+
+
 def _u(u: User):
     return {"id": u.id, "username": u.username, "real_name": u.real_name,
             "status": u.status, "dept_id": u.dept_id,
@@ -239,13 +256,21 @@ def export_logs(action: str = "", user_id: int = 0, limit: int = 5000,
     if user_id:
         q = q.filter_by(user_id=user_id)
     rows = q.limit(min(max(limit, 1), 20000)).all()
+    user_ids = {l.user_id for l in rows if l.user_id is not None}
+    accounts = {}
+    if user_ids:
+        accounts = {
+            account.id: account
+            for account in db.query(User).filter(User.id.in_(user_ids)).all()
+        }
 
     wb = Workbook()
     ws = wb.active
-    ws.append(["时间", "操作人ID", "动作", "资源", "资源ID", "详情", "IP"])
+    ws.append(["时间", "操作人名称", "操作人ID", "动作", "资源", "资源ID", "详情", "IP"])
     for l in rows:
-        ws.append([iso(l.created_at) if l.created_at else "", l.user_id, l.action,
-                   l.resource, l.resource_id, l.detail, l.ip])
+        ws.append([iso(l.created_at) if l.created_at else "",
+                   _operator_name(l.user_id, accounts.get(l.user_id)), l.user_id,
+                   l.action, l.resource, l.resource_id, l.detail, l.ip])
     buf = io.BytesIO()
     wb.save(buf)
     buf.seek(0)
@@ -261,16 +286,21 @@ def list_logs(action: str = "", user_id: int = 0, sort: str = "-id",
               db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     """审计日志列表（仅管理员）：统一分页信封（默认 `-id` 最新在前）+ 排序白名单。"""
     _admin(user)
-    q = db.query(AuditLog)
+    # 外连接保证历史记录在账号已删除时仍可返回；姓名为空时由
+    # _operator_name 依次回落到账号和原始 ID。
+    q = db.query(AuditLog, User).outerjoin(User, AuditLog.user_id == User.id)
     if action:
         q = q.filter(AuditLog.action == action)
     if user_id:
         q = q.filter(AuditLog.user_id == user_id)
 
-    def _log(l: AuditLog):
-        return {"id": l.id, "user_id": l.user_id, "action": l.action, "resource": l.resource,
-                "resource_id": l.resource_id, "detail": l.detail, "ip": l.ip,
-                "created_at": iso(l.created_at)}
+    def _log(row):
+        log_row, account = row
+        return {"id": log_row.id, "user_id": log_row.user_id,
+                "operator_name": _operator_name(log_row.user_id, account),
+                "action": log_row.action, "resource": log_row.resource,
+                "resource_id": log_row.resource_id, "detail": log_row.detail, "ip": log_row.ip,
+                "created_at": iso(log_row.created_at)}
 
     return paginate(q, page=page, size=size, allowed=LOG_SORTS,
                     default_sort="-id", sort=sort, map_row=_log)

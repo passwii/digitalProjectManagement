@@ -862,6 +862,7 @@ export interface AdminUser {
 export interface AuditLog {
   id: number;
   user_id: number | null;
+  operator_name: string;
   action: string;
   resource: string;
   resource_id: string | null;

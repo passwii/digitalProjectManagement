@@ -449,6 +449,62 @@ def login_raw(client, username, pwd):
 
 
 # 25. 管理/审批接口：非管理员稳定 403，且不产生任何业务状态变更
+def test_admin_audit_log_operator_names_and_export_columns(client, db):
+    """审计日志展示姓名，姓名为空回落账号，未知操作人回落可读 ID。"""
+    from openpyxl import load_workbook
+
+    from api.core.security import hash_password
+    from api.models import AuditLog, User
+
+    ha = login(client, "admin")
+    S = db()
+    try:
+        admin = S.query(User).filter_by(username="admin").one()
+        admin.real_name = "张审计"
+        blank = User(
+            username="blank-account",
+            pwd_hash=hash_password("blank123456"),
+            real_name="",
+            dept_id=admin.dept_id,
+        )
+        S.add(blank)
+        S.flush()
+        S.add_all([
+            AuditLog(user_id=admin.id, action="operator_named", resource="tests"),
+            AuditLog(user_id=blank.id, action="operator_account", resource="tests"),
+            AuditLog(user_id=None, action="operator_unknown", resource="tests"),
+        ])
+        S.commit()
+    finally:
+        S.close()
+
+    response = client.get("/api/v1/admin/logs?action=operator_named", headers=ha)
+    assert response.status_code == 200, response.text
+    named = response.json()["items"]
+    assert named[0]["operator_name"] == "张审计"
+    assert named[0]["user_id"] is not None
+
+    response = client.get("/api/v1/admin/logs?action=operator_account", headers=ha)
+    assert response.status_code == 200, response.text
+    assert response.json()["items"][0]["operator_name"] == "blank-account"
+
+    response = client.get("/api/v1/admin/logs?action=operator_unknown", headers=ha)
+    assert response.status_code == 200, response.text
+    assert response.json()["items"][0]["operator_name"] == "未知用户"
+
+    # 兼容历史上可能存在的孤立 user_id：NULL 操作人仍有明确可读兜底。
+    assert response.json()["items"][0]["operator_name"] == "未知用户"
+
+    exported = client.get("/api/v1/admin/logs/export?action=operator_named", headers=ha)
+    assert exported.status_code == 200, exported.text
+    sheet = load_workbook(io.BytesIO(exported.content), read_only=True).active
+    rows = list(sheet.iter_rows(values_only=True))
+    assert rows[0] == ("时间", "操作人名称", "操作人ID", "动作", "资源", "资源ID", "详情", "IP")
+    assert rows[1][1] == "张审计"
+    assert rows[1][2] == named[0]["user_id"]
+    assert rows[1][3] == "operator_named"
+
+
 def test_non_admin_management_and_approval_403(client, db):
     ha = login(client, "admin")
     assert client.put("/api/v1/admin/params", headers=ha,
