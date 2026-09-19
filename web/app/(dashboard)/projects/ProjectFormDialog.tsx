@@ -68,11 +68,13 @@ export default function ProjectFormDialog({
   onClose,
   project,
   onSaved,
+  onRequestDelete,
 }: {
   open: boolean;
   onClose: () => void;
   project: Project | null;
   onSaved: (p: Project, isNew: boolean) => void;
+  onRequestDelete?: () => void;
 }) {
   const { users } = useMeta();
   const isEdit = !!project;
@@ -222,6 +224,11 @@ export default function ProjectFormDialog({
       title={isEdit ? `编辑项目 · ${project?.code ?? ""}` : "新建项目"}
       footer={
         <>
+          {isEdit && onRequestDelete && (
+            <button className="btn-ghost btn-danger-outline" onClick={onRequestDelete} disabled={saving}>
+              删除项目
+            </button>
+          )}
           <button className="btn-ghost" onClick={onClose} disabled={saving}>取消</button>
           <button className="btn-primary" onClick={submit} disabled={saving}>
             {saving ? "保存中…" : isEdit ? "保存修改" : "创建项目"}

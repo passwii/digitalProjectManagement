@@ -401,6 +401,12 @@ table.grid tbody tr:last-child td { border-bottom: none; }
   white-space: nowrap;
   text-overflow: ellipsis;
 }
+/* 项目编号是业务主键展示值，不能被省略号截断；首列已预留完整显示空间。 */
+.project-table .project-code {
+  overflow: visible;
+  text-overflow: clip;
+  white-space: nowrap;
+}
 /* 通知定位命中行：左侧色条 + 持久底色，与 hover 区分开（BLF-1093）。
    不能只靠 hover —— 用户从通知跳进来后鼠标不在表上，必须一眼看到「就是这一条」。 */
 table.grid tbody tr.row-target > td {
