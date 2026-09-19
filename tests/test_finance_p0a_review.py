@@ -31,7 +31,8 @@ def test_finance_books_seed_full_tree_and_isolate_reads(client):
         headers={**headers, "X-Account-Book": second["code"]},
     )
     assert first_accounts.status_code == second_accounts.status_code == 200
-    assert len(first_accounts.json()) >= 15
+    assert len(first_accounts.json()) >= 75
+    assert {row["subject_version"] for row in first_accounts.json()} == {"2022"}
     assert len(second_accounts.json()) == len(first_accounts.json())
     assert {row["id"] for row in first_accounts.json()}.isdisjoint(
         {row["id"] for row in second_accounts.json()}
@@ -125,41 +126,80 @@ def test_period_reopen_requires_confirmation_reverse_order_and_version(client):
     periods = client.get("/api/v1/finance/periods", headers=scoped).json()
     first, second = periods[:2]
 
-    close_first = client.patch(
-        f"/api/v1/finance/periods/{first['id']}",
-        json={"status": "closed"},
+    close_first = client.post(
+        f"/api/v1/finance/periods/{first['id']}/close",
         headers={**scoped, "If-Match": str(first["version"])},
     )
     assert close_first.status_code == 200
-    reopen_without_confirmation = client.patch(
-        f"/api/v1/finance/periods/{first['id']}",
-        json={"status": "open"},
+    assert close_first.json()["version"] == 2
+    reopen_without_confirmation = client.post(
+        f"/api/v1/finance/periods/{first['id']}/reopen",
         headers={**scoped, "If-Match": "2"},
     )
     assert reopen_without_confirmation.status_code == 400
+    assert reopen_without_confirmation.json()["detail"]["code"] == "F-PERIOD-CLOSED"
 
-    close_second = client.patch(
-        f"/api/v1/finance/periods/{second['id']}",
-        json={"status": "closed"},
+    close_second = client.post(
+        f"/api/v1/finance/periods/{second['id']}/close",
         headers={**scoped, "If-Match": str(second["version"])},
     )
     assert close_second.status_code == 200
-    wrong_order = client.patch(
-        f"/api/v1/finance/periods/{first['id']}",
-        json={"status": "open"},
+    wrong_order = client.post(
+        f"/api/v1/finance/periods/{first['id']}/reopen",
         headers={**scoped, "If-Match": "2", "X-Reopen-Period": "confirm"},
     )
     assert wrong_order.status_code == 400
+    assert wrong_order.json()["detail"]["code"] == "F-REVERSE-ORDER"
 
-    reopen_second = client.patch(
-        f"/api/v1/finance/periods/{second['id']}",
-        json={"status": "open"},
+    reopen_second = client.post(
+        f"/api/v1/finance/periods/{second['id']}/reopen",
         headers={**scoped, "If-Match": "2", "X-Reopen-Period": "confirm"},
     )
     assert reopen_second.status_code == 200
-    stale = client.patch(
-        f"/api/v1/finance/periods/{first['id']}",
-        json={"status": "open"},
+    stale = client.post(
+        f"/api/v1/finance/periods/{first['id']}/reopen",
         headers={**scoped, "If-Match": "1", "X-Reopen-Period": "confirm"},
     )
     assert stale.status_code == 409
+    assert stale.json()["detail"]["code"] == "F-PERIOD-CLOSED"
+
+
+def test_opening_balance_requires_leaf_active_account_and_book_scope(client):
+    headers = _auth(client, "admin", "admin123456")
+    first = _book(client, headers, "REVIEW-F")
+    second = _book(client, headers, "REVIEW-G")
+    first_scoped = {**headers, "X-Account-Book": first["code"]}
+    second_scoped = {**headers, "X-Account-Book": second["code"]}
+    first_accounts = client.get("/api/v1/finance/accounts/tree", headers=first_scoped).json()
+    second_accounts = client.get("/api/v1/finance/accounts/tree", headers=second_scoped).json()
+    parent = next(row for row in first_accounts if row["code"] == "1002")
+    other_book_account = next(row for row in second_accounts if row["code"] == "1001")
+
+    non_leaf = client.post(
+        "/api/v1/finance/opening-balances",
+        json={"account_id": parent["id"], "debit": "1.00"},
+        headers=first_scoped,
+    )
+    assert non_leaf.status_code == 400
+    assert non_leaf.json()["detail"]["code"] == "F-ACCT-INACTIVE"
+
+    cross_book = client.post(
+        "/api/v1/finance/opening-balances",
+        json={"account_id": other_book_account["id"], "debit": "1.00"},
+        headers=first_scoped,
+    )
+    assert cross_book.status_code == 400
+    assert cross_book.json()["detail"]["code"] == "F-ACCT-INACTIVE"
+
+    leaf = next(row for row in first_accounts if row["code"] == "1601")
+    disabled = client.patch(
+        f"/api/v1/finance/accounts/{leaf['id']}?active=false", headers=first_scoped
+    )
+    assert disabled.status_code == 200
+    inactive = client.post(
+        "/api/v1/finance/opening-balances",
+        json={"account_id": leaf["id"], "debit": "1.00"},
+        headers=first_scoped,
+    )
+    assert inactive.status_code == 400
+    assert inactive.json()["detail"]["code"] == "F-ACCT-INACTIVE"

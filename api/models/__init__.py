@@ -95,6 +95,7 @@ class AccountingPeriod(Base):
   closed_at = Column(DateTime, nullable=True)
   version = Column(Integer, nullable=False, default=1, server_default="1")
   __table_args__ = (
+    UniqueConstraint("account_book_id", "id", name="uq_period_book_id"),
     UniqueConstraint(
       "account_book_id", "year", "month", name="uq_period_book_year_month"
     ),
@@ -123,6 +124,7 @@ class Account(Base):
   direction = Column(String(1), nullable=False)
   category = Column(String(16), nullable=False)
   aux_flags = Column(JSON, nullable=False, default=dict, server_default="{}")
+  subject_version = Column(String(16), nullable=False, default="2022", server_default="2022")
   is_leaf = Column(Boolean, nullable=False, default=True, server_default="true")
   is_active = Column(Boolean, nullable=False, default=True, server_default="true")
   __table_args__ = (
@@ -232,6 +234,54 @@ class AccountAuxiliary(Base):
       name="uq_account_auxiliary_link",
     ),
     Index("ix_account_auxiliary_book", "account_book_id"),
+  )
+
+
+class AccountBalance(Base):
+  """Persisted period totals used by account deactivation guards."""
+
+  __tablename__ = "account_balances"
+  id = Column(Integer, primary_key=True)
+  account_book_id = Column(
+    Integer,
+    ForeignKey("account_books.id", ondelete="CASCADE"),
+    nullable=False,
+    index=True,
+  )
+  period_id = Column(Integer, nullable=False)
+  account_id = Column(Integer, nullable=False)
+  aux_key = Column(String(128), nullable=False, default="", server_default="")
+  opening_debit = Column(Numeric(18, 2), nullable=False, default=0, server_default="0")
+  opening_credit = Column(Numeric(18, 2), nullable=False, default=0, server_default="0")
+  debit_total = Column(Numeric(18, 2), nullable=False, default=0, server_default="0")
+  credit_total = Column(Numeric(18, 2), nullable=False, default=0, server_default="0")
+  ending_debit = Column(Numeric(18, 2), nullable=False, default=0, server_default="0")
+  ending_credit = Column(Numeric(18, 2), nullable=False, default=0, server_default="0")
+  __table_args__ = (
+    UniqueConstraint("account_book_id", "id", name="uq_account_balance_book_id"),
+    UniqueConstraint(
+      "account_book_id", "period_id", "account_id", "aux_key",
+      name="uq_account_balance_scope",
+    ),
+    ForeignKeyConstraint(
+      ["account_book_id", "period_id"],
+      ["accounting_periods.account_book_id", "accounting_periods.id"],
+      name="fk_account_balance_period_same_book",
+      ondelete="CASCADE",
+    ),
+    ForeignKeyConstraint(
+      ["account_book_id", "account_id"],
+      ["accounts.account_book_id", "accounts.id"],
+      name="fk_account_balance_account_same_book",
+      ondelete="CASCADE",
+    ),
+    CheckConstraint(
+      "opening_debit >= 0 AND opening_credit >= 0 AND "
+      "debit_total >= 0 AND credit_total >= 0 AND "
+      "ending_debit >= 0 AND ending_credit >= 0",
+      name="ck_account_balance_nonneg",
+    ),
+    Index("ix_account_balances_account", "account_book_id", "account_id"),
   )
 
 

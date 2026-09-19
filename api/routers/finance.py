@@ -7,12 +7,11 @@ from typing import Any, cast
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query
 from pydantic import BaseModel, Field
-from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from ..core.audit import commit_audited
-from ..core.database import Base, get_db
+from ..core.database import get_db
 from ..core.deps import get_current_user
 from ..core.rbac import is_admin
 from ..core.timeutil import app_now
@@ -20,6 +19,7 @@ from ..models import (
     Account,
     AccountAuxiliary,
     AccountBook,
+    AccountBalance,
     AccountBookMember,
     AccountingPeriod,
     AuxiliaryItem,
@@ -32,6 +32,19 @@ router = APIRouter(prefix="/finance", tags=["finance"])
 CATEGORIES = {"资产", "负债", "权益", "成本", "损益"}
 AUX_KINDS = {"customer", "vendor", "department", "employee", "project", "cashflow"}
 ACCOUNT_AUX_FLAGS = {"customer", "vendor", "dept", "employee", "project", "cashflow"}
+ACCOUNT_SUBJECT_VERSION = "2022"
+
+
+def _finance_error(
+    status_code: int,
+    code: str,
+    message: str,
+    details: list[dict[str, str]] | None = None,
+) -> None:
+    raise HTTPException(
+        status_code,
+        detail={"code": code, "message": message, "details": details or []},
+    )
 
 
 class BookIn(BaseModel):
@@ -76,24 +89,24 @@ class PeriodStatusIn(BaseModel):
 def _book_access(db: Session, user: User, book_id: int) -> AccountBook:
     book = db.query(AccountBook).filter(AccountBook.id == book_id).first()
     if not book:
-        raise HTTPException(404, "账套不存在")
+        _finance_error(404, "F-NO-BOOK-ACCESS", "账套不存在")
     if (
         not is_admin(user)
         and not db.query(AccountBookMember)
         .filter_by(account_book_id=book_id, user_id=user.id)
         .first()
     ):
-        raise HTTPException(403, "无权访问该账套")
+        _finance_error(403, "F-NO-BOOK-ACCESS", "无账套权限")
     return book
 
 
 def _book_header(db: Session, user: User, header: str | None) -> AccountBook:
     code = (header or "").strip()
     if not code:
-        raise HTTPException(400, "请通过 X-Account-Book 指定账套 code")
+        _finance_error(403, "F-NO-BOOK-ACCESS", "请通过 X-Account-Book 指定账套 code")
     book = db.query(AccountBook).filter(AccountBook.code == code).first()
     if not book:
-        raise HTTPException(404, "账套不存在")
+        _finance_error(403, "F-NO-BOOK-ACCESS", "账套不存在")
     return _book_access(db, user, book.id)  # type: ignore[arg-type]
 
 
@@ -104,45 +117,112 @@ def _period_dates(year: int, month: int) -> tuple[date, date]:
 
 
 def _seed_accounts(db: Session, book_id: int) -> None:
-    """幂等导入冻结的 2022 准则基础树（一级、常用二级及三级）。"""
+    """幂等导入 2022 企业会计准则基础树（一级/二级全量及常用三级）。"""
+    # This is deliberately data, not test-only setup: the subject_version on
+    # every row makes future chart revisions explicit while preserving local
+    # account names and flags on an existing book.
     seeds = (
         ("1001", "库存现金", "D", "资产", None, {"cashflow": True}),
         ("1002", "银行存款", "D", "资产", None, {"cashflow": True}),
         ("100201", "招行基本户", "D", "资产", "1002", {"cashflow": True}),
+        ("10020101", "招行基本户-人民币", "D", "资产", "100201", {"cashflow": True}),
+        ("1012", "其他货币资金", "D", "资产", None, {"cashflow": True}),
+        ("1101", "交易性金融资产", "D", "资产", None, {}),
+        ("1102", "短期投资", "D", "资产", None, {}),
+        ("1103", "应收股利", "D", "资产", None, {}),
+        ("1111", "应收利息", "D", "资产", None, {}),
+        ("1121", "应收票据", "D", "资产", None, {}),
         ("1122", "应收账款", "D", "资产", None, {"customer": True}),
+        ("112201", "应收账款-国内客户", "D", "资产", "1122", {"customer": True}),
+        ("11220101", "应收账款-国内客户-一类", "D", "资产", "112201", {"customer": True}),
+        ("1123", "预付账款", "D", "资产", None, {"vendor": True}),
+        ("1131", "应收股利", "D", "资产", None, {}),
+        ("1132", "应收利息", "D", "资产", None, {}),
+        ("1221", "其他应收款", "D", "资产", None, {}),
+        ("1231", "坏账准备", "C", "资产", None, {}),
+        ("1401", "材料采购", "D", "资产", None, {}),
+        ("1402", "在途物资", "D", "资产", None, {}),
+        ("1403", "原材料", "D", "资产", None, {}),
+        ("1404", "材料成本差异", "D", "资产", None, {}),
         ("1405", "库存商品", "D", "资产", None, {}),
+        ("1406", "发出商品", "D", "资产", None, {}),
+        ("1407", "商品进销差价", "C", "资产", None, {}),
+        ("1408", "委托加工物资", "D", "资产", None, {}),
+        ("1411", "周转材料", "D", "资产", None, {}),
+        ("1471", "存货跌价准备", "C", "资产", None, {}),
+        ("1501", "持有至到期投资", "D", "资产", None, {}),
+        ("1503", "可供出售金融资产", "D", "资产", None, {}),
+        ("1511", "长期股权投资", "D", "资产", None, {}),
+        ("1521", "投资性房地产", "D", "资产", None, {}),
+        ("1531", "长期应收款", "D", "资产", None, {}),
         ("1601", "固定资产", "D", "资产", None, {}),
         ("1602", "累计折旧", "C", "资产", None, {}),
+        ("1603", "固定资产减值准备", "C", "资产", None, {}),
+        ("1604", "在建工程", "D", "资产", None, {}),
+        ("1606", "固定资产清理", "D", "资产", None, {}),
+        ("1701", "无形资产", "D", "资产", None, {}),
+        ("1702", "累计摊销", "C", "资产", None, {}),
+        ("1703", "无形资产减值准备", "C", "资产", None, {}),
+        ("1801", "长期待摊费用", "D", "资产", None, {}),
+        ("1811", "递延所得税资产", "D", "资产", None, {}),
+        ("1901", "待处理财产损溢", "D", "资产", None, {}),
         ("2001", "短期借款", "C", "负债", None, {}),
+        ("2101", "交易性金融负债", "C", "负债", None, {}),
+        ("2201", "应付票据", "C", "负债", None, {}),
         ("2202", "应付账款", "C", "负债", None, {"vendor": True}),
+        ("220201", "应付账款-国内供应商", "C", "负债", "2202", {"vendor": True}),
+        ("22020101", "应付账款-国内供应商-一类", "C", "负债", "220201", {"vendor": True}),
+        ("2203", "预收账款", "C", "负债", None, {}),
         ("2211", "应付职工薪酬", "C", "负债", None, {}),
         ("2221", "应交税费", "C", "负债", None, {}),
+        ("222101", "应交税费-应交增值税", "C", "负债", "2221", {}),
+        ("22210101", "应交税费-应交增值税-进项税额", "C", "负债", "222101", {}),
+        ("2231", "应付利息", "C", "负债", None, {}),
+        ("2241", "其他应付款", "C", "负债", None, {}),
+        ("2401", "递延收益", "C", "负债", None, {}),
+        ("2501", "长期借款", "C", "负债", None, {}),
+        ("2601", "应付债券", "C", "负债", None, {}),
+        ("2701", "长期应付款", "C", "负债", None, {}),
+        ("2801", "预计负债", "C", "负债", None, {}),
+        ("2901", "递延所得税负债", "C", "负债", None, {}),
         ("3001", "实收资本", "C", "权益", None, {}),
+        ("3002", "资本公积", "C", "权益", None, {}),
+        ("3101", "盈余公积", "C", "权益", None, {}),
+        ("3103", "本年利润", "C", "权益", None, {}),
+        ("3104", "利润分配", "C", "权益", None, {}),
+        ("4001", "生产成本", "D", "成本", None, {}),
+        ("4101", "制造费用", "D", "成本", None, {}),
+        ("5001", "开发成本", "D", "成本", None, {}),
+        ("5101", "研发支出", "D", "成本", None, {}),
         ("6001", "主营业务收入", "C", "损益", None, {}),
+        ("6051", "其他业务收入", "C", "损益", None, {}),
+        ("6101", "公允价值变动损益", "C", "损益", None, {}),
+        ("6111", "投资收益", "C", "损益", None, {}),
+        ("6301", "营业外收入", "C", "损益", None, {}),
         ("6401", "主营业务成本", "D", "成本", None, {}),
+        ("6402", "其他业务成本", "D", "成本", None, {}),
+        ("6601", "销售费用", "D", "损益", None, {"dept": True}),
         ("6602", "管理费用", "D", "损益", None, {"dept": True}),
+        ("660201", "管理费用-办公费", "D", "损益", "6602", {"dept": True}),
+        ("66020101", "管理费用-办公费-日常", "D", "损益", "660201", {"dept": True}),
+        ("6603", "财务费用", "D", "损益", None, {"dept": True}),
+        ("6711", "营业外支出", "D", "损益", None, {}),
+        ("6801", "所得税费用", "D", "损益", None, {}),
+        ("6901", "以前年度损益调整", "D", "损益", None, {}),
     )
     for code, name, direction, category, parent_code, aux_flags in seeds:
         row = db.query(Account).filter_by(account_book_id=book_id, code=code).first()
         if row:
             continue
         parent = (
-            db.query(Account)
-            .filter_by(account_book_id=book_id, code=parent_code)
-            .first()
-            if parent_code
-            else None
+            db.query(Account).filter_by(account_book_id=book_id, code=parent_code).first()
+            if parent_code else None
         )
         row = Account(
-            account_book_id=book_id,
-            code=code,
-            name=name,
-            level=len(code) // 2 - 1,
-            parent_id=parent.id if parent else None,
-            direction=direction,
-            category=category,
-            aux_flags=aux_flags,
-            is_leaf=parent is None,
+            account_book_id=book_id, code=code, name=name,
+            level=len(code) // 2 - 1, parent_id=parent.id if parent else None,
+            direction=direction, category=category, aux_flags=aux_flags,
+            subject_version=ACCOUNT_SUBJECT_VERSION, is_leaf=parent is None,
         )
         db.add(row)
         if parent:
@@ -200,7 +280,7 @@ def create_book(
         commit_audited(db, user.id, "create", "account_book", str(book.id), code)
     except IntegrityError as exc:
         db.rollback()
-        raise HTTPException(409, "账套创建失败") from exc
+        _finance_error(409, "F-NO-BOOK-ACCESS", "账套创建失败")
     return _serialize_book(book)
 
 
@@ -258,7 +338,7 @@ def update_period(
 ):
     book = _book_header(db, user, x_account_book)
     if not is_admin(user):
-        raise HTTPException(403, "仅管理员可维护期间")
+        _finance_error(403, "F-NO-BOOK-ACCESS", "仅管理员可维护期间")
     row = (
         db.query(AccountingPeriod)
         .filter_by(id=period_id, account_book_id=book.id)
@@ -266,7 +346,7 @@ def update_period(
         .first()
     )
     if not row:
-        raise HTTPException(404, "期间不存在")
+        _finance_error(404, "F-NO-BOOK-ACCESS", "期间不存在")
     period = cast(Any, row)
     current_status = str(period.status)
     allowed_transitions = {
@@ -275,20 +355,20 @@ def update_period(
         "locked": {"locked"},
     }
     if body.status not in allowed_transitions.get(current_status, set()):
-        raise HTTPException(400, "期间状态只能按 open→closed→locked 流转")
+        _finance_error(400, "F-PERIOD-CLOSED", "期间状态只能按 open→closed→locked 流转")
     expected_version = None
     if if_match:
         try:
             expected_version = int(if_match.strip().strip('"'))
-        except ValueError as exc:
-            raise HTTPException(400, "If-Match 必须为期间 version") from exc
+        except ValueError:
+            _finance_error(400, "F-PERIOD-CLOSED", "If-Match 必须为期间 version")
     if expected_version is not None and expected_version != period.version:
-        raise HTTPException(409, "期间已被其他请求更新，请刷新后重试")
+        _finance_error(409, "F-PERIOD-CLOSED", "期间已被其他请求更新，请刷新后重试")
     if current_status == "locked" and body.status != "locked":
-        raise HTTPException(400, "已锁定期间不能重新打开或结账")
+        _finance_error(400, "F-PERIOD-CLOSED", "已锁定期间不能重新打开或结账")
     if current_status == "closed" and body.status == "open":
         if (x_reopen_period or "").lower() != "confirm":
-            raise HTTPException(400, "已结账期间不能直接重新打开；反结账需二次确认")
+            _finance_error(400, "F-PERIOD-CLOSED", "已结账期间不能直接重新打开；反结账需二次确认")
         next_period = (
             db.query(AccountingPeriod)
             .filter(
@@ -300,9 +380,9 @@ def update_period(
             .first()
         )
         if next_period:
-            raise HTTPException(400, "反结账必须按期间倒序，后一期间尚未打开")
+            _finance_error(400, "F-REVERSE-ORDER", "反结账必须按期间倒序，后一期间尚未打开")
     if body.status == "locked" and current_status != "closed":
-        raise HTTPException(400, "只能锁定已结账期间")
+        _finance_error(400, "F-PERIOD-CLOSED", "只能锁定已结账期间")
     period.status = body.status
     period.version = period.version + 1
     if body.status in {"closed", "locked"}:
@@ -313,6 +393,49 @@ def update_period(
         period.closed_at = None
     commit_audited(db, user.id, "update", "accounting_period", str(row.id), body.status)
     return {"id": row.id, "status": row.status, "version": row.version}
+
+
+@router.post("/periods/{period_id}/close")
+@router.patch("/periods/{period_id}/close")
+def close_period(
+    period_id: int,
+    x_account_book: str | None = Header(default=None),
+    if_match: str | None = Header(default=None, alias="If-Match"),
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """冻结契约别名：结账。"""
+    return update_period(
+        period_id,
+        PeriodStatusIn(status="closed"),
+        x_account_book,
+        if_match,
+        None,
+        db,
+        user,
+    )
+
+
+@router.post("/periods/{period_id}/reopen")
+@router.patch("/periods/{period_id}/reopen")
+def reopen_period(
+    period_id: int,
+    x_account_book: str | None = Header(default=None),
+    if_match: str | None = Header(default=None, alias="If-Match"),
+    x_reopen_period: str | None = Header(default=None, alias="X-Reopen-Period"),
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """冻结契约别名：反结账，必须显式二次确认。"""
+    return update_period(
+        period_id,
+        PeriodStatusIn(status="open"),
+        x_account_book,
+        if_match,
+        x_reopen_period,
+        db,
+        user,
+    )
 
 
 @router.get("/accounts/tree")
@@ -337,6 +460,7 @@ def account_tree(
             "parent_id": x.parent_id,
             "direction": x.direction,
             "category": x.category,
+            "subject_version": x.subject_version,
             "aux_flags": x.aux_flags,
             "is_leaf": x.is_leaf,
             "is_active": x.is_active,
@@ -406,10 +530,10 @@ def create_account(
 ):
     book = _book_header(db, user, x_account_book)
     if not is_admin(user):
-        raise HTTPException(403, "仅管理员可维护科目")
+        _finance_error(403, "F-NO-BOOK-ACCESS", "仅管理员可维护科目")
     level, parent = _validate_account_code(db, book.id, body)  # type: ignore[arg-type]
     if db.query(Account).filter_by(account_book_id=book.id, code=body.code).first():
-        raise HTTPException(409, "科目编码已存在")
+        _finance_error(409, "F-ACCT-INACTIVE", "科目编码已存在")
     if parent is not None:
         cast(Any, parent).is_leaf = False
     row = Account(
@@ -444,17 +568,17 @@ def toggle_account(
 ):
     book = _book_header(db, user, x_account_book)
     if not is_admin(user):
-        raise HTTPException(403, "仅管理员可维护科目")
+        _finance_error(403, "F-NO-BOOK-ACCESS", "仅管理员可维护科目")
     row = db.query(Account).filter_by(id=account_id, account_book_id=book.id).first()
     if not row:
-        raise HTTPException(404, "科目不存在")
+        _finance_error(400, "F-ACCT-INACTIVE", "科目不存在")
     if not active:
         if (
             db.query(Account)
             .filter_by(parent_id=row.id, account_book_id=book.id)
             .first()
         ):
-            raise HTTPException(400, "有下级科目时不能停用")
+            _finance_error(400, "F-ACCT-INACTIVE", "有下级科目时不能停用")
         has_balance = (
             db.query(OpeningBalance)
             .filter(
@@ -464,20 +588,24 @@ def toggle_account(
             )
             .first()
         )
-        if has_balance:
-            raise HTTPException(400, "科目有期末余额或期初余额，不能停用")
-        # P0-A has no voucher/ledger tables yet.  Keep this query explicit so
-        # the guard automatically covers the first transaction tables when
-        # they are introduced, without weakening the zero-activity contract.
-        for table_name in ("journal_entry_lines", "voucher_lines", "ledger_entries"):
-            table = Base.metadata.tables.get(table_name)
-            if table is not None and db.execute(
-                select(table.c.id).where(
-                    table.c.account_book_id == book.id,
-                    table.c.account_id == row.id,
-                ).limit(1)
-            ).first():
-                raise HTTPException(400, "科目本期已有发生额，不能停用")
+        has_activity = (
+            db.query(AccountBalance)
+            .filter(
+                AccountBalance.account_book_id == book.id,
+                AccountBalance.account_id == row.id,
+                (
+                    (AccountBalance.opening_debit != 0)
+                    | (AccountBalance.opening_credit != 0)
+                    | (AccountBalance.debit_total != 0)
+                    | (AccountBalance.credit_total != 0)
+                    | (AccountBalance.ending_debit != 0)
+                    | (AccountBalance.ending_credit != 0)
+                ),
+            )
+            .first()
+        )
+        if has_balance or has_activity:
+            _finance_error(400, "F-ACCT-INACTIVE", "科目有余额或本期发生额，不能停用")
     cast(Any, row).is_active = active
     commit_audited(db, user.id, "update", "account", str(row.id), f"active={active}")
     return {"id": row.id, "is_active": row.is_active}
@@ -522,12 +650,15 @@ def upsert_opening(
 ):
     book = _book_header(db, user, x_account_book)
     if not is_admin(user):
-        raise HTTPException(403, "仅管理员可录入期初")
+        _finance_error(403, "F-NO-BOOK-ACCESS", "仅管理员可录入期初")
     account = (
         db.query(Account).filter_by(id=body.account_id, account_book_id=book.id).first()
     )
     if not account:
-        raise HTTPException(400, "科目不存在或不属于当前账套")
+        _finance_error(400, "F-ACCT-INACTIVE", "科目不存在或不属于当前账套")
+    account_model = cast(Any, account)
+    if not account_model.is_active or not account_model.is_leaf:
+        _finance_error(400, "F-ACCT-INACTIVE", "期初余额只能录入启用的末级科目")
     debit, credit = _decimal(body.debit), _decimal(body.credit)
     if debit and credit:
         raise HTTPException(400, "期初借贷只能填写一方")
@@ -635,7 +766,7 @@ def create_account_auxiliary(
 ):
     book = _book_header(db, user, x_account_book)
     if not is_admin(user):
-        raise HTTPException(403, "仅管理员可维护科目辅助核算")
+        _finance_error(403, "F-NO-BOOK-ACCESS", "仅管理员可维护科目辅助核算")
     account = (
         db.query(Account).filter_by(id=body.account_id, account_book_id=book.id).first()
     )
@@ -645,11 +776,11 @@ def create_account_auxiliary(
         .first()
     )
     if not account or not item:
-        raise HTTPException(400, "科目或辅助资料不存在或不属于当前账套")
+        _finance_error(400, "F-ACCT-INACTIVE", "科目或辅助资料不存在或不属于当前账套")
     flags = account.aux_flags or {}
     flag_name = {"department": "dept"}.get(cast(str, item.kind), cast(str, item.kind))
     if not flags.get(flag_name, False):
-        raise HTTPException(400, "该科目未启用此辅助核算维度")
+        _finance_error(400, "F-ACCT-INACTIVE", "该科目未启用此辅助核算维度")
     row = AccountAuxiliary(
         account_book_id=book.id, account_id=account.id, auxiliary_item_id=item.id
     )
@@ -660,7 +791,7 @@ def create_account_auxiliary(
         )
     except IntegrityError as exc:
         db.rollback()
-        raise HTTPException(409, "科目辅助核算关联已存在") from exc
+        _finance_error(409, "F-ACCT-INACTIVE", "科目辅助核算关联已存在")
     return {
         "id": row.id,
         "account_id": row.account_id,
@@ -677,14 +808,14 @@ def delete_account_auxiliary(
 ):
     book = _book_header(db, user, x_account_book)
     if not is_admin(user):
-        raise HTTPException(403, "仅管理员可维护科目辅助核算")
+        _finance_error(403, "F-NO-BOOK-ACCESS", "仅管理员可维护科目辅助核算")
     row = (
         db.query(AccountAuxiliary)
         .filter_by(id=link_id, account_book_id=book.id)
         .first()
     )
     if not row:
-        raise HTTPException(404, "科目辅助核算关联不存在")
+        _finance_error(404, "F-NO-BOOK-ACCESS", "科目辅助核算关联不存在")
     db.delete(row)
     commit_audited(
         db, user.id, "delete", "account_auxiliary", str(link_id), str(book.code)
@@ -701,9 +832,9 @@ def create_auxiliary(
 ):
     book = _book_header(db, user, x_account_book)
     if not is_admin(user):
-        raise HTTPException(403, "仅管理员可维护辅助资料")
+        _finance_error(403, "F-NO-BOOK-ACCESS", "仅管理员可维护辅助资料")
     if body.kind not in AUX_KINDS:
-        raise HTTPException(400, "辅助资料类型不合法")
+        _finance_error(400, "F-ACCT-INACTIVE", "辅助资料类型不合法")
     row = AuxiliaryItem(
         account_book_id=book.id,
         kind=body.kind,
