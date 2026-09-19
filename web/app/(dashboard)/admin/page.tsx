@@ -331,7 +331,7 @@ function AdminInner() {
                     {logItems.map((l) => (
                       <tr key={l.id} className="clickable-row" onClick={() => setLogDetail(l)}>
                         <td className="mono tiny">{fmtDateTime(l.created_at)}</td>
-                        <td>用户#{l.user_id ?? "-"}</td>
+                        <td>{l.operator_name}</td>
                         <td className="mono tiny">{l.action}</td>
                         <td className="mono tiny">{l.resource}{l.resource_id ? `#${l.resource_id}` : ""}</td>
                         <td><span className="ellipsis" title={l.detail}>{l.detail || "-"}</span></td>
@@ -435,7 +435,7 @@ function AdminInner() {
         {logDetail && (
           <dl className="kv one">
             <div><dt>时间</dt><dd className="mono">{fmtDateTime(logDetail.created_at)}</dd></div>
-            <div><dt>操作人</dt><dd>用户#{logDetail.user_id ?? "-"}</dd></div>
+            <div><dt>操作人</dt><dd>{logDetail.operator_name}</dd></div>
             <div><dt>动作</dt><dd className="mono">{logDetail.action}</dd></div>
             <div><dt>资源</dt><dd className="mono">{logDetail.resource}{logDetail.resource_id ? `#${logDetail.resource_id}` : ""}</dd></div>
             <div><dt>IP</dt><dd className="mono">{logDetail.ip || "-"}</dd></div>
