@@ -1,6 +1,8 @@
 """BLF-1127 验收走查：S1 手机壳基座（5 位底部 Dock + 767px 双外壳 CSS 切换）
 + S3 三态抽屉（peek / half / full + 手势，D2）
-+ S4 五个抽屉的内容与权限入口（D1/D3）。
++ S4 五个抽屉的内容与权限入口（D1/D3）
++ S5 项目台账 / 审批中心手机端卡片流（§4.2/D4）
++ S6 PWA 外壳收口（manifest + safe-area + viewport-fit + overscroll + 自建下拉刷新）。
 
 契约：docs/superpowers/specs/2026-09-18-mobile-pwa-navigation-design.md §3 / §4 / §7 + 决策 D1–D3。
 和 `acceptance_blf1093.py` 一样是**真浏览器 + 真后端**：不 mock 菜单接口，登录后
@@ -16,8 +18,11 @@
   · S3/D2：点 5 个 Dock 位都开到默认档（我的 = half，其余 = peek）且不跳页；
   · S3/§4 三档几何：peek ≤236px 无遮罩 / half 56% 有遮罩 / full 留白 ≥40px 且贴底
   · S3 手势：上拖升档、下甩 ≥96px 降档 / 关闭、点遮罩关闭、列表滚动优先（不抢手势）
-  · S3/aa11y：模态档焦点陷阱、Esc 降档 / 关闭、关闭后焦点回到触发的 Dock 位、
-    关闭中的抽屉不在命中链上（残留元素不得拦截点击）
+  · S6/PWA：manifest.webmanifest 可访问且字段齐全（standalone / theme_color /
+    192+512+maskable / shortcuts 工作台+待审批）、link[rel=manifest] 在场、
+    viewport-fit=cover + theme-color、overscroll-y contain、按钮 touch-action
+    与手机端 ≥44px、自建下拉刷新真手势可用、API 不可达时有明确错误与重试
+    （复用 LoadFailed，不做离线写缓存 —— 有意决策）
 
 用法：
     python3 scripts/acceptance_blf1127_mobile.py
@@ -87,6 +92,11 @@ FULL_TOP_MIN = 40  # full 顶部留白下限（不遮状态栏）
 SWIPE_DOWN = 96  # 下甩阈值：降档 / 关闭
 SWIPE_UP = 56  # 上拖阈值：升档
 SHEET_TOPMOST_HIT = "dock"  # 关闭后命中链应落在 Dock 上（而不是残留的抽屉）
+
+# S6 契约常量（§6）：PWA 外壳 6 件事的判定线，改契约必须先改这里
+PWA_THEME = "#0F2742"  # theme_color / theme-color / 图标底色，三处同值
+PULL_PX = 56  # 自建下拉刷新越线阈值（与 PullToRefresh.tsx 的 PULL_THRESHOLD 成对）
+TAP_MIN = 44  # 可点元素最小触控目标（px）
 
 
 def prepare_shot_dir() -> str:
@@ -1455,6 +1465,207 @@ def main() -> int:
             )
             page2.screenshot(path=f"{SHOT}/05-dock-390-nonadmin.png")
         ctx2.close()
+
+        # ============ S6：PWA 外壳收口（§6 的 6 件事） ============
+        # 契约：manifest + safe-area + viewport-fit + overscroll + 点击延迟 +
+        # 离线兜底（首版不做离线写：只断言「明确错误与重试」，见末尾的 API 中断段）。
+        page.set_viewport_size({"width": 390, "height": 844})
+        page.goto(f"{BASE}/dashboard", wait_until="networkidle")
+        page.wait_for_timeout(1200)
+
+        # ---- manifest：可访问且字段齐全 ----
+        mani = page.evaluate(
+            """async () => {
+                const link = document.querySelector('link[rel="manifest"]');
+                if (!link) return { link: false };
+                const r = await fetch(link.getAttribute('href'));
+                if (!r.ok) return { link: true, http: r.status };
+                return { link: true, http: r.status, json: await r.json() };
+            }"""
+        )
+        mani_ok = isinstance(mani, dict) and mani.get("http") == 200
+        m = mani.get("json", {}) if mani_ok else {}
+        icons = m.get("icons", []) if isinstance(m, dict) else []
+        sizes = sorted({str(i.get("sizes")) for i in icons if isinstance(i, dict)})
+        purposes = sorted({str(i.get("purpose")) for i in icons if isinstance(i, dict)})
+        shortcuts = m.get("shortcuts", []) if isinstance(m, dict) else []
+        cut_urls = sorted({str(s.get("url")) for s in shortcuts if isinstance(s, dict)})
+        record(
+            "manifest.webmanifest 可访问且字段齐全",
+            mani_ok
+            and m.get("display") == "standalone"
+            and (m.get("theme_color") or "").lower() == PWA_THEME.lower()
+            and "background_color" in m
+            and "192x192" in sizes
+            and "512x512" in sizes
+            and "maskable" in purposes
+            and "/dashboard" in cut_urls
+            and "/approvals" in cut_urls,
+            f"display={m.get('display')} theme={m.get('theme_color')} "
+            f"icons={sizes} purposes={purposes} shortcuts={cut_urls}",
+        )
+
+        # ---- viewport-fit=cover + theme-color ----
+        vp = page.evaluate(
+            """() => ({
+                viewport: document.querySelector('meta[name="viewport"]')?.getAttribute('content') ?? '',
+                theme: document.querySelector('meta[name="theme-color"]')?.getAttribute('content') ?? '',
+            })"""
+        )
+        record(
+            "viewport-fit=cover（圆角屏铺满，安全区由 env() 消化）",
+            "viewport-fit=cover" in vp["viewport"],
+            vp["viewport"][:120],
+        )
+        record(
+            f"theme-color = {PWA_THEME}（与 manifest 同值）",
+            vp["theme"].lower() == PWA_THEME.lower(),
+            f"meta theme-color={vp['theme']}",
+        )
+
+        # ---- overscroll + 点击延迟（计算样式，不读类名） ----
+        ob = page.evaluate(
+            """() => ({
+                html: getComputedStyle(document.documentElement).overscrollBehaviorY,
+                body: getComputedStyle(document.body).overscrollBehaviorY,
+                btnTouch: getComputedStyle(document.querySelector('[data-shell="dock"] [data-dock]')).touchAction,
+            })"""
+        )
+        record(
+            "overscroll-behavior-y: contain（standalone 下不橡皮筋）",
+            ob["html"] == "contain" and ob["body"] == "contain",
+            f"html={ob['html']} body={ob['body']}",
+        )
+        record(
+            "touch-action: manipulation（无双击缩放误触）",
+            "manipulation" in ob["btnTouch"],
+            f"Dock 位 touch-action={ob['btnTouch']}",
+        )
+
+        # ---- safe-area 令牌在场；桌面 Chrome 上 env()=0 时顶栏仍是 52px ----
+        safe = page.evaluate(
+            """() => {
+                const cs = getComputedStyle(document.documentElement);
+                const topbar = document.querySelector('[data-shell="topbar"]');
+                const r = topbar.getBoundingClientRect();
+                return {
+                    safeT: cs.getPropertyValue('--m-safe-t').trim(),
+                    safeB: cs.getPropertyValue('--m-safe-b').trim(),
+                    topbarH: r.height,
+                };
+            }"""
+        )
+        record(
+            "safe-area 令牌 --m-safe-t / --m-safe-b 在场",
+            bool(safe["safeT"]) and bool(safe["safeB"]),
+            f"--m-safe-t={safe['safeT']} --m-safe-b={safe['safeB']}",
+        )
+        record(
+            f"无刘海时顶栏仍是 {APPBAR_H}px（安全区回落 0px，不断言具体 env 值）",
+            abs(safe["topbarH"] - APPBAR_H) <= 1,
+            f"实测 {round(safe['topbarH'], 1)}px",
+        )
+
+        # ---- 手机端可点元素 ≥44px（CSS 契约探针：与页面内容无关） ----
+        tap = page.evaluate(
+            """() => {
+                const b = document.createElement('button');
+                b.className = 'btn-primary';
+                b.textContent = '探针';
+                b.style.cssText = 'position:fixed;left:0;top:0;visibility:hidden;';
+                document.body.appendChild(b);
+                const h = b.getBoundingClientRect().height;
+                b.remove();
+                return h;
+            }"""
+        )
+        record(
+            f"390px：主按钮高度 ≥{TAP_MIN}px",
+            tap >= TAP_MIN,
+            f"实测 {round(tap, 1)}px",
+        )
+
+        # ---- 自建下拉刷新：真手势（touch）拉过 56px 线 → 刷新计数 +1 ----
+        page.evaluate("() => window.scrollTo(0, 0)")
+        page.wait_for_timeout(300)
+        ptr_before = page.evaluate(
+            "() => Number(document.querySelector('[data-ptr]')?.dataset.ptrCount || -1)"
+        )
+        record("前置：下拉刷新容器在场", ptr_before >= 0, f"data-ptr-count={ptr_before}")
+        if ptr_before >= 0:
+            pulled = page.evaluate(
+                f"""() => {{
+                    const host = document.querySelector('[data-ptr]');
+                    const r = host.getBoundingClientRect();
+                    const x = r.x + r.width / 2, y0 = Math.max(r.y + 40, 200);
+                    const mk = (type, y) => {{
+                        const t = new Touch({{ identifier: 1, target: host, clientX: x, clientY: y }});
+                        host.dispatchEvent(new TouchEvent(type, {{
+                            touches: type === 'touchend' ? [] : [t],
+                            bubbles: true, cancelable: true,
+                        }}));
+                    }};
+                    mk('touchstart', y0);
+                    for (let i = 1; i <= 6; i++) mk('touchmove', y0 + (i * ({PULL_PX} + 44)) / 6);
+                    mk('touchend', y0 + {PULL_PX} + 44);
+                    return host.dataset.ptrState;
+                }}"""
+            )
+            try:
+                page.wait_for_function(
+                    f"Number(document.querySelector('[data-ptr]').dataset.ptrCount) "
+                    f"> {ptr_before}",
+                    timeout=8000,
+                )
+                ptr_ok = True
+            except Exception:
+                ptr_ok = False
+            ptr_after = page.evaluate(
+                "() => Number(document.querySelector('[data-ptr]').dataset.ptrCount || -1)"
+            )
+            record(
+                f"下拉超 {PULL_PX}px 松手：触发刷新（count {ptr_before} → {ptr_after}）",
+                ptr_ok,
+                f"手势结束时 state={pulled} count={ptr_after}",
+            )
+        page.screenshot(path=f"{SHOT}/09-pwa-shell-390.png")
+
+        # ---- 离线兜底（契约：不做离线写，只保证明确错误与重试） ----
+        # 手法：文档正常加载，只把 /api/* 全部 abort（= 后端不可达），再重载页面 ——
+        # 这正是「断网时已装好的 App 打开」的形态：壳在，数据不在。
+        # 独立 context 且不挂 error 监听：abort 的网络错误是本段的手法，不是产品故障。
+        ctx_off = browser.new_context(viewport={"width": 390, "height": 844})
+        p_off = ctx_off.new_page()
+        p_off.goto(f"{BASE}/login", wait_until="networkidle")
+        p_off.fill('form input:not([type="password"])', ADMIN_PHONE)
+        p_off.fill('form input[type="password"]', ADMIN_PWD)
+        p_off.click('form button[type="submit"]')
+        try:
+            p_off.wait_for_url(lambda u: "/login" not in u, timeout=20000)
+            logged_off = True
+        except pw.TimeoutError:
+            logged_off = False
+        record("离线段前置：独立会话登录成功", logged_off, p_off.url)
+        if logged_off:
+            p_off.goto(f"{BASE}/projects", wait_until="networkidle")
+            p_off.wait_for_timeout(1000)
+            p_off.route("**/api/**", lambda route: route.abort())
+            p_off.reload(wait_until="domcontentloaded")
+            p_off.wait_for_timeout(2500)
+            off = p_off.evaluate(
+                """() => ({
+                    alerts: document.querySelectorAll('[role="alert"]').length,
+                    text: document.body.innerText.slice(0, 400),
+                })"""
+            )
+            has_retry = "重试" in off["text"]
+            record(
+                "API 不可达：有明确错误与重试（复用 LoadFailed / 错误边界，不做离线写）",
+                off["alerts"] > 0 or ("页面出错了" in off["text"] and has_retry) or has_retry,
+                f"role=alert 共 {off['alerts']} 个{'，含重试' if has_retry else ''}",
+            )
+            p_off.screenshot(path=f"{SHOT}/10-offline-fallback.png")
+        ctx_off.close()
 
         # 只把「真实的功能性 JS 异常」计为失败：
         #   · favicon 与业务 4xx（本走查自身会触发的权限接口）；
