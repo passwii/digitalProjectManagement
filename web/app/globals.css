@@ -1164,3 +1164,101 @@ td.num, th.num { text-align: right; }
   a { color: #000; text-decoration: none; }
   .no-print { display: none !important; }
 }
+
+/* ============ PWA 外壳（BLF-1127/S6，契约 §6） ============ */
+/*
+ * 这一段只做「视口级手势与安全区」，不动任何组件的盒模型：Dock 的底部安全区
+ * 在 MobileDock.module.css 里，内容区给 Dock 让位在 Shell.module.css 里。
+ * 非全面屏 / 桌面浏览器上 env() 取不到值，所有 var 都回落到 0px，样式等价无变化。
+ */
+
+/* 全站安全区令牌：顶部（刘海）/ 左右（圆角屏横屏）。底部沿用既有的 --m-safe-b。 */
+:root {
+  --m-safe-t: env(safe-area-inset-top, 0px);
+  --m-safe-l: env(safe-area-inset-left, 0px);
+  --m-safe-r: env(safe-area-inset-right, 0px);
+}
+
+/*
+ * standalone 下整页橡皮筋会把页面拽离窗口、松手还弹回去 —— 先用 contain 关掉
+ * 链式滚动与橡皮筋，下拉刷新走自建的 PullToRefresh（mobile/PullToRefresh.tsx）。
+ * 写在 html 与 body 两处：html 管视口级，body 管页面级（桌面 Chrome 取计算样式
+ * 时只看命中元素，两处都写 S6 走查的断言才稳定）。
+ */
+html,
+body {
+  overscroll-behavior-y: contain;
+}
+
+/*
+ * 点击延迟：双击缩放带来约 300ms 延迟。(pointer: coarse) 段里已经盖了
+ * a / button / select / input；这里补到其余可交互角色（桌面触屏同样中招）。
+ * 桌面鼠标无影响（manipulation 只关双击缩放，不断其它手势）。
+ */
+a, button, select, input, textarea, summary,
+[role="button"], [role="tab"], [role="menuitem"] {
+  touch-action: manipulation;
+}
+
+/*
+ * 自建下拉刷新（standalone 下浏览器原生刷新不可用，必须自建；原型 §6 已验证交互）。
+ * 状态机由 PullToRefresh.tsx 驱动，样式只认 `data-ptr-state`，不读 React 内部 state：
+ *   idle → pulling（跟手，高度 = 手指位移）→ refreshing（44px 转环）→ idle。
+ * 全局的 prefers-reduced-motion 段已经把 transition / animation 全关掉，
+ * 这里不再重复写（转环在减弱动效下静止显示，由 aria-live 读出「正在刷新」）。
+ */
+.ptr {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  z-index: 4;
+  height: 0;
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+  color: var(--brand);
+  transition: height 200ms var(--ease-console);
+}
+.ptr-ring {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 2px solid var(--line-blue);
+  border-top-color: var(--brand);
+  animation: ptr-spin 720ms linear infinite;
+}
+/* pulling 时跟手：高度由组件写在行内（手指位移），refreshing 时定到 44px。 */
+.ptr[data-ptr-state="refreshing"] { height: 44px; }
+@keyframes ptr-spin { to { transform: rotate(360deg); } }
+
+@media (max-width: 767px) {
+  /*
+   * 顶部安全区：顶栏是 sticky 定位、不占文档流之外的空间，padding-top 把刘海
+   * 高度还给系统，同时把高度与 flex-basis 同步垫高（box-sizing 是 border-box，
+   * 只加 padding 会把 52px 的内容区压扁）。选择器带上 header 提特异度，
+   * 保证盖过 Shell.module.css 里的 .topbar（同样 767px 断点、同特异度时看顺序）。
+   */
+  header[data-shell="topbar"] {
+    padding-top: var(--m-safe-t);
+    height: calc(var(--m-appbar-h) + var(--m-safe-t));
+    flex-basis: calc(var(--m-appbar-h) + var(--m-safe-t));
+  }
+
+  /*
+   * 可点元素 ≥44px（契约 §6「点击延迟」行）：只收紧手机端，主按钮与行内小按钮
+   * 在 390px 上不再是 26–38px 的误点区。桌面保持原尺寸（报表页的操作列密度不变）。
+   */
+  .btn-primary, .btn-ghost, .btn-danger, .btn-danger-outline {
+    min-height: var(--m-tap);
+  }
+
+  /*
+   * 交互元素回避边缘 8px：内容区左右 gutter 本来就有 14px（.content 移动端），
+   * 这里给可能贴边的底部操作条兜底（左右安全区 + 8px 呼吸位）。
+   */
+  .m-edge-safe {
+    padding-left: max(8px, var(--m-safe-l));
+    padding-right: max(8px, var(--m-safe-r));
+  }
+}
