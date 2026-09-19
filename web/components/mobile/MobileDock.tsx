@@ -1,6 +1,6 @@
 "use client";
 
-// 手机端底部 Dock（BLF-1127 / S1）+ 三态抽屉的触发（S3 / D2）。
+// 手机端底部 Dock（BLF-1127 / S1）+ 三态抽屉的触发（S3 / D2）+ 抽屉内容（S4）。
 // 实现契约：docs/superpowers/specs/2026-09-18-mobile-pwa-navigation-design.md §3 / §4 / §7 + D1–D3。
 //
 // 为什么和侧栏同时存在于 DOM、靠 CSS 切换（§7「手机壳切换」）：
@@ -14,9 +14,9 @@
 //   2. S3 起：点 Dock 不再跳页（D2），而是把**这一位**的三态抽屉开到 peek。
 //      于是 `href` 退化成无 JS / 新标签页打开时的回退路径，不再是被点按的落点。
 //
-// 抽屉内容在 S3 只到「这一位可见的模块卡」为止（见下面 `sheetCards`）：§3 表里每位
-// 的预览卡 / 筛选 chips / 账号卡属于 S4（`[BLF-1127/S4]`）的范围，本 stage 不替它写死
-// 文案与口径；D3 的权限过滤已经由 `visible` 承担，所以 S4 只需要换卡片，不用再碰权限。
+// 抽屉内容在 S4 落到 `sheets/`（见下面 `SheetContent`）：§3 表里每位的
+// 预览卡 / 筛选 chips / 账号卡按位拆成五个组件，数据走现有 hook / api；
+// D3 的权限过滤仍由 `visible` 承担，`MineSheet` 只消费它，不做角色判断。
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -25,13 +25,11 @@ import {
   buildDockItems,
   dockIdForPath,
   type DockId,
-  type DockItem,
   type DockMenuInput,
-  type MenuLike,
 } from "@/lib/mobileNav";
 import type { SheetStop } from "@/lib/sheetGesture";
 import BottomSheet from "./BottomSheet";
-import SheetCard from "./SheetCard";
+import { SHEET_CONTENT, SHEET_DEFAULT_STOP, SHEET_META } from "./sheets";
 import s from "./MobileDock.module.css";
 
 /** 抽屉的 DOM id：Dock 位用 `aria-controls` 指向它（同一个 Dock 只有一张抽屉） */
@@ -148,28 +146,37 @@ function Badge({ badge }: { badge: number | true }) {
 }
 
 /**
- * 这一位的抽屉内容（S3 的接缝）。
+ * 这一位的抽屉内容（S4 的接缝，`sheets/index.ts`）。
  *
- * peek 用预览卡平铺、half / full 用列表卡整宽 —— 同一份数据两个形态（`SheetCard`），
- * 换档不换内容。工作台不在 `/meta/me/menus` 契约里（`visible` 恒为空），所以它兜一张
- * 「进入模块」卡：D2 说的「不存在点了没反应的死键」也包括「开出来是张空面板」。
+ * S3 的占位（这一位可见的模块卡）已由五个按位拆分的 Sheet 组件取代：
+ * 数据走现有 hook / api，形态仍是 peek→预览卡平铺、half / full→列表卡整宽
+ * （`SheetCard` 的两个形态，换档不换内容）。
  */
-function sheetCards(item: DockItem, stop: SheetStop, onSelect: () => void) {
-  const variant = stop === "peek" ? "preview" : "list";
-  const targets: MenuLike[] =
-    item.visible.length > 0
-      ? item.visible
-      : [{ key: item.id, label: item.label, href: item.href }];
-  return targets.map((menu) => (
-    <SheetCard
-      key={menu.href}
-      variant={variant}
-      href={menu.href}
-      title={menu.label}
-      note="进入模块"
+function SheetContent({
+  id,
+  stop,
+  onSelect,
+  ...menus
+}: {
+  id: DockId;
+  stop: SheetStop;
+  onSelect: () => void;
+} & DockMenuInput & { onReloadMenus?: () => void }) {
+  const items = buildDockItems(menus);
+  const item = items.find((i) => i.id === id);
+  if (!item) return null;
+  const Content = SHEET_CONTENT[id];
+  return (
+    <Content
+      variant={stop === "peek" ? "preview" : "list"}
       onSelect={onSelect}
+      item={item}
+      ready={menus.ready ?? false}
+      failed={menus.failed ?? false}
+      canApprove={menus.canApprove ?? false}
+      onReloadMenus={menus.onReloadMenus}
     />
-  ));
+  );
 }
 
 /**
@@ -201,7 +208,12 @@ function useCloseOnDesktop(open: boolean, close: () => void) {
  * props 由 `app/(dashboard)/layout.tsx` 从**同一份** `useMenus()` 传进来，
  * 保证侧栏与 Dock 不会各自拿到不同批次的权限状态。
  */
-export default function MobileDock(props: DockMenuInput) {
+export interface MobileDockProps extends DockMenuInput {
+  /** 权限重试（`useMenus().reload`）：「我的」抽屉降级行的「重试」按钮用 */
+  onReloadMenus?: () => void;
+}
+
+export default function MobileDock(props: MobileDockProps) {
   const pathname = usePathname();
   const items = buildDockItems(props);
   const current = dockIdForPath(pathname);
@@ -234,6 +246,7 @@ export default function MobileDock(props: DockMenuInput) {
    *   2. `focus()` —— 「关闭后焦点回到触发的 Dock 位」要成立，`useModalBehavior`
    *      记下的必须是这一位（移动端 Safari 不会因为点按就给 <a> 焦点）；
    *   3. 再点当前位：peek 收起；half / full 降回 peek —— 不存在「点了没反应」的死键。
+   *   4. 开到哪一档由 `SHEET_DEFAULT_STOP` 按位决定（§3 表格：只有「我的」开 half）。
    */
   function onDockTap(event: React.MouseEvent<HTMLAnchorElement>, id: DockId) {
     event.preventDefault();
@@ -244,7 +257,7 @@ export default function MobileDock(props: DockMenuInput) {
       return;
     }
     setSlot(id);
-    setStop("peek");
+    setStop(SHEET_DEFAULT_STOP[id]);
     if (!open) setSession((n) => n + 1);
     setOpen(true);
   }
@@ -289,8 +302,43 @@ export default function MobileDock(props: DockMenuInput) {
         onStopChange={setStop}
         onClose={close}
         title={shown?.label ?? ""}
+        subtitle={slot ? SHEET_META[slot].subtitle : undefined}
+        action={
+          slot?.length && SHEET_META[slot].action ? (
+            <Link
+              href={SHEET_META[slot].action!.href}
+              className={s.sheetGo}
+              onClick={close}
+            >
+              {SHEET_META[slot].action!.label}
+              <svg
+                width="11"
+                height="11"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.4"
+                strokeLinecap="round"
+                aria-hidden="true"
+              >
+                <path d="M9 5l7 7-7 7" />
+              </svg>
+            </Link>
+          ) : undefined
+        }
       >
-        {shown && sheetCards(shown, stop, close)}
+        {shown && slot && (
+          <SheetContent
+            id={slot}
+            stop={stop}
+            onSelect={close}
+            menus={props.menus}
+            ready={props.ready}
+            failed={props.failed}
+            canApprove={props.canApprove}
+            onReloadMenus={props.onReloadMenus}
+          />
+        )}
       </BottomSheet>
     </>
   );

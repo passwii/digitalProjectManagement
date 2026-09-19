@@ -1,0 +1,154 @@
+/*
+ * S4 抽屉内容的共用样式（BLF-1127 §3 / §4.1 + D1/D3）。
+ *
+ * 布局约束来自 `BottomSheet.module.css` 的 `.body`：peek 档是 2 列网格
+ * （直接子元素自动平铺，SheetCard 即预览卡），half / full 是单列可滚列表。
+ * 所以「整宽行」（分组标题、口径提示、筛选 chips、账号卡、重试行）一律
+ * `grid-column: 1 / -1`；单列档下这条声明无影响。
+ *
+ * 卡片本身不另起样式 —— 预览 / 列表两个形态都由 `SheetCard` 承担
+ * （S3 交付物表：「单选组件（S4 复用同一份）」）。
+ */
+
+/** 占满整宽（peek 网格里跨两列，half / full 里就是普通一行） */
+.full {
+ grid-column: 1 / -1;
+ min-width: 0;
+}
+
+/** 分组小标题（管理与审批 / 账号 / 待处理条目……） */
+.sec {
+ grid-column: 1 / -1;
+ min-width: 0;
+ margin: 6px 2px 0;
+ color: var(--ink-3);
+ font-size: 12px;
+ font-weight: 650;
+ letter-spacing: 0.04em;
+}
+
+/**
+ * 口径 / 降级提示（D1 的支出口径、权限失败的降级行）。
+ * 放抽屉里而不是藏进报表页 —— 用户在点进去之前就该看到统计口径。
+ */
+.note {
+ grid-column: 1 / -1;
+ min-width: 0;
+ display: flex;
+ gap: 8px;
+ align-items: flex-start;
+ padding: 10px 12px;
+ border: 1px solid var(--line);
+ border-radius: 10px;
+ background: #f4f7fb;
+ color: var(--ink-3);
+ font-size: 11.5px;
+ line-height: 1.65;
+}
+.note b {
+ color: var(--ink);
+ font-weight: 650;
+}
+
+/** 状态筛选 chips 行（项目抽屉） */
+.chips {
+ grid-column: 1 / -1;
+ min-width: 0;
+ display: flex;
+ flex-wrap: wrap;
+ gap: 8px;
+}
+.chip {
+ min-height: 40px;
+ padding: 0 14px;
+ border: 1px solid var(--line);
+ border-radius: 999px;
+ background: var(--card);
+ color: var(--ink);
+ font-size: 12.5px;
+ white-space: nowrap;
+}
+.chip[aria-pressed="true"] {
+ border-color: var(--brand);
+ background: #f0f7ff;
+ color: var(--brand);
+ font-weight: 700;
+}
+
+/** 账号卡（我的抽屉）：展示用，不可点 */
+.account {
+ grid-column: 1 / -1;
+ min-width: 0;
+ display: flex;
+ align-items: center;
+ gap: 12px;
+ padding: 12px;
+ border: 1px solid var(--line);
+ border-radius: 11px;
+ background: var(--card);
+}
+.accountMeta {
+ flex: 1;
+ min-width: 0;
+}
+.accountName {
+ overflow: hidden;
+ font-size: 15px;
+ font-weight: 650;
+ text-overflow: ellipsis;
+ white-space: nowrap;
+}
+.accountRole {
+ margin-top: 2px;
+ color: var(--ink-3);
+ font-size: 11.5px;
+}
+.rolePill {
+ flex: none;
+ padding: 3px 10px;
+ border-radius: 999px;
+ background: #eef4ff;
+ color: var(--brand);
+ font-size: 11.5px;
+ font-weight: 700;
+}
+.rolePill[data-admin="false"] {
+ background: #f2f4f7;
+ color: var(--ink-3);
+}
+.nameSkel {
+ display: block;
+ width: 96px;
+ height: 16px;
+ border-radius: 4px;
+}
+
+/** 账号操作：退出登录（整宽按钮，触控目标 ≥44px） */
+.logoutBtn {
+ grid-column: 1 / -1;
+ min-width: 0;
+ width: 100%;
+ min-height: 44px;
+}
+
+/** 权限同步失败的降级行：保留参与性入口 + 可重试（§3.2，不猜测管理员身份） */
+.retry {
+ grid-column: 1 / -1;
+ min-width: 0;
+ display: flex;
+ align-items: center;
+ gap: 10px;
+ color: var(--ink-3);
+ font-size: 12px;
+}
+.retry button {
+ flex: none;
+ min-height: 40px;
+ padding: 0 14px;
+ border: 1px solid var(--line);
+ border-radius: 999px;
+ background: var(--card);
+ color: var(--brand);
+ font-size: 12.5px;
+ font-weight: 650;
+}
