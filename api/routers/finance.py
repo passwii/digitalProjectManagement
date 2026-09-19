@@ -5,7 +5,7 @@ from datetime import date
 from decimal import Decimal, InvalidOperation
 from typing import Any, cast
 
-from fastapi import APIRouter, Depends, Header, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException, Query
 from pydantic import BaseModel, Field
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -14,6 +14,7 @@ from ..core.audit import commit_audited
 from ..core.database import get_db
 from ..core.deps import get_current_user
 from ..core.rbac import is_admin
+from ..core.timeutil import app_now
 from ..models import (
     Account,
     AccountBook,
@@ -60,6 +61,10 @@ class AuxiliaryIn(BaseModel):
     metadata: dict = Field(default_factory=dict)
 
 
+class PeriodStatusIn(BaseModel):
+    status: str = Field(pattern="^(open|closed|locked)$")
+
+
 def _book_access(db: Session, user: User, book_id: int) -> AccountBook:
     book = db.query(AccountBook).filter(AccountBook.id == book_id).first()
     if not book:
@@ -81,7 +86,7 @@ def _book_header(db: Session, user: User, header: str | None) -> AccountBook:
     book = db.query(AccountBook).filter(AccountBook.code == code).first()
     if not book:
         raise HTTPException(404, "账套不存在")
-    return _book_access(db, user, int(book.id))
+    return _book_access(db, user, int(cast(Any, book).id))
 
 
 def _period_dates(year: int, month: int) -> tuple[date, date]:
@@ -158,7 +163,7 @@ def create_book(
             )
         )
     db.add(AccountBookMember(account_book_id=book.id, user_id=user.id, role="owner"))
-    _seed_accounts(db, int(book.id))
+    _seed_accounts(db, int(cast(Any, book).id))
     try:
         commit_audited(db, user.id, "create", "account_book", str(book.id), code)
     except IntegrityError as exc:
@@ -184,17 +189,16 @@ def get_book(
 
 @router.get("/periods")
 def list_periods(
+    year: int | None = Query(default=None, ge=1, le=9999),
     x_account_book: str | None = Header(default=None),
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
     book = _book_header(db, user, x_account_book)
-    rows = (
-        db.query(AccountingPeriod)
-        .filter_by(account_book_id=book.id)
-        .order_by(AccountingPeriod.period_index)
-        .all()
-    )
+    query = db.query(AccountingPeriod).filter_by(account_book_id=book.id)
+    if year is not None:
+        query = query.filter(AccountingPeriod.year == year)
+    rows = query.order_by(AccountingPeriod.period_index).all()
     return [
         {
             "id": x.id,
@@ -208,6 +212,44 @@ def list_periods(
         }
         for x in rows
     ]
+
+
+@router.patch("/periods/{period_id}")
+def update_period(
+    period_id: int,
+    body: PeriodStatusIn,
+    x_account_book: str | None = Header(default=None),
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    book = _book_header(db, user, x_account_book)
+    if not is_admin(user):
+        raise HTTPException(403, "仅管理员可维护期间")
+    row = (
+        db.query(AccountingPeriod)
+        .filter_by(id=period_id, account_book_id=book.id)
+        .first()
+    )
+    if not row:
+        raise HTTPException(404, "期间不存在")
+    period = cast(Any, row)
+    current_status = str(period.status)
+    if current_status == "locked" and body.status != "locked":
+        raise HTTPException(400, "已锁定期间不能重新打开或结账")
+    if current_status == "closed" and body.status == "open":
+        raise HTTPException(400, "已结账期间不能直接重新打开")
+    if body.status == "locked" and current_status != "closed":
+        raise HTTPException(400, "只能锁定已结账期间")
+    period.status = body.status
+    period.version = int(period.version) + 1
+    if body.status in {"closed", "locked"}:
+        period.closed_by = user.id
+        period.closed_at = period.closed_at or app_now()
+    else:
+        period.closed_by = None
+        period.closed_at = None
+    commit_audited(db, user.id, "update", "accounting_period", str(row.id), body.status)
+    return {"id": row.id, "status": row.status, "version": row.version}
 
 
 @router.get("/accounts/tree")
