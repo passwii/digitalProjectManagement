@@ -1,7 +1,11 @@
 .shell {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
   min-height: 100vh;
   display: flex;
   background: var(--bg);
+  overflow-x: clip;
 }
 
 .sidebar {
@@ -311,10 +315,12 @@
 .content {
   flex: 1;
   min-width: 0;
+  max-width: 100%;
   padding: 28px 30px 48px;
 }
 .contentInner {
   width: 100%;
+  min-width: 0;
   max-width: 1440px;
   margin: 0 auto;
 }

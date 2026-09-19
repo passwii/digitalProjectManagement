@@ -17,6 +17,9 @@
     left: 0;
     right: 0;
     bottom: 0;
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
     /* 高度 = 内容高度 + 安全区；padding-bottom 把安全区留出来，
        iPhone 的 Home 指示条压在 Dock 上时不会盖住标签或误触 */
     height: calc(var(--m-dock-h) + var(--m-safe-b));

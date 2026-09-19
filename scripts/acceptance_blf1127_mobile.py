@@ -290,6 +290,7 @@ def shell_state(page) -> dict:
                 topbar: vis('[data-shell="topbar"]'),
                 vw: window.innerWidth, vh: window.innerHeight,
                 overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+                bodyOverflow: document.body.scrollWidth - document.body.clientWidth,
             };
         }"""
     )
@@ -1536,6 +1537,24 @@ def main() -> int:
             ob["html"] == "contain" and ob["body"] == "contain",
             f"html={ob['html']} body={ob['body']}",
         )
+
+        root_width = page.evaluate(
+            """() => ({
+                viewport: window.innerWidth,
+                html: document.documentElement.scrollWidth,
+                body: document.body.scrollWidth,
+                overflow: Math.max(
+                    document.documentElement.scrollWidth - window.innerWidth,
+                    document.body.scrollWidth - window.innerWidth,
+                ),
+            })"""
+        )
+        record(
+            "手机端页面根层无横向溢出（Dock 不随页面左右滑动）",
+            root_width["overflow"] <= 1,
+            f"viewport={root_width['viewport']} html={root_width['html']} "
+            f"body={root_width['body']} overflow={root_width['overflow']}",
+        )
         record(
             "touch-action: manipulation（无双击缩放误触）",
             "manipulation" in ob["btnTouch"],
@@ -1564,6 +1583,29 @@ def main() -> int:
             f"无刘海时顶栏仍是 {APPBAR_H}px（安全区回落 0px，不断言具体 env 值）",
             abs(safe["topbarH"] - APPBAR_H) <= 1,
             f"实测 {round(safe['topbarH'], 1)}px",
+        )
+
+        dock_width = page.evaluate(
+            """() => {
+                const dock = document.querySelector('[data-shell="dock"]');
+                if (!dock) return null;
+                const r = dock.getBoundingClientRect();
+                return {
+                    left: r.left,
+                    right: r.right,
+                    width: r.width,
+                    viewport: window.innerWidth,
+                    position: getComputedStyle(dock).position,
+                };
+            }"""
+        )
+        record(
+            "Dock 固定覆盖手机视口且不超出边界",
+            isinstance(dock_width, dict)
+            and dock_width["position"] == "fixed"
+            and abs(dock_width["left"]) <= 1
+            and abs(dock_width["right"] - dock_width["viewport"]) <= 1,
+            str(dock_width),
         )
 
         # ---- 手机端可点元素 ≥44px（CSS 契约探针：与页面内容无关） ----
