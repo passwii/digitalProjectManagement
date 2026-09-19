@@ -16,6 +16,7 @@ from sqlalchemy import (
   DateTime,
   Float,
   ForeignKey,
+  ForeignKeyConstraint,
   Index,
   Integer,
   Numeric,
@@ -118,20 +119,27 @@ class Account(Base):
   code = Column(String(32), nullable=False)
   name = Column(String(128), nullable=False)
   level = Column(Integer, nullable=False)
-  parent_id = Column(Integer, ForeignKey("accounts.id"), nullable=True)
+  parent_id = Column(Integer, nullable=True)
   direction = Column(String(1), nullable=False)
   category = Column(String(16), nullable=False)
   aux_flags = Column(JSON, nullable=False, default=dict, server_default="{}")
   is_leaf = Column(Boolean, nullable=False, default=True, server_default="true")
   is_active = Column(Boolean, nullable=False, default=True, server_default="true")
   __table_args__ = (
+    UniqueConstraint("account_book_id", "id", name="uq_accounts_book_id"),
     UniqueConstraint("account_book_id", "code", name="uq_account_book_code"),
+    ForeignKeyConstraint(
+      ["account_book_id", "parent_id"],
+      ["accounts.account_book_id", "accounts.id"],
+      name="fk_accounts_parent_same_book",
+    ),
     CheckConstraint("level BETWEEN 1 AND 4", name="ck_account_level"),
     CheckConstraint("direction IN ('D','C')", name="ck_account_direction"),
     CheckConstraint(
       "category IN ('资产','负债','权益','成本','损益')", name="ck_account_category"
     ),
     CheckConstraint("code ~ '^[0-9]{4}([0-9]{2}){0,3}$'", name="ck_account_code"),
+    CheckConstraint("json_typeof(aux_flags) = 'object'", name="ck_account_aux_flags"),
     Index("ix_accounts_book_parent", "account_book_id", "parent_id"),
   )
 
@@ -145,7 +153,7 @@ class OpeningBalance(Base):
     nullable=False,
     index=True,
   )
-  account_id = Column(Integer, ForeignKey("accounts.id"), nullable=False)
+  account_id = Column(Integer, nullable=False)
   aux_key = Column(String(128), nullable=False, default="", server_default="")
   aux_detail = Column(JSON, nullable=False, default=dict, server_default="{}")
   debit = Column(Numeric(18, 2), nullable=False, default=0, server_default="0")
@@ -153,6 +161,11 @@ class OpeningBalance(Base):
   __table_args__ = (
     UniqueConstraint(
       "account_book_id", "account_id", "aux_key", name="uq_opening_book_account_aux"
+    ),
+    ForeignKeyConstraint(
+      ["account_book_id", "account_id"],
+      ["accounts.account_book_id", "accounts.id"],
+      name="fk_opening_account_same_book",
     ),
     CheckConstraint("debit >= 0 AND credit >= 0", name="ck_opening_nonneg"),
     CheckConstraint("NOT (debit > 0 AND credit > 0)", name="ck_opening_one_side"),
@@ -193,13 +206,22 @@ class AccountAuxiliary(Base):
   account_book_id = Column(
     Integer, ForeignKey("account_books.id", ondelete="CASCADE"), nullable=False
   )
-  account_id = Column(
-    Integer, ForeignKey("accounts.id", ondelete="CASCADE"), nullable=False
-  )
-  auxiliary_item_id = Column(
-    Integer, ForeignKey("auxiliary_items.id", ondelete="CASCADE"), nullable=False
-  )
+  account_id = Column(Integer, nullable=False)
+  auxiliary_item_id = Column(Integer, nullable=False)
   __table_args__ = (
+    UniqueConstraint("account_book_id", "id", name="uq_account_auxiliaries_book_id"),
+    ForeignKeyConstraint(
+      ["account_book_id", "account_id"],
+      ["accounts.account_book_id", "accounts.id"],
+      name="fk_account_auxiliary_account_same_book",
+      ondelete="CASCADE",
+    ),
+    ForeignKeyConstraint(
+      ["account_book_id", "auxiliary_item_id"],
+      ["auxiliary_items.account_book_id", "auxiliary_items.id"],
+      name="fk_account_auxiliary_item_same_book",
+      ondelete="CASCADE",
+    ),
     UniqueConstraint(
       "account_book_id",
       "account_id",

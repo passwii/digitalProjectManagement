@@ -124,7 +124,7 @@ def upgrade():
             sa.Column("code", sa.String(32), nullable=False),
             sa.Column("name", sa.String(128), nullable=False),
             sa.Column("level", sa.Integer(), nullable=False),
-            sa.Column("parent_id", sa.Integer(), sa.ForeignKey("accounts.id")),
+            sa.Column("parent_id", sa.Integer(), nullable=True),
             sa.Column("direction", sa.String(1), nullable=False),
             sa.Column("category", sa.String(16), nullable=False),
             sa.Column("aux_flags", sa.JSON(), nullable=False, server_default="{}"),
@@ -134,7 +134,13 @@ def upgrade():
             sa.Column(
                 "is_active", sa.Boolean(), nullable=False, server_default=sa.true()
             ),
+            sa.UniqueConstraint("account_book_id", "id", name="uq_accounts_book_id"),
             sa.UniqueConstraint("account_book_id", "code", name="uq_account_book_code"),
+            sa.ForeignKeyConstraint(
+                ["account_book_id", "parent_id"],
+                ["accounts.account_book_id", "accounts.id"],
+                name="fk_accounts_parent_same_book",
+            ),
             sa.CheckConstraint("level BETWEEN 1 AND 4", name="ck_account_level"),
             sa.CheckConstraint("direction IN ('D','C')", name="ck_account_direction"),
             sa.CheckConstraint(
@@ -144,6 +150,7 @@ def upgrade():
             sa.CheckConstraint(
                 "code ~ '^[0-9]{4}([0-9]{2}){0,3}$'", name="ck_account_code"
             ),
+            sa.CheckConstraint("jsonb_typeof(aux_flags::jsonb) = 'object'", name="ck_account_aux_flags"),
         )
         op.create_index("ix_accounts_account_book_id", "accounts", ["account_book_id"])
         op.create_index(
@@ -160,9 +167,7 @@ def upgrade():
                 sa.ForeignKey("account_books.id", ondelete="CASCADE"),
                 nullable=False,
             ),
-            sa.Column(
-                "account_id", sa.Integer(), sa.ForeignKey("accounts.id"), nullable=False
-            ),
+            sa.Column("account_id", sa.Integer(), nullable=False),
             sa.Column("aux_key", sa.String(128), nullable=False, server_default=""),
             sa.Column("aux_detail", sa.JSON(), nullable=False, server_default="{}"),
             sa.Column("debit", sa.Numeric(18, 2), nullable=False, server_default="0"),
@@ -172,6 +177,11 @@ def upgrade():
                 "account_id",
                 "aux_key",
                 name="uq_opening_book_account_aux",
+            ),
+            sa.ForeignKeyConstraint(
+                ["account_book_id", "account_id"],
+                ["accounts.account_book_id", "accounts.id"],
+                name="fk_opening_account_same_book",
             ),
             sa.CheckConstraint("debit >= 0 AND credit >= 0", name="ck_opening_nonneg"),
             sa.CheckConstraint(
@@ -224,17 +234,20 @@ def upgrade():
                 sa.ForeignKey("account_books.id", ondelete="CASCADE"),
                 nullable=False,
             ),
-            sa.Column(
-                "account_id",
-                sa.Integer(),
-                sa.ForeignKey("accounts.id", ondelete="CASCADE"),
-                nullable=False,
+            sa.Column("account_id", sa.Integer(), nullable=False),
+            sa.Column("auxiliary_item_id", sa.Integer(), nullable=False),
+            sa.UniqueConstraint("account_book_id", "id", name="uq_account_auxiliaries_book_id"),
+            sa.ForeignKeyConstraint(
+                ["account_book_id", "account_id"],
+                ["accounts.account_book_id", "accounts.id"],
+                name="fk_account_auxiliary_account_same_book",
+                ondelete="CASCADE",
             ),
-            sa.Column(
-                "auxiliary_item_id",
-                sa.Integer(),
-                sa.ForeignKey("auxiliary_items.id", ondelete="CASCADE"),
-                nullable=False,
+            sa.ForeignKeyConstraint(
+                ["account_book_id", "auxiliary_item_id"],
+                ["auxiliary_items.account_book_id", "auxiliary_items.id"],
+                name="fk_account_auxiliary_item_same_book",
+                ondelete="CASCADE",
             ),
             sa.UniqueConstraint(
                 "account_book_id",
