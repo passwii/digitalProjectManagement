@@ -21,7 +21,6 @@ import TableToolbar from "@/components/ui/TableToolbar";
 import { Confirm, Drawer } from "@/components/ui/Modal";
 import { useToast } from "@/components/ui/Toast";
 import PageActions from "@/components/ui/PageActions";
-import ProgressBar from "@/components/ui/ProgressBar";
 import { CardItem, CardList, DesktopTable } from "@/components/ui/CardList";
 import MotionReveal from "@/components/motion/MotionReveal";
 import ProjectFormDialog from "./ProjectFormDialog";
@@ -39,8 +38,8 @@ const URL_DEFAULTS = {
   size: "15",
 };
 
-// 列表默认倒序：后端默认即 -id（PROJECT_SORTS 白名单），前端显式锁定该契约（BLF-1149）
-const DEFAULT_SORT = "-id";
+// 项目编号倒序：按业务编号而非数据库主键排列（例如 PJ-2026-0012 在 PJ-2026-0011 前）
+const DEFAULT_SORT = "-code";
 
 export default function ProjectsPage() {
   return (
@@ -260,10 +259,6 @@ function ProjectsInner() {
                     value: `${fmtMoney(p.budget_total)} 元`,
                     mono: true,
                   },
-                  {
-                    label: "进度",
-                    value: <ProgressBar value={p.progress ?? 0} />,
-                  },
                 ]}
                 actions={
                   <>
@@ -277,15 +272,7 @@ function ProjectsInner() {
                     >
                       编辑
                     </button>
-                    {isAdmin && !["doing", "filed"].includes(p.status) && (
-                      <button
-                        type="button"
-                        className="btn-ghost btn-xs btn-danger-outline"
-                        onClick={() => setDeleteTarget(p)}
-                      >
-                        删除
-                      </button>
-                    )}
+
                   </>
                 }
                 onSelect={() => setDetail(p)}
@@ -295,13 +282,12 @@ function ProjectsInner() {
           <DesktopTable>
             <table className="grid project-table" aria-busy={loading}>
               <colgroup>
-                <col style={{ width: 104 }} />
+                <col style={{ width: 150 }} />
                 <col style={{ width: 250 }} />
                 <col style={{ width: 104 }} />
                 <col style={{ width: 150 }} />
                 <col style={{ width: 84 }} />
                 <col style={{ width: 110 }} />
-                <col style={{ width: 70 }} />
                 <col style={{ width: 84 }} />
                 <col style={{ width: 110 }} />
               </colgroup>
@@ -313,9 +299,8 @@ function ProjectsInner() {
                   <th>客户</th>
                   <th>合同</th>
                   <th className="num">合同金额（元）</th>
-                  <th className="num">进度</th>
                   <th>状态</th>
-                  <th className="no-print" />
+                  <th className="no-print">操作</th>
                 </tr>
               </thead>
               <tbody>
@@ -326,7 +311,7 @@ function ProjectsInner() {
                     onClick={() => setDetail(p)}
                     title="点击查看详情"
                   >
-                    <td className="mono tiny">{p.code}</td>
+                    <td className="mono project-code">{p.code}</td>
                     <td>
                       <span className="ellipsis" title={p.name}>{p.name}</span>{" "}
                     </td>
@@ -343,7 +328,6 @@ function ProjectsInner() {
                       />
                     </td>
                     <td className="num">{fmtMoney(p.budget_total)}</td>
-                    <td className="num">{p.progress ?? 0}%</td>
                     <td><Badge status={projectStatusLabel(p.status)} tone={projectTone(p.status)} /></td>
                     <td className="no-print">
                       <span className="table-actions">
@@ -353,17 +337,7 @@ function ProjectsInner() {
                         >
                           编辑
                         </button>
-                        {isAdmin && !["doing", "filed"].includes(p.status) && (
-                          <button
-                            className="btn-ghost btn-xs btn-danger-outline"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setDeleteTarget(p);
-                            }}
-                          >
-                            删除
-                          </button>
-                        )}
+
                       </span>
                     </td>
                   </tr>
@@ -394,6 +368,14 @@ function ProjectsInner() {
         open={formOpen}
         onClose={() => setFormOpen(false)}
         project={editing}
+        onRequestDelete={
+          editing && isAdmin && !["doing", "filed"].includes(editing.status)
+            ? () => {
+                setFormOpen(false);
+                setDeleteTarget(editing);
+              }
+            : undefined
+        }
         onSaved={(saved, isNew) => {
           toast.ok(isNew ? `项目已创建：${saved.code}` : "项目信息已保存（变更已留痕）");
           setFormOpen(false);
