@@ -2,10 +2,11 @@
 
 import { Suspense, useState } from "react";
 import Link from "next/link";
-import { buildQuery, errText, projectsApi, type Project } from "@/lib/api";
+import { errText, projectsApi, type Project } from "@/lib/api";
 import { useAsyncData } from "@/lib/useAsyncData";
 import { urlInt, useUrlState, useUrlText } from "@/lib/useUrlState";
 import { buildYearOptions, parseYearParam, yearToCodeFilter } from "@/lib/projectYear";
+import { buildProjectListQuery } from "@/lib/projectFilters";
 import { useMeta, useMenus } from "@/lib/useMeta";
 import {
   PROJECT_FLOW, PROJECT_STATUS, fmtMoney,
@@ -72,13 +73,13 @@ function ProjectsInner() {
   const { data, loading, firstLoad, error, reload } = useAsyncData(
     (signal) =>
       projectsApi.list(
-        buildQuery({
+        buildProjectListQuery({
           page,
           size,
           sort: DEFAULT_SORT,
           keyword: url.q.trim(),
           status: url.status,
-          owner_id: url.owner,
+          owner: url.owner,
           code: yearToCodeFilter(year),
         }),
         signal,
