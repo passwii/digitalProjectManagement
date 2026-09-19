@@ -20,6 +20,8 @@ import TableToolbar from "@/components/ui/TableToolbar";
 import { Confirm, Drawer } from "@/components/ui/Modal";
 import { useToast } from "@/components/ui/Toast";
 import PageActions from "@/components/ui/PageActions";
+import ProgressBar from "@/components/ui/ProgressBar";
+import { CardItem, CardList, DesktopTable } from "@/components/ui/CardList";
 import MotionReveal from "@/components/motion/MotionReveal";
 import ProjectFormDialog from "./ProjectFormDialog";
 
@@ -211,7 +213,85 @@ function ProjectsInner() {
         </div>
       ) : (
         <MotionReveal delay={0.08}>
-          <div className="table-scroll">
+          {/* D4：手机端卡片流 —— 同一份数据，纯 CSS 在 767px 与下表切换（见 CardList） */}
+          <CardList label="项目台账">
+            {items.map((p) => (
+              <CardItem
+                key={p.id}
+                title={
+                  <span className="ellipsis" title={p.name}>
+                    {p.name}
+                  </span>
+                }
+                code={p.code}
+                badges={
+                  <>
+                    <Badge
+                      status={projectStatusLabel(p.status)}
+                      tone={projectTone(p.status)}
+                    />
+                    <Badge
+                      status={p.contract_status || "未登记"}
+                      tone={p.contract_status === "已签订" ? "done" : "todo"}
+                    />
+                  </>
+                }
+                fields={[
+                  {
+                    label: "负责人",
+                    value: (
+                      <span className="inline-person">
+                        <Avatar name={ownerText(p)} size={22} />
+                        {ownerText(p)}
+                      </span>
+                    ),
+                  },
+                  {
+                    label: "客户",
+                    value: (
+                      <span className="ellipsis" title={p.client}>
+                        {p.client || "-"}
+                      </span>
+                    ),
+                  },
+                  {
+                    label: "预算",
+                    value: `${fmtMoney(p.budget_total)} 元`,
+                    mono: true,
+                  },
+                  {
+                    label: "进度",
+                    value: <ProgressBar value={p.progress ?? 0} />,
+                  },
+                ]}
+                actions={
+                  <>
+                    <button
+                      type="button"
+                      className="btn-ghost btn-xs"
+                      onClick={() => {
+                        setEditing(p);
+                        setFormOpen(true);
+                      }}
+                    >
+                      编辑
+                    </button>
+                    {isAdmin && !["doing", "filed"].includes(p.status) && (
+                      <button
+                        type="button"
+                        className="btn-ghost btn-xs btn-danger-outline"
+                        onClick={() => setDeleteTarget(p)}
+                      >
+                        删除
+                      </button>
+                    )}
+                  </>
+                }
+                onSelect={() => setDetail(p)}
+              />
+            ))}
+          </CardList>
+          <DesktopTable>
             <table className="grid project-table" aria-busy={loading}>
               <colgroup>
                 <col style={{ width: 104 }} />
@@ -284,7 +364,7 @@ function ProjectsInner() {
                 ))}
               </tbody>
             </table>
-          </div>
+          </DesktopTable>
           <Pagination
             page={page}
             size={size}

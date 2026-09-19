@@ -1,0 +1,150 @@
+/*
+ * 手机端卡片流（BLF-1127 §4.2 / D4），见 CardList.tsx 顶部注释。
+ *
+ * 断点取 767px —— 与手机壳（Shell / MobileDock）同断点，767px 才是手机，
+ * 上面那几个 900px 只是「窄屏适配」。
+ *
+ * 触控：卡片内操作按钮一律 ≥ --m-tap(44px)，写在卡片自己的作用域里，
+ * 不依赖 globals.css 640px / pointer:coarse 那两处 table.grid 补丁。
+ */
+
+.cards {
+ display: none;
+}
+
+/* 桌面表格的退场壳：桌面端无样式，≤767px 退场，把舞台让给卡片流 */
+.desktopOnly {
+}
+
+@media (max-width: 767px) {
+ .cards {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 14px;
+ }
+
+ .desktopOnly {
+  display: none !important;
+ }
+}
+
+/*
+ * 打印沿用桌面表格（PRINT 样式零回归）：卡片流不进打印，
+ * 表格自带的 .no-print / thead 黑白样式照常生效。
+ */
+@media print {
+ .cards {
+  display: none !important;
+ }
+}
+
+.card {
+ background: var(--card);
+ border: 1px solid var(--line);
+ border-radius: 12px;
+ padding: 12px;
+ box-shadow: var(--shadow-sm, 0 1px 2px rgb(15 39 66 / 0.06));
+}
+
+.card.clickable {
+ cursor: pointer;
+}
+
+/* 定位命中（表格 row-target 的卡片形态）：同 --brand-soft 高亮口径 */
+.card.hit {
+ border-color: var(--line-blue);
+ background: var(--brand-soft);
+}
+
+.head {
+ display: flex;
+ align-items: flex-start;
+ justify-content: space-between;
+ gap: 8px;
+}
+
+.title {
+ flex: 1;
+ min-width: 0;
+ overflow: hidden;
+ font-size: 14.5px;
+ font-weight: 650;
+ line-height: 1.4;
+ text-overflow: ellipsis;
+}
+
+.title a {
+ color: inherit;
+}
+
+.badges {
+ flex: none;
+ display: inline-flex;
+ gap: 6px;
+ flex-wrap: wrap;
+ justify-content: flex-end;
+}
+
+.code {
+ margin-top: 2px;
+ color: var(--ink-3);
+}
+
+.fields {
+ margin: 10px 0 0;
+ display: flex;
+ flex-direction: column;
+ gap: 6px;
+}
+
+.frow {
+ display: flex;
+ align-items: baseline;
+ justify-content: space-between;
+ gap: 12px;
+ margin: 0;
+}
+
+.frow dt {
+ flex: none;
+ font-size: 12px;
+ color: var(--ink-3);
+}
+
+.frow dd {
+ flex: 1;
+ min-width: 0;
+ margin: 0;
+ font-size: 13px;
+ text-align: right;
+ overflow: hidden;
+ text-overflow: ellipsis;
+}
+
+/* 进度条在卡片里右对齐：与桌面 .num 列同口径 */
+.frow dd > span[role="progressbar"] {
+ justify-content: flex-end;
+}
+
+.actions {
+ display: flex;
+ flex-wrap: wrap;
+ gap: 8px;
+ margin-top: 10px;
+}
+
+/* 卡片内操作按钮：触控 ≥44px（min-height 钳住 .btn-xs 的 28px 高度）。
+   作用域只在卡片里，桌面表格与全局补丁都不受影响。 */
+.actions button,
+.actions a {
+ min-height: var(--m-tap);
+ min-width: var(--m-tap);
+ display: inline-flex;
+ align-items: center;
+ justify-content: center;
+ height: auto;
+ line-height: 1.4;
+ padding: 8px 14px;
+ touch-action: manipulation;
+}

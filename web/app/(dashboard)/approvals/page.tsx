@@ -19,6 +19,7 @@ import CountUp from "@/components/motion/CountUp";
 import MotionReveal from "@/components/motion/MotionReveal";
 import MotionStagger from "@/components/motion/MotionStagger";
 import { useActivity } from "@/lib/useActivity";
+import { CardItem, CardList, DesktopTable, useVisibleTargetScroll } from "@/components/ui/CardList";
 
 type Decision = {
   kind: string;
@@ -105,6 +106,8 @@ function ApprovalsInner() {
 
   // 命中行滚动入视口（通知点进来时直接看到那一条待办）
   useTargetScroll(filingTarget || adjustTarget || expenseTarget, !loading && !!data);
+  // D4：同一份数据在表格与卡片流里各有一份 data-target-id，挑当前可见的那份滚动
+  useVisibleTargetScroll(filingTarget || adjustTarget || expenseTarget, !loading && !!data);
 
   async function submitDecision() {
     if (!decision) return;
@@ -208,7 +211,79 @@ function ApprovalsInner() {
           {(d?.project_filings.length ?? 0) > 0 && (
             <MotionReveal>
               <h2 className="section-title">立项审批</h2>
-              <div className="table-scroll">
+              {/* D4：手机端卡片流 —— 同一份数据，纯 CSS 在 767px 与下表切换（见 CardList） */}
+              <CardList label="立项审批">
+                {d!.project_filings.map((p: PendingFilings) => {
+                  const hit = p.id === filingTarget;
+                  return (
+                    <CardItem
+                      key={p.id}
+                      title={
+                        <>
+                          <Link href={`/projects/${p.project_id}`}>
+                            {p.name}
+                          </Link>
+                          {hit && <span className="tiny"> · 来自通知</span>}
+                        </>
+                      }
+                      code={p.code}
+                      fields={[
+                        { label: "负责人", value: userName(p.owner_id) },
+                        {
+                          label: "预算",
+                          value: fmtMoney(p.budget_total),
+                          mono: true,
+                        },
+                        {
+                          label: "计划期",
+                          value: `${fmtDate(p.plan_start)} ~ ${fmtDate(p.plan_end)}`,
+                          mono: true,
+                        },
+                      ]}
+                      actions={
+                        <>
+                          <button
+                            type="button"
+                            className="btn-ghost btn-xs"
+                            disabled={!p.can_decide}
+                            title={p.can_decide ? undefined : "仅管理员可审批"}
+                            onClick={() =>
+                              setDecision({
+                                kind: "project_filing",
+                                id: p.project_id,
+                                approve: true,
+                                title: `通过立项「${p.name}」？`,
+                                text: "通过后项目状态变为「已立项」，可开始排期。",
+                              })
+                            }
+                          >
+                            通过
+                          </button>
+                          <button
+                            type="button"
+                            className="btn-ghost btn-xs btn-danger-outline"
+                            disabled={!p.can_decide}
+                            onClick={() =>
+                              setDecision({
+                                kind: "project_filing",
+                                id: p.project_id,
+                                approve: false,
+                                title: `驳回立项「${p.name}」？`,
+                                text: "驳回后项目状态变为「已取消」（终态）。",
+                              })
+                            }
+                          >
+                            驳回
+                          </button>
+                        </>
+                      }
+                      targetId={p.id}
+                      hit={hit}
+                    />
+                  );
+                })}
+              </CardList>
+              <DesktopTable>
                 <table className="grid" style={{ marginBottom: 16 }} aria-busy={loading}>
                   <thead>
                     <tr><th>编号</th><th>项目名称</th><th>负责人</th><th className="num">预算</th><th>计划期</th><th className="no-print" /></tr>
@@ -250,14 +325,87 @@ function ApprovalsInner() {
                     })}
                   </tbody>
                 </table>
-              </div>
+              </DesktopTable>
             </MotionReveal>
           )}
 
           {(d?.budget_adjusts.length ?? 0) > 0 && (
             <MotionReveal delay={0.04}>
               <h2 className="section-title">预算调整</h2>
-              <div className="table-scroll">
+              {/* D4：手机端卡片流 —— 同一份数据，纯 CSS 在 767px 与下表切换（见 CardList） */}
+              <CardList label="预算调整">
+                {d!.budget_adjusts.map((a: PendingAdjust) => {
+                  const hit = a.id === adjustTarget;
+                  return (
+                    <CardItem
+                      key={a.id}
+                      title={
+                        <>
+                          <span className="ellipsis" title={a.project_name}>
+                            {a.project_name}
+                          </span>
+                          {hit && <span className="tiny"> · 来自通知</span>}
+                        </>
+                      }
+                      code={a.subject}
+                      fields={[
+                        {
+                          label: "原预算",
+                          value: fmtMoney(a.old_amount),
+                          mono: true,
+                        },
+                        {
+                          label: "调整后",
+                          value: fmtMoney(a.new_amount),
+                          mono: true,
+                        },
+                        { label: "申请人", value: userName(a.by_id) },
+                        { label: "理由", value: a.reason || "-" },
+                      ]}
+                      actions={
+                        <>
+                          <button
+                            type="button"
+                            className="btn-ghost btn-xs"
+                            disabled={!a.can_decide}
+                            title={a.can_decide ? undefined : "仅管理员可审批"}
+                            onClick={() =>
+                              setDecision({
+                                kind: "budget_adjust",
+                                id: a.id,
+                                approve: true,
+                                title: `通过预算调整（${a.subject}）？`,
+                                text: `${fmtMoney(a.old_amount)} → ${fmtMoney(a.new_amount)}，通过后立即生效并留痕。`,
+                              })
+                            }
+                          >
+                            通过
+                          </button>
+                          <button
+                            type="button"
+                            className="btn-ghost btn-xs btn-danger-outline"
+                            disabled={!a.can_decide}
+                            onClick={() =>
+                              setDecision({
+                                kind: "budget_adjust",
+                                id: a.id,
+                                approve: false,
+                                title: "驳回预算调整？",
+                                text: "预算金额保持不变，申请人可在成本页看到您的审批意见。",
+                              })
+                            }
+                          >
+                            驳回
+                          </button>
+                        </>
+                      }
+                      targetId={a.id}
+                      hit={hit}
+                    />
+                  );
+                })}
+              </CardList>
+              <DesktopTable>
                 <table className="grid" style={{ marginBottom: 16 }} aria-busy={loading}>
                   <thead>
                     <tr><th>项目</th><th>科目</th><th className="num">原预算</th><th className="num">调整后</th><th>申请人</th><th>理由</th><th className="no-print" /></tr>
@@ -297,14 +445,111 @@ function ApprovalsInner() {
                     })}
                   </tbody>
                 </table>
-              </div>
+              </DesktopTable>
             </MotionReveal>
           )}
 
           {(d?.expenses.length ?? 0) > 0 && (
             <MotionReveal delay={0.08}>
               <h2 className="section-title">支出审批</h2>
-              <div className="table-scroll">
+              {/* D4：手机端卡片流 —— 同一份数据，纯 CSS 在 767px 与下表切换（见 CardList） */}
+              <CardList label="支出审批">
+                {d!.expenses.map((e: PendingExpense) => {
+                  const hit = e.id === expenseTarget;
+                  return (
+                    <CardItem
+                      key={e.id}
+                      title={
+                        <>
+                          <span className="ellipsis" title={e.project_name}>
+                            {e.project_name}
+                          </span>
+                          {hit && <span className="tiny"> · 来自通知</span>}
+                        </>
+                      }
+                      code={e.subject}
+                      fields={[
+                        {
+                          label: "金额",
+                          value: fmtMoney(e.amount),
+                          mono: true,
+                        },
+                        {
+                          label: "日期",
+                          value: fmtDate(e.exp_date),
+                          mono: true,
+                        },
+                        {
+                          label: "说明",
+                          value: (
+                            <span className="ellipsis" title={e.note}>
+                              {e.note || "-"}
+                            </span>
+                          ),
+                        },
+                        { label: "经办人", value: userName(e.by_id) },
+                      ]}
+                      actions={
+                        <>
+                          <button
+                            type="button"
+                            className="btn-ghost btn-xs"
+                            disabled={!e.can_decide}
+                            title={e.can_decide ? undefined : "仅管理员可审批"}
+                            onClick={() =>
+                              setDecision({
+                                kind: "expense",
+                                id: e.id,
+                                approve: true,
+                                title: `通过支出 ${fmtMoney(e.amount)} 元？`,
+                                text: "通过后计入预算执行。",
+                              })
+                            }
+                          >
+                            通过
+                          </button>
+                          <button
+                            type="button"
+                            className="btn-ghost btn-xs"
+                            disabled={!e.can_decide}
+                            onClick={() =>
+                              setDecision({
+                                kind: "expense",
+                                id: e.id,
+                                approve: false,
+                                title: "驳回该支出？",
+                                text: "经办人可在成本页看到您的审批意见，并修改后重新提交。",
+                              })
+                            }
+                          >
+                            驳回
+                          </button>
+                          <button
+                            type="button"
+                            className="btn-ghost btn-xs btn-danger-outline"
+                            disabled={!e.can_decide}
+                            onClick={() =>
+                              setDecision({
+                                kind: "expense",
+                                id: e.id,
+                                approve: true,
+                                exception: true,
+                                title: `特批放行 ${fmtMoney(e.amount)} 元？`,
+                                text: "特批将绕过预算上限计入执行，操作写入审计日志。",
+                              })
+                            }
+                          >
+                            特批放行
+                          </button>
+                        </>
+                      }
+                      targetId={e.id}
+                      hit={hit}
+                    />
+                  );
+                })}
+              </CardList>
+              <DesktopTable>
                 <table className="grid" aria-busy={loading}>
                   <thead>
                     <tr><th>项目</th><th>人员</th><th className="num">金额</th><th>日期</th><th>说明</th><th>经办人</th><th className="no-print" /></tr>
@@ -351,7 +596,7 @@ function ApprovalsInner() {
                     })}
                   </tbody>
                 </table>
-              </div>
+              </DesktopTable>
             </MotionReveal>
           )}
         </>
