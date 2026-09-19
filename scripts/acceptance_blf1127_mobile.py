@@ -1088,6 +1088,132 @@ def main() -> int:
         )
         page.screenshot(path=f"{SHOT}/04-desktop-1440-projects.png")
 
+        # ============ S5/D4：项目台账 / 审批中心手机端卡片流 ============
+        # 契约：方案 §4.2 + D4（只覆盖 /projects 与 /approvals；桌面 table.grid 不动）。
+        # 同一份数据两个视图、纯 CSS 在 767px 切换（与双外壳同一手法）：断言走
+        # data-cardlist / data-card 契约表面，不读 CSS Modules 的哈希类名。
+        def card_metrics(pg, label: str) -> dict:
+            """卡片流与表格的同屏对照：数量（同数据）+ 可见性（谁在场）。"""
+            return pg.evaluate(
+                """(label) => {
+                    const cards = Array.from(document.querySelectorAll(`[data-cardlist="${label}"] [data-card]`));
+                    const list = document.querySelector(`[data-cardlist="${label}"]`);
+                    const table = list?.parentElement?.querySelector("table.grid")
+                        ?? document.querySelector("table.grid");
+                    const vis = (el) => el ? el.getBoundingClientRect().width > 0 : false;
+                    const btns = cards.flatMap((c) => Array.from(c.querySelectorAll("button")));
+                    const touch = btns.length === 0 ? -1
+                        : Math.min(...btns.map((el) => parseFloat(getComputedStyle(el).minHeight) || 0));
+                    return {
+                        nCards: cards.length,
+                        listVisible: vis(list),
+                        tableVisible: vis(table),
+                        cardTouch: touch,
+                        firstText: cards[0]?.innerText ?? "",
+                    };
+                }""",
+                label,
+            )
+
+        page.set_viewport_size({"width": 390, "height": 844})
+        page.goto(f"{BASE}/projects", wait_until="networkidle")
+        page.wait_for_timeout(1500)
+        n_rows = page.locator("table.grid tbody tr").count()
+        m = card_metrics(page, "项目台账")
+        record(
+            "D4 @390px：项目台账渲染卡片流，且与表格同数据",
+            m["nCards"] > 0 and m["nCards"] == n_rows,
+            f"卡片 {m['nCards']} 张 / 表格 {n_rows} 行",
+        )
+        record(
+            "D4 @390px：卡片流在场、桌面表格退场（纯 CSS 切换）",
+            m["listVisible"] and not m["tableVisible"],
+            f"卡片可见={m['listVisible']} 表格可见={m['tableVisible']}",
+        )
+        record(
+            "D4：卡片内操作按钮触控 ≥44px（卡片自己的 CSS，不依赖 640px / pointer:coarse 补丁）",
+            m["cardTouch"] >= 44,
+            f"最小 min-height={m['cardTouch']}px（390px 非 coarse 下全局补丁只给表格按钮 30px）",
+        )
+        record(
+            "D4：项目卡片一屏一条可读结论（进度 / 负责人 / 预算）",
+            all(k in m["firstText"] for k in ["负责人", "预算", "进度"]),
+            m["firstText"][:60].replace(chr(10), " / "),
+        )
+        page.screenshot(path=f"{SHOT}/09-cards-390-projects.png")
+
+        # 767 / 768 边界：与手机壳同断点切换
+        page.set_viewport_size({"width": 768, "height": 900})
+        page.wait_for_timeout(500)
+        m768 = card_metrics(page, "项目台账")
+        record(
+            "D4 @768px：卡片流退场、表格在场（桌面视图）",
+            not m768["listVisible"] and m768["tableVisible"],
+            f"卡片可见={m768['listVisible']} 表格可见={m768['tableVisible']}",
+        )
+        page.set_viewport_size({"width": 767, "height": 900})
+        page.wait_for_timeout(500)
+        m767 = card_metrics(page, "项目台账")
+        record(
+            "D4 @767px：卡片流在场、表格退场（手机视图）",
+            m767["listVisible"] and not m767["tableVisible"],
+            f"卡片可见={m767['listVisible']} 表格可见={m767['tableVisible']}",
+        )
+
+        # 审批中心：三段各自卡片流；待办为空时空态共用（不断言卡片数，只断言不断层）
+        page.set_viewport_size({"width": 390, "height": 844})
+        page.goto(f"{BASE}/approvals", wait_until="networkidle")
+        page.wait_for_timeout(1500)
+        appr_sections = page.evaluate(
+            """() => Array.from(document.querySelectorAll('[data-cardlist]')).map((el) => ({
+                label: el.dataset.cardlist,
+                n: el.querySelectorAll('[data-card]').length,
+                visible: el.getBoundingClientRect().width > 0,
+            }))"""
+        )
+        appr_rows = page.locator("table.grid tbody tr").count()
+        appr_cards = sum(s["n"] for s in appr_sections)
+        if appr_rows > 0:
+            record(
+                "D4 @390px：审批中心三段卡片流与表格同数据",
+                appr_cards == appr_rows and all(s["visible"] for s in appr_sections),
+                " / ".join(f"{s['label']}={s['n']}张" for s in appr_sections)
+                + f" / 表格共 {appr_rows} 行",
+            )
+        else:
+            record(
+                "D4 @390px：审批中心无待办时空态共用（卡片与表格都不渲染数据行）",
+                appr_cards == 0 and "没有待处理事项" in page.content(),
+                "空态一处，两种视图行为一致",
+            )
+        page.screenshot(path=f"{SHOT}/10-cards-390-approvals.png")
+
+        # 桌面零回归：1440px 卡片流退场（display:none），表格是唯一视图
+        page.set_viewport_size({"width": 1440, "height": 900})
+        page.goto(f"{BASE}/projects", wait_until="networkidle")
+        page.wait_for_timeout(1500)
+        mdesk = card_metrics(page, "项目台账")
+        record(
+            "D4 @1440px：项目台账卡片流退场、桌面表格唯一在场",
+            not mdesk["listVisible"] and mdesk["tableVisible"],
+            f"卡片可见={mdesk['listVisible']} 表格可见={mdesk['tableVisible']}",
+        )
+        page.goto(f"{BASE}/approvals", wait_until="networkidle")
+        page.wait_for_timeout(1500)
+        adesk = page.evaluate(
+            """() => ({
+                lists: Array.from(document.querySelectorAll('[data-cardlist]'))
+                    .map((el) => el.getBoundingClientRect().width),
+                tables: Array.from(document.querySelectorAll('table.grid'))
+                    .map((el) => el.getBoundingClientRect().width),
+            })"""
+        )
+        record(
+            "D4 @1440px：审批中心卡片流退场、桌面表格唯一在场",
+            all(w == 0 for w in adesk["lists"]) and any(w > 0 for w in adesk["tables"]),
+            f"卡片宽={adesk['lists']} 表格宽={[round(w) for w in adesk['tables']]}",
+        )
+
         # ============ 5 个 Dock 落点都是真实路由（无死键） ============
         # 直接拿 RSC payload：Link 的客户端导航与预取走的就是这条路径，200 才算落点真的可用。
         # 这也是下面「控制台噪声」过滤的**正向对照**：RSC 真的坏掉时这里的断言会先红。
