@@ -1,0 +1,234 @@
+  ▲ Next.js 14.2.18
+  - Local:        http://localhost:3101
+  - Network:      http://0.0.0.0:3101
+
+ ✓ Starting...
+ ✓ Ready in 1772ms
+ ✓ Compiled /middleware in 46ms
+ ✓ Compiled (72 modules)
+ ○ Compiling /login ...
+ ✓ Compiled /login in 1431ms (1350 modules)
+ GET /login 200 in 15ms
+ GET /login 200 in 27ms
+ ✓ Compiled /icon.svg in 152ms (695 modules)
+ GET /icon.svg?7127cff0eba07d1f 200 in 186ms
+ ○ Compiling /dashboard ...
+ ✓ Compiled /dashboard in 1354ms (2604 modules)
+ GET /icon.svg?7127cff0eba07d1f 200 in 26ms
+ GET /dashboard 200 in 83ms
+ GET /icon.svg?7127cff0eba07d1f 200 in 3ms
+ ✓ Compiled /reports in 198ms (2520 modules)
+ GET /reports 200 in 255ms
+ GET /icon.svg?7127cff0eba07d1f 200 in 3ms
+ GET /dashboard 200 in 19ms
+ GET /icon.svg?7127cff0eba07d1f 200 in 4ms
+ ✓ Compiled /costs in 191ms (2519 modules)
+ GET /costs 200 in 237ms
+ GET /icon.svg?7127cff0eba07d1f 200 in 4ms
+ GET /costs?project_id=1 200 in 12ms
+ GET /icon.svg?7127cff0eba07d1f 200 in 3ms
+ ✓ Compiled /projects in 227ms (2562 modules)
+ GET /projects 200 in 296ms
+ GET /icon.svg?7127cff0eba07d1f 200 in 4ms
+ ✓ Compiled in 307ms (2011 modules)
+ GET /login 200 in 98ms
+ ✓ Compiled /icon.svg in 274ms (792 modules)
+ GET /icon.svg?7127cff0eba07d1f 200 in 305ms
+ ✓ Compiled /dashboard in 82ms (1289 modules)
+ GET /icon.svg?7127cff0eba07d1f 200 in 12ms
+ GET /dashboard 200 in 107ms
+ GET /icon.svg?7127cff0eba07d1f 200 in 3ms
+ ✓ Compiled /reports in 76ms (1293 modules)
+ GET /reports 200 in 116ms
+ GET /icon.svg?7127cff0eba07d1f 200 in 3ms
+ GET /dashboard 200 in 24ms
+ GET /icon.svg?7127cff0eba07d1f 200 in 6ms
+ GET /costs 200 in 24ms
+ GET /icon.svg?7127cff0eba07d1f 200 in 4ms
+ GET /costs?project_id=1 200 in 22ms
+ GET /icon.svg?7127cff0eba07d1f 200 in 2ms
+ GET /projects 200 in 26ms
+ GET /icon.svg?7127cff0eba07d1f 200 in 4ms
+ ✓ Compiled in 539ms (2011 modules)
+ GET /login 200 in 149ms
+ ✓ Compiled /icon.svg in 48ms (792 modules)
+ GET /icon.svg?7127cff0eba07d1f 200 in 79ms
+ ✓ Compiled /dashboard in 71ms (1289 modules)
+ GET /icon.svg?7127cff0eba07d1f 200 in 10ms
+ GET /dashboard 200 in 106ms
+ GET /icon.svg?7127cff0eba07d1f 200 in 5ms
+ ✓ Compiled /reports in 76ms (1293 modules)
+ GET /reports 200 in 114ms
+ GET /icon.svg?7127cff0eba07d1f 200 in 4ms
+ GET /dashboard 200 in 24ms
+ GET /icon.svg?7127cff0eba07d1f 200 in 4ms
+ GET /costs 200 in 23ms
+ GET /icon.svg?7127cff0eba07d1f 200 in 4ms
+ GET /costs?project_id=1 200 in 14ms
+ GET /icon.svg?7127cff0eba07d1f 200 in 16ms
+ GET /projects 200 in 28ms
+ GET /icon.svg?7127cff0eba07d1f 200 in 3ms
+ GET /projects 200 in 17ms
+ GET /icon.svg?7127cff0eba07d1f 200 in 5ms
+ GET /costs 200 in 14ms
+ GET /icon.svg?7127cff0eba07d1f 200 in 6ms
+ GET /dashboard 200 in 17ms
+ GET /icon.svg?7127cff0eba07d1f 200 in 5ms
+ GET /projects 200 in 15ms
+ GET /icon.svg?7127cff0eba07d1f 200 in 3ms
+ ✓ Compiled /progress in 371ms (2551 modules)
+ ✓ Compiled /change-password in 155ms (2557 modules)
+ GET /login 200 in 49ms
+ GET /icon.svg?7127cff0eba07d1f 200 in 7ms
+ GET /icon.svg?7127cff0eba07d1f 200 in 3ms
+ GET /dashboard 200 in 91ms
+ GET /icon.svg?7127cff0eba07d1f 200 in 2ms
+ ✓ Compiled in 552ms (2026 modules)
+ GET /login 200 in 73ms
+ ✓ Compiled /icon.svg in 55ms (792 modules)
+ GET /icon.svg?7127cff0eba07d1f 200 in 82ms
+ ✓ Compiled /dashboard in 136ms (1289 modules)
+ GET /icon.svg?7127cff0eba07d1f 200 in 5ms
+ GET /dashboard 200 in 114ms
+ GET /icon.svg?7127cff0eba07d1f 200 in 4ms
+ ✓ Compiled /reports in 71ms (1293 modules)
+ GET /reports 200 in 110ms
+ GET /icon.svg?7127cff0eba07d1f 200 in 3ms
+ GET /dashboard 200 in 20ms
+ GET /icon.svg?7127cff0eba07d1f 200 in 4ms
+ GET /costs 200 in 22ms
+ GET /icon.svg?7127cff0eba07d1f 200 in 6ms
+ GET /costs?project_id=1 200 in 12ms
+ GET /icon.svg?7127cff0eba07d1f 200 in 5ms
+ GET /projects 200 in 25ms
+ GET /icon.svg?7127cff0eba07d1f 200 in 2ms
+ GET /projects 200 in 15ms
+ GET /icon.svg?7127cff0eba07d1f 200 in 4ms
+ GET /costs 200 in 13ms
+ GET /icon.svg?7127cff0eba07d1f 200 in 3ms
+ GET /dashboard 200 in 18ms
+ GET /icon.svg?7127cff0eba07d1f 200 in 6ms
+ GET /projects 200 in 16ms
+ GET /icon.svg?7127cff0eba07d1f 200 in 3ms
+ ✓ Compiled /progress in 330ms (1298 modules)
+ ✓ Compiled /change-password in 86ms (1302 modules)
+ GET /login 200 in 48ms
+ GET /icon.svg?7127cff0eba07d1f 200 in 8ms
+ GET /icon.svg?7127cff0eba07d1f 200 in 5ms
+ GET /dashboard 200 in 98ms
+ GET /icon.svg?7127cff0eba07d1f 200 in 3ms
+ GET /login 200 in 20ms
+ GET /login 200 in 66ms
+ GET /dashboard 200 in 96ms
+ GET /icon.svg?7127cff0eba07d1f 200 in 14ms
+ GET /icon.svg?7127cff0eba07d1f 200 in 3ms
+ GET /icon.svg?7127cff0eba07d1f 200 in 4ms
+ GET /icon.svg?7127cff0eba07d1f 200 in 6ms
+ GET /dashboard 200 in 16ms
+ GET /icon.svg?7127cff0eba07d1f 200 in 3ms
+ GET /projects 200 in 31ms
+ GET /icon.svg?7127cff0eba07d1f 200 in 2ms
+ GET /icon.svg?7127cff0eba07d1f 200 in 4ms
+ GET /reports 200 in 25ms
+ GET /icon.svg?7127cff0eba07d1f 200 in 9ms
+ GET /progress 200 in 31ms
+ GET /icon.svg?7127cff0eba07d1f 200 in 11ms
+ GET /icon.svg?7127cff0eba07d1f 200 in 3ms
+ GET /dashboard 200 in 17ms
+ GET /icon.svg?7127cff0eba07d1f 200 in 9ms
+ GET /costs 200 in 20ms
+ GET /icon.svg?7127cff0eba07d1f 200 in 3ms
+ GET /icon.svg?7127cff0eba07d1f 200 in 2ms
+ GET /costs 200 in 21ms
+ GET /reports 200 in 28ms
+ GET /icon.svg?7127cff0eba07d1f 200 in 4ms
+ GET /icon.svg?7127cff0eba07d1f 200 in 15ms
+ GET /icon.svg?7127cff0eba07d1f 200 in 2ms
+ ✓ Compiled /approvals in 441ms (2563 modules)
+ GET /approvals 200 in 523ms
+ GET /icon.svg?7127cff0eba07d1f 200 in 7ms
+ GET /icon.svg?7127cff0eba07d1f 200 in 3ms
+ GET /costs?project_id=1 200 in 24ms
+ ✓ Compiled /contacts in 268ms (2571 modules)
+ GET /contacts 200 in 317ms
+ GET /icon.svg?7127cff0eba07d1f 200 in 7ms
+ GET /icon.svg?7127cff0eba07d1f 200 in 4ms
+ GET /icon.svg?7127cff0eba07d1f 200 in 2ms
+ ○ Compiling /admin ...
+ ✓ Compiled /admin in 609ms (2585 modules)
+ GET /admin 200 in 652ms
+ GET /icon.svg?7127cff0eba07d1f 200 in 5ms
+ GET /icon.svg?7127cff0eba07d1f 200 in 1ms
+ GET /admin?tab=%E6%97%A5%E5%BF%97 200 in 16ms
+ GET /icon.svg?7127cff0eba07d1f 200 in 6ms
+ GET /icon.svg?7127cff0eba07d1f 200 in 3ms
+ GET /projects 200 in 26ms
+ GET /icon.svg?7127cff0eba07d1f 200 in 2ms
+ GET /dashboard 200 in 92ms
+ GET /icon.svg?7127cff0eba07d1f 200 in 6ms
+ GET /icon.svg?7127cff0eba07d1f 200 in 5ms
+ GET /projects 200 in 18ms
+ GET /icon.svg?7127cff0eba07d1f 200 in 3ms
+ GET /icon.svg?7127cff0eba07d1f 200 in 6ms
+ GET /progress 200 in 21ms
+ GET /icon.svg?7127cff0eba07d1f 200 in 3ms
+ GET /icon.svg?7127cff0eba07d1f 200 in 2ms
+ GET /costs 200 in 15ms
+ GET /icon.svg?7127cff0eba07d1f 200 in 3ms
+ GET /icon.svg?7127cff0eba07d1f 200 in 2ms
+ GET /reports 200 in 22ms
+ GET /icon.svg?7127cff0eba07d1f 200 in 17ms
+ GET /icon.svg?7127cff0eba07d1f 200 in 7ms
+ GET /approvals 200 in 22ms
+ GET /icon.svg?7127cff0eba07d1f 200 in 2ms
+ GET /icon.svg?7127cff0eba07d1f 200 in 2ms
+ GET /contacts 200 in 16ms
+ GET /icon.svg?7127cff0eba07d1f 200 in 2ms
+ GET /icon.svg?7127cff0eba07d1f 200 in 3ms
+ GET /admin 200 in 11ms
+ GET /icon.svg?7127cff0eba07d1f 200 in 8ms
+ GET /icon.svg?7127cff0eba07d1f 200 in 3ms
+ GET /admin?tab=%E6%97%A5%E5%BF%97 200 in 13ms
+ GET /icon.svg?7127cff0eba07d1f 200 in 3ms
+ GET /icon.svg?7127cff0eba07d1f 200 in 16ms
+ GET /dashboard 200 in 15ms
+ GET /icon.svg?7127cff0eba07d1f 200 in 4ms
+ GET /icon.svg?7127cff0eba07d1f 200 in 2ms
+ GET /projects 200 in 12ms
+ GET /icon.svg?7127cff0eba07d1f 200 in 15ms
+ GET /icon.svg?7127cff0eba07d1f 200 in 10ms
+ GET /progress 200 in 15ms
+ GET /icon.svg?7127cff0eba07d1f 200 in 2ms
+ GET /icon.svg?7127cff0eba07d1f 200 in 2ms
+ GET /costs 200 in 13ms
+ GET /icon.svg?7127cff0eba07d1f 200 in 2ms
+ GET /icon.svg?7127cff0eba07d1f 200 in 1ms
+ GET /reports 200 in 13ms
+ GET /icon.svg?7127cff0eba07d1f 200 in 4ms
+ GET /icon.svg?7127cff0eba07d1f 200 in 2ms
+ GET /approvals 200 in 14ms
+ GET /icon.svg?7127cff0eba07d1f 200 in 2ms
+ GET /icon.svg?7127cff0eba07d1f 200 in 2ms
+ GET /projects 200 in 13ms
+ GET /icon.svg?7127cff0eba07d1f 200 in 4ms
+ GET /contacts 200 in 25ms
+ GET /icon.svg?7127cff0eba07d1f 200 in 2ms
+ GET /icon.svg?7127cff0eba07d1f 200 in 2ms
+ GET /admin 200 in 13ms
+ GET /icon.svg?7127cff0eba07d1f 200 in 6ms
+ GET /icon.svg?7127cff0eba07d1f 200 in 2ms
+ GET /costs 200 in 13ms
+ GET /icon.svg?7127cff0eba07d1f 200 in 4ms
+ GET /admin?tab=%E6%97%A5%E5%BF%97 200 in 13ms
+ GET /icon.svg?7127cff0eba07d1f 200 in 2ms
+ GET /icon.svg?7127cff0eba07d1f 200 in 2ms
+ GET /dashboard 200 in 12ms
+ GET /icon.svg?7127cff0eba07d1f 200 in 5ms
+ GET /projects 200 in 14ms
+ GET /icon.svg?7127cff0eba07d1f 200 in 3ms
+ GET /login 200 in 15ms
+ GET /icon.svg?7127cff0eba07d1f 200 in 2ms
+ GET /icon.svg?7127cff0eba07d1f 200 in 3ms
+ GET /dashboard 200 in 11ms
+ GET /icon.svg?7127cff0eba07d1f 200 in 2ms
+[?25h

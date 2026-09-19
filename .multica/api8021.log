@@ -1,0 +1,7 @@
+INFO:     Started server process [22855]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+ERROR:    [Errno 48] error while attempting to bind on address ('127.0.0.1', 8021): address already in use
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+[storage] 附件后端：r2（bucket=ziktech）——正文唯一持久化口径

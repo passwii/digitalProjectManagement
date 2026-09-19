@@ -2,9 +2,20 @@
 // 通用弹层：Dialog（居中）/ Drawer（右侧）/ Confirm（确认）。
 // 统一处理 Esc 关闭、焦点锁定、滚动锁定、脏数据二次确认、移动端全屏。
 import { createPortal } from "react-dom";
-import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import { AnimatePresence, m, useReducedMotion } from "framer-motion";
-import { MODAL_BODY_ATTR, MODAL_CLOSE_ATTR, resolveInitialFocus } from "@/lib/modalFocus";
+import {
+  MODAL_BODY_ATTR,
+  MODAL_CLOSE_ATTR,
+  resolveInitialFocus,
+} from "@/lib/modalFocus";
 import st from "./Modal.module.css";
 
 type Size = "sm" | "md" | "lg";
@@ -17,14 +28,29 @@ type Size = "sm" | "md" | "lg";
 const CLOSE_MARK = { [MODAL_CLOSE_ATTR]: "true" };
 const BODY_MARK = { [MODAL_BODY_ATTR]: "true" };
 
-function useModalBehavior({
+/**
+ * 弹层的共享行为：初始聚焦、Esc、body 滚动锁定、Tab 循环、关闭后归还焦点。
+ *
+ * `modal=false` 是手机端底部抽屉（`components/mobile/BottomSheet.tsx`，BLF-1127/S3）
+ * 的 peek 档要的「非模态」语义：不锁 body 滚动、不锁 Tab（焦点可以离开面板），
+ * 但初始聚焦与「关闭后归还焦点」照旧 —— 它仍然是弹层，只是不独占页面。
+ * 不加遮罩却锁 Tab，会把键盘用户关在一个看不出来是弹层的东西里。
+ *
+ * Esc **不受**本开关影响：抽屉三档都要能 Esc 降档 / 收起。
+ *
+ * 导出它是为了不让第二个弹层组件再实现一遍这套行为（Dialog / Drawer / Confirm
+ * 用的是同一份；抽屉也必须是同一份）。
+ */
+export function useModalBehavior({
   open,
   onRequestClose,
   dirty,
+  modal = true,
 }: {
   open: boolean;
   onRequestClose: () => void;
   dirty?: boolean;
+  modal?: boolean;
 }) {
   const panelRef = useRef<HTMLElement | null>(null);
   const restoreRef = useRef<Element | null>(null);
@@ -127,7 +153,15 @@ function useModalBehavior({
     if (!open) {
       return;
     }
-    if (overflowRef.current === null) {
+    if (!modal) {
+      // 由模态档降回非模态档（抽屉 full/half → peek）：立刻解锁滚动。
+      // 关闭路径不在这里处理 —— 仍旧由 handleExitComplete 在退场动画结束后解锁，
+      // Dialog / Drawer / Confirm 的行为因此完全不变。
+      if (overflowRef.current !== null) {
+        document.body.style.overflow = overflowRef.current;
+        overflowRef.current = null;
+      }
+    } else if (overflowRef.current === null) {
       overflowRef.current = document.body.style.overflow;
       document.body.style.overflow = "hidden";
     }
@@ -139,14 +173,16 @@ function useModalBehavior({
         return;
       }
       if (e.key !== "Tab") return;
+      // 非模态档不锁 Tab：面板没有遮罩、不占有页面，焦点本来就该能走到别处
+      if (!modal) return;
       const panel = panelRef.current;
       if (!panel) return;
       // 与初始聚焦用的选择器刻意分开：这一条表达的是「Tab 顺序」——
       // 关闭按钮是合法的 Tab 落点（只在**初始**聚焦时才排除），且这里要逐项过滤 disabled。
       const nodes = Array.from(
         panel.querySelectorAll<HTMLElement>(
-          "input:not([type=hidden]):not([disabled]), select:not([disabled]), textarea:not([disabled]), button:not([disabled]), [href], [tabindex]:not([tabindex='-1'])"
-        )
+          "input:not([type=hidden]):not([disabled]), select:not([disabled]), textarea:not([disabled]), button:not([disabled]), [href], [tabindex]:not([tabindex='-1'])",
+        ),
       ).filter((el) => el.offsetParent !== null);
       if (nodes.length === 0) return;
       const first = nodes[0];
@@ -164,7 +200,7 @@ function useModalBehavior({
     return () => {
       document.removeEventListener("keydown", onKey, true);
     };
-  }, [open]);
+  }, [open, modal]);
 
   useEffect(
     () => () => {
@@ -176,16 +212,39 @@ function useModalBehavior({
     [],
   );
 
-  return { mounted, panelRef, openRef, requestClose, askDiscard, setAskDiscard, handleExitComplete };
+  return {
+    mounted,
+    panelRef,
+    openRef,
+    requestClose,
+    askDiscard,
+    setAskDiscard,
+    handleExitComplete,
+  };
 }
 
-function DiscardConfirm({ onKeep, onDiscard }: { onKeep: () => void; onDiscard: () => void }) {
+function DiscardConfirm({
+  onKeep,
+  onDiscard,
+}: {
+  onKeep: () => void;
+  onDiscard: () => void;
+}) {
   return (
-    <div className={st.inner} role="alertdialog" aria-label="放弃未保存的修改" aria-live="assertive">
+    <div
+      className={st.inner}
+      role="alertdialog"
+      aria-label="放弃未保存的修改"
+      aria-live="assertive"
+    >
       <div className={st.innerBody}>有未保存的修改，确定关闭吗？</div>
       <div className={st.innerFoot}>
-        <button className="btn-ghost" onClick={onKeep}>继续编辑</button>
-        <button className={`btn-primary ${st.dangerBtn}`} onClick={onDiscard}>放弃修改</button>
+        <button className="btn-ghost" onClick={onKeep}>
+          继续编辑
+        </button>
+        <button className={`btn-primary ${st.dangerBtn}`} onClick={onDiscard}>
+          放弃修改
+        </button>
       </div>
     </div>
   );
@@ -205,9 +264,24 @@ export interface DialogProps {
 }
 
 export function Dialog({
-  open, onClose, title, children, footer, size = "md", dirty, maskClosable = true,
+  open,
+  onClose,
+  title,
+  children,
+  footer,
+  size = "md",
+  dirty,
+  maskClosable = true,
 }: DialogProps) {
-  const { mounted, panelRef, openRef, requestClose, askDiscard, setAskDiscard, handleExitComplete } = useModalBehavior({ open, onRequestClose: onClose, dirty });
+  const {
+    mounted,
+    panelRef,
+    openRef,
+    requestClose,
+    askDiscard,
+    setAskDiscard,
+    handleExitComplete,
+  } = useModalBehavior({ open, onRequestClose: onClose, dirty });
   const reduced = useReducedMotion();
   const titleId = useId();
   if (!mounted) return null;
@@ -230,7 +304,9 @@ export function Dialog({
           onMouseDown={() => maskClosable && requestClose()}
         >
           <m.div
-            ref={(element) => { panelRef.current = element; }}
+            ref={(element) => {
+              panelRef.current = element;
+            }}
             className={`${st.panel} ${st[size]}`}
             role="dialog"
             aria-modal="true"
@@ -243,23 +319,47 @@ export function Dialog({
             onMouseDown={(e) => e.stopPropagation()}
           >
             <header className={st.head}>
-              <h2 id={titleId} className={st.title}>{title}</h2>
-              <button className={st.close} {...CLOSE_MARK} onClick={requestClose} aria-label="关闭">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true">
+              <h2 id={titleId} className={st.title}>
+                {title}
+              </h2>
+              <button
+                className={st.close}
+                {...CLOSE_MARK}
+                onClick={requestClose}
+                aria-label="关闭"
+              >
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                  aria-hidden="true"
+                >
                   <path d="M6 6l12 12M18 6L6 18" />
                 </svg>
               </button>
             </header>
-            <div className={st.body} {...BODY_MARK}>{children}</div>
+            <div className={st.body} {...BODY_MARK}>
+              {children}
+            </div>
             {footer && <footer className={st.foot}>{footer}</footer>}
             {askDiscard && (
-              <DiscardConfirm onKeep={() => setAskDiscard(false)} onDiscard={() => { setAskDiscard(false); onClose(); }} />
+              <DiscardConfirm
+                onKeep={() => setAskDiscard(false)}
+                onDiscard={() => {
+                  setAskDiscard(false);
+                  onClose();
+                }}
+              />
             )}
           </m.div>
         </m.div>
       )}
     </AnimatePresence>,
-    document.body
+    document.body,
   );
 }
 
@@ -273,8 +373,24 @@ export interface DrawerProps {
   dirty?: boolean;
 }
 
-export function Drawer({ open, onClose, title, children, footer, width = 480, dirty }: DrawerProps) {
-  const { mounted, panelRef, openRef, requestClose, askDiscard, setAskDiscard, handleExitComplete } = useModalBehavior({ open, onRequestClose: onClose, dirty });
+export function Drawer({
+  open,
+  onClose,
+  title,
+  children,
+  footer,
+  width = 480,
+  dirty,
+}: DrawerProps) {
+  const {
+    mounted,
+    panelRef,
+    openRef,
+    requestClose,
+    askDiscard,
+    setAskDiscard,
+    handleExitComplete,
+  } = useModalBehavior({ open, onRequestClose: onClose, dirty });
   const reduced = useReducedMotion();
   const titleId = useId();
   if (!mounted) return null;
@@ -297,7 +413,9 @@ export function Drawer({ open, onClose, title, children, footer, width = 480, di
           onMouseDown={requestClose}
         >
           <m.aside
-            ref={(element) => { panelRef.current = element; }}
+            ref={(element) => {
+              panelRef.current = element;
+            }}
             className={st.drawer}
             style={{ width }}
             role="dialog"
@@ -311,23 +429,47 @@ export function Drawer({ open, onClose, title, children, footer, width = 480, di
             onMouseDown={(e) => e.stopPropagation()}
           >
             <header className={st.head}>
-              <h2 id={titleId} className={st.title}>{title}</h2>
-              <button className={st.close} {...CLOSE_MARK} onClick={requestClose} aria-label="关闭">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true">
+              <h2 id={titleId} className={st.title}>
+                {title}
+              </h2>
+              <button
+                className={st.close}
+                {...CLOSE_MARK}
+                onClick={requestClose}
+                aria-label="关闭"
+              >
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                  aria-hidden="true"
+                >
                   <path d="M6 6l12 12M18 6L6 18" />
                 </svg>
               </button>
             </header>
-            <div className={st.body} {...BODY_MARK}>{children}</div>
+            <div className={st.body} {...BODY_MARK}>
+              {children}
+            </div>
             {footer && <footer className={st.foot}>{footer}</footer>}
             {askDiscard && (
-              <DiscardConfirm onKeep={() => setAskDiscard(false)} onDiscard={() => { setAskDiscard(false); onClose(); }} />
+              <DiscardConfirm
+                onKeep={() => setAskDiscard(false)}
+                onDiscard={() => {
+                  setAskDiscard(false);
+                  onClose();
+                }}
+              />
             )}
           </m.aside>
         </m.div>
       )}
     </AnimatePresence>,
-    document.body
+    document.body,
   );
 }
 
@@ -345,15 +487,25 @@ export interface ConfirmProps {
 }
 
 export function Confirm({
-  open, title, text, children, okText = "确定", cancelText = "取消", danger, loading, onConfirm, onCancel,
+  open,
+  title,
+  text,
+  children,
+  okText = "确定",
+  cancelText = "取消",
+  danger,
+  loading,
+  onConfirm,
+  onCancel,
 }: ConfirmProps) {
   const handleRequestClose = useCallback(() => {
     if (!loading) onCancel();
   }, [loading, onCancel]);
-  const { mounted, panelRef, openRef, requestClose, handleExitComplete } = useModalBehavior({
-    open,
-    onRequestClose: handleRequestClose,
-  });
+  const { mounted, panelRef, openRef, requestClose, handleExitComplete } =
+    useModalBehavior({
+      open,
+      onRequestClose: handleRequestClose,
+    });
   const reduced = useReducedMotion();
   const titleId = useId();
   if (!mounted) return null;
@@ -376,7 +528,9 @@ export function Confirm({
           onMouseDown={requestClose}
         >
           <m.div
-            ref={(element) => { panelRef.current = element; }}
+            ref={(element) => {
+              panelRef.current = element;
+            }}
             className={`${st.panel} ${st.sm}`}
             role="alertdialog"
             aria-modal="true"
@@ -389,16 +543,44 @@ export function Confirm({
             onMouseDown={(e) => e.stopPropagation()}
           >
             <header className={st.head}>
-              <h2 id={titleId} className={st.title}>{title}</h2>
-              <button className={st.close} {...CLOSE_MARK} onClick={requestClose} aria-label="关闭" disabled={loading}>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true">
+              <h2 id={titleId} className={st.title}>
+                {title}
+              </h2>
+              <button
+                className={st.close}
+                {...CLOSE_MARK}
+                onClick={requestClose}
+                aria-label="关闭"
+                disabled={loading}
+              >
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                  aria-hidden="true"
+                >
                   <path d="M6 6l12 12M18 6L6 18" />
                 </svg>
               </button>
             </header>
-            {(text || children) && <div className={st.body} {...BODY_MARK}>{text}{children}</div>}
+            {(text || children) && (
+              <div className={st.body} {...BODY_MARK}>
+                {text}
+                {children}
+              </div>
+            )}
             <footer className={st.foot}>
-              <button className="btn-ghost" onClick={requestClose} disabled={loading}>{cancelText}</button>
+              <button
+                className="btn-ghost"
+                onClick={requestClose}
+                disabled={loading}
+              >
+                {cancelText}
+              </button>
               <button
                 className={`btn-primary ${danger ? st.dangerBtn : ""}`}
                 onClick={() => {
@@ -413,6 +595,6 @@ export function Confirm({
         </m.div>
       )}
     </AnimatePresence>,
-    document.body
+    document.body,
   );
 }

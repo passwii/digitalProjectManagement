@@ -1,20 +1,41 @@
 "use client";
 
-// 手机端底部 Dock（BLF-1127 / S1）。
-// 实现契约：docs/superpowers/specs/2026-09-18-mobile-pwa-navigation-design.md §3 / §7 + D1–D3。
+// 手机端底部 Dock（BLF-1127 / S1）+ 三态抽屉的触发（S3 / D2）。
+// 实现契约：docs/superpowers/specs/2026-09-18-mobile-pwa-navigation-design.md §3 / §4 / §7 + D1–D3。
 //
 // 为什么和侧栏同时存在于 DOM、靠 CSS 切换（§7「手机壳切换」）：
 // SSR 首帧判断不了断点，用 matchMedia 切外壳会先画出**错误的那一个**（手机上闪一下
 // 桌面侧栏，或桌面上闪一条底部导航）。所以两份外壳都渲染，由 767px 断点的 display
 // 决定谁在场 —— 隐藏的那一份不占位，也不进无障碍树。
 //
-// 这一层只负责「把 5 个位画出来」：菜单 → Dock 位的分组、红点信令都在
-// `lib/mobileNav.ts`（不依赖 React 的纯函数，单测直接钉住 D1/D3）。
+// 这一层负责两件事：
+//   1. 「把 5 个位画出来」：菜单 → Dock 位的分组、红点信令都在 `lib/mobileNav.ts`
+//      （不依赖 React 的纯函数，单测直接钉住 D1/D3）；
+//   2. S3 起：点 Dock 不再跳页（D2），而是把**这一位**的三态抽屉开到 peek。
+//      于是 `href` 退化成无 JS / 新标签页打开时的回退路径，不再是被点按的落点。
+//
+// 抽屉内容在 S3 只到「这一位可见的模块卡」为止（见下面 `sheetCards`）：§3 表里每位
+// 的预览卡 / 筛选 chips / 账号卡属于 S4（`[BLF-1127/S4]`）的范围，本 stage 不替它写死
+// 文案与口径；D3 的权限过滤已经由 `visible` 承担，所以 S4 只需要换卡片，不用再碰权限。
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { buildDockItems, dockIdForPath, type DockId, type DockMenuInput } from "@/lib/mobileNav";
+import { useCallback, useEffect, useState } from "react";
+import {
+  buildDockItems,
+  dockIdForPath,
+  type DockId,
+  type DockItem,
+  type DockMenuInput,
+  type MenuLike,
+} from "@/lib/mobileNav";
+import type { SheetStop } from "@/lib/sheetGesture";
+import BottomSheet from "./BottomSheet";
+import SheetCard from "./SheetCard";
 import s from "./MobileDock.module.css";
+
+/** 抽屉的 DOM id：Dock 位用 `aria-controls` 指向它（同一个 Dock 只有一张抽屉） */
+const SHEET_ID = "mobile-sheet";
 
 /**
  * 每个 Dock 位一张图标。
@@ -25,7 +46,16 @@ import s from "./MobileDock.module.css";
  */
 const ICON: Record<DockId, React.ReactNode> = {
   dashboard: (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <svg
+      width="22"
+      height="22"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
       <rect x="3" y="3" width="7" height="9" rx="1.5" />
       <rect x="14" y="3" width="7" height="5" rx="1.5" />
       <rect x="14" y="12" width="7" height="9" rx="1.5" />
@@ -33,24 +63,60 @@ const ICON: Record<DockId, React.ReactNode> = {
     </svg>
   ),
   projects: (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <svg
+      width="22"
+      height="22"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
       <rect x="3" y="4" width="18" height="16" rx="2" />
       <path d="M3 9h18M8 4v5" />
     </svg>
   ),
   progress: (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <svg
+      width="22"
+      height="22"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
       <path d="M3 17l5-6 4 4 6-8 3 3" />
       <path d="M3 21h18" />
     </svg>
   ),
   costs: (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <svg
+      width="22"
+      height="22"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
       <path d="M7 5l5 7 5-7M12 12v7M8 13h8M8 16h8" />
     </svg>
   ),
   mine: (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <svg
+      width="22"
+      height="22"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
       <circle cx="12" cy="8" r="3.6" />
       <path d="M4.5 20a7.5 7.5 0 0 1 15 0" />
     </svg>
@@ -69,12 +135,60 @@ function Badge({ badge }: { badge: number | true }) {
   const text = isDot ? "有待办" : `${badge} 条待办`;
   return (
     <>
-      <span className={isDot ? s.dot : s.badge} data-badge={isDot ? "dot" : "count"} aria-hidden="true">
+      <span
+        className={isDot ? s.dot : s.badge}
+        data-badge={isDot ? "dot" : "count"}
+        aria-hidden="true"
+      >
         {isDot ? "" : badge > 99 ? "99+" : badge}
       </span>
       <span className="sr-only">{text}</span>
     </>
   );
+}
+
+/**
+ * 这一位的抽屉内容（S3 的接缝）。
+ *
+ * peek 用预览卡平铺、half / full 用列表卡整宽 —— 同一份数据两个形态（`SheetCard`），
+ * 换档不换内容。工作台不在 `/meta/me/menus` 契约里（`visible` 恒为空），所以它兜一张
+ * 「进入模块」卡：D2 说的「不存在点了没反应的死键」也包括「开出来是张空面板」。
+ */
+function sheetCards(item: DockItem, stop: SheetStop, onSelect: () => void) {
+  const variant = stop === "peek" ? "preview" : "list";
+  const targets: MenuLike[] =
+    item.visible.length > 0
+      ? item.visible
+      : [{ key: item.id, label: item.label, href: item.href }];
+  return targets.map((menu) => (
+    <SheetCard
+      key={menu.href}
+      variant={variant}
+      href={menu.href}
+      title={menu.label}
+      note="进入模块"
+      onSelect={onSelect}
+    />
+  ));
+}
+
+/**
+ * 手机壳退场的兜底：≥768px 时收起抽屉。
+ *
+ * 抽屉是手机外壳的一部分 —— 用户在 767px 打开后横屏 / 拉宽窗口，桌面外壳上场，
+ * 抽屉不能悬在桌面屏上。这也是「桌面端不渲染该组件」的可验证形式。
+ */
+function useCloseOnDesktop(open: boolean, close: () => void) {
+  useEffect(() => {
+    if (!open) return;
+    const mq = window.matchMedia("(min-width: 768px)");
+    const sync = () => {
+      if (mq.matches) close();
+    };
+    sync();
+    mq.addEventListener("change", sync);
+    return () => mq.removeEventListener("change", sync);
+  }, [open, close]);
 }
 
 /**
@@ -92,27 +206,92 @@ export default function MobileDock(props: DockMenuInput) {
   const items = buildDockItems(props);
   const current = dockIdForPath(pathname);
 
+  // 「哪一位 + 开没开」分成两个状态：关闭时 slot 不清空，退场动画那 260ms 里
+  // 面板还得渲染这一位的内容，否则会看到一张空面板滑下去。
+  const [slot, setSlot] = useState<DockId | null>(null);
+  const [open, setOpen] = useState(false);
+  const [stop, setStop] = useState<SheetStop>("peek");
+  // 会话号：只在「关着 → 打开」时递增，作为 BottomSheet 的 key。
+  // 抽屉在退场动画里被重新打开时换一个实例，才能重新捕捉「焦点归还落点」
+  // （`useModalBehavior` 只在打开那一次记触发元素）。
+  const [session, setSession] = useState(0);
+  const shown = items.find((item) => item.id === slot) ?? null;
+
+  const close = useCallback(() => setOpen(false), []);
+
+  // 路由变了就收起：客户端导航不会卸载 layout，抽屉会悬在新页面上
+  useEffect(() => {
+    setOpen(false);
+  }, [pathname]);
+
+  useCloseOnDesktop(open, close);
+
+  /**
+   * 点 Dock 位（D2）。
+   *
+   * 三件事按顺序发生，缺一件就是另一个 bug：
+   *   1. `preventDefault` —— 点 Dock 只开抽屉，**不跳页**（href 留给无 JS / 新标签页）；
+   *   2. `focus()` —— 「关闭后焦点回到触发的 Dock 位」要成立，`useModalBehavior`
+   *      记下的必须是这一位（移动端 Safari 不会因为点按就给 <a> 焦点）；
+   *   3. 再点当前位：peek 收起；half / full 降回 peek —— 不存在「点了没反应」的死键。
+   */
+  function onDockTap(event: React.MouseEvent<HTMLAnchorElement>, id: DockId) {
+    event.preventDefault();
+    event.currentTarget.focus({ preventScroll: true });
+    if (open && slot === id) {
+      if (stop === "peek") setOpen(false);
+      else setStop("peek");
+      return;
+    }
+    setSlot(id);
+    setStop("peek");
+    if (!open) setSession((n) => n + 1);
+    setOpen(true);
+  }
+
   return (
-    <nav className={s.dock} aria-label="主导航" data-shell="dock">
-      {items.map((item) => {
-        const active = current === item.id;
-        return (
-          <Link
-            key={item.id}
-            href={item.href}
-            className={`${s.tab} ${active ? s.tabActive : ""}`}
-            // "page" 才是「当前页」的规范取值；原型里的 "true" 只对 aria-current 的
-            // 布尔语义成立，读屏在两处会读成不同的话。
-            aria-current={active ? "page" : undefined}
-            data-dock={item.id}
-          >
-            <span className={s.pill} aria-hidden="true" />
-            <span className={s.icon} aria-hidden="true">{ICON[item.id]}</span>
-            {item.badge !== undefined && <Badge badge={item.badge} />}
-            <span className={s.label}>{item.label}</span>
-          </Link>
-        );
-      })}
-    </nav>
+    <>
+      <nav className={s.dock} aria-label="主导航" data-shell="dock">
+        {items.map((item) => {
+          const active = current === item.id;
+          const expanded = open && slot === item.id;
+          return (
+            <Link
+              key={item.id}
+              href={item.href}
+              className={`${s.tab} ${active ? s.tabActive : ""}`}
+              // "page" 才是「当前页」的规范取值；原型里的 "true" 只对 aria-current 的
+              // 布尔语义成立，读屏在两处会读成不同的话。
+              aria-current={active ? "page" : undefined}
+              // 点按展开抽屉：对读屏是一个「展开 / 收起」的开关，不是一个页面链接
+              aria-expanded={expanded}
+              aria-haspopup="dialog"
+              aria-controls={expanded ? SHEET_ID : undefined}
+              data-dock={item.id}
+              onClick={(event) => onDockTap(event, item.id)}
+            >
+              <span className={s.pill} aria-hidden="true" />
+              <span className={s.icon} aria-hidden="true">
+                {ICON[item.id]}
+              </span>
+              {item.badge !== undefined && <Badge badge={item.badge} />}
+              <span className={s.label}>{item.label}</span>
+            </Link>
+          );
+        })}
+      </nav>
+
+      <BottomSheet
+        key={session}
+        id={SHEET_ID}
+        open={open}
+        stop={stop}
+        onStopChange={setStop}
+        onClose={close}
+        title={shown?.label ?? ""}
+      >
+        {shown && sheetCards(shown, stop, close)}
+      </BottomSheet>
+    </>
   );
 }

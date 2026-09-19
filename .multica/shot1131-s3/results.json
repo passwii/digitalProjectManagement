@@ -1,0 +1,477 @@
+[
+  {
+    "name": "验收账号就位（管理员 + 非管理员手机号账号）",
+    "ok": true,
+    "detail": "管理员 13900000001:已存在（复用）；非管理员 13900000002:已存在（复用）"
+  },
+  {
+    "name": "390×844：登录「品牌块 + 表单卡」整组垂直居中（整组中点 = 视口中心）",
+    "ok": true,
+    "detail": "整组中点=422.0 视口中心=422.0 偏差=+0.0px"
+  },
+  {
+    "name": "390×844：提示行脱离文档流（position: absolute，不参与居中）",
+    "ok": true,
+    "detail": "position=absolute 提示行 top=824.8 卡片 bottom=629.0"
+  },
+  {
+    "name": "390×844：卡片在视口内且左右留白对称（各 22px）",
+    "ok": true,
+    "detail": "左=22.0 右=22.0 宽=346.0"
+  },
+  {
+    "name": "390×844：首屏无滚动（纵向 / 横向都没有）",
+    "ok": true,
+    "detail": "scrollHeight=844 视口高=844 横向溢出=0px"
+  },
+  {
+    "name": "390×844：输入框高度 ≥44px（--m-tap 触控下限）",
+    "ok": true,
+    "detail": "手机号 46.0px / 密码 46.0px"
+  },
+  {
+    "name": "390×844：输入框字号 ≥16px（iOS 聚焦不自动放大整页）",
+    "ok": true,
+    "detail": "手机号 16px / 密码 16px"
+  },
+  {
+    "name": "品牌资产保留：SHZK 印章 / 字标 / slogan / 深色底 / 网格纹理铺满整页",
+    "ok": true,
+    "detail": "底色=rgb(22, 55, 92) 纹理={'w': 390, 'h': 844, 'size': '46px 46px, 46px 46px'}"
+  },
+  {
+    "name": "桌面大标题与 01/02/03 卖点行在手机端已删除",
+    "ok": true,
+    "detail": "可见 h1=0 个；品牌块文案=「数科云办公 复杂有章，交付有信。」"
+  },
+  {
+    "name": "软键盘抬起（可视高 500px）：品牌块 + 表单卡仍完整落在可视区内",
+    "ok": true,
+    "detail": "品牌块 top=43.0 主按钮底=437.0 可视区底=500.0"
+  },
+  {
+    "name": "密码框回车直接提交（不点按钮也能触发校验）",
+    "ok": true,
+    "detail": "请输入 11 位手机号账号"
+  },
+  {
+    "name": "软键盘抬起时错误提示仍在可视区内",
+    "ok": true,
+    "detail": "提示 top=354.6 底=395.4 可视区底=500.0"
+  },
+  {
+    "name": "校验逻辑与桌面一致：401 →「手机号或密码错误」",
+    "ok": true,
+    "detail": "手机号或密码错误"
+  },
+  {
+    "name": "360×780：登录整组仍居中且无横向溢出",
+    "ok": true,
+    "detail": "偏差=+0.0px 横向溢出=0px"
+  },
+  {
+    "name": "767px：登录页走手机分支（16px 输入框 + 提示行脱离文档流 + 无桌面大标题）",
+    "ok": true,
+    "detail": "输入框字号=16 提示行=absolute 可见 h1=0 main.display=flex"
+  },
+  {
+    "name": "768px：登录页回到桌面两栏（手机分支不泄漏）",
+    "ok": true,
+    "detail": "输入框字号=15 提示行=static 可见 h1=1 main.display=grid"
+  },
+  {
+    "name": "1440px：桌面登录页几何与视觉零变化（逐项对账改动前的实测值）",
+    "ok": true,
+    "detail": "11 项全部一致"
+  },
+  {
+    "name": "1440px：登录页可见文本节点齐备（卖点行 / 大标题 / 字标都在）",
+    "ok": true,
+    "detail": "可见元素 21 个"
+  },
+  {
+    "name": "登录（管理员 13900000001）",
+    "ok": true,
+    "detail": "http://127.0.0.1:3101/dashboard"
+  },
+  {
+    "name": "390px：Dock 在场且侧栏退场",
+    "ok": true,
+    "detail": "dock.display=grid sidebar.display=none"
+  },
+  {
+    "name": "Dock 贴底且满宽",
+    "ok": true,
+    "detail": "底边留白=0px x=0 宽=390 视口=390"
+  },
+  {
+    "name": "Dock 高度 = 58px（+ 安全区，桌面 Chrome 安全区为 0）",
+    "ok": true,
+    "detail": "实测 58px"
+  },
+  {
+    "name": "Dock 恒 5 位",
+    "ok": true,
+    "detail": "5 位"
+  },
+  {
+    "name": "Dock 位顺序 = 契约顺序（dashboard/projects/progress/costs/mine）",
+    "ok": true,
+    "detail": "dashboard / projects / progress / costs / mine"
+  },
+  {
+    "name": "标签顺序 = 工作台 / 项目 / 进度 / 支出 / 我的（D1）",
+    "ok": true,
+    "detail": "工作台 / 项目 / 进度 / 支出 / 我的"
+  },
+  {
+    "name": "D1：第 4 位是「支出」，不是「费用」",
+    "ok": true,
+    "detail": "第 4 位=支出"
+  },
+  {
+    "name": "单点触控 ≥44×44",
+    "ok": true,
+    "detail": "最小 73.6×46"
+  },
+  {
+    "name": "当前位高亮且只有一位",
+    "ok": true,
+    "detail": "aria-current=page 落在 ['dashboard']"
+  },
+  {
+    "name": "390px：外壳元素（顶栏 / Dock）都在视口内",
+    "ok": true,
+    "detail": "顶栏 right=390 dock right=390"
+  },
+  {
+    "name": "手机顶栏高度 = 52px（--m-appbar-h）",
+    "ok": true,
+    "detail": "实测 52px"
+  },
+  {
+    "name": "D3：管理员「我的」位出现待办红点",
+    "ok": true,
+    "detail": "红点 1 个"
+  },
+  {
+    "name": "D3：审批中心 / 系统管理 / 通讯录不出现在 Dock",
+    "ok": true,
+    "detail": "工作台 项目 进度 支出 有待办 我的"
+  },
+  {
+    "name": "D3 反证：三个管理入口仍在侧栏（隐藏外壳），只是不进 Dock",
+    "ok": true,
+    "detail": "SHZK数科云办公工作台项目台账进度跟踪支出记录支出报表管理与审批通讯录审批中心系统管理« 收起"
+  },
+  {
+    "name": "D1：/reports 高亮「支出」位",
+    "ok": true,
+    "detail": "['costs']"
+  },
+  {
+    "name": "360px：Dock 仍 5 位且满宽贴底",
+    "ok": true,
+    "detail": "宽=360 视口=360"
+  },
+  {
+    "name": "360px：Dock 标签不溢出不截断",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "360px：Dock 对整页横向溢出零贡献（隐藏前后溢出量相同）",
+    "ok": true,
+    "detail": "有 Dock=134px / 无 Dock=134px"
+  },
+  {
+    "name": "390px：内容装得下的页面（/costs）整页无横向溢出",
+    "ok": true,
+    "detail": "横向溢出 0px"
+  },
+  {
+    "name": "360px：内容装得下的页面（/costs）整页无横向溢出",
+    "ok": true,
+    "detail": "横向溢出 0px"
+  },
+  {
+    "name": "390px：弹层在主操作区不被固定 Dock 遮挡",
+    "ok": true,
+    "detail": "弹层 z=60 > Dock z=40，被挡住的按钮 0 个"
+  },
+  {
+    "name": "S3/D2：点「dashboard」位开 peek 且不跳页",
+    "ok": true,
+    "detail": "档位=peek URL=未变"
+  },
+  {
+    "name": "S3/D2：点「projects」位开 peek 且不跳页",
+    "ok": true,
+    "detail": "档位=peek URL=未变"
+  },
+  {
+    "name": "S3/D2：点「progress」位开 peek 且不跳页",
+    "ok": true,
+    "detail": "档位=peek URL=未变"
+  },
+  {
+    "name": "S3/D2：点「costs」位开 peek 且不跳页",
+    "ok": true,
+    "detail": "档位=peek URL=未变"
+  },
+  {
+    "name": "S3/D2：点「mine」位开 peek 且不跳页",
+    "ok": true,
+    "detail": "档位=peek URL=未变"
+  },
+  {
+    "name": "S3/D2：5 个 Dock 位都能开 peek",
+    "ok": true,
+    "detail": "dashboard / projects / progress / costs / mine"
+  },
+  {
+    "name": "再点当前位：peek 收起（面板已退场且不在命中链上）",
+    "ok": true,
+    "detail": "面板=已退场 / 命中=Dock"
+  },
+  {
+    "name": "peek 高度 ≤236px（契约上限）",
+    "ok": true,
+    "detail": "实测 195px"
+  },
+  {
+    "name": "peek 无遮罩（opacity=0 且不放行命中，页面照常可点）",
+    "ok": true,
+    "detail": "data-on=false opacity=0 pointer-events=none"
+  },
+  {
+    "name": "peek 贴底、满宽、顶部圆角 = --m-sheet-r(18px)",
+    "ok": true,
+    "detail": "底=844/844 宽=390/390 圆角=18"
+  },
+  {
+    "name": "peek 首张卡片完整可见，且不落在「Dock 带」里（内容不被 Dock 盖住）",
+    "ok": true,
+    "detail": "卡底=769.5 面板底=844 Dock 带=58px"
+  },
+  {
+    "name": "peek 是非模态档（aria-modal=false 且不锁页面滚动）",
+    "ok": true,
+    "detail": "aria-modal=false body.overflow=(空)"
+  },
+  {
+    "name": "打开抽屉时焦点落在面板内（焦点陷阱 / 归还的前提）",
+    "ok": true,
+    "detail": "activeElement=A"
+  },
+  {
+    "name": "抽屉层级低于 Dock（36 < 40）：遮罩不盖 Dock",
+    "ok": true,
+    "detail": "sheet z=36 dock z=40（再点当前位降档就靠这条）"
+  },
+  {
+    "name": "Esc：peek 收起，且焦点回到触发的 Dock 位（projects）",
+    "ok": true,
+    "detail": "面板=已退场 activeElement=projects"
+  },
+  {
+    "name": "上拖 >56px：peek → half",
+    "ok": true,
+    "detail": "档位=half"
+  },
+  {
+    "name": "half 高度 = 56% 视口（±2px）",
+    "ok": true,
+    "detail": "实测 472.6px / 期望 472.6px"
+  },
+  {
+    "name": "half 有遮罩，且遮罩可接收点击（pointer-events 已恢复）",
+    "ok": true,
+    "detail": "data-on=true pointer-events=auto"
+  },
+  {
+    "name": "half 比 peek 高（确实升了一档）",
+    "ok": true,
+    "detail": "面板顶 649 → 371.4"
+  },
+  {
+    "name": "换档不换内容：peek 与 half 是同一批卡片、只换形态（preview → list）",
+    "ok": true,
+    "detail": "卡片 ['项目台账'] / 形态 ['list']"
+  },
+  {
+    "name": "half 是模态档（aria-modal=true）",
+    "ok": true,
+    "detail": "aria-modal=true"
+  },
+  {
+    "name": "half（模态档）焦点陷阱生效：Tab 循环不逃出面板",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "上拖 >56px：half → full",
+    "ok": true,
+    "detail": "档位=full"
+  },
+  {
+    "name": "full 不遮状态栏（顶部留白 ≥40px）",
+    "ok": true,
+    "detail": "顶部留白 42px"
+  },
+  {
+    "name": "full 贴底且整屏（高度 ≥ 视口 - 60px）",
+    "ok": true,
+    "detail": "底=844/844 高=802"
+  },
+  {
+    "name": "下甩 >96px：full → half",
+    "ok": true,
+    "detail": "档位=half"
+  },
+  {
+    "name": "下甩 >96px：half → peek",
+    "ok": true,
+    "detail": "档位=peek"
+  },
+  {
+    "name": "下甩 >96px：peek → 关闭（面板退场）",
+    "ok": true,
+    "detail": "面板=已退场"
+  },
+  {
+    "name": "点遮罩关闭抽屉",
+    "ok": true,
+    "detail": "面板=已退场"
+  },
+  {
+    "name": "前置：先升到 half",
+    "ok": true,
+    "detail": "档位=half"
+  },
+  {
+    "name": "D2：再点当前位（half）→ 降回 peek 而不是关闭（无死键）",
+    "ok": true,
+    "detail": "档位=peek open=true"
+  },
+  {
+    "name": "降回 peek 后遮罩关闭",
+    "ok": true,
+    "detail": "data-on=false pointer-events=none"
+  },
+  {
+    "name": "Esc：half → peek（降一档，不是关闭）",
+    "ok": true,
+    "detail": "档位=peek"
+  },
+  {
+    "name": "peek 非模态：Shift+Tab 能离开面板（不把键盘用户关在无遮罩面板里）",
+    "ok": true,
+    "detail": "activeElement=mine"
+  },
+  {
+    "name": "D2：不做长按手势（按住 700ms 松手仍停在 peek，不进 half/full）",
+    "ok": true,
+    "detail": "档位=peek"
+  },
+  {
+    "name": "前置：half 档下列表可滚动（内容高于容器）",
+    "ok": true,
+    "detail": "档位=half scrollHeight=168 > clientHeight=123: True"
+  },
+  {
+    "name": "列表已滚过顶部：从列表上拖不动抽屉（滚动优先，不抢手势）",
+    "ok": true,
+    "detail": "档位=half 面板位移=0px scrollTop 60 → 0"
+  },
+  {
+    "name": "反向对照：列表回到顶部后，同一手势能升档（half → full）",
+    "ok": true,
+    "detail": "档位=full"
+  },
+  {
+    "name": "1440px：抽屉组件不渲染（root / panel 都不在 DOM 里）",
+    "ok": true,
+    "detail": "root=0 panel=0 dock.display=none"
+  },
+  {
+    "name": "抽屉开到 full：整页仍无横向溢出（对溢出零贡献）",
+    "ok": true,
+    "detail": "关闭时=0px 打开时=0px"
+  },
+  {
+    "name": "768px：侧栏在场、Dock 退场",
+    "ok": true,
+    "detail": "sidebar=flex dock=none"
+  },
+  {
+    "name": "767px：Dock 在场、侧栏退场",
+    "ok": true,
+    "detail": "dock=grid sidebar=none"
+  },
+  {
+    "name": "无 JS：服务端 HTML 同时含两套外壳（切换只能是 CSS）",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "无 JS @390px：可见外壳只有 Dock（首帧不会闪桌面侧栏）",
+    "ok": true,
+    "detail": "dock=grid sidebar=none"
+  },
+  {
+    "name": "无 JS @390px：Dock 仍渲染 5 位（不依赖客户端权限数据）",
+    "ok": true,
+    "detail": "5 位"
+  },
+  {
+    "name": "无 JS @1024px：可见外壳只有侧栏",
+    "ok": true,
+    "detail": "sidebar=flex dock=none"
+  },
+  {
+    "name": "1440px：侧栏在场、Dock 不在场",
+    "ok": true,
+    "detail": "sidebar=flex dock=none"
+  },
+  {
+    "name": "桌面项目台账仍是 table.grid（未改桌面表格）",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "Dock 5 个落点都可导航（RSC payload 全 200，无死键）",
+    "ok": true,
+    "detail": "/dashboard /projects /progress /costs /change-password"
+  },
+  {
+    "name": "登录（非管理员 13900000002）",
+    "ok": true,
+    "detail": "http://127.0.0.1:3101/dashboard"
+  },
+  {
+    "name": "非管理员：Dock 仍恒 5 位（角色不改位数）",
+    "ok": true,
+    "detail": "工作台 / 项目 / 进度 / 支出 / 我的"
+  },
+  {
+    "name": "D3：非管理员「我的」位没有红点",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "D3：非管理员 Dock 里看不到审批中心 / 系统管理 / 通讯录",
+    "ok": true,
+    "detail": "工作台 项目 进度 支出 我的"
+  },
+  {
+    "name": "§3.2：非管理员侧栏同样没有这三个入口（权限唯一入口未变）",
+    "ok": true,
+    "detail": "SHZK数科云办公工作台项目台账进度跟踪支出记录支出报表« 收起"
+  },
+  {
+    "name": "运行时无功能性 JS 异常",
+    "ok": true,
+    "detail": ""
+  }
+]
