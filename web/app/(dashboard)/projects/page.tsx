@@ -9,8 +9,8 @@ import { buildYearOptions, parseYearParam, yearToCodeFilter } from "@/lib/projec
 import { buildProjectListQuery } from "@/lib/projectFilters";
 import { useMeta, useMenus } from "@/lib/useMeta";
 import {
-  PROJECT_FLOW, PROJECT_STATUS, fmtMoney,
-  projectStatusLabel, projectTone,
+  CONTRACT_STATUS, PROJECT_FLOW, PROJECT_STATUS, fmtMoney,
+  contractStatusLabel, projectStatusLabel, projectTone,
 } from "@/lib/labels";
 import Badge from "@/components/ui/Badge";
 import Avatar from "@/components/ui/Avatar";
@@ -232,8 +232,8 @@ function ProjectsInner() {
                       tone={projectTone(p.status)}
                     />
                     <Badge
-                      status={p.contract_status || "未登记"}
-                      tone={p.contract_status === "已签订" ? "done" : "todo"}
+                      status={p.contract_status ? contractStatusLabel(p.contract_status) : "未登记"}
+                      tone={p.contract_status && CONTRACT_STATUS[p.contract_status] === "已签订" ? "done" : "todo"}
                     />
                   </>
                 }
@@ -336,7 +336,12 @@ function ProjectsInner() {
                       </span>
                     </td>
                     <td className="muted"><span className="ellipsis" title={p.client}>{p.client || "-"}</span></td>
-                    <td><Badge status={p.contract_status || "未登记"} tone={p.contract_status === "已签订" ? "done" : "todo"} /></td>
+                    <td>
+                      <Badge
+                        status={p.contract_status ? contractStatusLabel(p.contract_status) : "未登记"}
+                        tone={p.contract_status && CONTRACT_STATUS[p.contract_status] === "已签订" ? "done" : "todo"}
+                      />
+                    </td>
                     <td className="num">{fmtMoney(p.budget_total)}</td>
                     <td className="num">{p.progress ?? 0}%</td>
                     <td><Badge status={projectStatusLabel(p.status)} tone={projectTone(p.status)} /></td>
@@ -426,7 +431,7 @@ function ProjectsInner() {
               <div><dt>项目编号</dt><dd className="mono">{detail.code}</dd></div>
               <div><dt>项目负责人</dt><dd>{ownerText(detail)}</dd></div>
               <div><dt>客户 / 委托方</dt><dd>{detail.client || "-"}</dd></div>
-              <div><dt>合同状态</dt><dd>{detail.contract_status || "-"}</dd></div>
+              <div><dt>合同状态</dt><dd>{detail.contract_status ? contractStatusLabel(detail.contract_status) : "-"}</dd></div>
               <div><dt>前向合同（甲方）</dt><dd>{detail.forward_contract || "-"}</dd></div>
               <div><dt>后向合同（乙方）</dt><dd>{detail.backward_contract || "-"}</dd></div>
               <div><dt>合同金额</dt><dd className="mono">{fmtMoney(detail.budget_total)} 元</dd></div>
