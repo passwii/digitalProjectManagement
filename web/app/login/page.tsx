@@ -61,10 +61,10 @@ export default function LoginPage() {
         <div className={st.storyGrid} aria-hidden />
         <div className={st.storyTop}>
           <span className={st.mark}>数科云办公</span>
-          <span className={st.edition}>OA / PROJECT DELIVERY</span>
+          <span className={st.edition}>项目协同 · 交付管理</span>
         </div>
         <div className={st.storyMain}>
-          <p className={st.kicker}>Digital Project Operations</p>
+          <p className={st.kicker}>数字化项目运营</p>
           <h1>数科云办公</h1>
           <p className={st.storyText}>
             复杂有章，交付有信。

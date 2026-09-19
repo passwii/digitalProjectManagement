@@ -8,7 +8,7 @@ import {
 import { useAsyncData } from "@/lib/useAsyncData";
 import { urlInt, useUrlState, useUrlText } from "@/lib/useUrlState";
 import { useMeta, useMenus } from "@/lib/useMeta";
-import { fmtDateTime } from "@/lib/labels";
+import { fmtDateTime, projectStatusLabel } from "@/lib/labels";
 import Badge from "@/components/ui/Badge";
 import Empty from "@/components/ui/Empty";
 import Pagination from "@/components/ui/Pagination";
@@ -370,7 +370,7 @@ function AdminInner() {
                   <tr key={p.id}>
                     <td className="mono tiny">{p.code}</td>
                     <td><span className="ellipsis" title={p.name}>{p.name}</span></td>
-                    <td>{p.status}</td>
+                    <td>{projectStatusLabel(p.status)}</td>
                     <td className="mono tiny">{fmtDateTime(p.deleted_at)}</td>
                     <td className="no-print">
                       <button
