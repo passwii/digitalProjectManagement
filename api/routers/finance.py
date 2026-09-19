@@ -7,11 +7,12 @@ from typing import Any, cast
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query
 from pydantic import BaseModel, Field
+from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from ..core.audit import commit_audited
-from ..core.database import get_db
+from ..core.database import Base, get_db
 from ..core.deps import get_current_user
 from ..core.rbac import is_admin
 from ..core.timeutil import app_now
@@ -119,7 +120,7 @@ def _seed_accounts(db: Session, book_id: int) -> None:
         ("3001", "实收资本", "C", "权益", None, {}),
         ("6001", "主营业务收入", "C", "损益", None, {}),
         ("6401", "主营业务成本", "D", "成本", None, {}),
-        ("6602", "管理费用", "D", "损益", None, {"department": True}),
+        ("6602", "管理费用", "D", "损益", None, {"dept": True}),
     )
     for code, name, direction, category, parent_code, aux_flags in seeds:
         row = db.query(Account).filter_by(account_book_id=book_id, code=code).first()
@@ -367,8 +368,6 @@ def _validate_account_code(
         parent_model = cast(Any, parent)
         if not parent_model.is_active:
             raise HTTPException(400, "父科目已停用，不能新增下级")
-        if not parent_model.is_leaf:
-            raise HTTPException(400, "父科目已有下级，不能继续新增")
         if (
             parent_model.direction != body.direction
             or parent_model.category != body.category
@@ -449,13 +448,36 @@ def toggle_account(
     row = db.query(Account).filter_by(id=account_id, account_book_id=book.id).first()
     if not row:
         raise HTTPException(404, "科目不存在")
-    if (
-        not active
-        and db.query(Account)
-        .filter_by(parent_id=row.id, account_book_id=book.id)
-        .first()
-    ):
-        raise HTTPException(400, "有下级科目时不能停用")
+    if not active:
+        if (
+            db.query(Account)
+            .filter_by(parent_id=row.id, account_book_id=book.id)
+            .first()
+        ):
+            raise HTTPException(400, "有下级科目时不能停用")
+        has_balance = (
+            db.query(OpeningBalance)
+            .filter(
+                OpeningBalance.account_book_id == book.id,
+                OpeningBalance.account_id == row.id,
+                (OpeningBalance.debit != 0) | (OpeningBalance.credit != 0),
+            )
+            .first()
+        )
+        if has_balance:
+            raise HTTPException(400, "科目有期末余额或期初余额，不能停用")
+        # P0-A has no voucher/ledger tables yet.  Keep this query explicit so
+        # the guard automatically covers the first transaction tables when
+        # they are introduced, without weakening the zero-activity contract.
+        for table_name in ("journal_entry_lines", "voucher_lines", "ledger_entries"):
+            table = Base.metadata.tables.get(table_name)
+            if table is not None and db.execute(
+                select(table.c.id).where(
+                    table.c.account_book_id == book.id,
+                    table.c.account_id == row.id,
+                ).limit(1)
+            ).first():
+                raise HTTPException(400, "科目本期已有发生额，不能停用")
     cast(Any, row).is_active = active
     commit_audited(db, user.id, "update", "account", str(row.id), f"active={active}")
     return {"id": row.id, "is_active": row.is_active}

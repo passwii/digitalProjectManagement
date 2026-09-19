@@ -193,6 +193,9 @@ class AuxiliaryItem(Base):
   created_at = Column(DateTime, default=_now, nullable=False)
   __table_args__ = (
     UniqueConstraint("account_book_id", "kind", "code", name="uq_aux_book_kind_code"),
+    # Required by the composite FK from account_auxiliaries.  PostgreSQL
+    # requires the referenced column pair to be covered by a unique key.
+    UniqueConstraint("account_book_id", "id", name="uq_auxiliary_items_book_id"),
     CheckConstraint(
       "kind IN ('customer','vendor','department','employee','project','cashflow')",
       name="ck_aux_kind",

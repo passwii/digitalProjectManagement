@@ -55,6 +55,21 @@ def test_finance_account_validation_and_auxiliary_api(client):
     )
     assert invalid_root.status_code == 400
 
+    accounts = client.get("/api/v1/finance/accounts/tree", headers=scoped).json()
+    # A seeded parent may already have one child; adding a sibling remains valid.
+    sibling = client.post(
+        "/api/v1/finance/accounts",
+        json={
+            "code": "100202",
+            "name": "工行一般户",
+            "direction": "D",
+            "category": "资产",
+            "parent_id": next(row["id"] for row in accounts if row["code"] == "1002"),
+        },
+        headers=scoped,
+    )
+    assert sibling.status_code == 200
+
     auxiliary = client.post(
         "/api/v1/finance/auxiliary-items",
         json={"kind": "department", "code": "D01", "name": "管理部"},
@@ -73,6 +88,34 @@ def test_finance_account_validation_and_auxiliary_api(client):
         len(client.get("/api/v1/finance/account-auxiliaries", headers=scoped).json())
         == 1
     )
+
+
+def test_account_deactivation_requires_zero_balance(client):
+    headers = _auth(client, "admin", "admin123456")
+    book = _book(client, headers, "REVIEW-E")
+    scoped = {**headers, "X-Account-Book": book["code"]}
+    accounts = client.get("/api/v1/finance/accounts/tree", headers=scoped).json()
+    target = next(row for row in accounts if row["code"] == "1405")
+
+    opening = client.post(
+        "/api/v1/finance/opening-balances",
+        json={"account_id": target["id"], "debit": "1.00", "credit": "0.00"},
+        headers=scoped,
+    )
+    assert opening.status_code == 200
+    blocked = client.patch(
+        f"/api/v1/finance/accounts/{target['id']}?active=false",
+        headers=scoped,
+    )
+    assert blocked.status_code == 400
+
+    zero_target = next(row for row in accounts if row["code"] == "1601")
+    disabled = client.patch(
+        f"/api/v1/finance/accounts/{zero_target['id']}?active=false",
+        headers=scoped,
+    )
+    assert disabled.status_code == 200
+    assert disabled.json()["is_active"] is False
 
 
 def test_period_reopen_requires_confirmation_reverse_order_and_version(client):

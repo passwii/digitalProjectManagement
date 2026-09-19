@@ -217,6 +217,9 @@ def upgrade():
             sa.UniqueConstraint(
                 "account_book_id", "kind", "code", name="uq_aux_book_kind_code"
             ),
+            sa.UniqueConstraint(
+                "account_book_id", "id", name="uq_auxiliary_items_book_id"
+            ),
             sa.CheckConstraint(
                 "kind IN ('customer','vendor','department','employee','project','cashflow')",
                 name="ck_aux_kind",
