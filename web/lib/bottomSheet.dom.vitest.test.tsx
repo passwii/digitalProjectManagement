@@ -17,22 +17,35 @@
  * 最终口径；这里是防回退的门，不是替代。
  */
 import { readFileSync } from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { cleanup, fireEvent, render } from "@testing-library/react";
 
 import BottomSheet from "../components/mobile/BottomSheet";
 import { DRAG_SLOP } from "@/lib/sheetGesture";
 
+// 不用 `new URL("…", import.meta.url)`：Vite 会把它当静态资源引用重写成
+// dev-server 地址（http://localhost:3000/…），readFileSync 就报
+// "The URL must be of scheme file"。走 fileURLToPath + path.resolve
+// 避开这个 AST 模式，拿到的是真实磁盘路径。
 const css = readFileSync(
-  new URL("../components/mobile/BottomSheet.module.css", import.meta.url),
+  path.resolve(
+    path.dirname(fileURLToPath(import.meta.url)),
+    "../components/mobile/BottomSheet.module.css",
+  ),
   "utf8",
 );
 
-/** 取顶层 `.panel { … }` 规则块（不含 `[data-sheet]` 变体） */
+/** 去掉 CSS 注释再断言：`.panel` 块里的注释会提到 grip / head 的
+ *  `touch-action: none`，不剥掉是否定断言会被注释文字误伤。 */
+function stripComments(rule: string): string {
+  return rule.replace(/\/\*[\s\S]*?\*\//g, "");
+}
 function panelRule(): string {
-  const m = css.match(/\.panel\s*\{([^}]*)\}/);
+  const m = css.match(/^\.panel\s*\{([^}]*)\}/m);
   if (!m) throw new Error("找不到 .panel 规则");
-  return m[1];
+  return stripComments(m[1]);
 }
 
 describe("BottomSheet touch-action（PR #36 阻塞项）", () => {
