@@ -94,6 +94,29 @@ export const CONTRACT_ATTACHMENT_ACCEPT = acceptFor(CONTRACT_ATTACHMENT_EXTENSIO
 /** 由支出票据白名单生成的 `<input accept>` 值。 */
 export const VOUCHER_ATTACHMENT_ACCEPT = acceptFor(VOUCHER_ATTACHMENT_EXTENSIONS);
 
+/**
+ * 友商资料白名单（与 `api/routers/partners.py` 的 `ALLOWED_EXT` 一致）。
+ *
+ * 集合上与人员档案相同，但以友商接口为准独立命名：友商口径变化时只改这里，
+ * 不会误伤通讯录入口（与支出票据独立命名同一理由）。
+ */
+export const PARTNER_ATTACHMENT_EXTENSIONS: readonly string[] = [
+  ".pdf",
+  ".doc",
+  ".docx",
+  ".xls",
+  ".xlsx",
+  ".png",
+  ".jpg",
+  ".jpeg",
+];
+
+/** 友商资料上传区统一提示文案（数字来自 {@link MAX_ATTACHMENT_SIZE}）。 */
+export const PARTNER_ATTACHMENT_HINT = `支持 PDF / Word / Excel / 图片，单个文件不超过 ${MAX_ATTACHMENT_SIZE_LABEL}`;
+
+/** 由友商资料白名单生成的 `<input accept>` 值。 */
+export const PARTNER_ATTACHMENT_ACCEPT = acceptFor(PARTNER_ATTACHMENT_EXTENSIONS);
+
 /** 由人员档案附件白名单生成的 `<input accept>` 值。 */
 export const CONTACT_ATTACHMENT_ACCEPT = acceptFor(CONTACT_ATTACHMENT_EXTENSIONS);
 

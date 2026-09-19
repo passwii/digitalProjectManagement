@@ -1055,3 +1055,107 @@ export const dashboardApi = {
   weekly: (projectId = 0) =>
     apiGet<Weekly>(`/dashboard/my-weekly${projectId ? `?project_id=${projectId}` : ""}`),
 };
+
+// ---------------- 我的友商（BLF-1152 后端 / BLF-1153 前端） ----------------
+// 契约见 `api/routers/partners.py`：全接口仅管理员；列表统一分页信封；
+// 人员/业绩合同是作用域内小集合（返回数组）；附件 `ref_type='partner'` + 分类。
+export type PartnerAttachmentCategory =
+  | "qual_cert"
+  | "performance"
+  | "contract"
+  | "other";
+
+/** 附件分类中文名（与后端 `ATTACHMENT_CATEGORY_LABELS` 同口径）。 */
+export const PARTNER_ATTACHMENT_CATEGORY_LABELS: Record<PartnerAttachmentCategory, string> = {
+  qual_cert: "资质证书",
+  performance: "业绩证明",
+  contract: "合同扫描",
+  other: "其他",
+};
+
+export interface PartnerAttachment extends Attachment {
+  category: PartnerAttachmentCategory | "";
+  category_label?: string;
+}
+
+export interface PartnerMember {
+  id: number;
+  partner_id: number;
+  name: string;
+  position: string;
+  phone: string;
+  email: string;
+  remark: string;
+  created_at: string | null;
+}
+
+export interface PartnerContract {
+  id: number;
+  partner_id: number;
+  project_name: string;
+  amount: number;
+  signed_date: string | null;
+  remark: string;
+  created_at: string | null;
+}
+
+export interface Partner {
+  id: number;
+  name: string;
+  partner_type: string;
+  contact_name: string;
+  phone: string;
+  email: string;
+  address: string;
+  remark: string;
+  /** 列表行携带计数；详情携带数组（两者不同时出现，用可选字段如实表达）。 */
+  member_count?: number;
+  contract_count?: number;
+  members?: PartnerMember[];
+  contracts?: PartnerContract[];
+  attachment_count: number;
+  created_at: string | null;
+  updated_at: string | null;
+}
+
+export const partnersApi = {
+  list: (q = "", signal?: AbortSignal) =>
+    apiGet<Paged<Partner>>(`/partners${q}`, signal),
+  get: (id: number) => apiGet<Partner>(`/partners/${id}`),
+  create: (body: Record<string, unknown>) =>
+    apiPost<Partner>("/partners", body),
+  update: (id: number, body: Record<string, unknown>) =>
+    apiPatch<Partner>(`/partners/${id}`, body),
+  remove: (id: number) => apiDelete<{ ok: boolean }>(`/partners/${id}`),
+  members: (pid: number, signal?: AbortSignal) =>
+    apiGet<PartnerMember[]>(`/partners/${pid}/members`, signal),
+  createMember: (pid: number, body: Record<string, unknown>) =>
+    apiPost<PartnerMember>(`/partners/${pid}/members`, body),
+  updateMember: (pid: number, mid: number, body: Record<string, unknown>) =>
+    apiPatch<PartnerMember>(`/partners/${pid}/members/${mid}`, body),
+  deleteMember: (pid: number, mid: number) =>
+    apiDelete<{ ok: boolean }>(`/partners/${pid}/members/${mid}`),
+  contracts: (pid: number, signal?: AbortSignal) =>
+    apiGet<PartnerContract[]>(`/partners/${pid}/contracts`, signal),
+  createContract: (pid: number, body: Record<string, unknown>) =>
+    apiPost<PartnerContract>(`/partners/${pid}/contracts`, body),
+  updateContract: (pid: number, cid: number, body: Record<string, unknown>) =>
+    apiPatch<PartnerContract>(`/partners/${pid}/contracts/${cid}`, body),
+  deleteContract: (pid: number, cid: number) =>
+    apiDelete<{ ok: boolean }>(`/partners/${pid}/contracts/${cid}`),
+  attachments: (pid: number, category: PartnerAttachmentCategory | "" = "", signal?: AbortSignal) =>
+    apiGet<PartnerAttachment[]>(
+      `/partners/${pid}/attachments${category ? `?category=${encodeURIComponent(category)}` : ""}`,
+      signal,
+    ),
+  upload: (pid: number, category: PartnerAttachmentCategory, file: File, options?: UploadOptions) => {
+    const fd = new FormData();
+    fd.append("category", category);
+    fd.append("file", file);
+    return apiUpload<PartnerAttachment>(`/partners/${pid}/attachments`, fd, options);
+  },
+  downloadAttachment: (pid: number, aid: number, filename: string) =>
+    downloadFile(`/partners/${pid}/attachments/${aid}/download`, filename),
+  deleteAttachment: (pid: number, aid: number) =>
+    apiDelete<{ ok: boolean }>(`/partners/${pid}/attachments/${aid}`),
+};
