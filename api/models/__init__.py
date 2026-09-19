@@ -361,6 +361,65 @@ class ApprovalRecord(Base):
   __table_args__ = (Index("ix_approval_records_ref", "kind", "ref_id", "id"),)
 
 
+class Partner(Base):
+  """我的友商（BLF-1152）：竞对 / 陪标单位信息主数据，仅管理员维护。"""
+
+  __tablename__ = "partners"
+  id = Column(Integer, primary_key=True)
+  name = Column(String(128), unique=True, nullable=False, index=True)
+  # 类型可配：取值建议来自 dicts(type='partner_type')（嵩讯/个体户/陪标单位/其他），
+  # 字段本身只做长度校验，新增类型无需改代码、加字典行即可。
+  partner_type = Column(String(32), default="", index=True)
+  contact_name = Column(String(64), default="")
+  phone = Column(String(64), default="")
+  email = Column(String(128), default="")
+  address = Column(String(255), default="")
+  remark = Column(Text, default="")
+  created_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+  updated_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+  created_at = Column(DateTime, default=_now)
+  updated_at = Column(DateTime, default=_now, onupdate=_now)
+  members = relationship(
+    "PartnerMember", back_populates="partner", cascade="all, delete-orphan"
+  )
+  contracts = relationship(
+    "PartnerContract", back_populates="partner", cascade="all, delete-orphan"
+  )
+
+
+class PartnerMember(Base):
+  """友商人员子表：挂在单个友商下，随友商删除级联。"""
+
+  __tablename__ = "partner_members"
+  id = Column(Integer, primary_key=True)
+  partner_id = Column(
+    Integer, ForeignKey("partners.id", ondelete="CASCADE"), nullable=False, index=True
+  )
+  name = Column(String(64), nullable=False, default="")
+  position = Column(String(64), default="")
+  phone = Column(String(64), default="")
+  email = Column(String(128), default="")
+  remark = Column(Text, default="")
+  created_at = Column(DateTime, default=_now)
+  partner = relationship("Partner", back_populates="members")
+
+
+class PartnerContract(Base):
+  """友商业绩合同子表：项目名 / 金额 / 时间，随友商删除级联。"""
+
+  __tablename__ = "partner_contracts"
+  id = Column(Integer, primary_key=True)
+  partner_id = Column(
+    Integer, ForeignKey("partners.id", ondelete="CASCADE"), nullable=False, index=True
+  )
+  project_name = Column(String(128), nullable=False, default="")
+  amount = Column(Float, default=0)
+  signed_date = Column(Date, nullable=True)
+  remark = Column(Text, default="")
+  created_at = Column(DateTime, default=_now)
+  partner = relationship("Partner", back_populates="contracts")
+
+
 class AuditLog(Base):
   __tablename__ = "audit_logs"
   id = Column(Integer, primary_key=True)

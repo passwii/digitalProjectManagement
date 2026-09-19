@@ -23,6 +23,9 @@ DICTS = [
     ("project_status", "doing", "进行中"), ("project_status", "paused", "暂停"),
     ("project_status", "done", "已完成"), ("project_status", "archived", "已归档"),
     ("project_status", "cancelled", "已取消"),
+    # 我的友商类型维度（BLF-1152）：可配，新增类型加行即可，前端经 /meta/dicts?type=partner_type 取选项。
+    ("partner_type", "songxun", "嵩讯"), ("partner_type", "getihu", "个体户"),
+    ("partner_type", "peibiao", "陪标单位"), ("partner_type", "other", "其他"),
 ]
 
 PARAMS = {
