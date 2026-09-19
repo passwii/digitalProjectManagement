@@ -291,6 +291,8 @@ def shell_state(page) -> dict:
                 vw: window.innerWidth, vh: window.innerHeight,
                 overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
                 bodyOverflow: document.body.scrollWidth - document.body.clientWidth,
+                scrollHeight: document.documentElement.scrollHeight,
+                clientHeight: document.documentElement.clientHeight,
             };
         }"""
     )
@@ -1554,6 +1556,11 @@ def main() -> int:
             root_width["overflow"] <= 1,
             f"viewport={root_width['viewport']} html={root_width['html']} "
             f"body={root_width['body']} overflow={root_width['overflow']}",
+        )
+        record(
+            "手机端页面保留纵向滚动能力",
+            root_width["scrollHeight"] >= root_width["clientHeight"],
+            f"scrollHeight={root_width['scrollHeight']} clientHeight={root_width['clientHeight']}",
         )
         record(
             "touch-action: manipulation（无双击缩放误触）",
