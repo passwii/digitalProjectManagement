@@ -4,7 +4,12 @@ import { useEffect, useRef, useState } from "react";
 import { classifyTransferFailure, batchFailureToast, failureToast } from "@/lib/uploadErrors";
 import { errText, projectsApi, type Attachment, type Project } from "@/lib/api";
 import { useMeta } from "@/lib/useMeta";
-import { CONTRACT_STATUSES, PROJECT_OWNERS } from "@/lib/labels";
+import {
+  CONTRACT_STATUSES,
+  contractStatusLabel,
+  isKnownContractStatus,
+  PROJECT_OWNERS,
+} from "@/lib/labels";
 import { ATTACHMENT_HINT, CONTRACT_ATTACHMENT_EXTENSIONS } from "@/lib/uploadLimits";
 import { useForm } from "@/lib/useForm";
 import { useUploadQueue } from "@/lib/useUploadQueue";
@@ -51,7 +56,8 @@ function toValues(p?: Project | null): FormValues {
     client_contact: p.client_contact || "",
     client_phone: p.client_phone || "",
     description: p.description || "",
-    contract_status: p.contract_status || "未签订",
+    // 历史数据可能仍返回 signed/unsigned 等英文值；表单展示统一中文，提交仍使用中文契约值。
+    contract_status: contractStatusLabel(p.contract_status || "未签订"),
     forward_contract: p.forward_contract || "",
     backward_contract: p.backward_contract || "",
   };
@@ -122,6 +128,12 @@ export default function ProjectFormDialog({
   async function submit() {
     if (!form.validate()) return;
     const v = form.values;
+    if (!isKnownContractStatus(v.contract_status)) {
+      setFormErr(
+        `检测到历史合同状态“${v.contract_status}”，请重新选择“已签订”或“未签订”后再保存。`,
+      );
+      return;
+    }
     const match = users.find((u) => u.real_name === v.owner_name);
     const payload: Record<string, unknown> = {
       code: v.code.trim(),
@@ -279,9 +291,26 @@ export default function ProjectFormDialog({
         </div>
         <div className="form-grid">
           <Field label="合同状态" required>
-            <select value={form.values.contract_status} onChange={(e) => form.set("contract_status", e.target.value)}>
-              {CONTRACT_STATUSES.map((v) => <option key={v} value={v}>{v}</option>)}
+            <select
+              value={form.values.contract_status}
+              onChange={(e) => form.set("contract_status", e.target.value)}
+            >
+              {!isKnownContractStatus(form.values.contract_status) && (
+                <option value={form.values.contract_status} disabled>
+                  历史状态：{form.values.contract_status}（请重新选择）
+                </option>
+              )}
+              {CONTRACT_STATUSES.map((v) => (
+                <option key={v} value={v}>
+                  {v}
+                </option>
+              ))}
             </select>
+            {!isKnownContractStatus(form.values.contract_status) && (
+              <span className="field-hint">
+                该历史值无法直接提交，请选择一个有效合同状态。
+              </span>
+            )}
           </Field>
           {form.values.contract_status === "已签订" && (
             <>

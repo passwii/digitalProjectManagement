@@ -15,7 +15,16 @@ import {
   type TransferFailure,
 } from "@/lib/uploadErrors";
 import { useMeta } from "@/lib/useMeta";
-import { expenseStatusLabel, expenseTone, fmtDate, fmtDateTime, fmtMoney } from "@/lib/labels";
+import {
+  contractStatusLabel,
+  expenseStatusLabel,
+  expenseTone,
+  fmtDate,
+  fmtDateTime,
+  fmtMoney,
+  projectChangeFieldLabel,
+  projectChangeValueLabel,
+} from "@/lib/labels";
 import {
   CONTRACT_ATTACHMENT_EXTENSIONS, DOCUMENT_ATTACHMENT_EXTENSIONS, IMAGE_ATTACHMENT_EXTENSIONS,
   MAX_ATTACHMENT_SIZE_LABEL, formatFileSize,
@@ -404,7 +413,7 @@ function ProjectDetail({ pid }: { pid: number }) {
           <div className="project-meta">
             <span>负责人：{owner || "-"}</span>
             <span>客户：{project.client || "-"}</span>
-            <span>合同：{project.contract_status || "未登记"}</span>
+            <span>合同：{project.contract_status ? contractStatusLabel(project.contract_status) : "未登记"}</span>
           </div>
         </div>
         <div className="actions no-print">
@@ -558,7 +567,10 @@ function ProjectDetail({ pid }: { pid: number }) {
           <div className="contract-grid">
             <div className="contract-card">
               <span>合同状态</span>
-              <Badge status={project.contract_status || "未登记"} tone={project.contract_status === "已签订" ? "done" : "todo"} />
+              <Badge
+                status={project.contract_status ? contractStatusLabel(project.contract_status) : "未登记"}
+                tone={contractStatusLabel(project.contract_status) === "已签订" ? "done" : "todo"}
+              />
             </div>
             <div className="contract-card">
               <span>合同金额</span>
@@ -675,7 +687,10 @@ function ProjectDetail({ pid }: { pid: number }) {
               {changes.map((c) => (
                 <li key={c.id}>
                   <span className="t mono">{fmtDateTime(c.at)}</span>
-                  <span><b>{c.field}</b>：<span className="muted">{c.old || "空"}</span> → <span>{c.new || "空"}</span></span>
+                  <span>
+                    <b>{projectChangeFieldLabel(c.field)}</b>：
+                    <span className="muted">{projectChangeValueLabel(c.field, c.old)}</span> → {projectChangeValueLabel(c.field, c.new)}
+                  </span>
                 </li>
               ))}
             </ul>

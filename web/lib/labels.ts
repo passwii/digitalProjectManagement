@@ -1,5 +1,5 @@
 // 枚举中文映射与格式化工具（与 api/seed.py DICTS、后端状态码对齐）
-import type { BadgeTone } from "@/components/ui/Badge";
+import type { BadgeTone } from "../components/ui/Badge";
 
 export const PROJECT_STATUS: Record<string, string> = {
   draft: "草稿",
@@ -50,16 +50,84 @@ export const PROJECT_OWNERS = [
 export const EXPENSE_PEOPLE = PROJECT_OWNERS;
 export const CONTRACT_STATUSES = ["已签订", "未签订"] as const;
 
+/** 合同状态同时兼容历史接口可能返回的英文值；提交时仍使用后端约定的原始值。 */
+export const CONTRACT_STATUS: Record<string, string> = {
+  signed: "已签订",
+  contracted: "已签订",
+  unsigned: "未签订",
+  uncontracted: "未签订",
+  已签订: "已签订",
+  未签订: "未签订",
+};
+
+/** 变更留痕里的字段名映射，避免把后端字段名直接暴露给用户。 */
+export const PROJECT_CHANGE_FIELD_LABELS: Record<string, string> = {
+  code: "项目编号",
+  name: "项目名称",
+  type: "项目类型",
+  dept_id: "所属部门",
+  owner_id: "负责人编号",
+  owner_name: "项目负责人",
+  plan_start: "计划开始日期",
+  plan_end: "计划结束日期",
+  budget_total: "合同金额",
+  priority: "优先级",
+  client: "客户 / 委托方",
+  client_contact: "客户联系人",
+  client_phone: "联系方式",
+  description: "项目简介",
+  contract_status: "合同状态",
+  forward_contract: "前向合同（甲方）",
+  backward_contract: "后向合同（乙方）",
+  status: "项目状态",
+  member_ids: "项目成员",
+  members: "项目成员",
+  progress_snapshot: "进度快照",
+};
 export const FOLLOWUP_METHODS = ["电话", "会议", "现场", "邮件", "其他"];
 
 export const PRIORITIES = ["高", "中", "低"];
 
 export const PROJECT_TYPES = ["研发", "实施", "咨询", "工程"];
 
-export function projectStatusLabel(code: string): string {
-  return PROJECT_STATUS[code] ?? code ?? "-";
+export function projectStatusLabel(code: string | null | undefined): string {
+  const raw = typeof code === "string" ? code.trim() : "";
+  return raw ? (PROJECT_STATUS[raw] ?? raw) : "-";
 }
 
+export function contractStatusLabel(code: string | null | undefined): string {
+  const raw = typeof code === "string" ? code.trim() : "";
+  return raw ? (CONTRACT_STATUS[raw] ?? raw) : "-";
+}
+
+export function isKnownContractStatus(code: string | null | undefined): boolean {
+  const raw = typeof code === "string" ? code.trim() : "";
+  return raw in CONTRACT_STATUS;
+}
+
+/** 变更记录字段名的展示文案；未知字段保留原值，便于追溯新接口字段。 */
+export function projectChangeFieldLabel(
+  field: string | null | undefined,
+): string {
+  const raw = field?.trim();
+  if (!raw) return "未知字段";
+  return PROJECT_CHANGE_FIELD_LABELS[raw] ?? raw;
+}
+
+/**
+ * 变更记录值的展示文案。
+ * 仅转换展示层状态值，不修改 ProjectChange 的原始响应，也不影响后续请求参数。
+ */
+export function projectChangeValueLabel(
+  field: string | null | undefined,
+  value: string | null | undefined,
+): string {
+  if (value == null || value.trim() === "") return "空";
+  const rawField = field?.trim();
+  if (rawField === "status") return projectStatusLabel(value);
+  if (rawField === "contract_status") return contractStatusLabel(value);
+  return value;
+}
 export function taskStatusLabel(code: string): string {
   return TASK_STATUS[code] ?? code ?? "-";
 }
