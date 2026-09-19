@@ -21,6 +21,13 @@ data/
 # agent 运行产物（日志/截图/本地凭据），绝不进仓库
 .multica/
 
+# 本地代码索引运行数据
+.codegraph/
+
+# 项目使用 npm；忽略误生成的 pnpm workspace 文件
+/web/pnpm-lock.yaml
+/web/pnpm-workspace.yaml
+
 # os
 .DS_Store
 
