@@ -2,7 +2,9 @@
 
 
 def _auth(client, username, password):
-    response = client.post("/api/v1/auth/login", json={"username": username, "password": password})
+    response = client.post(
+        "/api/v1/auth/login", json={"username": username, "password": password}
+    )
     assert response.status_code == 200
     return {"Authorization": f"Bearer {response.json()['access_token']}"}
 
@@ -21,10 +23,12 @@ def test_finance_books_seed_full_tree_and_isolate_reads(client):
     second = _book(client, headers, "REVIEW-B")
 
     first_accounts = client.get(
-        "/api/v1/finance/accounts/tree", headers={**headers, "X-Account-Book": first["code"]}
+        "/api/v1/finance/accounts/tree",
+        headers={**headers, "X-Account-Book": first["code"]},
     )
     second_accounts = client.get(
-        "/api/v1/finance/accounts/tree", headers={**headers, "X-Account-Book": second["code"]}
+        "/api/v1/finance/accounts/tree",
+        headers={**headers, "X-Account-Book": second["code"]},
     )
     assert first_accounts.status_code == second_accounts.status_code == 200
     assert len(first_accounts.json()) >= 15
@@ -41,7 +45,12 @@ def test_finance_account_validation_and_auxiliary_api(client):
 
     invalid_root = client.post(
         "/api/v1/finance/accounts",
-        json={"code": "100201", "name": "非法一级", "direction": "D", "category": "资产"},
+        json={
+            "code": "100201",
+            "name": "非法一级",
+            "direction": "D",
+            "category": "资产",
+        },
         headers=scoped,
     )
     assert invalid_root.status_code == 400
@@ -60,7 +69,10 @@ def test_finance_account_validation_and_auxiliary_api(client):
         headers=scoped,
     )
     assert link.status_code == 200
-    assert len(client.get("/api/v1/finance/account-auxiliaries", headers=scoped).json()) == 1
+    assert (
+        len(client.get("/api/v1/finance/account-auxiliaries", headers=scoped).json())
+        == 1
+    )
 
 
 def test_period_reopen_requires_confirmation_reverse_order_and_version(client):

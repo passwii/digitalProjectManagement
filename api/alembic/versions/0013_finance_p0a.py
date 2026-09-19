@@ -150,7 +150,9 @@ def upgrade():
             sa.CheckConstraint(
                 "code ~ '^[0-9]{4}([0-9]{2}){0,3}$'", name="ck_account_code"
             ),
-            sa.CheckConstraint("jsonb_typeof(aux_flags::jsonb) = 'object'", name="ck_account_aux_flags"),
+            sa.CheckConstraint(
+                "jsonb_typeof(aux_flags::jsonb) = 'object'", name="ck_account_aux_flags"
+            ),
         )
         op.create_index("ix_accounts_account_book_id", "accounts", ["account_book_id"])
         op.create_index(
@@ -236,7 +238,9 @@ def upgrade():
             ),
             sa.Column("account_id", sa.Integer(), nullable=False),
             sa.Column("auxiliary_item_id", sa.Integer(), nullable=False),
-            sa.UniqueConstraint("account_book_id", "id", name="uq_account_auxiliaries_book_id"),
+            sa.UniqueConstraint(
+                "account_book_id", "id", name="uq_account_auxiliaries_book_id"
+            ),
             sa.ForeignKeyConstraint(
                 ["account_book_id", "account_id"],
                 ["accounts.account_book_id", "accounts.id"],

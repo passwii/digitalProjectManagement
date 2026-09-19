@@ -126,13 +126,21 @@ def _seed_accounts(db: Session, book_id: int) -> None:
         if row:
             continue
         parent = (
-            db.query(Account).filter_by(account_book_id=book_id, code=parent_code).first()
-            if parent_code else None
+            db.query(Account)
+            .filter_by(account_book_id=book_id, code=parent_code)
+            .first()
+            if parent_code
+            else None
         )
         row = Account(
-            account_book_id=book_id, code=code, name=name,
-            level=len(code) // 2 - 1, parent_id=parent.id if parent else None,
-            direction=direction, category=category, aux_flags=aux_flags,
+            account_book_id=book_id,
+            code=code,
+            name=name,
+            level=len(code) // 2 - 1,
+            parent_id=parent.id if parent else None,
+            direction=direction,
+            category=category,
+            aux_flags=aux_flags,
             is_leaf=parent is None,
         )
         db.add(row)
@@ -361,13 +369,20 @@ def _validate_account_code(
             raise HTTPException(400, "父科目已停用，不能新增下级")
         if not parent_model.is_leaf:
             raise HTTPException(400, "父科目已有下级，不能继续新增")
-        if parent_model.direction != body.direction or parent_model.category != body.category:
+        if (
+            parent_model.direction != body.direction
+            or parent_model.category != body.category
+        ):
             raise HTTPException(400, "父子科目方向和类别必须一致")
-        has_balance = db.query(OpeningBalance).filter(
-            OpeningBalance.account_book_id == book_id,
-            OpeningBalance.account_id == parent_model.id,
-            (OpeningBalance.debit != 0) | (OpeningBalance.credit != 0),
-        ).first()
+        has_balance = (
+            db.query(OpeningBalance)
+            .filter(
+                OpeningBalance.account_book_id == book_id,
+                OpeningBalance.account_id == parent_model.id,
+                (OpeningBalance.debit != 0) | (OpeningBalance.credit != 0),
+            )
+            .first()
+        )
         if has_balance:
             raise HTTPException(400, "父科目已有余额或发生额，不能新增下级")
         parent_code = str(parent_model.code)
@@ -580,7 +595,11 @@ def list_account_auxiliaries(
     if account_id is not None:
         query = query.filter_by(account_id=account_id)
     return [
-        {"id": x.id, "account_id": x.account_id, "auxiliary_item_id": x.auxiliary_item_id}
+        {
+            "id": x.id,
+            "account_id": x.account_id,
+            "auxiliary_item_id": x.auxiliary_item_id,
+        }
         for x in query.order_by(AccountAuxiliary.id).all()
     ]
 
@@ -595,8 +614,14 @@ def create_account_auxiliary(
     book = _book_header(db, user, x_account_book)
     if not is_admin(user):
         raise HTTPException(403, "仅管理员可维护科目辅助核算")
-    account = db.query(Account).filter_by(id=body.account_id, account_book_id=book.id).first()
-    item = db.query(AuxiliaryItem).filter_by(id=body.auxiliary_item_id, account_book_id=book.id).first()
+    account = (
+        db.query(Account).filter_by(id=body.account_id, account_book_id=book.id).first()
+    )
+    item = (
+        db.query(AuxiliaryItem)
+        .filter_by(id=body.auxiliary_item_id, account_book_id=book.id)
+        .first()
+    )
     if not account or not item:
         raise HTTPException(400, "科目或辅助资料不存在或不属于当前账套")
     flags = account.aux_flags or {}
@@ -608,11 +633,17 @@ def create_account_auxiliary(
     )
     db.add(row)
     try:
-        commit_audited(db, user.id, "create", "account_auxiliary", str(item.id), str(book.code))
+        commit_audited(
+            db, user.id, "create", "account_auxiliary", str(item.id), str(book.code)
+        )
     except IntegrityError as exc:
         db.rollback()
         raise HTTPException(409, "科目辅助核算关联已存在") from exc
-    return {"id": row.id, "account_id": row.account_id, "auxiliary_item_id": row.auxiliary_item_id}
+    return {
+        "id": row.id,
+        "account_id": row.account_id,
+        "auxiliary_item_id": row.auxiliary_item_id,
+    }
 
 
 @router.delete("/account-auxiliaries/{link_id}")
@@ -625,11 +656,17 @@ def delete_account_auxiliary(
     book = _book_header(db, user, x_account_book)
     if not is_admin(user):
         raise HTTPException(403, "仅管理员可维护科目辅助核算")
-    row = db.query(AccountAuxiliary).filter_by(id=link_id, account_book_id=book.id).first()
+    row = (
+        db.query(AccountAuxiliary)
+        .filter_by(id=link_id, account_book_id=book.id)
+        .first()
+    )
     if not row:
         raise HTTPException(404, "科目辅助核算关联不存在")
     db.delete(row)
-    commit_audited(db, user.id, "delete", "account_auxiliary", str(link_id), str(book.code))
+    commit_audited(
+        db, user.id, "delete", "account_auxiliary", str(link_id), str(book.code)
+    )
     return {"deleted": True, "id": link_id}
 
 
