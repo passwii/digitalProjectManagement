@@ -217,7 +217,7 @@ def _seed_accounts(db: Session, book_id: int) -> None:
             account_book_id=book_id, code=code, name=name,
             level=len(code) // 2 - 1, parent_id=parent.id if parent else None,
             direction=direction, category=category, aux_flags=aux_flags,
-            subject_version=ACCOUNT_SUBJECT_VERSION, is_leaf=parent is None,
+            subject_version=ACCOUNT_SUBJECT_VERSION, is_leaf=True,
         )
         db.add(row)
         if parent:
