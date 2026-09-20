@@ -21,12 +21,12 @@ from ..core.database import get_db
 from ..core.deps import get_current_user
 from ..core.rbac import ROLE_CASHIER, ROLE_FINANCE_CLERK, ROLE_FINANCE_MANAGER, ROLE_FINANCE_REVIEWER, is_admin, require_finance
 from ..core.timeutil import app_now
-from ..models import Account, AccountBalance, AccountBook, AccountingPeriod, BankStatement, CashTransaction, OpeningBalance, User, Voucher, VoucherEntry, VoucherTemplate
+from ..models import Account, AccountBalance, AccountBook, AccountingPeriod, AssetDepreciation, BankStatement, CashTransaction, FixedAsset, OpeningBalance, User, Voucher, VoucherEntry, VoucherTemplate
 from .finance import _book_header
 
 router = APIRouter(prefix="/finance", tags=["finance-accounting"])
 EXTERNAL_VOUCHER_SOURCES = {"manual", "template", "import"}
-INTERNAL_VOUCHER_SOURCES = EXTERNAL_VOUCHER_SOURCES | {"cash", "auto-close", "auto-reopen", "reversal"}
+INTERNAL_VOUCHER_SOURCES = EXTERNAL_VOUCHER_SOURCES | {"cash", "auto-close", "auto-reopen", "reversal", "auto-asset"}
 
 
 def _error(status: int, code: str, message: str, details: list[dict[str, str]] | None = None):
@@ -116,6 +116,19 @@ class CashTransactionIn(BaseModel):
 
 class BankMatchIn(BaseModel):
     voucher_id: int
+
+
+class FixedAssetIn(BaseModel):
+    code: str = Field(min_length=1, max_length=64)
+    name: str = Field(min_length=1, max_length=128)
+    category: str = Field(default="", max_length=64)
+    acquisition_date: date
+    original_cost: Decimal
+    residual_rate: Decimal = Decimal("0")
+    useful_life_months: int = Field(gt=0)
+    asset_account_id: int
+    depreciation_account_id: int
+    expense_account_id: int
 
 
 def _period(db: Session, book_id: int, period_id: int) -> AccountingPeriod:
@@ -402,6 +415,68 @@ def create_cash_transaction(body: CashTransactionIn, x_account_book: str | None 
     commit_audited(db, user.id, "create_cash_transaction", "cash_transaction", str(transaction.id), f"voucher={voucher.id}")
     entries, accounts = _entries(db, voucher.id)
     return {"id": transaction.id, "kind": transaction.kind, "status": transaction.status, "amount": str(transaction.amount), "voucher": _serialize(voucher, entries, accounts)}
+
+
+def _asset_json(asset: FixedAsset) -> dict:
+    return {"id": asset.id, "code": asset.code, "name": asset.name, "category": asset.category, "acquisition_date": asset.acquisition_date.isoformat(), "original_cost": str(asset.original_cost), "residual_rate": str(asset.residual_rate), "useful_life_months": asset.useful_life_months, "accumulated_depreciation": str(asset.accumulated_depreciation), "net_book_value": str(asset.original_cost - asset.accumulated_depreciation), "status": asset.status}
+
+
+@router.post("/fixed-assets")
+def create_fixed_asset(body: FixedAssetIn, x_account_book: str | None = Header(default=None), db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    book = _book_header(db, user, x_account_book)
+    _role(db, user, book.id, {ROLE_FINANCE_CLERK, ROLE_FINANCE_MANAGER})
+    cost = _money(body.original_cost, "原值")
+    residual = Decimal(str(body.residual_rate))
+    if not residual.is_finite() or residual < 0 or residual >= 1:
+        _error(400, "F-ASSET-INVALID", "残值率必须在 0 到 1 之间")
+    accounts = [db.query(Account).filter_by(id=account_id, account_book_id=book.id, is_active=True, is_leaf=True).first() for account_id in (body.asset_account_id, body.depreciation_account_id, body.expense_account_id)]
+    if any(account is None for account in accounts):
+        _error(400, "F-ASSET-INVALID", "固定资产科目必须是当前账套启用的末级科目")
+    if db.query(FixedAsset).filter_by(account_book_id=book.id, code=body.code.strip()).first():
+        _error(409, "F-ASSET-DUPLICATE", "资产编码已存在")
+    asset = FixedAsset(account_book_id=book.id, code=body.code.strip(), name=body.name.strip(), category=body.category.strip(), acquisition_date=body.acquisition_date, original_cost=cost, residual_rate=residual, useful_life_months=body.useful_life_months, asset_account_id=body.asset_account_id, depreciation_account_id=body.depreciation_account_id, expense_account_id=body.expense_account_id, accumulated_depreciation=Decimal("0.00"), status="active", created_by=user.id, created_at=app_now())
+    db.add(asset)
+    commit_audited(db, user.id, "create_fixed_asset", "fixed_asset", body.code, book.code)
+    return _asset_json(asset)
+
+
+@router.get("/fixed-assets")
+def list_fixed_assets(x_account_book: str | None = Header(default=None), db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    book = _book_header(db, user, x_account_book)
+    rows = db.query(FixedAsset).filter_by(account_book_id=book.id).order_by(FixedAsset.code).all()
+    return {"total": len(rows), "items": [_asset_json(row) for row in rows]}
+
+
+@router.post("/fixed-assets/depreciate")
+def depreciate_fixed_assets(period_id: int, x_account_book: str | None = Header(default=None), db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    book = _book_header(db, user, x_account_book)
+    _role(db, user, book.id, {ROLE_FINANCE_MANAGER})
+    period = _period(db, book.id, period_id)
+    total = Decimal("0.00")
+    generated = []
+    for asset in db.query(FixedAsset).filter_by(account_book_id=book.id, status="active").all():
+        if asset.acquisition_date >= period.start_date:
+            continue
+        if db.query(AssetDepreciation).filter_by(account_book_id=book.id, asset_id=asset.id, period_id=period.id).first():
+            continue
+        depreciable = Decimal(asset.original_cost) * (Decimal("1") - Decimal(asset.residual_rate))
+        monthly = (depreciable / asset.useful_life_months).quantize(Decimal("0.01"))
+        remaining = depreciable - Decimal(asset.accumulated_depreciation)
+        amount = min(monthly, remaining).quantize(Decimal("0.01"))
+        if amount <= 0:
+            continue
+        lines = [EntryIn(account_id=asset.expense_account_id, summary=f"{asset.name}折旧", debit=amount, credit=Decimal("0"), aux_detail={"dept": "fixed-assets"}), EntryIn(account_id=asset.depreciation_account_id, summary=f"{asset.name}折旧", debit=Decimal("0"), credit=amount)]
+        payload = VoucherIn(period_id=period.id, voucher_no=f"折旧-{asset.code}-{period.year:04d}{period.month:02d}", voucher_date=period.end_date, summary=f"计提{asset.name}折旧", source="auto-asset", lines=lines)
+        voucher = _build_draft_voucher(db, book, payload, user)
+        voucher.status = "posted"; voucher.reviewed_by = user.id; voucher.posted_by = user.id
+        _update_balance(db, voucher, book.id)
+        depreciation = AssetDepreciation(account_book_id=book.id, asset_id=asset.id, period_id=period.id, amount=amount, voucher_id=voucher.id, created_by=user.id, created_at=app_now())
+        db.add(depreciation)
+        asset.accumulated_depreciation += amount
+        total += amount
+        generated.append(voucher)
+    commit_audited(db, user.id, "depreciate_fixed_assets", "fixed_assets", str(period.id), f"count={len(generated)},amount={total}")
+    return {"period_id": period.id, "depreciated": len(generated), "total_amount": str(total), "vouchers": [{"id": row.id, "source": row.source, "status": row.status} for row in generated]}
 
 
 BANK_HEADERS = ["流水号", "交易日期", "方向", "金额", "银行账户", "摘要", "对方"]
