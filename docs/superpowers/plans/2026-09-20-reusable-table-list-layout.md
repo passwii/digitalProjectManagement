@@ -362,17 +362,20 @@ git commit -m "refactor: share desktop table frame"
 
 - [ ] **Step 1: Write the failing integration contract**
 
-在 `web/lib/listPageLayout.dom.vitest.test.tsx` 增加一个接近项目台账的组合测试：工具栏、卡片列表、桌面表格和分页必须位于同一 `ListViewport`，分页不应成为 viewport 外的兄弟节点：
+先从 `projects/page.tsx` 抽取一个只负责列表内容布局的可测试组件（例如 `ProjectsListContent`，参数为当前 `items`、`loading`、分页 props 和项目行操作回调），再在 `web/lib/listPageLayout.dom.vitest.test.tsx` 增加一个真实接线测试。测试必须导入这个项目页导出的布局组件，而不是重新手写一个 `ListPageLayout` 组合；这样在项目页迁移前会因为导出不存在而失败，迁移后才证明工具栏、卡片列表、桌面表格和分页位于同一 `ListViewport`，分页不是 viewport 外的兄弟节点：
 
 ```tsx
-it("列表页面把响应式主体和分页接入同一轨道", () => {
+it("项目台账把响应式主体和分页接入同一轨道", () => {
   render(
-    <ListPageLayout toolbar={<div>工具栏</div>}>
-      <ListViewport pagination={<nav>分页</nav>}>
-        <div data-cardlist="项目台账">卡片</div>
-        <DesktopTableFrame><table className="grid"><tbody><tr><td>表格</td></tr></tbody></table></DesktopTableFrame>
-      </ListViewport>
-    </ListPageLayout>,
+    <ProjectsListContent
+      items={[]}
+      page={1}
+      size={15}
+      total={0}
+      loading={false}
+      scopeText=""
+      onPageChange={() => {}}
+    />,
   );
 
   const viewport = document.querySelector('[data-list-viewport="true"]');
@@ -387,11 +390,11 @@ it("列表页面把响应式主体和分页接入同一轨道", () => {
 
 Run: `cd web && npx vitest run lib/listPageLayout.dom.vitest.test.tsx -t "响应式主体和分页"`
 
-Expected: FAIL until the page uses the new composition. Do not change the assertion to match the old structure.
+Expected: FAIL because `ProjectsListContent` is not exported yet. Do not change the assertion to match the old structure; the implementation must expose the real project-page composition used by the route.
 
 - [ ] **Step 3: Update project page imports and outer structure**
 
-在 `projects/page.tsx` 中新增：
+在 `projects/page.tsx` 中新增 `ProjectsListContent` 导出组件，并在页面有数据分支中使用它。该组件接收真实项目行数据和最小的分页回调参数，内部拥有当前项目页的 `CardList`、`DesktopTableFrame` 和 `Pagination` 接线。页面外层再使用 `ListPageLayout`，将工具栏作为 `toolbar`、演示提示作为 `notice` 传入：
 
 ```tsx
 import {
@@ -401,7 +404,7 @@ import {
 } from "@/components/ui/ListPageLayout";
 ```
 
-将现有操作筛选 section 作为 `toolbar` 传给 `ListPageLayout`，将 `demoOn` 的 `warn-banner` 作为 `notice` 传入。保留错误、加载和空态在布局下方的业务判断，但将有数据分支改为：
+有数据分支应由 `ProjectsListContent` 提供以下结构：
 
 ```tsx
 <ListViewport
