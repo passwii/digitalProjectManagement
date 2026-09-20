@@ -15,6 +15,7 @@ import { useMeta, useMenus } from "@/lib/useMeta";
 import {
   CONTRACT_STATUS,
   PROJECT_FLOW,
+  PROJECT_OWNERS,
   PROJECT_STATUS,
   fmtMoney,
   contractStatusLabel,
@@ -65,7 +66,7 @@ export default function ProjectsPage() {
 }
 
 function ProjectsInner() {
-  const { users, userName } = useMeta();
+  const { userName } = useMeta();
   // 删除（软删除）与解归档仅管理员：显示条件取后端菜单契约
   const { isAdmin, demoOn } = useMenus();
   const toast = useToast();
@@ -100,6 +101,14 @@ function ProjectsInner() {
   const items: Project[] = data?.items ?? [];
   const total = data?.total ?? 0;
 
+  // 负责人筛选项：取台账实际出现的姓名（服务端有界）。接口不可用（后端未升级/暂时失败）时
+  // 退回建档负责人名单，保证下拉不空 —— 两者都是姓名口径，`?owner=` 过滤照常生效。
+  const { data: ownerRows, reload: reloadOwners } = useAsyncData(
+    (signal) => projectsApi.owners(signal),
+    [],
+  );
+  const ownerOptions = ownerRows ?? PROJECT_OWNERS.map((name) => ({ name, count: 0 }));
+
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<Project | null>(null);
   const [detail, setDetail] = useState<Project | null>(null);
@@ -119,7 +128,7 @@ function ProjectsInner() {
   const scopeText = [
     url.q ? `关键词「${url.q}」` : "",
     url.status ? `状态=${PROJECT_STATUS[url.status] ?? url.status}` : "",
-    url.owner ? `负责人=${userName(Number(url.owner))}` : "",
+    url.owner ? `负责人=${url.owner}` : "",
     year ? `${year}年` : "",
   ]
     .filter(Boolean)
@@ -186,11 +195,16 @@ function ProjectsInner() {
               value={url.owner}
               onChange={(e) => setUrl({ owner: e.target.value })}
               aria-label="按负责人筛选"
+              title="按负责人姓名筛选（与列表里显示的负责人一致）"
             >
               <option value="">全部负责人</option>
-              {users.map((u) => (
-                <option key={u.id} value={u.id}>
-                  {u.real_name}
+              {/* URL 里的历史值（如旧链接的账号 id）不在选项里时也要显示出来，避免“静默丢失筛选” */}
+              {url.owner && !ownerOptions.some((o) => o.name === url.owner) && (
+                <option value={url.owner}>{url.owner}（当前筛选）</option>
+              )}
+              {ownerOptions.map((o) => (
+                <option key={o.name} value={o.name}>
+                  {o.count > 0 ? `${o.name}（${o.count}）` : o.name}
                 </option>
               ))}
             </select>
@@ -459,6 +473,7 @@ function ProjectsInner() {
           setFormOpen(false);
           setDetail((d) => (d && d.id === saved.id ? saved : d));
           reload();
+          reloadOwners(); // 负责人可能变了：同步刷新筛选项与计数
         }}
       />
 

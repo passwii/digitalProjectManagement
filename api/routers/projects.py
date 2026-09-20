@@ -5,7 +5,7 @@ from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from pydantic import BaseModel
-from sqlalchemy import and_, or_
+from sqlalchemy import and_, func, or_
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -75,6 +75,8 @@ TRANSITIONS = {
 }
 ALLOWED_EXT = {".pdf", ".docx", ".xlsx", ".png", ".jpg", ".jpeg"}
 CONTRACT_STATUSES = {"已签订", "未签订"}
+# 负责人筛选项的服务端硬上限（与 /meta/* 字典接口同思路：一次取回本地渲染，但有界）
+OWNER_OPTION_MAX = 200
 # 体积上限与超限文案统一来自 core.limits（前端单一来源为 web/lib/uploadLimits.ts）
 MAX_SIZE = MAX_ATTACHMENT_SIZE
 
@@ -138,11 +140,15 @@ def keyword_condition(keyword: str):
 
 
 def owner_condition(db: Session, owner_id: int = 0, owner: str = ""):
-    """负责人过滤（BLF-1148）：`owner_id` 精确匹配；`owner` 按姓名精确匹配。
+    """负责人过滤：`owner` 按姓名精确匹配（台账主用），`owner_id` 按账号精确匹配。
 
-    姓名匹配同时覆盖两列：`owner_name` 精确相等，或 `owner_id` 指向同名用户。
-    后者兼容历史脏数据（展示名是某人、但 `owner_id` 陈旧/为空的项目），
-    避免「按负责人筛选出来的是全部或空白」。无条件时返回 None（不过滤）。
+    姓名匹配同时覆盖两列：`owner_name` 精确相等，或 `owner_id` 指向同名账号。
+    后者兼容「展示名是某人、但 `owner_id` 陈旧/为空」的历史与建档数据：
+    `create_project` 在负责人没有登录账号时会把 `owner_id` 落成**创建人**的 id，
+    所以按 `owner_id` 筛会「选谁都像是创建人的项目」——按姓名筛才是与列表展示一致的口径。
+    姓名的兜底名同样接受账号：没有 `real_name` 的账号在 `/meta/users` 与服务端的
+    展示名一律回退为 `username`，这里必须同口径，否则这类行筛不出来。
+    无条件时返回 None（不过滤）。
     """
     conds = []
     if owner_id:
@@ -150,7 +156,10 @@ def owner_condition(db: Session, owner_id: int = 0, owner: str = ""):
     name = (owner or "").strip()
     if name:
         same_name_ids = [
-            row[0] for row in db.query(User.id).filter(User.real_name == name).all()
+            row[0]
+            for row in db.query(User.id)
+            .filter(or_(User.real_name == name, User.username == name))
+            .all()
         ]
         name_cond = Project.owner_name == name
         if same_name_ids:
@@ -159,6 +168,16 @@ def owner_condition(db: Session, owner_id: int = 0, owner: str = ""):
     if not conds:
         return None
     return and_(*conds) if len(conds) > 1 else conds[0]
+
+
+def account_display_name():
+    """账号侧「负责人展示名」的 SQL 口径：`real_name` 缺省回退 `username`。
+
+    与 `/meta/users` 的 `_u()`（`real_name or username`）和台账列的展示值同口径；
+    两侧不一致会让「列表里看得到的名字」筛不出来。
+    """
+    return func.coalesce(func.nullif(func.coalesce(User.real_name, ""), ""), User.username)
+
 
 
 def _keyword_snippet(project: Project, keyword: str) -> str:
@@ -340,6 +359,68 @@ def project_options(
         sort=sort,
         map_row=_opt,
     )
+
+
+@router.get("/owners")
+def project_owners(
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """负责人筛选项（字典式小字段接口）：返回台账「负责人」列实际出现的姓名 + 项目数。
+
+    为什么选项不取 `/meta/users`（账号字典），过滤也不按 `owner_id`：
+    · 台账列展示的是建档时选定的 `owner_name`；负责人没有登录账号时，
+      `create_project` 会把 `owner_id` 落成**创建人**的 id —— 于是「按 id 筛」
+      选谁都像是创建人的项目（表现就是「筛选后还是全部结果」）；
+    · 没有账号的负责人（演示数据、历史数据）根本不在账号字典里，选都选不出来。
+    因此选项取「展示口径」的姓名，过滤由 `GET /projects?owner=<姓名>` 完成
+    （`owner_condition` 同时覆盖 `owner_name` 精确匹配与同名账号的 `owner_id`）。
+
+    口径与 `GET /projects` 完全一致：软删除 + 权限可见性 + 演示数据开关；
+    `owner_name` 为空、只挂了 `owner_id` 的行按账号姓名归组，保证选项不漏人。
+    响应服务端硬上限 `OWNER_OPTION_MAX`，按项目数倒序、姓名升序，避免无界放大。
+    注意：本路由必须定义在 `/{pid}` 之前，否则会被单段路径参数抢先匹配。
+    """
+    scope = project_scope_condition(user, db)  # 含演示数据开关
+
+    def _scoped(query):
+        query = query.filter(Project.deleted_at.is_(None))
+        return query.filter(scope) if scope is not None else query
+
+    name_col = func.coalesce(Project.owner_name, "")
+    counts: dict[str, int] = {}
+
+    # ① 有 owner_name 的行：按展示名归组（含「展示名是某人、owner_id 是创建人」的历史数据）
+    named = (
+        _scoped(db.query(name_col, func.count()))
+        .filter(name_col != "")
+        .group_by(name_col)
+        .all()
+    )
+    for name, count in named:
+        counts[name] = counts.get(name, 0) + int(count)
+
+    # ② owner_name 为空、只挂了账号的行：按账号展示名归组，避免选项漏人
+    #    展示名表达式只构造一次：重复构造会生成不同的绑定参数，PostgreSQL 会
+    #    把 SELECT 与 GROUP BY 当成两个表达式而报「must appear in the GROUP BY clause」。
+    display_name_col = account_display_name()
+    linked = (
+        _scoped(
+            db.query(display_name_col, func.count()).join(
+                Project, Project.owner_id == User.id
+            )
+        )
+        .filter(name_col == "")
+        .group_by(display_name_col)
+        .all()
+    )
+    for display_name, count in linked:
+        label = str(display_name or "").strip()
+        if label:
+            counts[label] = counts.get(label, 0) + int(count)
+
+    ranked = sorted(counts.items(), key=lambda kv: (-kv[1], kv[0]))
+    return [{"name": name, "count": count} for name, count in ranked[:OWNER_OPTION_MAX]]
 
 
 @router.post("")

@@ -1,22 +1,19 @@
 import { buildQuery } from "./api";
 
-/** 后端没有负责人时使用 0；因此非法 URL 值不能直接省略 owner_id，否则会退化为全量。 */
-export const INVALID_OWNER_ID = -1;
-
 /**
- * 将项目台账 URL 中的负责人值转换为后端 `owner_id`。
+ * 负责人筛选的取值口径 = **姓名**（台账「负责人」列的展示值）。
  *
- * 负责人下拉写入的是用户 ID，不是姓名。只接受正的安全整数；非法值映射
- * 到一个不可能命中的 ID，让后端返回空列表，而不是因为参数被跳过而返回全部项目。
- * 合法但已不存在的用户 ID 则由后端精确过滤，同样不会退化为全量。
+ * 为什么不是 `owner_id`：
+ * · 建档时如果负责人没有登录账号，后端会把 `owner_id` 落成**创建人**的 id
+ *   （`api/routers/projects.py::create_project`，用于让创建人保有项目访问权），
+ *   于是「按 id 筛」选谁都像是创建人的项目 —— 表现就是「筛选后还是全部结果」；
+ * · 没有账号的负责人（演示数据、历史数据）不在账号字典里，根本选不出来。
+ *
+ * `owner_name` 才是列表里真正显示的值。后端 `GET /projects?owner=<姓名>`（BLF-1148）
+ * 同时匹配 `owner_name` 精确相等与同名账号的 `owner_id`，是唯一「看到什么就筛出什么」的条件。
  */
-export function normalizeProjectOwnerId(raw: string | number | null | undefined): number | "" {
-  if (raw === null || raw === undefined || String(raw).trim() === "") return "";
-  const value = String(raw).trim();
-  if (!/^[1-9]\d*$/.test(value)) return INVALID_OWNER_ID;
-
-  const id = Number(value);
-  return Number.isSafeInteger(id) ? id : INVALID_OWNER_ID;
+export function normalizeProjectOwnerName(raw: string | number | null | undefined): string {
+  return String(raw ?? "").trim();
 }
 
 export interface ProjectListQueryParams {
@@ -37,7 +34,7 @@ export function buildProjectListQuery(params: ProjectListQueryParams): string {
     sort: params.sort,
     keyword: params.keyword,
     status: params.status,
-    owner_id: normalizeProjectOwnerId(params.owner),
+    owner: normalizeProjectOwnerName(params.owner),
     code: params.code,
   });
 }

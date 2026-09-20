@@ -545,6 +545,26 @@ table.grid tbody tr:last-child td {
  text-overflow: clip;
  white-space: nowrap;
 }
+
+/* 通讯录花名册：列宽固定 + 单元格不折行。
+   每列的「最起码宽度」由 <colgroup> 与这里的 min-width 一起锁定（工号至少完整显示
+   SHZK-002，联系电话 / 入职日期 / 徽标也按最短可读值预留）；窄屏（笔记本 / 平板）由外层
+   .table-scroll 横向滚动，而不是把内容折成两行。改列宽时同步合计值：
+   160 + 130 + 120 + 150 + 150 + 100 + 100 + 112 + 104 + 84 = 1210。 */
+.contacts-table {
+ min-width: 1210px;
+ table-layout: fixed;
+}
+.contacts-table th,
+.contacts-table td {
+ overflow: hidden;
+ white-space: nowrap;
+ text-overflow: ellipsis;
+}
+/* 姓名列是两行结构（姓名 + 账号状态小字）：块级子元素各占一行，不参与单行省略 */
+.contacts-table td:first-child {
+ white-space: normal;
+}
 /* 通知定位命中行：左侧色条 + 持久底色，与 hover 区分开（BLF-1093）。
    不能只靠 hover —— 用户从通知跳进来后鼠标不在表上，必须一眼看到「就是这一条」。 */
 table.grid tbody tr.row-target > td {

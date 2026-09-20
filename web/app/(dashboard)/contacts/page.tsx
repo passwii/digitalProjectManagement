@@ -159,22 +159,22 @@ function ContactsInner() {
       ) : (
         <>
           <div className="table-scroll">
-            <table
-              className="grid"
-              aria-busy={loading}
-              style={{ minWidth: 1210, tableLayout: "fixed" }}
-            >
+            {/*
+              列宽固定 + 单元格不折行：每列都保证「最起码宽度」（工号至少完整显示 SHZK-002），
+              窄屏（笔记本/平板）由 .table-scroll 横向滚动，而不是把内容折成两行。
+              列宽合计 = .contacts-table 的 min-width，改列请同步（见 web/app/globals.css）。
+            */}
+            <table className="grid contacts-table" aria-busy={loading}>
               <colgroup>
                 <col style={{ width: 160 }} />
                 <col style={{ width: 130 }} />
-                <col style={{ width: 90 }} />
-                <col style={{ width: 140 }} />
+                <col style={{ width: 120 }} />
+                <col style={{ width: 150 }} />
                 <col style={{ width: 150 }} />
                 <col style={{ width: 100 }} />
                 <col style={{ width: 100 }} />
                 <col style={{ width: 112 }} />
-                <col style={{ width: 90 }} />
-                <col style={{ width: 94 }} />
+                <col style={{ width: 104 }} />
                 <col style={{ width: 84 }} />
               </colgroup>
               <thead>
@@ -187,7 +187,6 @@ function ContactsInner() {
                   <th>用工类型</th>
                   <th>任职状态</th>
                   <th>入职日期</th>
-                  <th>附件数</th>
                   <th>账号状态</th>
                   <th className="no-print" />
                 </tr>
@@ -200,7 +199,7 @@ function ContactsInner() {
                     onClick={() => setSelected(row.id)}
                     title="点击编辑人员档案"
                   >
-                    <td>
+                    <td title={row.real_name || row.username}>
                       <span className="inline-person">
                         <Avatar name={row.real_name || row.username} size={24} />
                         <span>
@@ -215,9 +214,9 @@ function ContactsInner() {
                       </span>
                     </td>
                     <td className="mono">{row.mobile || "-"}</td>
-                    <td className="mono">{row.employee_no || "-"}</td>
-                    <td><span className="ellipsis" title={row.dept_name}>{row.dept_name || "-"}</span></td>
-                    <td><span className="ellipsis" title={row.position}>{row.position || "-"}</span></td>
+                    <td className="mono" title={row.employee_no || ""}>{row.employee_no || "-"}</td>
+                    <td title={row.dept_name || ""}>{row.dept_name || "-"}</td>
+                    <td title={row.position || ""}>{row.position || "-"}</td>
                     <td>{row.employment_type || "-"}</td>
                     <td>
                       <Badge
@@ -226,7 +225,6 @@ function ContactsInner() {
                       />
                     </td>
                     <td className="mono">{row.hire_date || "-"}</td>
-                    <td className="num">{row.attachment_count}</td>
                     <td>
                       <Badge
                         status={row.has_account ? "已关联账号" : "无账号"}

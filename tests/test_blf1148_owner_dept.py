@@ -1,5 +1,5 @@
-"""BLF-1148 回归：项目台账负责人筛选（owner_id/owner_name 混用修复）+ 通讯录部门新增。"""
-from test_mvp import items, login, mkproject
+"""BLF-1148 回归：项目台账负责人筛选（口径与列表展示对齐）+ 通讯录部门新增。"""
+from test_mvp import items, login, login_raw, mkproject
 
 
 def _mkuser(db, username: str, real_name: str):
@@ -86,7 +86,83 @@ def test_owner_id_backward_compat(client, db):
     assert items(r) == []
 
 
-def test_patch_owner_name_relinks_owner_id(client, db):
+def test_owner_name_filter_survives_creator_stamped_owner_id(client, db):
+    """线上症状回归：负责人没有登录账号时，`owner_id` 会被落成**创建人**的 id。
+
+    `create_project` 写的是 `owner_id or user.id`（保证创建人仍能访问自己建的项目），
+    于是「按 owner_id 筛」等于按创建人筛 —— 选谁都会把创建人名下的项目全捞回来，
+    表现就是「筛选负责人后还是全部结果」。列表展示的是 `owner_name`，所以过滤必须按姓名。
+    """
+    from api.models import User
+
+    admin = login(client, "admin")
+    session = db()
+    try:
+        admin_id = session.query(User.id).filter(User.username == "admin").scalar()
+    finally:
+        session.close()
+
+    # 张爱杰 / 张玉军 都没有登录账号 → 建档后 owner_id 全是创建人（admin）
+    mkproject(client, admin, name="OWNER-NAME-A", owner_name="张爱杰")
+    mkproject(client, admin, name="OWNER-NAME-B", owner_name="张玉军")
+    mkproject(client, admin, name="OWNER-NAME-C", owner_name="张玉军")
+
+    # 症状：按创建人 id 筛，张玉军的项目也跟着出来（旧前端的 owner_id 口径）
+    r = client.get(f"/api/v1/projects?owner_id={admin_id}", headers=admin)
+    assert r.status_code == 200, r.text
+    assert _names(r) == {"OWNER-NAME-A", "OWNER-NAME-B", "OWNER-NAME-C"}
+
+    # 修复后的口径：按姓名筛各归各（前端下拉据此发 `owner=<姓名>`）
+    assert _names(client.get("/api/v1/projects?owner=张爱杰", headers=admin)) == {
+        "OWNER-NAME-A"}
+    assert _names(client.get("/api/v1/projects?owner=张玉军", headers=admin)) == {
+        "OWNER-NAME-B", "OWNER-NAME-C"}
+    # options 选择器同契约
+    assert _names(client.get("/api/v1/projects/options?owner=张爱杰", headers=admin)) == {
+        "OWNER-NAME-A"}
+
+
+def test_project_owner_options_mirror_displayed_names(client, db):
+    """`GET /projects/owners` 的选项 = 台账「负责人」列实际出现的姓名 + 项目数。
+
+    不能只取账号字典：张爱杰（无账号）这类负责人不在 `/meta/users` 里，选都选不出来。
+    """
+    admin, _, _ = _setup_owner_data(client, db)   # 张爱杰 3 个（P1/P2/P3）、李四 1 个（P4）
+    r = client.get("/api/v1/projects/owners", headers=admin)
+    assert r.status_code == 200, r.text
+    rows = r.json()
+    assert [row["name"] for row in rows] == ["张爱杰", "李四"]   # 项目数倒序
+    assert {row["name"]: row["count"] for row in rows} == {"张爱杰": 3, "李四": 1}
+
+
+def test_project_owner_options_cover_account_only_rows_and_scope(client, db):
+    """`owner_name` 为空、只挂账号的行按账号姓名归组；非管理员只看得到自己的项目。"""
+    from api.models import Project
+
+    admin = login(client, "admin")
+    wang_id = _mkuser(db, "13800007777", "王五")
+    _insert_project(db, "PJ-OWN-EMPTY", "OPT-EMPTY", wang_id, "")
+
+    r = client.get("/api/v1/projects/owners", headers=admin)
+    assert r.status_code == 200, r.text
+    assert {row["name"] for row in r.json()} == {"王五"}
+    # 选项里的姓名必须筛得出来（账号兜底名与台账展示的 userName(owner_id) 同口径）
+    assert _names(client.get("/api/v1/projects?owner=王五", headers=admin)) == {"OPT-EMPTY"}
+
+    # 权限范围与列表一致：非管理员只看到自己负责/参与的项目
+    wang = login_raw(client, "13800007777", "x1234567")
+    assert [row["name"] for row in client.get("/api/v1/projects/owners", headers=wang).json()] == [
+        "王五"]
+    session = db()
+    try:
+        session.add(Project(code="PJ-OWN-HIDDEN", name="OPT-HIDDEN",
+                            owner_name="别人的项目", status="doing"))
+        session.commit()
+    finally:
+        session.close()
+    assert [row["name"] for row in client.get("/api/v1/projects/owners", headers=wang).json()] == [
+        "王五"]
+
     from api.models import Project, ProjectChange
 
     admin, zhang_id, lisi_id = _setup_owner_data(client, db)
