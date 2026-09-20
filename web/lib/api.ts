@@ -565,6 +565,19 @@ export interface BankStatement {
   status: "unmatched" | "matched" | "ignored";
   matched_voucher_id: number | null;
 }
+export interface FixedAsset {
+  id: number;
+  code: string;
+  name: string;
+  category: string;
+  acquisition_date: string;
+  original_cost: string;
+  residual_rate: string;
+  useful_life_months: number;
+  accumulated_depreciation: string;
+  net_book_value: string;
+  status: string;
+}
 
 function financeHeaders(bookCode: string): Record<string, string> {
   return { "X-Account-Book": bookCode };
@@ -703,6 +716,16 @@ export const financeApi = {
       `/finance/bank-reconciliation?period_id=${periodId}`,
       financeHeaders(book),
       signal,
+    ),
+  fixedAssets: (book: string, signal?: AbortSignal) =>
+    apiGetScoped<{ total: number; items: FixedAsset[] }>("/finance/fixed-assets", financeHeaders(book), signal),
+  createFixedAsset: (book: string, body: Record<string, unknown>) =>
+    apiPostScoped<FixedAsset>("/finance/fixed-assets", body, financeHeaders(book)),
+  depreciateFixedAssets: (book: string, periodId: number) =>
+    apiPostScoped<{ period_id: number; depreciated: number; total_amount: string }>(
+      `/finance/fixed-assets/depreciate?period_id=${periodId}`,
+      {},
+      financeHeaders(book),
     ),
 };
 export interface Project {

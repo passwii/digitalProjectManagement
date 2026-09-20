@@ -19,7 +19,7 @@ import MotionTabs from "@/components/motion/MotionTabs";
 import { Dialog } from "@/components/ui/Modal";
 import { useToast } from "@/components/ui/Toast";
 
-const TABS = ["账套概览", "基础设置", "凭证", "出纳与对账", "账簿与报表", "期末结账"] as const;
+const TABS = ["账套概览", "基础设置", "凭证", "出纳与对账", "固定资产", "账簿与报表", "期末结账"] as const;
 type Tab = (typeof TABS)[number];
 
 function money(value: string | number) {
@@ -50,6 +50,7 @@ function FinanceInner() {
   const templates = useAsyncData((signal) => financeApi.templates(activeBook, signal), [activeBook], { enabled: !!activeBook && tab === "凭证", resetOnDepChange: true });
   const bankStatements = useAsyncData((signal) => financeApi.bankStatements(activeBook, currentPeriod?.id, signal), [activeBook, currentPeriod?.id], { enabled: !!activeBook && !!currentPeriod && tab === "出纳与对账", resetOnDepChange: true });
   const reconciliation = useAsyncData((signal) => financeApi.reconciliation(activeBook, currentPeriod!.id, signal), [activeBook, currentPeriod?.id], { enabled: !!activeBook && !!currentPeriod && tab === "出纳与对账", resetOnDepChange: true });
+  const fixedAssets = useAsyncData((signal) => financeApi.fixedAssets(activeBook, signal), [activeBook], { enabled: !!activeBook && tab === "固定资产", resetOnDepChange: true });
   const balances = useAsyncData(
     (signal) => financeApi.balances(activeBook, currentPeriod!.id, signal),
     [activeBook, currentPeriod?.id],
@@ -133,6 +134,7 @@ function FinanceInner() {
               } catch (error) { toast.err(errText(error)); }
             }} />}
             {tab === "出纳与对账" && <CashierList book={activeBook} period={currentPeriod} statements={bankStatements.data?.items ?? []} summary={reconciliation.data ?? undefined} loading={bankStatements.loading || reconciliation.loading} error={bankStatements.error || reconciliation.error} onRetry={() => { bankStatements.reload(); reconciliation.reload(); }} onChanged={() => { bankStatements.reload(); reconciliation.reload(); }} />}
+            {tab === "固定资产" && <FixedAssetList book={activeBook} period={currentPeriod} items={fixedAssets.data?.items ?? []} loading={fixedAssets.loading} error={fixedAssets.error} onRetry={fixedAssets.reload} onChanged={fixedAssets.reload} />}
             {tab === "账簿与报表" && <BalanceList period={currentPeriod} items={balances.data?.items ?? []} reports={reports.data ?? undefined} loading={balances.loading || reports.loading} error={balances.error || reports.error} onRetry={() => { balances.reload(); reports.reload(); }} />}
             {tab === "期末结账" && <ClosePanel book={activeBook} period={currentPeriod} check={closeCheck.data} loading={closeCheck.loading} error={closeCheck.error} onRefresh={() => { closeCheck.reload(); periods.reload(); }} onClosed={() => { closeCheck.reload(); periods.reload(); }} />}
           </MotionTabs>
@@ -189,6 +191,20 @@ function CashierList({ book, period, statements, summary, loading, error, onRetr
   return <>
     <div className="section-head"><div><h2>出纳与对账</h2><p>银行流水先入账待匹配区，再与当前账套已过账凭证核对。</p></div><div className="row-actions"><button className="btn-ghost" onClick={() => document.getElementById("finance-bank-import")?.click()} disabled={busy || !period}>导入银行流水</button><input id="finance-bank-import" type="file" accept=".xlsx" hidden onChange={(event) => { const file = event.target.files?.[0]; if (file) void importFile(file); }} /><button className="btn-ghost" onClick={onRetry}>刷新</button></div></div>
     {loading ? <LoadingBlock kpis={3} label="加载银行对账…" /> : error ? <LoadFailed message={error} onRetry={onRetry} /> : <><div className="kpi-row"><div className="kpi"><div className="k">银行流水净额</div><div className="v">{money(summary?.bank_total ?? "0")}</div><div className="kpi-foot">当前期间导入流水</div></div><div className="kpi"><div className="k">未匹配笔数</div><div className="v">{summary?.unmatched_count ?? 0}</div><div className="kpi-foot">需要与凭证核对</div></div><div className="kpi"><div className="k">未匹配金额</div><div className="v">{money(summary?.unmatched_amount ?? "0")}</div><div className="kpi-foot">未达账项提示</div></div></div><div className="table-scroll"><table className="grid"><thead><tr><th>流水号</th><th>日期</th><th>方向</th><th className="num">金额</th><th>摘要</th><th>对方</th><th>状态</th></tr></thead><tbody>{statements.map((row) => <tr key={row.id}><td className="mono">{row.external_id}</td><td>{row.transaction_date}</td><td>{row.direction === "inflow" ? "流入" : "流出"}</td><td className="num">{money(row.amount)}</td><td>{row.summary || "-"}</td><td>{row.counterparty || "-"}</td><td><span className={`badge ${row.status === "matched" ? "done" : "doing"}`}>{row.status === "matched" ? "已匹配" : "待匹配"}</span></td></tr>)}</tbody></table></div></>}
+  </>;
+}
+
+function FixedAssetList({ book, period, items, loading, error, onRetry, onChanged }: { book: string; period: FinancePeriod | null; items: { code: string; name: string; category: string; acquisition_date: string; original_cost: string; accumulated_depreciation: string; net_book_value: string; status: string }[]; loading: boolean; error: string; onRetry: () => void; onChanged: () => void }) {
+  const toast = useToast();
+  const [busy, setBusy] = useState(false);
+  async function depreciate() {
+    if (!period) return;
+    setBusy(true);
+    try { const result = await financeApi.depreciateFixedAssets(book, period.id); toast.ok(`本期已计提 ${result.depreciated} 项折旧，共 ${money(result.total_amount)} 元`); onChanged(); } catch (e) { toast.err(errText(e)); } finally { setBusy(false); }
+  }
+  return <>
+    <div className="section-head"><div><h2>固定资产</h2><p>资产卡片与月度直线法折旧；新增资产当月不折旧，次月开始计提。</p></div><div className="row-actions"><button className="btn-primary" disabled={busy || !period} onClick={depreciate}>计提本期折旧</button><button className="btn-ghost" onClick={onRetry}>刷新</button></div></div>
+    {loading ? <LoadingBlock kpis={0} label="加载固定资产…" /> : error ? <LoadFailed message={error} onRetry={onRetry} /> : <div className="table-scroll"><table className="grid"><thead><tr><th>资产编码</th><th>名称</th><th>类别</th><th>取得日期</th><th className="num">原值</th><th className="num">累计折旧</th><th className="num">账面净值</th><th>状态</th></tr></thead><tbody>{items.map((item) => <tr key={item.code}><td className="mono">{item.code}</td><td>{item.name}</td><td>{item.category || "-"}</td><td>{item.acquisition_date}</td><td className="num">{money(item.original_cost)}</td><td className="num">{money(item.accumulated_depreciation)}</td><td className="num">{money(item.net_book_value)}</td><td><span className="badge done">{item.status === "active" ? "在用" : "已处置"}</span></td></tr>)}</tbody></table></div>}
   </>;
 }
 

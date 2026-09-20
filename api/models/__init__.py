@@ -420,6 +420,55 @@ class BankStatement(Base):
   )
 
 
+class FixedAsset(Base):
+  __tablename__ = "fixed_assets"
+  id = Column(Integer, primary_key=True)
+  account_book_id = Column(Integer, ForeignKey("account_books.id", ondelete="CASCADE"), nullable=False, index=True)
+  code = Column(String(64), nullable=False)
+  name = Column(String(128), nullable=False)
+  category = Column(String(64), nullable=False, default="")
+  acquisition_date = Column(Date, nullable=False)
+  original_cost = Column(Numeric(18, 2), nullable=False)
+  residual_rate = Column(Numeric(8, 6), nullable=False, default=0, server_default="0")
+  useful_life_months = Column(Integer, nullable=False)
+  asset_account_id = Column(Integer, nullable=False)
+  depreciation_account_id = Column(Integer, nullable=False)
+  expense_account_id = Column(Integer, nullable=False)
+  accumulated_depreciation = Column(Numeric(18, 2), nullable=False, default=0, server_default="0")
+  status = Column(String(16), nullable=False, default="active", server_default="active")
+  created_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+  created_at = Column(DateTime, default=_now, nullable=False)
+  __table_args__ = (
+    UniqueConstraint("account_book_id", "code", name="uq_fixed_asset_book_code"),
+    UniqueConstraint("account_book_id", "id", name="uq_fixed_asset_book_id"),
+    CheckConstraint("original_cost > 0", name="ck_fixed_asset_cost"),
+    CheckConstraint("residual_rate >= 0 AND residual_rate < 1", name="ck_fixed_asset_residual_rate"),
+    CheckConstraint("useful_life_months > 0", name="ck_fixed_asset_life"),
+    CheckConstraint("status IN ('active','disposed')", name="ck_fixed_asset_status"),
+    ForeignKeyConstraint(["account_book_id", "asset_account_id"], ["accounts.account_book_id", "accounts.id"], name="fk_fixed_asset_asset_account"),
+    ForeignKeyConstraint(["account_book_id", "depreciation_account_id"], ["accounts.account_book_id", "accounts.id"], name="fk_fixed_asset_depreciation_account"),
+    ForeignKeyConstraint(["account_book_id", "expense_account_id"], ["accounts.account_book_id", "accounts.id"], name="fk_fixed_asset_expense_account"),
+  )
+
+
+class AssetDepreciation(Base):
+  __tablename__ = "asset_depreciations"
+  id = Column(Integer, primary_key=True)
+  account_book_id = Column(Integer, ForeignKey("account_books.id", ondelete="CASCADE"), nullable=False, index=True)
+  asset_id = Column(Integer, ForeignKey("fixed_assets.id", ondelete="CASCADE"), nullable=False)
+  period_id = Column(Integer, nullable=False)
+  amount = Column(Numeric(18, 2), nullable=False)
+  voucher_id = Column(Integer, ForeignKey("vouchers.id"), nullable=True)
+  created_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+  created_at = Column(DateTime, default=_now, nullable=False)
+  __table_args__ = (
+    UniqueConstraint("account_book_id", "asset_id", "period_id", name="uq_asset_depreciation_period"),
+    ForeignKeyConstraint(["account_book_id", "asset_id"], ["fixed_assets.account_book_id", "fixed_assets.id"], name="fk_asset_depreciation_asset_same_book", ondelete="CASCADE"),
+    ForeignKeyConstraint(["account_book_id", "period_id"], ["accounting_periods.account_book_id", "accounting_periods.id"], name="fk_asset_depreciation_period_same_book", ondelete="CASCADE"),
+    CheckConstraint("amount > 0", name="ck_asset_depreciation_amount"),
+  )
+
+
 class Department(Base):
   __tablename__ = "departments"
   id = Column(Integer, primary_key=True)

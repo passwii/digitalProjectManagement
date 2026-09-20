@@ -567,3 +567,78 @@ def test_finance_book_roles_separate_read_entry_review_cash_and_close(client, db
     assert client.post("/api/v1/finance/close/check", headers=scoped_clerk, params={"period_id": period["id"]}).status_code == 403
 
     assert client.get("/api/v1/finance/books", headers=outsider).status_code == 403
+
+
+def test_fixed_asset_creation_and_next_period_straight_line_depreciation(client):
+    headers = _auth(client, "admin", "admin123456")
+    book = _book(client, headers, "FIXED-ASSET")
+    scoped = _scoped(headers, book)
+    accounts = _accounts(client, scoped)
+    periods = client.get("/api/v1/finance/periods", headers=scoped).json()
+    first, second = periods[:2]
+
+    created = client.post(
+        "/api/v1/finance/fixed-assets",
+        headers=scoped,
+        json={
+            "code": "FA-001",
+            "name": "测试设备",
+            "category": "设备",
+            "acquisition_date": first["start_date"],
+            "original_cost": "1200.00",
+            "residual_rate": "0.10",
+            "useful_life_months": 12,
+            "asset_account_id": accounts["1601"]["id"],
+            "depreciation_account_id": accounts["1602"]["id"],
+            "expense_account_id": accounts["6601"]["id"],
+        },
+    )
+    assert created.status_code == 200, created.text
+    assert created.json()["status"] == "active"
+    assert created.json()["accumulated_depreciation"] == "0.00"
+
+    same_month = client.post(
+        f"/api/v1/finance/fixed-assets/depreciate?period_id={first['id']}",
+        headers=scoped,
+    )
+    assert same_month.status_code == 200
+    assert same_month.json()["depreciated"] == 0
+
+    next_month = client.post(
+        f"/api/v1/finance/fixed-assets/depreciate?period_id={second['id']}",
+        headers=scoped,
+    )
+    assert next_month.status_code == 200, next_month.text
+    assert next_month.json()["depreciated"] == 1
+    assert next_month.json()["total_amount"] == "90.00"
+    assert next_month.json()["vouchers"][0]["source"] == "auto-asset"
+    listed = client.get("/api/v1/finance/fixed-assets", headers=scoped)
+    assert listed.status_code == 200
+    asset = listed.json()["items"][0]
+    assert asset["accumulated_depreciation"] == "90.00"
+    assert asset["net_book_value"] == "1110.00"
+
+
+def test_fixed_asset_depreciation_is_idempotent_per_period(client):
+    headers = _auth(client, "admin", "admin123456")
+    book = _book(client, headers, "FIXED-ASSET-IDEMPOTENT")
+    scoped = _scoped(headers, book)
+    accounts = _accounts(client, scoped)
+    periods = client.get("/api/v1/finance/periods", headers=scoped).json()
+    asset = client.post(
+        "/api/v1/finance/fixed-assets",
+        headers=scoped,
+        json={
+            "code": "FA-002", "name": "服务器", "category": "设备",
+            "acquisition_date": periods[0]["start_date"], "original_cost": "600.00",
+            "residual_rate": "0", "useful_life_months": 6,
+            "asset_account_id": accounts["1601"]["id"], "depreciation_account_id": accounts["1602"]["id"],
+            "expense_account_id": accounts["6601"]["id"],
+        },
+    )
+    assert asset.status_code == 200
+    first = client.post(f"/api/v1/finance/fixed-assets/depreciate?period_id={periods[1]['id']}", headers=scoped)
+    second = client.post(f"/api/v1/finance/fixed-assets/depreciate?period_id={periods[1]['id']}", headers=scoped)
+    assert first.status_code == second.status_code == 200
+    assert first.json()["depreciated"] == 1
+    assert second.json()["depreciated"] == 0
