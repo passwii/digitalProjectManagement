@@ -533,3 +533,37 @@ def test_bank_statement_import_is_atomic_and_reports_row_number(client):
     assert response.json()["detail"]["code"] == "F-IMPORT-INVALID"
     assert any(item["row"] == 3 for item in response.json()["detail"]["details"])
     assert client.get("/api/v1/finance/bank-statements", headers=scoped).json()["total"] == 0
+
+
+def test_finance_book_roles_separate_read_entry_review_cash_and_close(client, db):
+    admin = _auth(client, "admin", "admin123456")
+    clerk = _auth(client, "pm", "pm123456")
+    outsider = _auth(client, "outsider", "out123456")
+    book = _book(client, admin, "ROLE-MATRIX")
+    scoped_admin = _scoped(admin, book)
+    accounts = _accounts(client, scoped_admin)
+    period = client.get("/api/v1/finance/periods", headers=scoped_admin).json()[0]
+
+    from api.models import AccountBookMember, User
+    with db() as session:
+        clerk_user = session.query(User).filter_by(username="pm").first()
+        session.add(AccountBookMember(account_book_id=book["id"], user_id=clerk_user.id, role="finance_clerk"))
+        session.commit()
+
+    scoped_clerk = _scoped(clerk, book)
+    read = client.get("/api/v1/finance/accounts/tree", headers=scoped_clerk)
+    assert read.status_code == 200
+    draft = client.post("/api/v1/finance/vouchers", headers=scoped_clerk, json={
+        "period_id": period["id"], "voucher_no": "记-0001", "voucher_date": period["start_date"], "summary": "制单",
+        "lines": [
+            {"account_id": accounts["1405"]["id"], "debit": "1.00", "credit": "0", "summary": "库存"},
+            {"account_id": accounts["6001"]["id"], "debit": "0", "credit": "1.00", "summary": "收入"},
+        ],
+    })
+    assert draft.status_code == 200
+    voucher_id = draft.json()["id"]
+    assert client.post(f"/api/v1/finance/vouchers/{voucher_id}/submit", headers=scoped_clerk).status_code == 200
+    assert client.post(f"/api/v1/finance/vouchers/{voucher_id}/approve", headers=scoped_clerk).status_code == 403
+    assert client.post("/api/v1/finance/close/check", headers=scoped_clerk, params={"period_id": period["id"]}).status_code == 403
+
+    assert client.get("/api/v1/finance/books", headers=outsider).status_code == 403

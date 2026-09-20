@@ -19,7 +19,7 @@ from sqlalchemy.orm import Session
 from ..core.audit import commit_audited
 from ..core.database import get_db
 from ..core.deps import get_current_user
-from ..core.rbac import is_admin
+from ..core.rbac import ROLE_CASHIER, ROLE_FINANCE_CLERK, ROLE_FINANCE_MANAGER, ROLE_FINANCE_REVIEWER, is_admin, require_finance
 from ..core.timeutil import app_now
 from ..models import Account, AccountBalance, AccountBook, AccountingPeriod, BankStatement, CashTransaction, OpeningBalance, User, Voucher, VoucherEntry, VoucherTemplate
 from .finance import _book_header
@@ -33,9 +33,16 @@ def _error(status: int, code: str, message: str, details: list[dict[str, str]] |
     raise HTTPException(status, detail={"code": code, "message": message, "details": details or []})
 
 
+def _role(db: Session, user: User, book_id: int, allowed: set[str] | None = None):
+    try:
+        return require_finance(db, user, book_id, allowed)
+    except HTTPException as exc:
+        _error(exc.status_code, "F-FINANCE-ROLE", str(exc.detail))
+
+
 def _admin(user: User):
     if not is_admin(user):
-        _error(403, "F-NO-BOOK-ACCESS", "仅管理员可操作财务凭证")
+        _error(403, "F-FINANCE-ROLE", "仅系统管理员可执行此操作")
 
 
 def _money(value: Any, field: str = "金额") -> Decimal:
@@ -201,13 +208,14 @@ def _template_json(template: VoucherTemplate) -> dict:
 @router.get("/voucher-templates")
 def list_voucher_templates(x_account_book: str | None = Header(default=None), db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     book = _book_header(db, user, x_account_book)
+    _role(db, user, book.id)
     return [_template_json(row) for row in db.query(VoucherTemplate).filter_by(account_book_id=book.id, is_active=True).order_by(VoucherTemplate.code).all()]
 
 
 @router.post("/voucher-templates")
 def create_voucher_template(body: TemplateIn, x_account_book: str | None = Header(default=None), db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     book = _book_header(db, user, x_account_book)
-    _admin(user)
+    _role(db, user, book.id, {ROLE_FINANCE_CLERK, ROLE_FINANCE_MANAGER})
     if db.query(VoucherTemplate).filter_by(account_book_id=book.id, code=body.code.strip()).first():
         _error(409, "F-TEMPLATE-DUPLICATE", "模板编码已存在")
     period = _period(db, book.id, next((row.id for row in db.query(AccountingPeriod).filter_by(account_book_id=book.id).order_by(AccountingPeriod.period_index).all()), 0))
@@ -222,7 +230,7 @@ def create_voucher_template(body: TemplateIn, x_account_book: str | None = Heade
 @router.post("/vouchers/from-template")
 def voucher_from_template(body: FromTemplateIn, x_account_book: str | None = Header(default=None), db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     book = _book_header(db, user, x_account_book)
-    _admin(user)
+    _role(db, user, book.id, {ROLE_FINANCE_CLERK, ROLE_FINANCE_MANAGER})
     template = db.query(VoucherTemplate).filter_by(id=body.template_id, account_book_id=book.id, is_active=True).first()
     if not template:
         _error(404, "F-TEMPLATE-NOT-FOUND", "凭证模板不存在")
@@ -238,7 +246,7 @@ IMPORT_HEADERS = ["凭证号", "凭证日期", "摘要", "科目编码", "分录
 @router.post("/vouchers/import")
 def import_vouchers(period_id: int, file: UploadFile = File(...), x_account_book: str | None = Header(default=None), db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     book = _book_header(db, user, x_account_book)
-    _admin(user)
+    _role(db, user, book.id, {ROLE_FINANCE_CLERK, ROLE_FINANCE_MANAGER})
     period = _period(db, book.id, period_id)
     if period.status != "open":
         _error(400, "F-PERIOD-CLOSED", "当前期间不可导入凭证")
@@ -303,7 +311,7 @@ def import_vouchers(period_id: int, file: UploadFile = File(...), x_account_book
 @router.get("/vouchers/export")
 def export_vouchers(period_id: int, x_account_book: str | None = Header(default=None), db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     book = _book_header(db, user, x_account_book)
-    _admin(user)
+    _role(db, user, book.id)
     period = _period(db, book.id, period_id)
     from openpyxl import Workbook
     workbook = Workbook()
@@ -353,7 +361,7 @@ def _build_draft_voucher(db: Session, book: AccountBook, body: VoucherIn, user: 
 @router.post("/vouchers")
 def create_voucher(body: VoucherIn, x_account_book: str | None = Header(default=None), db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     book = _book_header(db, user, x_account_book)
-    _admin(user)
+    _role(db, user, book.id, {ROLE_FINANCE_CLERK, ROLE_FINANCE_MANAGER})
     if body.source not in EXTERNAL_VOUCHER_SOURCES:
         _error(400, "F-INVALID-VOUCHER", "凭证来源不合法")
     voucher = _build_draft_voucher(db, book, body, user)
@@ -379,7 +387,7 @@ def _cash_voucher_payload(book_id: int, body: CashTransactionIn, account: Accoun
 @router.post("/cash-transactions")
 def create_cash_transaction(body: CashTransactionIn, x_account_book: str | None = Header(default=None), db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     book = _book_header(db, user, x_account_book)
-    _admin(user)
+    _role(db, user, book.id, {ROLE_CASHIER, ROLE_FINANCE_MANAGER})
     _period(db, book.id, body.period_id)
     amount = _money(body.amount)
     account = db.query(Account).filter_by(id=body.account_id, account_book_id=book.id, is_active=True, is_leaf=True).first()
@@ -402,7 +410,7 @@ BANK_HEADERS = ["流水号", "交易日期", "方向", "金额", "银行账户",
 @router.post("/bank-statements/import")
 def import_bank_statements(period_id: int, file: UploadFile = File(...), x_account_book: str | None = Header(default=None), db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     book = _book_header(db, user, x_account_book)
-    _admin(user)
+    _role(db, user, book.id, {ROLE_CASHIER, ROLE_FINANCE_MANAGER})
     _period(db, book.id, period_id)
     try:
         from openpyxl import load_workbook
@@ -456,7 +464,7 @@ def list_bank_statements(period_id: int | None = None, x_account_book: str | Non
 
 @router.post("/bank-statements/{statement_id}/match")
 def match_bank_statement(statement_id: int, body: BankMatchIn, x_account_book: str | None = Header(default=None), db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    book = _book_header(db, user, x_account_book); _admin(user)
+    book = _book_header(db, user, x_account_book); _role(db, user, book.id, {ROLE_CASHIER, ROLE_FINANCE_MANAGER})
     row = db.query(BankStatement).filter_by(id=statement_id, account_book_id=book.id).with_for_update().first()
     if not row:
         _error(404, "F-BANK-STATEMENT-NOT-FOUND", "银行流水不存在")
@@ -506,7 +514,7 @@ def list_vouchers(status: str = "", period_id: int | None = None, page: int = Qu
 @router.patch("/vouchers/{voucher_id}")
 def update_voucher(voucher_id: int, body: VoucherPatch, x_account_book: str | None = Header(default=None), db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     book = _book_header(db, user, x_account_book)
-    _admin(user)
+    _role(db, user, book.id, {ROLE_FINANCE_CLERK, ROLE_FINANCE_MANAGER})
     voucher = _load_voucher(db, book.id, voucher_id)
     if voucher.status != "draft":
         _error(400, "F-VOUCHER-POSTED" if voucher.status == "posted" else "F-VOUCHER-STATE", "只有草稿凭证可以编辑")
@@ -531,7 +539,7 @@ def update_voucher(voucher_id: int, body: VoucherPatch, x_account_book: str | No
 @router.delete("/vouchers/{voucher_id}")
 def delete_voucher(voucher_id: int, x_account_book: str | None = Header(default=None), db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     book = _book_header(db, user, x_account_book)
-    _admin(user)
+    _role(db, user, book.id, {ROLE_FINANCE_CLERK, ROLE_FINANCE_MANAGER})
     voucher = _load_voucher(db, book.id, voucher_id)
     if voucher.status != "draft":
         _error(400, "F-VOUCHER-STATE", "只有草稿凭证可以删除")
@@ -549,7 +557,7 @@ def _transition(voucher: Voucher, expected: set[str], target: str):
 
 @router.post("/vouchers/{voucher_id}/submit")
 def submit_voucher(voucher_id: int, x_account_book: str | None = Header(default=None), db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    book = _book_header(db, user, x_account_book); _admin(user); voucher = _load_voucher(db, book.id, voucher_id)
+    book = _book_header(db, user, x_account_book); _role(db, user, book.id, {ROLE_FINANCE_CLERK, ROLE_FINANCE_MANAGER}); voucher = _load_voucher(db, book.id, voucher_id)
     _transition(voucher, {"draft"}, "pending")
     commit_audited(db, user.id, "submit", "voucher", str(voucher.id), voucher.voucher_no)
     entries, accounts = _entries(db, voucher.id); return _serialize(voucher, entries, accounts)
@@ -557,7 +565,7 @@ def submit_voucher(voucher_id: int, x_account_book: str | None = Header(default=
 
 @router.post("/vouchers/{voucher_id}/approve")
 def approve_voucher(voucher_id: int, x_account_book: str | None = Header(default=None), db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    book = _book_header(db, user, x_account_book); _admin(user); voucher = _load_voucher(db, book.id, voucher_id)
+    book = _book_header(db, user, x_account_book); _role(db, user, book.id, {ROLE_FINANCE_REVIEWER, ROLE_FINANCE_MANAGER}); voucher = _load_voucher(db, book.id, voucher_id)
     _transition(voucher, {"pending"}, "pending")
     voucher.reviewed_by = user.id
     commit_audited(db, user.id, "approve", "voucher", str(voucher.id), voucher.voucher_no)
@@ -566,7 +574,7 @@ def approve_voucher(voucher_id: int, x_account_book: str | None = Header(default
 
 @router.post("/vouchers/{voucher_id}/reject")
 def reject_voucher(voucher_id: int, body: ReasonIn, x_account_book: str | None = Header(default=None), db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    book = _book_header(db, user, x_account_book); _admin(user); voucher = _load_voucher(db, book.id, voucher_id)
+    book = _book_header(db, user, x_account_book); _role(db, user, book.id, {ROLE_FINANCE_REVIEWER, ROLE_FINANCE_MANAGER}); voucher = _load_voucher(db, book.id, voucher_id)
     if not body.reason.strip(): _error(400, "F-REASON-REQUIRED", "驳回凭证必须填写原因")
     _transition(voucher, {"pending"}, "draft"); voucher.decision_reason = body.reason.strip()
     commit_audited(db, user.id, "reject", "voucher", str(voucher.id), voucher.decision_reason)
@@ -753,7 +761,7 @@ def _create_auto_reopen(db: Session, book_id: int, period: AccountingPeriod, use
 
 @router.post("/vouchers/{voucher_id}/post")
 def post_voucher(voucher_id: int, x_account_book: str | None = Header(default=None), db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    book = _book_header(db, user, x_account_book); _admin(user); voucher = db.query(Voucher).filter_by(id=voucher_id, account_book_id=book.id).with_for_update().first()
+    book = _book_header(db, user, x_account_book); _role(db, user, book.id, {ROLE_FINANCE_REVIEWER, ROLE_FINANCE_MANAGER}); voucher = db.query(Voucher).filter_by(id=voucher_id, account_book_id=book.id).with_for_update().first()
     if not voucher: _error(404, "F-VOUCHER-NOT-FOUND", "凭证不存在")
     voucher = cast(Voucher, voucher)
     _transition(voucher, {"pending"}, "posted")
@@ -769,7 +777,7 @@ def post_voucher(voucher_id: int, x_account_book: str | None = Header(default=No
 
 @router.post("/vouchers/{voucher_id}/void")
 def void_voucher(voucher_id: int, body: ReasonIn, x_account_book: str | None = Header(default=None), db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    book = _book_header(db, user, x_account_book); _admin(user); voucher = _load_voucher(db, book.id, voucher_id)
+    book = _book_header(db, user, x_account_book); _role(db, user, book.id, {ROLE_FINANCE_MANAGER}); voucher = _load_voucher(db, book.id, voucher_id)
     if voucher.status not in {"draft", "pending"}: _error(400, "F-VOUCHER-STATE", "已过账凭证不能作废，请使用红字冲销")
     if not body.reason.strip(): _error(400, "F-REASON-REQUIRED", "作废凭证必须填写原因")
     voucher.status = "void"; voucher.voided_by = user.id; voucher.decision_reason = body.reason.strip(); voucher.updated_at = app_now()
@@ -779,7 +787,7 @@ def void_voucher(voucher_id: int, body: ReasonIn, x_account_book: str | None = H
 
 @router.post("/vouchers/{voucher_id}/reverse")
 def reverse_voucher(voucher_id: int, x_account_book: str | None = Header(default=None), db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    book = _book_header(db, user, x_account_book); _admin(user); original = _load_voucher(db, book.id, voucher_id)
+    book = _book_header(db, user, x_account_book); _role(db, user, book.id, {ROLE_FINANCE_MANAGER}); original = _load_voucher(db, book.id, voucher_id)
     if original.status != "posted": _error(400, "F-VOUCHER-STATE", "只有已过账凭证可以红字冲销")
     period = _period(db, book.id, original.period_id)
     if period.status != "open": _error(400, "F-PERIOD-CLOSED", "当前期间不可生成冲销凭证")
@@ -1009,7 +1017,7 @@ def _close_issues(db: Session, book_id: int, period: AccountingPeriod) -> list[d
 @router.post("/close/check")
 def close_check(period_id: int, x_account_book: str | None = Header(default=None), db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     book = _book_header(db, user, x_account_book)
-    _admin(user)
+    _role(db, user, book.id, {ROLE_FINANCE_MANAGER})
     period = _period(db, book.id, period_id)
     if period.status != "open":
         _error(400, "F-PERIOD-CLOSED", "只有开放期间可以执行结账检查")
@@ -1020,7 +1028,7 @@ def close_check(period_id: int, x_account_book: str | None = Header(default=None
 @router.post("/close/run")
 def close_run(period_id: int, x_account_book: str | None = Header(default=None), if_match: str | None = Header(default=None, alias="If-Match"), db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     book = _book_header(db, user, x_account_book)
-    _admin(user)
+    _role(db, user, book.id, {ROLE_FINANCE_MANAGER})
     period = db.query(AccountingPeriod).filter_by(id=period_id, account_book_id=book.id).with_for_update().first()
     if not period:
         _error(404, "F-PERIOD-CLOSED", "期间不存在")
@@ -1044,7 +1052,7 @@ def close_run(period_id: int, x_account_book: str | None = Header(default=None),
 @router.post("/close/reverse")
 def close_reverse(period_id: int, confirm: bool = False, x_account_book: str | None = Header(default=None), if_match: str | None = Header(default=None, alias="If-Match"), db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     book = _book_header(db, user, x_account_book)
-    _admin(user)
+    _role(db, user, book.id, {ROLE_FINANCE_MANAGER})
     period = db.query(AccountingPeriod).filter_by(id=period_id, account_book_id=book.id).with_for_update().first()
     if not period:
         _error(404, "F-PERIOD-CLOSED", "期间不存在")

@@ -20,9 +20,15 @@ ROLE_DEPT = "dept_manager"      # 保留字段：同上
 ROLE_MEMBER = "member"          # 保留字段：同上
 ROLE_COST = "cost_admin"        # 保留字段：同上
 ROLE_EXEC = "executive"         # 保留字段：同上
+ROLE_FINANCE_CLERK = "finance_clerk"
+ROLE_FINANCE_REVIEWER = "finance_reviewer"
+ROLE_CASHIER = "cashier"
+ROLE_FINANCE_MANAGER = "finance_manager"
+ROLE_FINANCE_AUDITOR = "finance_auditor"
 
 RESERVED_ROLES = [ROLE_PM, ROLE_DEPT, ROLE_MEMBER, ROLE_COST, ROLE_EXEC]
-ALL_ROLES = [ROLE_ADMIN, *RESERVED_ROLES]
+FINANCE_ROLES = [ROLE_FINANCE_CLERK, ROLE_FINANCE_REVIEWER, ROLE_CASHIER, ROLE_FINANCE_MANAGER, ROLE_FINANCE_AUDITOR]
+ALL_ROLES = [ROLE_ADMIN, *RESERVED_ROLES, *FINANCE_ROLES]
 
 
 def role_codes(user) -> set:
@@ -46,6 +52,23 @@ def require_admin(user) -> None:
     """管理/审批统一门禁：非管理员稳定 403（调用点必须在任何业务读写之前）。"""
     if not is_admin(user):
         raise HTTPException(403, "仅管理员可操作")
+
+
+def finance_role(db, user, book_id: int) -> str | None:
+    if is_admin(user):
+        return ROLE_FINANCE_MANAGER
+    from ..models import AccountBookMember
+    row = db.query(AccountBookMember).filter_by(account_book_id=book_id, user_id=user.id).first()
+    if not row or row.role not in FINANCE_ROLES:
+        return None
+    return row.role
+
+
+def require_finance(db, user, book_id: int, allowed: set[str] | None = None) -> str:
+    role = finance_role(db, user, book_id)
+    if role is None or (allowed is not None and role not in allowed):
+        raise HTTPException(403, "无财务账套操作权限")
+    return role
 
 
 def member_ids(project) -> set:

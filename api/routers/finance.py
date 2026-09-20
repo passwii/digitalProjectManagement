@@ -87,19 +87,10 @@ class PeriodStatusIn(BaseModel):
 
 
 def _book_access(db: Session, user: User, book_id: int) -> AccountBook:
-    # 首期财务模块严格 admin-only；账套成员表保留给后续财务角色 Stage，
-    # 不能在当前项目管理 RBAC 尚未拆分前形成第二套隐式授权路径。
-    if not is_admin(user):
-        _finance_error(403, "F-NO-BOOK-ACCESS", "仅管理员可访问财务模块")
     book = db.query(AccountBook).filter(AccountBook.id == book_id).first()
     if not book:
         _finance_error(404, "F-NO-BOOK-ACCESS", "账套不存在")
-    if (
-        not is_admin(user)
-        and not db.query(AccountBookMember)
-        .filter_by(account_book_id=book_id, user_id=user.id)
-        .first()
-    ):
+    if not is_admin(user) and not db.query(AccountBookMember).filter_by(account_book_id=book_id, user_id=user.id).first():
         _finance_error(403, "F-NO-BOOK-ACCESS", "无账套权限")
     return book
 
@@ -296,6 +287,50 @@ def list_books(db: Session = Depends(get_db), user: User = Depends(get_current_u
     if not is_admin(user):
         q = q.join(AccountBookMember).filter(AccountBookMember.user_id == user.id)
     return [_serialize_book(x) for x in q.order_by(AccountBook.id).all()]
+
+
+@router.get("/books/{book_id}/members")
+def list_book_members(book_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    book = _book_access(db, user, book_id)
+    if not is_admin(user):
+        _finance_error(403, "F-NO-BOOK-ACCESS", "仅管理员可维护账套成员")
+    rows = db.query(AccountBookMember, User).join(User, User.id == AccountBookMember.user_id).filter(AccountBookMember.account_book_id == book.id).order_by(AccountBookMember.id).all()
+    return [{"id": member.id, "user_id": member.user_id, "username": account.username, "real_name": account.real_name, "role": member.role} for member, account in rows]
+
+
+@router.put("/books/{book_id}/members/{user_id}")
+def upsert_book_member(book_id: int, user_id: int, body: dict, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    book = _book_access(db, user, book_id)
+    if not is_admin(user):
+        _finance_error(403, "F-NO-BOOK-ACCESS", "仅管理员可维护账套成员")
+    from ..core.rbac import FINANCE_ROLES
+    role = str(body.get("role", "")).strip()
+    if role not in FINANCE_ROLES:
+        _finance_error(400, "F-FINANCE-ROLE", "财务角色不合法")
+    target = db.query(User).filter_by(id=user_id).first()
+    if not target:
+        _finance_error(404, "F-FINANCE-ROLE", "用户不存在")
+    member = db.query(AccountBookMember).filter_by(account_book_id=book.id, user_id=user_id).first()
+    if not member:
+        member = AccountBookMember(account_book_id=book.id, user_id=user_id, role=role)
+        db.add(member)
+    else:
+        member.role = role
+    commit_audited(db, user.id, "upsert_finance_member", "account_book_members", str(member.id or user_id), f"book={book.code},role={role}")
+    return {"id": member.id, "user_id": user_id, "username": target.username, "real_name": target.real_name, "role": member.role}
+
+
+@router.delete("/books/{book_id}/members/{user_id}")
+def remove_book_member(book_id: int, user_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    book = _book_access(db, user, book_id)
+    if not is_admin(user):
+        _finance_error(403, "F-NO-BOOK-ACCESS", "仅管理员可维护账套成员")
+    member = db.query(AccountBookMember).filter_by(account_book_id=book.id, user_id=user_id).first()
+    if not member:
+        _finance_error(404, "F-FINANCE-ROLE", "账套成员不存在")
+    db.delete(member)
+    commit_audited(db, user.id, "remove_finance_member", "account_book_members", str(user_id), f"book={book.code}")
+    return {"deleted": True, "user_id": user_id}
 
 
 @router.get("/books/{book_id}")
