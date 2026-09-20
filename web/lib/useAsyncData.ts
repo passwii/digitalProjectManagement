@@ -125,6 +125,8 @@ export function useAsyncData<T>(
             setError("");
             setLoading(true);
             needsRecoveryRef.current = true;
+            // retry 在后台静默进行，不让全局活动条一直暴露短暂断联。
+            finishOnce();
             scheduleRetry();
             return;
           }
