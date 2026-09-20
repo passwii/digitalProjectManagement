@@ -219,7 +219,7 @@ def test_jwt_exp_stays_aware_utc(client):
                     json={"username": "pm", "password": PM_PASSWORD})
     exp = decode_token(r.json()["access_token"])["exp"]
     now = datetime.now(timezone.utc).timestamp()
-    assert abs((exp - now) - 120 * 60) < 120, (exp, now)
+    assert abs((exp - now) - 8 * 60 * 60) < 120, (exp, now)
 
 
 def test_followup_remind_at_with_offset_converts_to_beijing(client, db):

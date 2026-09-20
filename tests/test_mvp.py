@@ -46,6 +46,44 @@ def test_login_me(client):
     assert r.status_code == 200 and r.json()["username"] == "admin"
 
 
+def test_single_session_invalidates_previous_access_and_refresh_tokens(client):
+    first = client.post("/api/v1/auth/login", json={
+        "username": "admin", "password": PASSWORDS["admin"],
+    })
+    assert first.status_code == 200, first.text
+    first_tokens = first.json()
+    first_headers = {"Authorization": f"Bearer {first_tokens['access_token']}"}
+
+    second = client.post("/api/v1/auth/login", json={
+        "username": "admin", "password": PASSWORDS["admin"],
+    })
+    assert second.status_code == 200, second.text
+    second_tokens = second.json()
+    second_headers = {"Authorization": f"Bearer {second_tokens['access_token']}"}
+
+    assert client.get("/api/v1/auth/me", headers=first_headers).status_code == 401
+    assert client.post("/api/v1/auth/refresh", json={
+        "refresh_token": first_tokens["refresh_token"],
+    }).status_code == 401
+    assert client.get("/api/v1/auth/me", headers=second_headers).status_code == 200
+
+
+def test_logout_invalidates_current_refresh_token(client):
+    issued = client.post("/api/v1/auth/login", json={
+        "username": "admin", "password": PASSWORDS["admin"],
+    })
+    assert issued.status_code == 200, issued.text
+    tokens = issued.json()
+    headers = {"Authorization": f"Bearer {tokens['access_token']}"}
+
+    logout = client.post("/api/v1/auth/logout", headers=headers)
+    assert logout.status_code == 200, logout.text
+    assert client.get("/api/v1/auth/me", headers=headers).status_code == 401
+    assert client.post("/api/v1/auth/refresh", json={
+        "refresh_token": tokens["refresh_token"],
+    }).status_code == 401
+
+
 # 3. 编号年份序列 + 名称唯一
 def test_project_code_and_dup(client):
     h = login(client, "pm")

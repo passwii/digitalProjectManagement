@@ -57,8 +57,8 @@ export function getToken(): string | null {
 export function saveSession(access: string, refresh: string) {
   localStorage.setItem(TOKEN_KEY, access);
   localStorage.setItem(REFRESH_KEY, refresh);
-  // middleware 侧可读的 cookie（MVP 非 httpOnly）
-  document.cookie = `pm_access_token=${access}; path=/; max-age=${2 * 3600}`;
+  // middleware 侧可读的 cookie（MVP 非 httpOnly），与 access token 的 8 小时有效期一致
+  document.cookie = `pm_access_token=${access}; path=/; max-age=${8 * 3600}`;
 }
 
 /**

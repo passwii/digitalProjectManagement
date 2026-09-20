@@ -1,4 +1,4 @@
-"""bcrypt 密码 + JWT（access 2h / refresh 7d）。"""
+"""bcrypt 密码 + JWT（access 8h / refresh 7d）。"""
 import os
 import uuid
 from datetime import datetime, timedelta, timezone
@@ -8,7 +8,7 @@ from jose import JWTError, jwt
 
 SECRET_KEY = os.getenv("APP_SECRET", "dev-secret-change-me")
 ALGORITHM = "HS256"
-ACCESS_MINUTES = 120
+ACCESS_MINUTES = 8 * 60
 REFRESH_DAYS = 7
 
 
@@ -27,21 +27,33 @@ def _now():
     return datetime.now(timezone.utc)
 
 
-def _token(sub: str, minutes: int = 0, days: int = 0, kind: str = "access") -> str:
+def _token(
+    sub: str,
+    session_version: int = 0,
+    minutes: int = 0,
+    days: int = 0,
+    kind: str = "access",
+) -> str:
     exp = _now() + (timedelta(days=days) if days else timedelta(minutes=minutes))
     return jwt.encode(
-        {"sub": sub, "kind": kind, "jti": uuid.uuid4().hex, "exp": exp},
+        {
+            "sub": sub,
+            "kind": kind,
+            "jti": uuid.uuid4().hex,
+            "session_version": session_version,
+            "exp": exp,
+        },
         SECRET_KEY,
         algorithm=ALGORITHM,
     )
 
 
-def create_access_token(sub: str) -> str:
-    return _token(sub, minutes=ACCESS_MINUTES, kind="access")
+def create_access_token(sub: str, session_version: int = 0) -> str:
+    return _token(sub, session_version, minutes=ACCESS_MINUTES, kind="access")
 
 
-def create_refresh_token(sub: str) -> str:
-    return _token(sub, days=REFRESH_DAYS, kind="refresh")
+def create_refresh_token(sub: str, session_version: int = 0) -> str:
+    return _token(sub, session_version, days=REFRESH_DAYS, kind="refresh")
 
 
 def decode_token(token: str, kind: str = "access") -> dict:

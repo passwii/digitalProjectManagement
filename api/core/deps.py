@@ -31,6 +31,8 @@ def get_current_user(
     user = db.query(User).filter_by(id=int(payload["sub"])).first()
     if not user:
         raise _unauth("用户不存在")
+    if payload.get("session_version") != (user.session_version or 0):
+        raise _unauth("会话已失效")
     if user.status != "active":
         raise _unauth("账号不可用")
     return user

@@ -75,9 +75,15 @@ def login(body: LoginIn, request: Request, db: Session = Depends(get_db)):
         db.commit()
     if not verify_password(body.password, user.pwd_hash):
         raise _fail(db, user, body.username, ip, "密码错误")
+    # 同一账号只保留最新会话；行锁保证并发登录也会拿到不同版本号。
+    user = db.query(User).with_for_update().filter_by(id=user.id).first()
+    if not user or user.status != "active":
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "账号不可用")
     user.failed_count, user.locked_until = 0, None
+    user.session_version = (user.session_version or 0) + 1
     db.commit()
-    access, refresh = create_access_token(str(user.id)), create_refresh_token(str(user.id))
+    access = create_access_token(str(user.id), user.session_version)
+    refresh = create_refresh_token(str(user.id), user.session_version)
     write_audit(db, user.id, "login", "auth", user.username, "登录成功", ip)
     return {"access_token": access, "refresh_token": refresh, "token_type": "bearer",
             "must_change_pwd": bool(user.must_change_pwd)}
@@ -87,6 +93,8 @@ def login(body: LoginIn, request: Request, db: Session = Depends(get_db)):
 def logout(request: Request, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     auth = request.headers.get("authorization", "")
     token = auth[7:] if auth.lower().startswith("bearer ") else ""
+    user = db.query(User).with_for_update().filter_by(id=user.id).first()
+    user.session_version = (user.session_version or 0) + 1
     try:
         payload = decode_token(token, kind="access")
         db.add(TokenBlacklist(jti=payload["jti"], user_id=user.id,
@@ -110,7 +118,10 @@ def refresh(body: RefreshIn, db: Session = Depends(get_db)):
     user = db.query(User).filter_by(id=int(payload["sub"])).first()
     if not user or user.status != "active":
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "账号不可用")
-    return {"access_token": create_access_token(str(user.id)), "token_type": "bearer"}
+    if payload.get("session_version") != (user.session_version or 0):
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "会话已失效")
+    return {"access_token": create_access_token(str(user.id), user.session_version),
+            "token_type": "bearer"}
 
 
 @router.post("/change-password")

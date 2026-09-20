@@ -420,7 +420,7 @@ R2_PUBLIC_URL=
 `[现状]`：
 
 - 账号以手机号标识，密码使用 bcrypt 单向哈希。
-- Access Token 有效期 2 小时，Refresh Token 有效期 7 天；登出后将 access JTI 写入黑名单。
+- Access Token 有效期 8 小时，Refresh Token 有效期 7 天；同一账号只保留一个当前会话，新登录会使旧 access/refresh token 失效，登出后将 access JTI 写入黑名单。
 - 连续登录失败达到阈值后锁定账号，成功和失败登录均写审计。
 - 管理员是唯一的管理与审批角色；普通用户仅能读取或写入其负责、参与的项目。
 - 项目、子表和附件接口在数据库查询层下推可见性与软删除条件。

@@ -487,6 +487,7 @@ class User(Base):
   failed_count = Column(Integer, default=0)
   locked_until = Column(DateTime, nullable=True)
   must_change_pwd = Column(Boolean, default=False)
+  session_version = Column(Integer, nullable=False, default=0, server_default="0")
   created_at = Column(DateTime, default=_now)
   roles = relationship("Role", secondary="user_roles", back_populates="users")
 
