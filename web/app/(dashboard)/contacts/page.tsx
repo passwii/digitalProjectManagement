@@ -14,8 +14,7 @@ import Badge from "@/components/ui/Badge";
 import Empty from "@/components/ui/Empty";
 import Pagination from "@/components/ui/Pagination";
 import { LoadingBlock, LoadFailed } from "@/components/ui/PageState";
-import PageActions from "@/components/ui/PageActions";
-import TableToolbar from "@/components/ui/TableToolbar";
+import PageHeader from "@/components/ui/PageHeader";
 import ContactDrawer from "./ContactDrawer";
 
 const SIZE_OPTIONS = [20, 50, 100];
@@ -99,8 +98,42 @@ function ContactsInner() {
 
   return (
     <div>
-      <PageActions
+      <PageHeader
         title="通讯录"
+        filters={
+          <>
+            <input
+              value={qDraft}
+              onChange={(e) => setQDraft(e.target.value)}
+              placeholder="搜索姓名 / 联系电话 / 工号 / 岗位…"
+              aria-label="搜索通讯录"
+            />
+            <select value={url.dept} onChange={(e) => setUrl({ dept: e.target.value })} aria-label="按部门筛选">
+              <option value="">全部部门</option>
+              {depts.map((dept) => <option key={dept.id} value={dept.id}>{dept.name}</option>)}
+            </select>
+            <select
+              value={url.employment_status}
+              onChange={(e) => setUrl({ employment_status: e.target.value })}
+              aria-label="按任职状态筛选"
+            >
+              <option value="">全部任职状态</option>
+              {Object.entries(EMPLOYMENT_STATUS).map(([value, label]) => (
+                <option key={value} value={value}>{label}</option>
+              ))}
+            </select>
+            {hasFilter && (
+              <button
+                type="button"
+                className="btn-ghost"
+                style={{ width: "auto" }}
+                onClick={() => setUrl({ q: "", dept: "", employment_status: "" })}
+              >
+                清除筛选
+              </button>
+            )}
+          </>
+        }
         actions={
           <button
             className="btn-primary"
@@ -113,39 +146,6 @@ function ContactsInner() {
       />
 
       {error && <LoadFailed message={error} onRetry={reload} />}
-
-      <TableToolbar>
-        <input
-          value={qDraft}
-          onChange={(e) => setQDraft(e.target.value)}
-          placeholder="搜索姓名 / 联系电话 / 工号 / 岗位…"
-          aria-label="搜索通讯录"
-        />
-        <select value={url.dept} onChange={(e) => setUrl({ dept: e.target.value })} aria-label="按部门筛选">
-          <option value="">全部部门</option>
-          {depts.map((dept) => <option key={dept.id} value={dept.id}>{dept.name}</option>)}
-        </select>
-        <select
-          value={url.employment_status}
-          onChange={(e) => setUrl({ employment_status: e.target.value })}
-          aria-label="按任职状态筛选"
-        >
-          <option value="">全部任职状态</option>
-          {Object.entries(EMPLOYMENT_STATUS).map(([value, label]) => (
-            <option key={value} value={value}>{label}</option>
-          ))}
-        </select>
-        {hasFilter && (
-          <button
-            type="button"
-            className="btn-ghost"
-            style={{ width: "auto" }}
-            onClick={() => setUrl({ q: "", dept: "", employment_status: "" })}
-          >
-            清除筛选
-          </button>
-        )}
-      </TableToolbar>
 
       {firstLoad ? (
         <LoadingBlock kpis={0} label="加载通讯录…" />

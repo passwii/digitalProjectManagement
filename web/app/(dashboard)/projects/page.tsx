@@ -27,10 +27,10 @@ import Avatar from "@/components/ui/Avatar";
 import Empty from "@/components/ui/Empty";
 import Pagination from "@/components/ui/Pagination";
 import { LoadingBlock, LoadFailed } from "@/components/ui/PageState";
-import TableToolbar from "@/components/ui/TableToolbar";
 import { Confirm, Drawer } from "@/components/ui/Modal";
 import { useToast } from "@/components/ui/Toast";
 import { ListPageLayout } from "@/components/ui/ListPageLayout";
+import PageHeader from "@/components/ui/PageHeader";
 import MotionReveal from "@/components/motion/MotionReveal";
 import ProjectFormDialog from "./ProjectFormDialog";
 import { ProjectsListContent } from "./ProjectsListContent";
@@ -152,27 +152,10 @@ function ProjectsInner() {
   }
 
   const toolbar = (
-    <section
-      className="projects-control-section"
-      aria-label="项目台账操作与筛选"
-    >
-      <h1 className="sr-only">项目台账</h1>
-
-      <MotionReveal delay={0.04}>
-        <TableToolbar
-          action={
-            <button
-              className="btn-primary"
-              title="创建一个新的项目档案"
-              onClick={() => {
-                setEditing(null);
-                setFormOpen(true);
-              }}
-            >
-              + 新建项目
-            </button>
-          }
-        >
+    <PageHeader
+      title="项目台账"
+      filters={
+        <>
           <input
             value={qDraft}
             onChange={(e) => setQDraft(e.target.value)}
@@ -232,9 +215,21 @@ function ProjectsInner() {
               清除筛选
             </button>
           )}
-        </TableToolbar>
-      </MotionReveal>
-    </section>
+        </>
+      }
+      actions={
+        <button
+          className="btn-primary"
+          title="创建一个新的项目档案"
+          onClick={() => {
+            setEditing(null);
+            setFormOpen(true);
+          }}
+        >
+          + 新建项目
+        </button>
+      }
+    />
   );
 
   const notice = demoOn ? (

@@ -18,7 +18,7 @@ import ProjectPicker from "@/components/ui/ProjectPicker";
 import { LoadingBlock, LoadFailed } from "@/components/ui/PageState";
 import { Confirm } from "@/components/ui/Modal";
 import { useToast } from "@/components/ui/Toast";
-import PageActions from "@/components/ui/PageActions";
+import PageHeader from "@/components/ui/PageHeader";
 import MotionReveal from "@/components/motion/MotionReveal";
 import { useActivity } from "@/lib/useActivity";
 import ProgressNodeDialog from "./ProgressNodeDialog";
@@ -85,8 +85,20 @@ function ProgressInner() {
 
   return (
     <div>
-      <PageActions
+      <PageHeader
         title="进度跟踪"
+        filters={
+          <label className="toolbar-field">
+            <span>项目</span>
+            <ProjectPicker
+              value={url.project_id}
+              onChange={(id) => setUrl({ project_id: id, page: "1", task: "" }, { history: "push" })}
+              ariaLabel="选择项目"
+              placeholder="搜索项目名称或编号"
+              className="picker-grow"
+            />
+          </label>
+        }
         actions={
           <button
             className="btn-primary"
@@ -98,21 +110,6 @@ function ProgressInner() {
           </button>
         }
       />
-
-      <MotionReveal delay={0.04}>
-      <div className="toolbar-card">
-        <label className="toolbar-field">
-          <span>项目</span>
-          <ProjectPicker
-            value={url.project_id}
-            onChange={(id) => setUrl({ project_id: id, page: "1", task: "" }, { history: "push" })}
-            ariaLabel="选择项目"
-            placeholder="搜索项目名称或编号"
-            className="picker-grow"
-          />
-        </label>
-      </div>
-      </MotionReveal>
 
       {error && <LoadFailed message={error} onRetry={reload} />}
 

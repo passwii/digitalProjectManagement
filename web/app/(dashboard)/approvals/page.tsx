@@ -14,7 +14,7 @@ import Empty from "@/components/ui/Empty";
 import { LoadingBlock, LoadFailed, NoAccess } from "@/components/ui/PageState";
 import { Confirm } from "@/components/ui/Modal";
 import { useToast } from "@/components/ui/Toast";
-import PageActions from "@/components/ui/PageActions";
+import PageHeader from "@/components/ui/PageHeader";
 import CountUp from "@/components/motion/CountUp";
 import MotionReveal from "@/components/motion/MotionReveal";
 import MotionStagger from "@/components/motion/MotionStagger";
@@ -152,7 +152,7 @@ function ApprovalsInner() {
 
   return (
     <div>
-      <PageActions
+      <PageHeader
         title="审批中心"
         actions={
           <button className="btn-ghost" onClick={load} disabled={loading} aria-busy={loading}>

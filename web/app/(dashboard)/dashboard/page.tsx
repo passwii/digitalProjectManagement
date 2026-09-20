@@ -15,7 +15,7 @@ import Badge from "@/components/ui/Badge";
 import Empty from "@/components/ui/Empty";
 import ProgressBar from "@/components/ui/ProgressBar";
 import { LoadingBlock } from "@/components/ui/PageState";
-import PageActions from "@/components/ui/PageActions";
+import PageHeader from "@/components/ui/PageHeader";
 import CountUp from "@/components/motion/CountUp";
 import MotionStagger from "@/components/motion/MotionStagger";
 import { useActivity } from "@/lib/useActivity";
@@ -61,7 +61,7 @@ export default function DashboardPage() {
 
   return (
     <div>
-      <PageActions
+      <PageHeader
         title="工作台"
         actions={
           <>
