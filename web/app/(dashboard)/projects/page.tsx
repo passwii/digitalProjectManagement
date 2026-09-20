@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { Suspense, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { errText, projectsApi, type Project } from "@/lib/api";
 import { useAsyncData } from "@/lib/useAsyncData";
@@ -25,12 +25,17 @@ import {
 import Badge from "@/components/ui/Badge";
 import Avatar from "@/components/ui/Avatar";
 import Empty from "@/components/ui/Empty";
-import Pagination from "@/components/ui/Pagination";
+import Pagination, { type PaginationChange } from "@/components/ui/Pagination";
 import { LoadingBlock, LoadFailed } from "@/components/ui/PageState";
 import TableToolbar from "@/components/ui/TableToolbar";
 import { Confirm, Drawer } from "@/components/ui/Modal";
 import { useToast } from "@/components/ui/Toast";
-import { CardItem, CardList, DesktopTable } from "@/components/ui/CardList";
+import { CardItem, CardList } from "@/components/ui/CardList";
+import {
+  DesktopTableFrame,
+  ListPageLayout,
+  ListViewport,
+} from "@/components/ui/ListPageLayout";
 import MotionReveal from "@/components/motion/MotionReveal";
 import ProjectFormDialog from "./ProjectFormDialog";
 
@@ -49,6 +54,220 @@ const URL_DEFAULTS = {
 
 // 项目编号倒序：按业务编号而非数据库主键排列（例如 PJ-2026-0012 在 PJ-2026-0011 前）
 const DEFAULT_SORT = "-code";
+
+type ProjectsListContentProps = {
+  items: Project[];
+  page: number;
+  size: number;
+  total: number;
+  loading: boolean;
+  scopeText: string;
+  onPageChange: (next: PaginationChange) => void;
+  onSelect?: (project: Project) => void;
+  onEdit?: (project: Project) => void;
+  ownerText?: (project: Project) => string;
+  toolbar?: ReactNode;
+  notice?: ReactNode;
+  wrapPage?: boolean;
+};
+
+export function ProjectsListContent({
+  items,
+  page,
+  size,
+  total,
+  loading,
+  scopeText,
+  onPageChange,
+  onSelect,
+  onEdit,
+  ownerText = (project) => project.owner_name || String(project.owner_id),
+  toolbar,
+  notice,
+  wrapPage = true,
+}: ProjectsListContentProps) {
+  const content = (
+    <ListViewport
+      pagination={
+        <Pagination
+          page={page}
+          size={size}
+          total={total}
+          loading={loading}
+          sizeOptions={SIZE_OPTIONS}
+          scopeText={scopeText}
+          ariaLabel="项目台账分页"
+          onChange={onPageChange}
+        />
+      }
+    >
+      <CardList label="项目台账">
+        {items.map((p) => (
+          <CardItem
+            key={p.id}
+            title={
+              <span className="ellipsis" title={p.name}>
+                {p.name}
+              </span>
+            }
+            code={p.code}
+            badges={
+              <>
+                <Badge
+                  status={projectStatusLabel(p.status)}
+                  tone={projectTone(p.status)}
+                />
+                <Badge
+                  status={
+                    p.contract_status
+                      ? contractStatusLabel(p.contract_status)
+                      : "未登记"
+                  }
+                  tone={
+                    p.contract_status &&
+                    CONTRACT_STATUS[p.contract_status] === "已签订"
+                      ? "done"
+                      : "todo"
+                  }
+                />
+              </>
+            }
+            fields={[
+              {
+                label: "负责人",
+                value: (
+                  <span className="inline-person">
+                    <Avatar name={ownerText(p)} size={22} />
+                    {ownerText(p)}
+                  </span>
+                ),
+              },
+              {
+                label: "客户",
+                value: (
+                  <span className="ellipsis" title={p.client}>
+                    {p.client || "-"}
+                  </span>
+                ),
+              },
+              {
+                label: "预算",
+                value: `${fmtMoney(p.budget_total)} 元`,
+                mono: true,
+              },
+            ]}
+            actions={
+              <button
+                type="button"
+                className="btn-ghost btn-xs"
+                onClick={() => onEdit?.(p)}
+              >
+                编辑
+              </button>
+            }
+            onSelect={() => onSelect?.(p)}
+          />
+        ))}
+      </CardList>
+      <DesktopTableFrame>
+        <table className="grid project-table" aria-busy={loading}>
+          <colgroup>
+            <col style={{ width: 150 }} />
+            <col style={{ width: 250 }} />
+            <col style={{ width: 104 }} />
+            <col style={{ width: 150 }} />
+            <col style={{ width: 84 }} />
+            <col style={{ width: 110 }} />
+            <col style={{ width: 84 }} />
+            <col style={{ width: 110 }} />
+          </colgroup>
+          <thead>
+            <tr>
+              <th>编号</th>
+              <th>名称</th>
+              <th>负责人</th>
+              <th>客户</th>
+              <th>合同</th>
+              <th className="num">合同金额（元）</th>
+              <th>状态</th>
+              <th className="no-print">操作</th>
+            </tr>
+          </thead>
+          <tbody>
+            {items.map((p) => (
+              <tr
+                key={p.id}
+                className="clickable-row"
+                onClick={() => onSelect?.(p)}
+                title="点击查看详情"
+              >
+                <td className="mono project-code">{p.code}</td>
+                <td>
+                  <span className="ellipsis" title={p.name}>
+                    {p.name}
+                  </span>{" "}
+                </td>
+                <td>
+                  <span className="inline-person">
+                    <Avatar name={ownerText(p)} size={22} />
+                    {ownerText(p)}
+                  </span>
+                </td>
+                <td className="muted">
+                  <span className="ellipsis" title={p.client}>
+                    {p.client || "-"}
+                  </span>
+                </td>
+                <td>
+                  <Badge
+                    status={
+                      p.contract_status
+                        ? contractStatusLabel(p.contract_status)
+                        : "未登记"
+                    }
+                    tone={
+                      p.contract_status &&
+                      CONTRACT_STATUS[p.contract_status] === "已签订"
+                        ? "done"
+                        : "todo"
+                    }
+                  />
+                </td>
+                <td className="num">{fmtMoney(p.budget_total)}</td>
+                <td>
+                  <Badge
+                    status={projectStatusLabel(p.status)}
+                    tone={projectTone(p.status)}
+                  />
+                </td>
+                <td className="no-print">
+                  <span className="table-actions">
+                    <button
+                      className="btn-ghost btn-xs"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onEdit?.(p);
+                      }}
+                    >
+                      编辑
+                    </button>
+                  </span>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </DesktopTableFrame>
+    </ListViewport>
+  );
+
+  if (!wrapPage) return content;
+  return (
+    <ListPageLayout toolbar={toolbar ?? null} notice={notice}>
+      {content}
+    </ListPageLayout>
+  );
+}
 
 export default function ProjectsPage() {
   return (
@@ -150,107 +369,110 @@ function ProjectsInner() {
     }
   }
 
-  return (
-    <div>
-      <section
-        className="projects-control-section"
-        aria-label="项目台账操作与筛选"
-      >
-        <h1 className="sr-only">项目台账</h1>
+  const toolbar = (
+    <section
+      className="projects-control-section"
+      aria-label="项目台账操作与筛选"
+    >
+      <h1 className="sr-only">项目台账</h1>
 
-        <MotionReveal delay={0.04}>
-          <TableToolbar
-            action={
-              <button
-                className="btn-primary"
-                title="创建一个新的项目档案"
-                onClick={() => {
-                  setEditing(null);
-                  setFormOpen(true);
-                }}
-              >
-                + 新建项目
-              </button>
-            }
+      <MotionReveal delay={0.04}>
+        <TableToolbar
+          action={
+            <button
+              className="btn-primary"
+              title="创建一个新的项目档案"
+              onClick={() => {
+                setEditing(null);
+                setFormOpen(true);
+              }}
+            >
+              + 新建项目
+            </button>
+          }
+        >
+          <input
+            value={qDraft}
+            onChange={(e) => setQDraft(e.target.value)}
+            placeholder="搜索名称 / 编号 / 客户…"
+            aria-label="搜索项目"
+          />
+          <select
+            value={url.status}
+            onChange={(e) => setUrl({ status: e.target.value })}
+            aria-label="按状态筛选"
           >
-            <input
-              value={qDraft}
-              onChange={(e) => setQDraft(e.target.value)}
-              placeholder="搜索名称 / 编号 / 客户…"
-              aria-label="搜索项目"
-            />
-            <select
-              value={url.status}
-              onChange={(e) => setUrl({ status: e.target.value })}
-              aria-label="按状态筛选"
-            >
-              <option value="">全部状态</option>
-              {statusOptions.map((s) => (
-                <option key={s.code} value={s.code}>
-                  {s.label}
-                </option>
-              ))}
-            </select>
-            <select
-              value={url.owner}
-              onChange={(e) => setUrl({ owner: e.target.value })}
-              aria-label="按负责人筛选"
-              title="按负责人姓名筛选（与列表里显示的负责人一致）"
-            >
-              <option value="">全部负责人</option>
-              {/* URL 里的历史值（如旧链接的账号 id）不在选项里时也要显示出来，避免“静默丢失筛选” */}
-              {url.owner && !ownerOptions.some((o) => o.name === url.owner) && (
-                <option value={url.owner}>{url.owner}（当前筛选）</option>
-              )}
-              {ownerOptions.map((o) => (
-                <option key={o.name} value={o.name}>
-                  {o.count > 0 ? `${o.name}（${o.count}）` : o.name}
-                </option>
-              ))}
-            </select>
-            <select
-              value={year}
-              onChange={(e) => setUrl({ year: e.target.value })}
-              aria-label="按年度筛选"
-            >
-              <option value="">全部年份</option>
-              {yearOptions.map((y) => (
-                <option key={y} value={y}>
-                  {y}年
-                </option>
-              ))}
-            </select>
-            {hasFilter && (
-              <button
-                type="button"
-                className="btn-ghost"
-                style={{ height: 32, lineHeight: "30px", width: "auto" }}
-                onClick={() =>
-                  setUrl({ q: "", status: "", owner: "", year: "" })
-                }
-              >
-                清除筛选
-              </button>
+            <option value="">全部状态</option>
+            {statusOptions.map((s) => (
+              <option key={s.code} value={s.code}>
+                {s.label}
+              </option>
+            ))}
+          </select>
+          <select
+            value={url.owner}
+            onChange={(e) => setUrl({ owner: e.target.value })}
+            aria-label="按负责人筛选"
+            title="按负责人姓名筛选（与列表里显示的负责人一致）"
+          >
+            <option value="">全部负责人</option>
+            {/* URL 里的历史值（如旧链接的账号 id）不在选项里时也要显示出来，避免“静默丢失筛选” */}
+            {url.owner && !ownerOptions.some((o) => o.name === url.owner) && (
+              <option value={url.owner}>{url.owner}（当前筛选）</option>
             )}
-          </TableToolbar>
-        </MotionReveal>
-      </section>
-
-      {demoOn && (
-        <MotionReveal>
-          <div
-            className="warn-banner"
-            style={{
-              background: "var(--brand-soft)",
-              borderColor: "var(--line-blue)",
-              color: "var(--brand)",
-            }}
+            {ownerOptions.map((o) => (
+              <option key={o.name} value={o.name}>
+                {o.count > 0 ? `${o.name}（${o.count}）` : o.name}
+              </option>
+            ))}
+          </select>
+          <select
+            value={year}
+            onChange={(e) => setUrl({ year: e.target.value })}
+            aria-label="按年度筛选"
           >
-            当前正在显示<b>演示数据</b>
-            （工作台与报表统计同样包含），关闭开关即可全站隐藏。
-          </div>
-        </MotionReveal>
-      )}
+            <option value="">全部年份</option>
+            {yearOptions.map((y) => (
+              <option key={y} value={y}>
+                {y}年
+              </option>
+            ))}
+          </select>
+          {hasFilter && (
+            <button
+              type="button"
+              className="btn-ghost"
+              style={{ height: 32, lineHeight: "30px", width: "auto" }}
+              onClick={() =>
+                setUrl({ q: "", status: "", owner: "", year: "" })
+              }
+            >
+              清除筛选
+            </button>
+          )}
+        </TableToolbar>
+      </MotionReveal>
+    </section>
+  );
+
+  const notice = demoOn ? (
+    <MotionReveal>
+      <div
+        className="warn-banner"
+        style={{
+          background: "var(--brand-soft)",
+          borderColor: "var(--line-blue)",
+          color: "var(--brand)",
+        }}
+      >
+        当前正在显示<b>演示数据</b>
+        （工作台与报表统计同样包含），关闭开关即可全站隐藏。
+      </div>
+    </MotionReveal>
+  ) : undefined;
+
+  return (
+    <ListPageLayout toolbar={toolbar} notice={notice}>
 
       {error && <LoadFailed message={error} onRetry={reload} />}
 
@@ -269,184 +491,26 @@ function ProjectsInner() {
         </div>
       ) : (
         <MotionReveal delay={0.08}>
-          {/* D4：手机端卡片流 —— 同一份数据，纯 CSS 在 767px 与下表切换（见 CardList） */}
-          <CardList label="项目台账">
-            {items.map((p) => (
-              <CardItem
-                key={p.id}
-                title={
-                  <span className="ellipsis" title={p.name}>
-                    {p.name}
-                  </span>
-                }
-                code={p.code}
-                badges={
-                  <>
-                    <Badge
-                      status={projectStatusLabel(p.status)}
-                      tone={projectTone(p.status)}
-                    />
-                    <Badge
-                      status={
-                        p.contract_status
-                          ? contractStatusLabel(p.contract_status)
-                          : "未登记"
-                      }
-                      tone={
-                        p.contract_status &&
-                        CONTRACT_STATUS[p.contract_status] === "已签订"
-                          ? "done"
-                          : "todo"
-                      }
-                    />
-                  </>
-                }
-                fields={[
-                  {
-                    label: "负责人",
-                    value: (
-                      <span className="inline-person">
-                        <Avatar name={ownerText(p)} size={22} />
-                        {ownerText(p)}
-                      </span>
-                    ),
-                  },
-                  {
-                    label: "客户",
-                    value: (
-                      <span className="ellipsis" title={p.client}>
-                        {p.client || "-"}
-                      </span>
-                    ),
-                  },
-                  {
-                    label: "预算",
-                    value: `${fmtMoney(p.budget_total)} 元`,
-                    mono: true,
-                  },
-                ]}
-                actions={
-                  <>
-                    <button
-                      type="button"
-                      className="btn-ghost btn-xs"
-                      onClick={() => {
-                        setEditing(p);
-                        setFormOpen(true);
-                      }}
-                    >
-                      编辑
-                    </button>
-                  </>
-                }
-                onSelect={() => setDetail(p)}
-              />
-            ))}
-          </CardList>
-          <DesktopTable>
-            <table className="grid project-table" aria-busy={loading}>
-              <colgroup>
-                <col style={{ width: 150 }} />
-                <col style={{ width: 250 }} />
-                <col style={{ width: 104 }} />
-                <col style={{ width: 150 }} />
-                <col style={{ width: 84 }} />
-                <col style={{ width: 110 }} />
-                <col style={{ width: 84 }} />
-                <col style={{ width: 110 }} />
-              </colgroup>
-              <thead>
-                <tr>
-                  <th>编号</th>
-                  <th>名称</th>
-                  <th>负责人</th>
-                  <th>客户</th>
-                  <th>合同</th>
-                  <th className="num">合同金额（元）</th>
-                  <th>状态</th>
-                  <th className="no-print">操作</th>
-                </tr>
-              </thead>
-              <tbody>
-                {items.map((p) => (
-                  <tr
-                    key={p.id}
-                    className="clickable-row"
-                    onClick={() => setDetail(p)}
-                    title="点击查看详情"
-                  >
-                    <td className="mono project-code">{p.code}</td>
-                    <td>
-                      <span className="ellipsis" title={p.name}>
-                        {p.name}
-                      </span>{" "}
-                    </td>
-                    <td>
-                      <span className="inline-person">
-                        <Avatar name={ownerText(p)} size={22} />
-                        {ownerText(p)}
-                      </span>
-                    </td>
-                    <td className="muted">
-                      <span className="ellipsis" title={p.client}>
-                        {p.client || "-"}
-                      </span>
-                    </td>
-                    <td>
-                      <Badge
-                        status={
-                          p.contract_status
-                            ? contractStatusLabel(p.contract_status)
-                            : "未登记"
-                        }
-                        tone={
-                          p.contract_status &&
-                          CONTRACT_STATUS[p.contract_status] === "已签订"
-                            ? "done"
-                            : "todo"
-                        }
-                      />
-                    </td>
-                    <td className="num">{fmtMoney(p.budget_total)}</td>
-                    <td>
-                      <Badge
-                        status={projectStatusLabel(p.status)}
-                        tone={projectTone(p.status)}
-                      />
-                    </td>
-                    <td className="no-print">
-                      <span className="table-actions">
-                        <button
-                          className="btn-ghost btn-xs"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setEditing(p);
-                            setFormOpen(true);
-                          }}
-                        >
-                          编辑
-                        </button>
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </DesktopTable>
-          <Pagination
+          <ProjectsListContent
+            items={items}
             page={page}
             size={size}
             total={total}
             loading={loading}
-            sizeOptions={SIZE_OPTIONS}
             scopeText={scopeText}
-            ariaLabel="项目台账分页"
-            onChange={(next) =>
+            onPageChange={(next) =>
               setUrl(
                 { page: String(next.page), size: String(next.size) },
                 { history: next.page === page ? "replace" : "push" },
               )
             }
+            onSelect={setDetail}
+            onEdit={(project) => {
+              setEditing(project);
+              setFormOpen(true);
+            }}
+            ownerText={ownerText}
+            wrapPage={false}
           />
         </MotionReveal>
       )}
@@ -685,6 +749,6 @@ function ProjectsInner() {
         }}
         onCancel={() => setDeleteTarget(null)}
       />
-    </div>
+    </ListPageLayout>
   );
 }

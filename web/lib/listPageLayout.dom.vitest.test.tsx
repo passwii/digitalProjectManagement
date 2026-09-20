@@ -7,6 +7,7 @@ import {
   ListPageLayout,
   ListViewport,
 } from "../components/ui/ListPageLayout";
+import { ProjectsListContent } from "../app/(dashboard)/projects/page";
 
 afterEach(() => cleanup());
 
@@ -52,5 +53,25 @@ describe("ListPageLayout", () => {
     const table = document.querySelector("table.grid");
     expect(table?.querySelector("td")?.textContent).toBe("行");
     expect(document.querySelector(".project-table-frame")).not.toBeNull();
+  });
+
+  it("项目台账把响应式主体和分页接入同一轨道", () => {
+    render(
+      <ProjectsListContent
+        items={[]}
+        page={1}
+        size={15}
+        total={0}
+        loading={false}
+        scopeText=""
+        onPageChange={() => {}}
+      />,
+    );
+
+    const viewport = document.querySelector('[data-list-viewport="true"]');
+    expect(viewport?.querySelector('[data-cardlist="项目台账"]')).not.toBeNull();
+    expect(viewport?.querySelector("table.grid")).not.toBeNull();
+    expect(viewport?.querySelector('[data-list-pagination="true"]')).not.toBeNull();
+    expect(document.querySelector('[data-list-content="true"] > [data-list-viewport="true"]')).not.toBeNull();
   });
 });
