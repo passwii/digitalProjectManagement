@@ -19,6 +19,7 @@
 
 import { useEffect, type ReactNode } from "react";
 import s from "./CardList.module.css";
+import { DesktopTableFrame } from "./ListPageLayout";
 
 /** 卡片内一行「标签—值」结论（如 负责人 / 预算 / 进度）。值可以是任意节点（含进度条）。 */
 export interface CardField {
@@ -118,7 +119,7 @@ export function CardItem({
  * 卡片流不进打印，见模块 CSS 的 `@media print`）。
  */
 export function DesktopTable({ children }: { children: ReactNode }) {
- return <div className={`table-scroll ${s.desktopOnly}`}>{children}</div>;
+ return <DesktopTableFrame className={s.desktopOnly}>{children}</DesktopTableFrame>;
 }
 
 /**

@@ -54,7 +54,7 @@ export function DesktopTableFrame({
 }) {
   return (
     <div
-      className={`${s.tableFrame}${className ? ` ${className}` : ""}`}
+      className={`table-scroll ${s.tableFrame}${className ? ` ${className}` : ""}`}
       data-desktop-table-frame="true"
     >
       {children}
