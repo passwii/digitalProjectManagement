@@ -368,6 +368,58 @@ class VoucherTemplate(Base):
   )
 
 
+class CashTransaction(Base):
+  __tablename__ = "cash_transactions"
+  id = Column(Integer, primary_key=True)
+  account_book_id = Column(Integer, ForeignKey("account_books.id", ondelete="CASCADE"), nullable=False, index=True)
+  period_id = Column(Integer, nullable=False)
+  kind = Column(String(16), nullable=False)
+  transaction_date = Column(Date, nullable=False)
+  amount = Column(Numeric(18, 2), nullable=False)
+  account_id = Column(Integer, nullable=False)
+  offset_account_id = Column(Integer, nullable=False)
+  summary = Column(String(255), nullable=False, default="", server_default="")
+  counterparty = Column(String(128), nullable=False, default="", server_default="")
+  cashflow_item = Column(String(32), nullable=True)
+  status = Column(String(16), nullable=False, default="draft", server_default="draft")
+  voucher_id = Column(Integer, ForeignKey("vouchers.id"), nullable=True)
+  created_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+  created_at = Column(DateTime, default=_now, nullable=False)
+  __table_args__ = (
+    CheckConstraint("kind IN ('receipt','payment','expense')", name="ck_cash_transaction_kind"),
+    CheckConstraint("amount > 0", name="ck_cash_transaction_amount"),
+    ForeignKeyConstraint(["account_book_id", "period_id"], ["accounting_periods.account_book_id", "accounting_periods.id"], name="fk_cash_transaction_period_same_book"),
+    ForeignKeyConstraint(["account_book_id", "account_id"], ["accounts.account_book_id", "accounts.id"], name="fk_cash_transaction_account_same_book"),
+    ForeignKeyConstraint(["account_book_id", "offset_account_id"], ["accounts.account_book_id", "accounts.id"], name="fk_cash_transaction_offset_same_book"),
+  )
+
+
+class BankStatement(Base):
+  __tablename__ = "bank_statements"
+  id = Column(Integer, primary_key=True)
+  account_book_id = Column(Integer, ForeignKey("account_books.id", ondelete="CASCADE"), nullable=False, index=True)
+  period_id = Column(Integer, nullable=False)
+  external_id = Column(String(128), nullable=False)
+  transaction_date = Column(Date, nullable=False)
+  direction = Column(String(16), nullable=False)
+  amount = Column(Numeric(18, 2), nullable=False)
+  account_code = Column(String(32), nullable=False, default="", server_default="")
+  summary = Column(String(255), nullable=False, default="", server_default="")
+  counterparty = Column(String(128), nullable=False, default="", server_default="")
+  status = Column(String(16), nullable=False, default="unmatched", server_default="unmatched")
+  matched_voucher_id = Column(Integer, ForeignKey("vouchers.id"), nullable=True)
+  matched_at = Column(DateTime, nullable=True)
+  matched_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+  created_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+  created_at = Column(DateTime, default=_now, nullable=False)
+  __table_args__ = (
+    UniqueConstraint("account_book_id", "external_id", name="uq_bank_statement_book_external"),
+    CheckConstraint("direction IN ('inflow','outflow')", name="ck_bank_statement_direction"),
+    CheckConstraint("amount > 0", name="ck_bank_statement_amount"),
+    CheckConstraint("status IN ('unmatched','matched','ignored')", name="ck_bank_statement_status"),
+  )
+
+
 class Department(Base):
   __tablename__ = "departments"
   id = Column(Integer, primary_key=True)

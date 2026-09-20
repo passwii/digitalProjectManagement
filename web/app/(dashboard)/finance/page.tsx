@@ -19,7 +19,7 @@ import MotionTabs from "@/components/motion/MotionTabs";
 import { Dialog } from "@/components/ui/Modal";
 import { useToast } from "@/components/ui/Toast";
 
-const TABS = ["账套概览", "基础设置", "凭证", "账簿与报表", "期末结账"] as const;
+const TABS = ["账套概览", "基础设置", "凭证", "出纳与对账", "账簿与报表", "期末结账"] as const;
 type Tab = (typeof TABS)[number];
 
 function money(value: string | number) {
@@ -48,6 +48,8 @@ function FinanceInner() {
     { enabled: !!activeBook && !!currentPeriod && tab === "凭证", resetOnDepChange: true },
   );
   const templates = useAsyncData((signal) => financeApi.templates(activeBook, signal), [activeBook], { enabled: !!activeBook && tab === "凭证", resetOnDepChange: true });
+  const bankStatements = useAsyncData((signal) => financeApi.bankStatements(activeBook, currentPeriod?.id, signal), [activeBook, currentPeriod?.id], { enabled: !!activeBook && !!currentPeriod && tab === "出纳与对账", resetOnDepChange: true });
+  const reconciliation = useAsyncData((signal) => financeApi.reconciliation(activeBook, currentPeriod!.id, signal), [activeBook, currentPeriod?.id], { enabled: !!activeBook && !!currentPeriod && tab === "出纳与对账", resetOnDepChange: true });
   const balances = useAsyncData(
     (signal) => financeApi.balances(activeBook, currentPeriod!.id, signal),
     [activeBook, currentPeriod?.id],
@@ -130,6 +132,7 @@ function FinanceInner() {
                 vouchers.reload();
               } catch (error) { toast.err(errText(error)); }
             }} />}
+            {tab === "出纳与对账" && <CashierList book={activeBook} period={currentPeriod} statements={bankStatements.data?.items ?? []} summary={reconciliation.data ?? undefined} loading={bankStatements.loading || reconciliation.loading} error={bankStatements.error || reconciliation.error} onRetry={() => { bankStatements.reload(); reconciliation.reload(); }} onChanged={() => { bankStatements.reload(); reconciliation.reload(); }} />}
             {tab === "账簿与报表" && <BalanceList period={currentPeriod} items={balances.data?.items ?? []} reports={reports.data ?? undefined} loading={balances.loading || reports.loading} error={balances.error || reports.error} onRetry={() => { balances.reload(); reports.reload(); }} />}
             {tab === "期末结账" && <ClosePanel book={activeBook} period={currentPeriod} check={closeCheck.data} loading={closeCheck.loading} error={closeCheck.error} onRefresh={() => { closeCheck.reload(); periods.reload(); }} onClosed={() => { closeCheck.reload(); periods.reload(); }} />}
           </MotionTabs>
@@ -172,6 +175,20 @@ function VoucherList({ book, period, templates, data, loading, error, onRetry, o
   return <>
     <div className="section-head"><div><h2>凭证</h2><p>当前期间的凭证流水，草稿、待审核和已过账状态由后端控制。</p></div><div className="row-actions"><button className="btn-ghost" onClick={onTemplate}>模板</button><button className="btn-ghost" onClick={() => document.getElementById("finance-voucher-import")?.click()}>导入 Excel</button><input id="finance-voucher-import" type="file" accept=".xlsx" hidden onChange={async (event) => { const file = event.target.files?.[0]; if (file && period) { await financeApi.importVouchers(book, period.id, file); window.location.reload(); } }} /><button className="btn-ghost" disabled={!period} onClick={() => period && financeApi.exportVouchers(book, period.id)}>导出 Excel</button><button className="btn-primary" onClick={onCreate}>+ 新建凭证</button></div></div>
     {!data.length ? <div className="card"><Empty title="当前期间还没有凭证" hint="从一张手工凭证开始建立财务事实。" /></div> : <div className="table-scroll"><table className="grid"><thead><tr><th>凭证号</th><th>日期</th><th>摘要</th><th className="num">借方</th><th className="num">贷方</th><th>状态</th><th className="no-print">操作</th></tr></thead><tbody>{data.map((voucher) => <tr key={voucher.id}><td className="mono">{voucher.voucher_no}</td><td>{voucher.voucher_date}</td><td>{voucher.summary || "-"}</td><td className="num">{money(voucher.total_debit)}</td><td className="num">{money(voucher.total_credit)}</td><td><span className={`badge ${voucher.status === "posted" ? "done" : voucher.status === "pending" ? "doing" : "muted"}`}>{({ draft: "草稿", pending: "待审核", posted: "已过账", void: "已作废" } as Record<string, string>)[voucher.status]}</span></td><td className="no-print"><div className="row-actions">{voucher.status === "draft" && <button className="btn-xs btn-ghost" onClick={() => onAction("submit", voucher)}>提交</button>}{voucher.status === "pending" && <><button className="btn-xs btn-ghost" onClick={() => onAction("approve", voucher)}>审核</button><button className="btn-xs btn-primary" onClick={() => onAction("post", voucher)}>过账</button></>}{voucher.status === "posted" && <button className="btn-xs btn-ghost" onClick={() => onAction("reverse", voucher)}>红字冲销</button>}</div></td></tr>)}</tbody></table></div>}
+  </>;
+}
+
+function CashierList({ book, period, statements, summary, loading, error, onRetry, onChanged }: { book: string; period: FinancePeriod | null; statements: { id: number; external_id: string; transaction_date: string; direction: "inflow" | "outflow"; amount: string; account_code: string; summary: string; counterparty: string; status: string; matched_voucher_id: number | null }[]; summary?: { bank_total: string; unmatched_count: number; unmatched_amount: string }; loading: boolean; error: string; onRetry: () => void; onChanged: () => void }) {
+  const toast = useToast();
+  const [busy, setBusy] = useState(false);
+  async function importFile(file: File) {
+    if (!period) return;
+    setBusy(true);
+    try { await financeApi.importBankStatements(book, period.id, file); toast.ok("银行流水已导入"); onChanged(); } catch (e) { toast.err(errText(e)); } finally { setBusy(false); }
+  }
+  return <>
+    <div className="section-head"><div><h2>出纳与对账</h2><p>银行流水先入账待匹配区，再与当前账套已过账凭证核对。</p></div><div className="row-actions"><button className="btn-ghost" onClick={() => document.getElementById("finance-bank-import")?.click()} disabled={busy || !period}>导入银行流水</button><input id="finance-bank-import" type="file" accept=".xlsx" hidden onChange={(event) => { const file = event.target.files?.[0]; if (file) void importFile(file); }} /><button className="btn-ghost" onClick={onRetry}>刷新</button></div></div>
+    {loading ? <LoadingBlock kpis={3} label="加载银行对账…" /> : error ? <LoadFailed message={error} onRetry={onRetry} /> : <><div className="kpi-row"><div className="kpi"><div className="k">银行流水净额</div><div className="v">{money(summary?.bank_total ?? "0")}</div><div className="kpi-foot">当前期间导入流水</div></div><div className="kpi"><div className="k">未匹配笔数</div><div className="v">{summary?.unmatched_count ?? 0}</div><div className="kpi-foot">需要与凭证核对</div></div><div className="kpi"><div className="k">未匹配金额</div><div className="v">{money(summary?.unmatched_amount ?? "0")}</div><div className="kpi-foot">未达账项提示</div></div></div><div className="table-scroll"><table className="grid"><thead><tr><th>流水号</th><th>日期</th><th>方向</th><th className="num">金额</th><th>摘要</th><th>对方</th><th>状态</th></tr></thead><tbody>{statements.map((row) => <tr key={row.id}><td className="mono">{row.external_id}</td><td>{row.transaction_date}</td><td>{row.direction === "inflow" ? "流入" : "流出"}</td><td className="num">{money(row.amount)}</td><td>{row.summary || "-"}</td><td>{row.counterparty || "-"}</td><td><span className={`badge ${row.status === "matched" ? "done" : "doing"}`}>{row.status === "matched" ? "已匹配" : "待匹配"}</span></td></tr>)}</tbody></table></div></>}
   </>;
 }
 

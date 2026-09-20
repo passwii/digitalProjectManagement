@@ -21,11 +21,12 @@ from ..core.database import get_db
 from ..core.deps import get_current_user
 from ..core.rbac import is_admin
 from ..core.timeutil import app_now
-from ..models import Account, AccountBalance, AccountBook, AccountingPeriod, OpeningBalance, User, Voucher, VoucherEntry, VoucherTemplate
+from ..models import Account, AccountBalance, AccountBook, AccountingPeriod, BankStatement, CashTransaction, OpeningBalance, User, Voucher, VoucherEntry, VoucherTemplate
 from .finance import _book_header
 
 router = APIRouter(prefix="/finance", tags=["finance-accounting"])
 EXTERNAL_VOUCHER_SOURCES = {"manual", "template", "import"}
+INTERNAL_VOUCHER_SOURCES = EXTERNAL_VOUCHER_SOURCES | {"cash", "auto-close", "auto-reopen", "reversal"}
 
 
 def _error(status: int, code: str, message: str, details: list[dict[str, str]] | None = None):
@@ -92,6 +93,22 @@ class FromTemplateIn(BaseModel):
     voucher_no: str = Field(min_length=1, max_length=32)
     voucher_date: date
     summary: str = Field(default="", max_length=255)
+
+
+class CashTransactionIn(BaseModel):
+    period_id: int
+    kind: str = Field(pattern="^(receipt|payment|expense)$")
+    transaction_date: date
+    amount: Decimal
+    account_id: int
+    offset_account_id: int
+    summary: str = Field(default="", max_length=255)
+    counterparty: str = Field(default="", max_length=128)
+    cashflow_item: str | None = Field(default=None, max_length=32)
+
+
+class BankMatchIn(BaseModel):
+    voucher_id: int
 
 
 def _period(db: Session, book_id: int, period_id: int) -> AccountingPeriod:
@@ -319,7 +336,7 @@ def _build_draft_voucher(db: Session, book: AccountBook, body: VoucherIn, user: 
         _error(400, "F-PERIOD-CLOSED", "当前期间不可录入凭证")
     if not (period.start_date <= body.voucher_date <= period.end_date):
         _error(400, "F-PERIOD-CLOSED", "凭证日期不在所属期间")
-    if body.source not in EXTERNAL_VOUCHER_SOURCES:
+    if body.source not in INTERNAL_VOUCHER_SOURCES:
         _error(400, "F-INVALID-VOUCHER", "凭证来源不合法")
     voucher_no = body.voucher_no.strip()
     if db.query(Voucher).filter_by(account_book_id=book.id, period_id=period.id, voucher_no=voucher_no).first():
@@ -337,10 +354,133 @@ def _build_draft_voucher(db: Session, book: AccountBook, body: VoucherIn, user: 
 def create_voucher(body: VoucherIn, x_account_book: str | None = Header(default=None), db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     book = _book_header(db, user, x_account_book)
     _admin(user)
+    if body.source not in EXTERNAL_VOUCHER_SOURCES:
+        _error(400, "F-INVALID-VOUCHER", "凭证来源不合法")
     voucher = _build_draft_voucher(db, book, body, user)
     commit_audited(db, user.id, "create", "voucher", str(voucher.id), voucher.voucher_no)
     entries, accounts = _entries(db, voucher.id)
     return _serialize(voucher, entries, accounts)
+
+
+def _cash_voucher_payload(book_id: int, body: CashTransactionIn, account: Account, offset: Account, user: User) -> VoucherIn:
+    if body.kind == "receipt":
+        lines = [
+            EntryIn(account_id=body.account_id, summary=body.summary, debit=body.amount, credit=Decimal("0"), cashflow_item=body.cashflow_item),
+            EntryIn(account_id=body.offset_account_id, summary=body.summary, debit=Decimal("0"), credit=body.amount),
+        ]
+    else:
+        lines = [
+            EntryIn(account_id=body.offset_account_id, summary=body.summary, debit=body.amount, credit=Decimal("0")),
+            EntryIn(account_id=body.account_id, summary=body.summary, debit=Decimal("0"), credit=body.amount, cashflow_item=body.cashflow_item),
+        ]
+    return VoucherIn(period_id=body.period_id, voucher_no=f"收付-{app_now().strftime('%H%M%S%f')[:8]}", voucher_date=body.transaction_date, summary=body.summary, source="cash", lines=lines)
+
+
+@router.post("/cash-transactions")
+def create_cash_transaction(body: CashTransactionIn, x_account_book: str | None = Header(default=None), db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    book = _book_header(db, user, x_account_book)
+    _admin(user)
+    _period(db, book.id, body.period_id)
+    amount = _money(body.amount)
+    account = db.query(Account).filter_by(id=body.account_id, account_book_id=book.id, is_active=True, is_leaf=True).first()
+    offset = db.query(Account).filter_by(id=body.offset_account_id, account_book_id=book.id, is_active=True, is_leaf=True).first()
+    if not account or not offset:
+        _error(400, "F-ACCT-INACTIVE", "资金科目和对方科目必须是当前账套启用的末级科目")
+    body = body.model_copy(update={"amount": amount})
+    payload = _cash_voucher_payload(book.id, body, account, offset, user)
+    voucher = _build_draft_voucher(db, book, payload, user)
+    transaction = CashTransaction(account_book_id=book.id, period_id=body.period_id, kind=body.kind, transaction_date=body.transaction_date, amount=amount, account_id=body.account_id, offset_account_id=body.offset_account_id, summary=body.summary.strip(), counterparty=body.counterparty.strip(), cashflow_item=body.cashflow_item, status="draft", voucher_id=voucher.id, created_by=user.id, created_at=app_now())
+    db.add(transaction)
+    commit_audited(db, user.id, "create_cash_transaction", "cash_transaction", str(transaction.id), f"voucher={voucher.id}")
+    entries, accounts = _entries(db, voucher.id)
+    return {"id": transaction.id, "kind": transaction.kind, "status": transaction.status, "amount": str(transaction.amount), "voucher": _serialize(voucher, entries, accounts)}
+
+
+BANK_HEADERS = ["流水号", "交易日期", "方向", "金额", "银行账户", "摘要", "对方"]
+
+
+@router.post("/bank-statements/import")
+def import_bank_statements(period_id: int, file: UploadFile = File(...), x_account_book: str | None = Header(default=None), db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    book = _book_header(db, user, x_account_book)
+    _admin(user)
+    _period(db, book.id, period_id)
+    try:
+        from openpyxl import load_workbook
+        rows = list(load_workbook(file.file, read_only=True, data_only=True).active.iter_rows(values_only=True))
+    except Exception as exc:
+        _error(400, "F-IMPORT-INVALID", "银行流水 Excel 解析失败", [{"row": 1, "reason": str(exc)}])
+    if not rows or list(rows[0][:len(BANK_HEADERS)]) != BANK_HEADERS:
+        _error(400, "F-IMPORT-INVALID", "银行流水表头不符合模板", [{"row": 1, "reason": "表头必须为：" + "、".join(BANK_HEADERS)}])
+    parsed: list[dict[str, Any]] = []
+    errors: list[dict[str, Any]] = []
+    for row_number, raw in enumerate(rows[1:], 2):
+        values = list(raw[:len(BANK_HEADERS)]) + [None] * max(0, len(BANK_HEADERS) - len(raw))
+        if not any(value not in (None, "") for value in values):
+            continue
+        external_id, raw_date, direction, raw_amount, account_code, summary, counterparty = values
+        try:
+            if str(direction).strip() not in {"流入", "流出"}:
+                raise ValueError("方向必须为流入或流出")
+            transaction_date = raw_date if isinstance(raw_date, date) else date.fromisoformat(str(raw_date))
+            amount = _money(raw_amount, "银行流水金额")
+            if not str(external_id or "").strip():
+                raise ValueError("流水号不能为空")
+            parsed.append({"external_id": str(external_id).strip(), "transaction_date": transaction_date, "direction": "inflow" if str(direction).strip() == "流入" else "outflow", "amount": amount, "account_code": str(account_code or "").strip(), "summary": str(summary or ""), "counterparty": str(counterparty or "")})
+        except Exception as exc:
+            errors.append({"row": row_number, "reason": str(exc)})
+    if errors:
+        _error(400, "F-IMPORT-INVALID", "银行流水导入校验失败，未写入任何流水", errors)
+    for item in parsed:
+        if db.query(BankStatement).filter_by(account_book_id=book.id, external_id=item["external_id"]).first():
+            _error(409, "F-IMPORT-DUPLICATE", f"流水号已存在：{item['external_id']}")
+    try:
+        rows = []
+        for item in parsed:
+            row = BankStatement(account_book_id=book.id, period_id=period_id, created_by=user.id, created_at=app_now(), **item)
+            db.add(row); rows.append(row)
+        commit_audited(db, user.id, "import_bank_statements", "bank_statements", str(period_id), f"count={len(rows)}")
+        return {"imported": len(rows), "items": [{"id": row.id, "external_id": row.external_id, "status": row.status, "amount": str(row.amount), "direction": row.direction} for row in rows]}
+    except HTTPException:
+        raise
+
+
+@router.get("/bank-statements")
+def list_bank_statements(period_id: int | None = None, x_account_book: str | None = Header(default=None), db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    book = _book_header(db, user, x_account_book)
+    q = db.query(BankStatement).filter_by(account_book_id=book.id)
+    if period_id is not None:
+        q = q.filter(BankStatement.period_id == period_id)
+    rows = q.order_by(BankStatement.transaction_date.desc(), BankStatement.id.desc()).all()
+    return {"total": len(rows), "items": [{"id": row.id, "external_id": row.external_id, "transaction_date": row.transaction_date.isoformat(), "direction": row.direction, "amount": str(row.amount), "account_code": row.account_code, "summary": row.summary, "counterparty": row.counterparty, "status": row.status, "matched_voucher_id": row.matched_voucher_id} for row in rows]}
+
+
+@router.post("/bank-statements/{statement_id}/match")
+def match_bank_statement(statement_id: int, body: BankMatchIn, x_account_book: str | None = Header(default=None), db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    book = _book_header(db, user, x_account_book); _admin(user)
+    row = db.query(BankStatement).filter_by(id=statement_id, account_book_id=book.id).with_for_update().first()
+    if not row:
+        _error(404, "F-BANK-STATEMENT-NOT-FOUND", "银行流水不存在")
+    if row.status == "matched":
+        _error(400, "F-BANK-STATEMENT-STATE", "银行流水已经匹配")
+    voucher = db.query(Voucher).filter_by(id=body.voucher_id, account_book_id=book.id, period_id=row.period_id, status="posted").first()
+    if not voucher:
+        _error(400, "F-BANK-MATCH-INVALID", "只能匹配当前账套当前期间的已过账凭证")
+    entries = db.query(VoucherEntry).filter_by(voucher_id=voucher.id, account_book_id=book.id).all()
+    cash_amount = sum((entry.debit if row.direction == "inflow" else entry.credit for entry in entries if entry.cashflow_item), Decimal("0.00"))
+    if cash_amount != row.amount:
+        _error(400, "F-BANK-MATCH-INVALID", "银行流水金额与凭证现金金额不一致")
+    row.status = "matched"; row.matched_voucher_id = voucher.id; row.matched_by = user.id; row.matched_at = app_now()
+    commit_audited(db, user.id, "match_bank_statement", "bank_statement", str(row.id), f"voucher={voucher.id}")
+    return {"id": row.id, "status": row.status, "matched_voucher_id": row.matched_voucher_id}
+
+
+@router.get("/bank-reconciliation")
+def bank_reconciliation(period_id: int, x_account_book: str | None = Header(default=None), db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    book = _book_header(db, user, x_account_book)
+    rows = db.query(BankStatement).filter_by(account_book_id=book.id, period_id=period_id).all()
+    bank_total = sum((row.amount if row.direction == "inflow" else -row.amount for row in rows), Decimal("0.00"))
+    unmatched = [row for row in rows if row.status == "unmatched"]
+    return {"period_id": period_id, "bank_total": str(bank_total), "unmatched_count": len(unmatched), "unmatched_amount": str(sum((row.amount if row.direction == "inflow" else -row.amount for row in unmatched), Decimal("0.00"))), "items": [{"id": row.id, "external_id": row.external_id, "amount": str(row.amount), "direction": row.direction, "status": row.status} for row in rows]}
 
 
 @router.get("/vouchers")
