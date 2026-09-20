@@ -95,6 +95,7 @@ const LABEL: Record<string, string> = {
   "/approvals": "审批中心",
   "/contacts": "通讯录",
   "/partners": "我的友商",
+  "/changelog": "功能更新",
   "/admin": "系统管理",
   "/finance": "财务管理",
 };
@@ -312,6 +313,13 @@ function UserMenu({ name, onLogout }: { name: string | null; onLogout: () => voi
             }
           }}
         >
+          <Link href="/changelog" role="menuitem" className={s.userMenuItem} onClick={closeMenu}>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M4 5h16M4 12h10M4 19h7" />
+              <path d="M17 14v6M14 17h6" />
+            </svg>
+            功能更新
+          </Link>
           <Link href="/change-password" role="menuitem" className={s.userMenuItem} onClick={closeMenu}>
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
               <circle cx="8" cy="15" r="4" />

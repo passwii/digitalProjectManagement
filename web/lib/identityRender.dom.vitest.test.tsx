@@ -356,6 +356,19 @@ describe("BLF-1141 顶栏账号菜单（身份区已从侧栏搬走）", () => {
     await waitFor(() => expect(screen.queryByRole("menu")).toBeNull());
   });
 
+  it("按功能更新、修改密码、退出登录顺序显示账号操作", async () => {
+    await mountSignedIn();
+
+    fireEvent.mouseEnter(chipWrap());
+    const items = screen.getAllByRole("menuitem");
+    expect(items.map((item) => item.textContent?.replace(/\s+/g, "").trim())).toEqual([
+      "功能更新",
+      "修改密码",
+      "退出登录",
+    ]);
+    expect(items[0].getAttribute("href")).toBe("/changelog");
+  });
+
   it("键盘可达：焦点进入 chip 即打开，方向键移动，Esc 关闭并把焦点还给 chip", async () => {
     await mountSignedIn();
 
@@ -365,6 +378,8 @@ describe("BLF-1141 顶栏账号菜单（身份区已从侧栏搬走）", () => {
     expect(screen.getByRole("menu")).toBeTruthy();
 
     fireEvent.keyDown(chip, { key: "ArrowDown" });
+    expect(document.activeElement).toBe(screen.getByRole("menuitem", { name: "功能更新" }));
+    fireEvent.keyDown(screen.getByRole("menu"), { key: "ArrowDown" });
     expect(document.activeElement).toBe(screen.getByRole("menuitem", { name: "修改密码" }));
     fireEvent.keyDown(screen.getByRole("menu"), { key: "ArrowDown" });
     expect(document.activeElement).toBe(screen.getByRole("menuitem", { name: "退出登录" }));
