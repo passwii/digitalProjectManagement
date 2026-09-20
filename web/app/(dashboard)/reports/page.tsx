@@ -149,36 +149,24 @@ function ReportsInner() {
         title="支出报表"
         filters={
           <>
-            <label className="toolbar-field reports-project-filter">
-              <span>项目</span>
-              <ProjectPicker
-                value={url.project_id}
-                onChange={(id) => setUrl({ project_id: id })}
-                allOption
-                allLabel="全部项目"
-                placeholder="搜索项目名称 / 编号…"
-                ariaLabel="按项目筛选报表"
-                className="picker-grow"
-              />
-            </label>
-            <label className="toolbar-field">
-              <span>部门</span>
-              <select style={{ width: 150 }} value={url.dept} onChange={(e) => setUrl({ dept: e.target.value })} aria-label="按部门筛选">
-                <option value="">全部</option>
-                {depts.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
-              </select>
-            </label>
-            <label className="toolbar-field">
-              <span>人员</span>
-              <select style={{ width: 120 }} value={url.subject} onChange={(e) => setUrl({ subject: e.target.value })} aria-label="按人员筛选">
-                <option value="">全部</option>
-                {peopleOptions.map((s) => <option key={s} value={s}>{s}</option>)}
-              </select>
-            </label>
-            <label className="toolbar-field">
-              <span>月份</span>
-              <input type="month" style={{ width: 150 }} value={url.month} onChange={(e) => setUrl({ month: e.target.value })} aria-label="按月份筛选" />
-            </label>
+            <ProjectPicker
+              value={url.project_id}
+              onChange={(id) => setUrl({ project_id: id })}
+              allOption
+              allLabel="全部项目"
+              placeholder="搜索项目名称 / 编号…"
+              ariaLabel="按项目筛选报表"
+              className="picker-grow filter-span-2 reports-project-filter"
+            />
+            <select value={url.dept} onChange={(e) => setUrl({ dept: e.target.value })} aria-label="按部门筛选">
+              <option value="">全部</option>
+              {depts.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
+            </select>
+            <select value={url.subject} onChange={(e) => setUrl({ subject: e.target.value })} aria-label="按人员筛选">
+              <option value="">全部</option>
+              {peopleOptions.map((s) => <option key={s} value={s}>{s}</option>)}
+            </select>
+            <input type="month" value={url.month} onChange={(e) => setUrl({ month: e.target.value })} aria-label="按月份筛选" />
             {hasFilter && (
               <button
                 type="button"

@@ -79,7 +79,38 @@ describe("PageHeader", () => {
     );
     expect(source).toContain("reports-project-filter");
     expect(styles).toContain("min-width: 220px");
-    expect(styles).toContain("max-width: min(34vw, 360px)");
+    expect(styles).toContain("max-width: min(50%, 540px)");
     expect(styles).toContain("max-width: none");
+  });
+
+  it("筛选控件支持等宽与二倍宽度布局", () => {
+    const styles = readFileSync(
+      resolve(__dirname, "../components/ui/PageHeader.module.css"),
+      "utf8",
+    );
+    expect(styles).toContain("flex: 1 1 0");
+    expect(styles).toContain(".filter-span-2");
+    expect(styles).toContain("flex: 2 1 0");
+  });
+
+  it("Dashboard 不再提供支出报表入口", () => {
+    const source = readFileSync(
+      resolve(__dirname, "../app/(dashboard)/dashboard/page.tsx"),
+      "utf8",
+    );
+    expect(source).not.toContain('href="/reports"');
+  });
+
+  it("Progress、Costs 和 Reports 使用无前缀筛选控件", () => {
+    for (const page of ["progress", "costs", "reports"]) {
+      const source = readFileSync(
+        resolve(__dirname, `../app/(dashboard)/${page}/page.tsx`),
+        "utf8",
+      );
+      expect(source, page).not.toContain("<span>项目</span>");
+      expect(source, page).not.toContain("<span>部门</span>");
+      expect(source, page).not.toContain("<span>人员</span>");
+      expect(source, page).not.toContain("<span>月份</span>");
+    }
   });
 });

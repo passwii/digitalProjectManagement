@@ -21,6 +21,30 @@
   flex-wrap: wrap;
 }
 
+.filters > input,
+.filters > select,
+.filters > :global(.toolbar-field) {
+  flex: 1 1 0;
+  min-width: 0;
+  width: 0;
+}
+
+.filters > :global(.filter-span-2) {
+  flex: 2 1 0;
+}
+
+.filters > button {
+  flex: 0 0 auto;
+  width: auto;
+}
+
+.filters > :global(.toolbar-field) > input,
+.filters > :global(.toolbar-field) > select,
+.filters > :global(.toolbar-field) :global(.picker-grow) {
+  width: 100%;
+  min-width: 0;
+}
+
 .actions {
   display: flex;
   align-items: center;
@@ -33,17 +57,15 @@
 
 .pageHeader :global(.reports-project-filter) {
   min-width: 220px;
-  max-width: min(34vw, 360px);
-  flex: 1 1 220px;
+  max-width: min(50%, 540px);
 }
 
 @media (max-width: 900px) {
-  .pageHeader { align-items: stretch; }
-  .filters { width: 100%; }
+  .pageHeader { align-items: flex-start; }
+  .filters { width: auto; }
   .actions { justify-content: flex-end; }
   .pageHeader :global(.reports-project-filter) {
     max-width: none;
-    flex-basis: 100%;
   }
 }
 
@@ -58,6 +80,10 @@
     flex: 0 0 auto;
   }
   .filters > .toolbar-field {
+    width: 100%;
+    flex: 1 1 100%;
+  }
+  .filters > :global(.filter-span-2) {
     width: 100%;
     flex: 1 1 100%;
   }
