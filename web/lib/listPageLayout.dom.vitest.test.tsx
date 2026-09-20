@@ -7,7 +7,7 @@ import {
   ListPageLayout,
   ListViewport,
 } from "../components/ui/ListPageLayout";
-import { ProjectsListContent } from "../app/(dashboard)/projects/page";
+import { ProjectsListContent } from "../app/(dashboard)/projects/ProjectsListContent";
 
 afterEach(() => cleanup());
 
@@ -57,17 +57,20 @@ describe("ListPageLayout", () => {
 
   it("项目台账把响应式主体和分页接入同一轨道", () => {
     render(
-      <ProjectsListContent
-        items={[]}
-        page={1}
-        size={15}
-        total={0}
-        loading={false}
-        scopeText=""
-        onPageChange={() => {}}
-      />,
+      <ListPageLayout toolbar={<div data-testid="toolbar-marker" />}>
+        <ProjectsListContent
+          items={[]}
+          page={1}
+          size={15}
+          total={0}
+          loading={false}
+          scopeText=""
+          onPageChange={() => {}}
+        />
+      </ListPageLayout>,
     );
 
+    expect(document.querySelector('[data-testid="toolbar-marker"]')).not.toBeNull();
     const viewport = document.querySelector('[data-list-viewport="true"]');
     expect(viewport?.querySelector('[data-cardlist="项目台账"]')).not.toBeNull();
     expect(viewport?.querySelector("table.grid")).not.toBeNull();
