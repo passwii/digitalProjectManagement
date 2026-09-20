@@ -33,6 +33,7 @@ function FinanceInner() {
   const [bookCode, setBookCode] = useState("");
   const [voucherOpen, setVoucherOpen] = useState(false);
   const [bookOpen, setBookOpen] = useState(false);
+  const [templateOpen, setTemplateOpen] = useState(false);
 
   const books = useAsyncData((signal) => financeApi.books.list(signal), [], { resetOnDepChange: true });
   const book = books.data?.find((item) => item.code === bookCode) ?? books.data?.[0] ?? null;
@@ -46,6 +47,7 @@ function FinanceInner() {
     [activeBook, currentPeriod?.id],
     { enabled: !!activeBook && !!currentPeriod && tab === "凭证", resetOnDepChange: true },
   );
+  const templates = useAsyncData((signal) => financeApi.templates(activeBook, signal), [activeBook], { enabled: !!activeBook && tab === "凭证", resetOnDepChange: true });
   const balances = useAsyncData(
     (signal) => financeApi.balances(activeBook, currentPeriod!.id, signal),
     [activeBook, currentPeriod?.id],
@@ -118,7 +120,7 @@ function FinanceInner() {
           <MotionTabs items={TABS.map((item) => ({ id: item, label: item }))} active={tab} onChange={setTab}>
             {tab === "账套概览" && <Overview book={book} period={currentPeriod} periods={periods.data ?? []} opening={opening.data ?? undefined} />}
             {tab === "基础设置" && <Foundation accounts={accounts.data ?? []} loading={accounts.loading} error={accounts.error} onRetry={accounts.reload} />}
-            {tab === "凭证" && <VoucherList data={vouchers.data?.items ?? []} loading={vouchers.loading} error={vouchers.error} onRetry={vouchers.reload} onCreate={() => setVoucherOpen(true)} onAction={async (action, voucher) => {
+            {tab === "凭证" && <VoucherList book={activeBook} period={currentPeriod} templates={templates.data ?? []} data={vouchers.data?.items ?? []} loading={vouchers.loading} error={vouchers.error} onRetry={vouchers.reload} onCreate={() => setVoucherOpen(true)} onTemplate={() => setTemplateOpen(true)} onAction={async (action, voucher) => {
               try {
                 if (action === "submit") await financeApi.submitVoucher(activeBook, voucher.id);
                 if (action === "approve") await financeApi.approveVoucher(activeBook, voucher.id);
@@ -133,6 +135,7 @@ function FinanceInner() {
           </MotionTabs>
           <VoucherDialog open={voucherOpen} book={book} period={currentPeriod} accounts={accounts.data ?? []} onClose={() => setVoucherOpen(false)} onSaved={() => { setVoucherOpen(false); vouchers.reload(); toast.ok("凭证草稿已保存"); }} />
           <BookDialog open={bookOpen} onClose={() => setBookOpen(false)} onSaved={() => { setBookOpen(false); books.reload(); toast.ok("账套已创建"); }} />
+          <TemplateDialog open={templateOpen} book={activeBook} period={currentPeriod} accounts={accounts.data ?? []} templates={templates.data ?? []} onClose={() => setTemplateOpen(false)} onSaved={() => { setTemplateOpen(false); templates.reload(); toast.ok("模板已保存"); }} onGenerated={() => { setTemplateOpen(false); vouchers.reload(); toast.ok("已按模板生成凭证草稿"); }} />
         </>
       )}
     </div>
@@ -163,11 +166,11 @@ function Foundation({ accounts, loading, error, onRetry }: { accounts: FinanceAc
   </>;
 }
 
-function VoucherList({ data, loading, error, onRetry, onCreate, onAction }: { data: FinanceVoucher[]; loading: boolean; error: string; onRetry: () => void; onCreate: () => void; onAction: (action: "submit" | "approve" | "post" | "reverse", voucher: FinanceVoucher) => Promise<void> }) {
+function VoucherList({ book, period, templates, data, loading, error, onRetry, onCreate, onTemplate, onAction }: { book: string; period: FinancePeriod | null; templates: { id: number; code: string; name: string }[]; data: FinanceVoucher[]; loading: boolean; error: string; onRetry: () => void; onCreate: () => void; onTemplate: () => void; onAction: (action: "submit" | "approve" | "post" | "reverse", voucher: FinanceVoucher) => Promise<void> }) {
   if (loading) return <LoadingBlock kpis={0} label="加载凭证…" />;
   if (error) return <LoadFailed message={error} onRetry={onRetry} />;
   return <>
-    <div className="section-head"><div><h2>凭证</h2><p>当前期间的凭证流水，草稿、待审核和已过账状态由后端控制。</p></div><button className="btn-primary" onClick={onCreate}>+ 新建凭证</button></div>
+    <div className="section-head"><div><h2>凭证</h2><p>当前期间的凭证流水，草稿、待审核和已过账状态由后端控制。</p></div><div className="row-actions"><button className="btn-ghost" onClick={onTemplate}>模板</button><button className="btn-ghost" onClick={() => document.getElementById("finance-voucher-import")?.click()}>导入 Excel</button><input id="finance-voucher-import" type="file" accept=".xlsx" hidden onChange={async (event) => { const file = event.target.files?.[0]; if (file && period) { await financeApi.importVouchers(book, period.id, file); window.location.reload(); } }} /><button className="btn-ghost" disabled={!period} onClick={() => period && financeApi.exportVouchers(book, period.id)}>导出 Excel</button><button className="btn-primary" onClick={onCreate}>+ 新建凭证</button></div></div>
     {!data.length ? <div className="card"><Empty title="当前期间还没有凭证" hint="从一张手工凭证开始建立财务事实。" /></div> : <div className="table-scroll"><table className="grid"><thead><tr><th>凭证号</th><th>日期</th><th>摘要</th><th className="num">借方</th><th className="num">贷方</th><th>状态</th><th className="no-print">操作</th></tr></thead><tbody>{data.map((voucher) => <tr key={voucher.id}><td className="mono">{voucher.voucher_no}</td><td>{voucher.voucher_date}</td><td>{voucher.summary || "-"}</td><td className="num">{money(voucher.total_debit)}</td><td className="num">{money(voucher.total_credit)}</td><td><span className={`badge ${voucher.status === "posted" ? "done" : voucher.status === "pending" ? "doing" : "muted"}`}>{({ draft: "草稿", pending: "待审核", posted: "已过账", void: "已作废" } as Record<string, string>)[voucher.status]}</span></td><td className="no-print"><div className="row-actions">{voucher.status === "draft" && <button className="btn-xs btn-ghost" onClick={() => onAction("submit", voucher)}>提交</button>}{voucher.status === "pending" && <><button className="btn-xs btn-ghost" onClick={() => onAction("approve", voucher)}>审核</button><button className="btn-xs btn-primary" onClick={() => onAction("post", voucher)}>过账</button></>}{voucher.status === "posted" && <button className="btn-xs btn-ghost" onClick={() => onAction("reverse", voucher)}>红字冲销</button>}</div></td></tr>)}</tbody></table></div>}
   </>;
 }
@@ -224,6 +227,26 @@ function BookDialog({ open, onClose, onSaved }: { open: boolean; onClose: () => 
     try { await financeApi.books.create({ code: code.trim(), name: name.trim(), base_currency: "CNY" }); onSaved(); setCode(""); setName(""); } catch (e) { setError(errText(e)); } finally { setSaving(false); }
   }
   return <Dialog open={open} onClose={onClose} title="新建账套" size="sm" footer={<><button className="btn-ghost" onClick={onClose}>取消</button><button className="btn-primary" disabled={saving} onClick={save}>{saving ? "创建中…" : "创建账套"}</button></>}><div className="form-grid"><label className="field"><span className="field-label">账套编码</span><input value={code} onChange={(event) => setCode(event.target.value)} placeholder="AB-2026-001" /></label><label className="field"><span className="field-label">账套名称</span><input value={name} onChange={(event) => setName(event.target.value)} placeholder="某某公司" /></label></div>{error && <div className="field-err" role="alert">{error}</div>}<p className="tiny muted">创建后自动生成本年度自然月期间和预置科目树。</p></Dialog>;
+}
+
+function TemplateDialog({ open, book, period, accounts, templates, onClose, onSaved, onGenerated }: { open: boolean; book: string; period: FinancePeriod | null; accounts: FinanceAccount[]; templates: { id: number; code: string; name: string }[]; onClose: () => void; onSaved: () => void; onGenerated: () => void }) {
+  const [code, setCode] = useState("");
+  const [name, setName] = useState("");
+  const [selected, setSelected] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const leaves = accounts.filter((account) => account.is_leaf && account.is_active && !account.aux_flags?.cashflow);
+  async function create() {
+    if (!code.trim() || !name.trim() || leaves.length < 2) { setError("请填写模板信息，并确保科目树已加载"); return; }
+    setSaving(true); setError("");
+    try { await financeApi.createTemplate(book, { code: code.trim(), name: name.trim(), lines: [{ account_id: leaves[0].id, summary: name.trim(), debit: "100.00", credit: "0", aux_detail: {} }, { account_id: leaves[1].id, summary: name.trim(), debit: "0", credit: "100.00", aux_detail: {} }] }); onSaved(); } catch (e) { setError(errText(e)); } finally { setSaving(false); }
+  }
+  async function generate() {
+    if (!selected || !period) { setError("请选择模板和当前期间"); return; }
+    setSaving(true); setError("");
+    try { await financeApi.fromTemplate(book, { template_id: Number(selected), period_id: period.id, voucher_no: `记-${String(Date.now()).slice(-4)}`, voucher_date: period.start_date, summary: "按模板生成" }); onGenerated(); } catch (e) { setError(errText(e)); } finally { setSaving(false); }
+  }
+  return <Dialog open={open} onClose={onClose} title="凭证模板" size="md" footer={<><button className="btn-ghost" onClick={onClose}>关闭</button><button className="btn-ghost" disabled={saving} onClick={create}>保存当前科目模板</button><button className="btn-primary" disabled={saving} onClick={generate}>生成草稿凭证</button></>}><div className="form-grid"><label className="field"><span className="field-label">模板</span><select value={selected} onChange={(event) => setSelected(event.target.value)}><option value="">请选择模板</option>{templates.map((template) => <option key={template.id} value={template.id}>{template.code} · {template.name}</option>)}</select></label><label className="field"><span className="field-label">新模板编码</span><input value={code} onChange={(event) => setCode(event.target.value)} placeholder="OFFICE" /></label><label className="field span-2"><span className="field-label">新模板名称</span><input value={name} onChange={(event) => setName(event.target.value)} placeholder="办公费模板" /></label></div>{error && <div className="field-err" role="alert">{error}</div>}<p className="tiny muted">模板保存当前科目树的首个借贷科目组合；Excel 导入适合批量凭证，导出会记录审计。</p></Dialog>;
 }
 
 export default function FinancePage() {

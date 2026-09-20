@@ -1,6 +1,9 @@
 """P0-B regression tests for the finance voucher engine."""
 
 from decimal import Decimal
+import io
+
+from openpyxl import Workbook, load_workbook
 
 
 def _auth(client, username, password):
@@ -296,3 +299,117 @@ def test_close_generates_profit_carry_forward_and_preserves_income_report(client
     balance_sheet = client.get("/api/v1/finance/reports/balance-sheet", headers=scoped, params={"period_id": period["id"]})
     assert balance_sheet.status_code == 200
     assert balance_sheet.json()["totals"]["balanced"] is True
+
+
+def test_voucher_template_is_book_scoped_and_can_generate_draft(client):
+    headers = _auth(client, "admin", "admin123456")
+    book = _book(client, headers, "VOUCHER-TEMPLATE")
+    scoped = _scoped(headers, book)
+    accounts = _accounts(client, scoped)
+    period = client.get("/api/v1/finance/periods", headers=scoped).json()[0]
+    template = client.post(
+        "/api/v1/finance/voucher-templates",
+        headers=scoped,
+        json={
+            "code": "OFFICE",
+            "name": "办公费模板",
+            "lines": [
+                {"account_id": accounts["1405"]["id"], "summary": "办公费", "debit": "100.00", "credit": "0", "aux_detail": {}},
+                {"account_id": accounts["6001"]["id"], "summary": "办公费", "debit": "0", "credit": "100.00", "aux_detail": {}},
+            ],
+        },
+    )
+    assert template.status_code == 200
+    assert template.json()["code"] == "OFFICE"
+    listed = client.get("/api/v1/finance/voucher-templates", headers=scoped)
+    assert listed.status_code == 200
+    assert [row["code"] for row in listed.json()] == ["OFFICE"]
+
+    generated = client.post(
+        "/api/v1/finance/vouchers/from-template",
+        headers=scoped,
+        json={
+            "template_id": template.json()["id"],
+            "period_id": period["id"],
+            "voucher_no": "记-0001",
+            "voucher_date": period["start_date"],
+            "summary": "一月办公费",
+        },
+    )
+    assert generated.status_code == 200
+    assert generated.json()["status"] == "draft"
+    assert generated.json()["source"] == "template"
+    assert generated.json()["lines"][0]["debit"] == "100.00"
+
+
+def test_voucher_excel_import_is_atomic_and_reports_row_numbers(client):
+    headers = _auth(client, "admin", "admin123456")
+    book = _book(client, headers, "VOUCHER-IMPORT")
+    scoped = _scoped(headers, book)
+    accounts = _accounts(client, scoped)
+    period = client.get("/api/v1/finance/periods", headers=scoped).json()[0]
+
+    wb = Workbook()
+    ws = wb.active
+    ws.append(["凭证号", "凭证日期", "摘要", "科目编码", "分录摘要", "借方", "贷方", "现金流项目", "辅助核算JSON"])
+    ws.append(["记-0001", period["start_date"], "导入成功", "1405", "库存", "12.00", "0", "", "{}"])
+    ws.append(["记-0001", period["start_date"], "导入成功", "6001", "收入", "0", "12.00", "", "{}"])
+    ws.append(["记-0002", period["start_date"], "导入失败", "NOPE", "错误科目", "1.00", "0", "", "{}"])
+    stream = io.BytesIO()
+    wb.save(stream)
+    stream.seek(0)
+
+    imported = client.post(
+        f"/api/v1/finance/vouchers/import?period_id={period['id']}",
+        headers=scoped,
+        files={"file": ("vouchers.xlsx", stream.getvalue(), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")},
+    )
+    assert imported.status_code == 400
+    detail = imported.json()["detail"]
+    assert detail["code"] == "F-IMPORT-INVALID"
+    assert any(item["row"] == 4 for item in detail["details"])
+    assert client.get("/api/v1/finance/vouchers", headers=scoped).json()["total"] == 0
+
+    wb.remove(wb.active)
+    ws = wb.create_sheet()
+    ws.append(["凭证号", "凭证日期", "摘要", "科目编码", "分录摘要", "借方", "贷方", "现金流项目", "辅助核算JSON"])
+    ws.append(["记-0001", period["start_date"], "导入成功", "1405", "库存", "12.00", "0", "", "{}"])
+    ws.append(["记-0001", period["start_date"], "导入成功", "6001", "收入", "0", "12.00", "", "{}"])
+    stream = io.BytesIO()
+    wb.save(stream)
+    stream.seek(0)
+    success = client.post(
+        f"/api/v1/finance/vouchers/import?period_id={period['id']}",
+        headers=scoped,
+        files={"file": ("vouchers.xlsx", stream.getvalue(), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")},
+    )
+    assert success.status_code == 200
+    assert success.json()["imported"] == 1
+
+
+def test_voucher_excel_export_contains_current_book_vouchers(client):
+    headers = _auth(client, "admin", "admin123456")
+    book = _book(client, headers, "VOUCHER-EXPORT")
+    scoped = _scoped(headers, book)
+    accounts = _accounts(client, scoped)
+    period = client.get("/api/v1/finance/periods", headers=scoped).json()[0]
+    payload = {
+        "period_id": period["id"],
+        "voucher_no": "记-0001",
+        "voucher_date": period["start_date"],
+        "summary": "导出测试",
+        "lines": [
+            {"account_id": accounts["1405"]["id"], "debit": "2.00", "credit": "0", "summary": "库存"},
+            {"account_id": accounts["6001"]["id"], "debit": "0", "credit": "2.00", "summary": "收入"},
+        ],
+    }
+    created = client.post("/api/v1/finance/vouchers", headers=scoped, json=payload).json()
+    assert client.post(f"/api/v1/finance/vouchers/{created['id']}/submit", headers=scoped).status_code == 200
+    assert client.post(f"/api/v1/finance/vouchers/{created['id']}/approve", headers=scoped).status_code == 200
+    assert client.post(f"/api/v1/finance/vouchers/{created['id']}/post", headers=scoped).status_code == 200
+    exported = client.get(f"/api/v1/finance/vouchers/export?period_id={period['id']}", headers=scoped)
+    assert exported.status_code == 200
+    sheet = load_workbook(io.BytesIO(exported.content), read_only=True).active
+    rows = list(sheet.iter_rows(values_only=True))
+    assert rows[0][:5] == ("凭证号", "凭证日期", "摘要", "科目编码", "分录摘要")
+    assert any(row[0] == "记-0001" for row in rows[1:])
