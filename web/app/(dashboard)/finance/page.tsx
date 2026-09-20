@@ -27,7 +27,7 @@ function money(value: string | number) {
 }
 
 function FinanceInner() {
-  const { isAdmin, loading: permissionLoading, error: permissionError, reload: reloadPermission } = useMenus();
+  const { canFinance, loading: permissionLoading, error: permissionError, reload: reloadPermission } = useMenus();
   const toast = useToast();
   const [tab, setTab] = useState<Tab>("账套概览");
   const [bookCode, setBookCode] = useState("");
@@ -84,7 +84,7 @@ function FinanceInner() {
 
   if (permissionLoading) return <LoadingBlock kpis={0} label="确认财务权限…" />;
   if (permissionError) return <LoadFailed message={permissionError} onRetry={reloadPermission} />;
-  if (!isAdmin) return <NoAccess title="财务管理仅管理员可用" hint="当前账号没有财务账套访问权限。项目成本仍可在支出记录中继续使用。" />;
+  if (!canFinance) return <NoAccess title="暂无财务账套权限" hint="当前账号没有被授权访问财务账套。请联系系统管理员分配账套角色。" />;
   if (books.firstLoad) return <LoadingBlock kpis={4} label="加载财务账套…" />;
   if (books.error) return <LoadFailed message={books.error} onRetry={books.reload} />;
 

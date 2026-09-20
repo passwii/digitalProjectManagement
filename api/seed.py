@@ -3,7 +3,9 @@ from .core.database import Base, SessionLocal, engine
 from .core.security import hash_password
 from .models import Department, Dict, Role, SysParam, User, UserRole
 
-ROLES = [("admin", "系统管理员"), ("project_manager", "项目负责人"),
+ROLES = [("admin", "系统管理员"), ("finance_clerk", "制单会计"), ("finance_reviewer", "审核会计"),
+         ("cashier", "出纳"), ("finance_manager", "财务主管"), ("finance_auditor", "审计员"),
+         ("project_manager", "项目负责人"),
          ("dept_manager", "部门负责人"), ("member", "项目成员"),
          ("cost_admin", "成本管理员"), ("executive", "高层（只读）")]
 

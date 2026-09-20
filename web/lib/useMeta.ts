@@ -235,6 +235,7 @@ export interface MenuState {
   ready: boolean;
   /** 与列表行内 can_decide / 决策接口同一判定 */
   canApprove: boolean;
+  canFinance: boolean;
   /** 演示数据开关是否打开（决定列表是否包含演示数据） */
   demoOn: boolean;
   /** 当前用户是否可切换演示开关（仅管理员） */
@@ -287,6 +288,7 @@ export function useMenus(): MenuState {
     isAdmin: Boolean(data?.is_admin),
     ready: data !== null && !error,
     canApprove: !!data?.can_approve,
+    canFinance: !!data?.can_finance,
     demoOn: !!data?.demo_on,
     canToggleDemo: !!data?.can_toggle_demo,
     loading,

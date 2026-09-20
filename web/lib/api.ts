@@ -452,6 +452,7 @@ export interface MenuResp {
   is_admin: boolean;
   /** 是否可审批：当前契约下与 is_admin 等价（列表 can_decide 同一判定） */
   can_approve: boolean;
+  can_finance: boolean;
   menus: { key: string; label: string; href: string }[];
   readonly: boolean;
   /** 演示数据开关当前状态（所有登录用户可读） */

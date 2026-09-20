@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session
 from ..core.database import get_db
 from ..core.deps import get_current_user
 from ..core.paging import DEFAULT_PAGE_SIZE, paginate
-from ..models import Department, Dict, User
+from ..models import AccountBookMember, Department, Dict, User
 
 router = APIRouter(prefix="/meta", tags=["meta"])
 
@@ -106,7 +106,7 @@ def menus(db: Session = Depends(get_db), user: User = Depends(get_current_user))
       · role 字段保留为未来扩展结构；readonly 恒为 false（高层只读规则已取消）。
     另附演示数据开关状态：所有登录用户都需知道当前是否展示演示数据，仅管理员可切换。
     """
-    from ..core.rbac import ROLE_ADMIN, can_approve, demo_data_on, role_codes
+    from ..core.rbac import ROLE_ADMIN, can_approve, demo_data_on, finance_role, role_codes
     codes = role_codes(user)
     admin = ROLE_ADMIN in codes
     items = [
@@ -119,8 +119,11 @@ def menus(db: Session = Depends(get_db), user: User = Depends(get_current_user))
         items.append({"key": "contacts", "label": "通讯录", "href": "/contacts"})
         items.append({"key": "partners", "label": "我的友商", "href": "/partners"})
         items.append({"key": "approvals", "label": "审批中心", "href": "/approvals"})
-        items.append({"key": "finance", "label": "财务管理", "href": "/finance"})
         items.append({"key": "admin", "label": "系统管理", "href": "/admin"})
-    return {"roles": sorted(codes), "is_admin": admin, "can_approve": can_approve(user),
+    finance_books = db.query(AccountBookMember.account_book_id).filter_by(user_id=user.id).count()
+    can_finance = admin or finance_books > 0
+    if can_finance and not any(item["key"] == "finance" for item in items):
+        items.append({"key": "finance", "label": "财务管理", "href": "/finance"})
+    return {"roles": sorted(codes), "is_admin": admin, "can_approve": can_approve(user), "can_finance": can_finance,
             "menus": items, "readonly": False,
             "demo_on": demo_data_on(db), "can_toggle_demo": admin}
