@@ -326,9 +326,10 @@ class VoucherEntry(Base):
 
   __tablename__ = "voucher_entries"
   id = Column(Integer, primary_key=True)
+  account_book_id = Column(Integer, nullable=False)
   voucher_id = Column(Integer, ForeignKey("vouchers.id", ondelete="CASCADE"), nullable=False, index=True)
   line_no = Column(Integer, nullable=False)
-  account_id = Column(Integer, ForeignKey("accounts.id"), nullable=False)
+  account_id = Column(Integer, nullable=False)
   summary = Column(String(255), nullable=False, default="", server_default="")
   debit = Column(Numeric(18, 2), nullable=False, default=0, server_default="0")
   credit = Column(Numeric(18, 2), nullable=False, default=0, server_default="0")
@@ -336,6 +337,17 @@ class VoucherEntry(Base):
   cashflow_item = Column(String(32), nullable=True)
   __table_args__ = (
     UniqueConstraint("voucher_id", "line_no", name="uq_voucher_entry_line"),
+    ForeignKeyConstraint(
+      ["account_book_id", "voucher_id"],
+      ["vouchers.account_book_id", "vouchers.id"],
+      name="fk_voucher_entry_voucher_same_book",
+      ondelete="CASCADE",
+    ),
+    ForeignKeyConstraint(
+      ["account_book_id", "account_id"],
+      ["accounts.account_book_id", "accounts.id"],
+      name="fk_voucher_entry_account_same_book",
+    ),
     CheckConstraint("debit >= 0 AND credit >= 0", name="ck_voucher_entry_nonneg"),
     CheckConstraint("(debit > 0) <> (credit > 0)", name="ck_voucher_entry_one_side"),
   )

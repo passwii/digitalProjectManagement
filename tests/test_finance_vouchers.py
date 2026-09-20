@@ -70,6 +70,34 @@ def test_voucher_rejects_unbalanced_entries_without_persisting(client):
     assert client.get("/api/v1/finance/vouchers", headers=scoped).json()["total"] == 0
 
 
+def test_voucher_rejects_internal_sources_and_unreviewed_posting(client):
+    headers = _auth(client, "admin", "admin123456")
+    book = _book(client, headers, "VOUCHER-SOURCE")
+    scoped = _scoped(headers, book)
+    accounts = _accounts(client, scoped)
+    period = client.get("/api/v1/finance/periods", headers=scoped).json()[0]
+    payload = {
+        "period_id": period["id"],
+        "voucher_no": "记-0001",
+        "voucher_date": period["start_date"],
+        "source": "auto-close",
+        "lines": [
+            {"account_id": accounts["1405"]["id"], "debit": "1.00", "credit": "0", "summary": "库存"},
+            {"account_id": accounts["6001"]["id"], "debit": "0", "credit": "1.00", "summary": "收入"},
+        ],
+    }
+    rejected = client.post("/api/v1/finance/vouchers", headers=scoped, json=payload)
+    assert rejected.status_code == 400
+    assert rejected.json()["detail"]["code"] == "F-INVALID-VOUCHER"
+
+    payload["source"] = "manual"
+    created = client.post("/api/v1/finance/vouchers", headers=scoped, json=payload).json()
+    assert client.post(f"/api/v1/finance/vouchers/{created['id']}/submit", headers=scoped).status_code == 200
+    blocked = client.post(f"/api/v1/finance/vouchers/{created['id']}/post", headers=scoped)
+    assert blocked.status_code == 400
+    assert blocked.json()["detail"]["code"] == "F-SOD"
+
+
 def test_voucher_lifecycle_posts_once_and_updates_balance(client):
     headers = _auth(client, "admin", "admin123456")
     book = _book(client, headers, "VOUCHER-LIFECYCLE")
@@ -138,6 +166,7 @@ def test_posted_voucher_can_only_be_corrected_by_reversal(client):
     created = client.post("/api/v1/finance/vouchers", headers=scoped, json=payload).json()
     vid = created["id"]
     assert client.post(f"/api/v1/finance/vouchers/{vid}/submit", headers=scoped).status_code == 200
+    assert client.post(f"/api/v1/finance/vouchers/{vid}/approve", headers=scoped).status_code == 200
     assert client.post(f"/api/v1/finance/vouchers/{vid}/post", headers=scoped).status_code == 200
 
     edited = client.patch(

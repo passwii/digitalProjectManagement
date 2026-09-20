@@ -22,6 +22,7 @@ from ..models import Account, AccountBalance, AccountBook, AccountingPeriod, Ope
 from .finance import _book_header
 
 router = APIRouter(prefix="/finance", tags=["finance-accounting"])
+EXTERNAL_VOUCHER_SOURCES = {"manual", "template", "import"}
 
 
 def _error(status: int, code: str, message: str, details: list[dict[str, str]] | None = None):
@@ -163,7 +164,7 @@ def _rebuild_entries(db: Session, voucher: Voucher, book_id: int, period: Accoun
     prepared, debit, credit = _normalise_lines(db, book_id, period, lines)
     db.query(VoucherEntry).filter_by(voucher_id=voucher.id).delete()
     for line_no, item in enumerate(prepared, 1):
-        db.add(VoucherEntry(voucher_id=voucher.id, line_no=line_no, account_id=item["account"].id, summary=item["summary"], debit=item["debit"], credit=item["credit"], aux_detail=item["aux_detail"], cashflow_item=item["cashflow_item"]))
+        db.add(VoucherEntry(account_book_id=book_id, voucher_id=voucher.id, line_no=line_no, account_id=item["account"].id, summary=item["summary"], debit=item["debit"], credit=item["credit"], aux_detail=item["aux_detail"], cashflow_item=item["cashflow_item"]))
     voucher.total_debit = debit
     voucher.total_credit = credit
 
@@ -179,12 +180,14 @@ def create_voucher(body: VoucherIn, x_account_book: str | None = Header(default=
         _error(400, "F-PERIOD-CLOSED", "凭证日期不在所属期间")
     if db.query(Voucher).filter_by(account_book_id=book.id, period_id=period.id, voucher_no=body.voucher_no.strip()).first():
         _error(409, "F-DUP-VOUCHER-NO", "凭证号在当前期间已存在")
+    if body.source not in EXTERNAL_VOUCHER_SOURCES:
+        _error(400, "F-INVALID-VOUCHER", "凭证来源不合法")
     prepared, debit, credit = _normalise_lines(db, book.id, period, body.lines)
     voucher = Voucher(account_book_id=book.id, period_id=period.id, voucher_no=body.voucher_no.strip(), voucher_date=body.voucher_date, status="draft", source=body.source, summary=body.summary.strip(), total_debit=debit, total_credit=credit, created_by=user.id, updated_at=app_now())
     db.add(voucher)
     db.flush()
     for line_no, item in enumerate(prepared, 1):
-        db.add(VoucherEntry(voucher_id=voucher.id, line_no=line_no, account_id=item["account"].id, summary=item["summary"], debit=item["debit"], credit=item["credit"], aux_detail=item["aux_detail"], cashflow_item=item["cashflow_item"]))
+        db.add(VoucherEntry(account_book_id=book.id, voucher_id=voucher.id, line_no=line_no, account_id=item["account"].id, summary=item["summary"], debit=item["debit"], credit=item["credit"], aux_detail=item["aux_detail"], cashflow_item=item["cashflow_item"]))
     commit_audited(db, user.id, "create", "voucher", str(voucher.id), voucher.voucher_no)
     entries, accounts = _entries(db, voucher.id)
     return _serialize(voucher, entries, accounts)
@@ -402,7 +405,7 @@ def _create_profit_carry_forward(db: Session, book_id: int, period: AccountingPe
     db.add(voucher)
     db.flush()
     for line_no, line in enumerate(lines, 1):
-        db.add(VoucherEntry(voucher_id=voucher.id, line_no=line_no, **line))
+        db.add(VoucherEntry(account_book_id=book_id, voucher_id=voucher.id, line_no=line_no, **line))
     _update_balance(db, voucher, book_id)
     return voucher
 
@@ -444,6 +447,7 @@ def _create_auto_reopen(db: Session, book_id: int, period: AccountingPeriod, use
     db.flush()
     for line in entries:
         db.add(VoucherEntry(
+            account_book_id=book_id,
             voucher_id=reversal.id,
             line_no=line.line_no,
             account_id=line.account_id,
@@ -465,7 +469,8 @@ def post_voucher(voucher_id: int, x_account_book: str | None = Header(default=No
     _transition(voucher, {"pending"}, "posted")
     period = _period(db, book.id, voucher.period_id)
     if period.status != "open": _error(400, "F-PERIOD-CLOSED", "当前期间不可过账")
-    if voucher.reviewed_by is None: voucher.reviewed_by = user.id
+    if voucher.reviewed_by is None:
+        _error(400, "F-SOD", "凭证必须先审核后过账")
     voucher.posted_by = user.id
     _update_balance(db, voucher, book.id)
     commit_audited(db, user.id, "post", "voucher", str(voucher.id), voucher.voucher_no)
@@ -495,7 +500,7 @@ def reverse_voucher(voucher_id: int, x_account_book: str | None = Header(default
     reversal = Voucher(account_book_id=book.id, period_id=period.id, voucher_no=f"红-{number:04d}", voucher_date=original.voucher_date, status="draft", source="reversal", summary=f"红字冲销：{original.summary}", total_debit=original.total_debit, total_credit=original.total_credit, created_by=user.id, reversal_of=original.id, updated_at=app_now())
     db.add(reversal); db.flush()
     for line in entries:
-        db.add(VoucherEntry(voucher_id=reversal.id, line_no=line.line_no, account_id=line.account_id, summary=line.summary, debit=line.credit, credit=line.debit, aux_detail=line.aux_detail, cashflow_item=line.cashflow_item))
+        db.add(VoucherEntry(account_book_id=book.id, voucher_id=reversal.id, line_no=line.line_no, account_id=line.account_id, summary=line.summary, debit=line.credit, credit=line.debit, aux_detail=line.aux_detail, cashflow_item=line.cashflow_item))
     commit_audited(db, user.id, "reverse", "voucher", str(original.id), str(reversal.id))
     new_entries, new_accounts = _entries(db, reversal.id); return _serialize(reversal, new_entries, new_accounts)
 
