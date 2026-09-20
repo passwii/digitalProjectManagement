@@ -545,6 +545,25 @@ export interface FinanceVoucherTemplate {
   lines: FinanceEntry[];
   is_active: boolean;
 }
+export interface CashTransaction {
+  id: number;
+  kind: "receipt" | "payment" | "expense";
+  status: string;
+  amount: string;
+  voucher: FinanceVoucher;
+}
+export interface BankStatement {
+  id: number;
+  external_id: string;
+  transaction_date: string;
+  direction: "inflow" | "outflow";
+  amount: string;
+  account_code: string;
+  summary: string;
+  counterparty: string;
+  status: "unmatched" | "matched" | "ignored";
+  matched_voucher_id: number | null;
+}
 
 function financeHeaders(bookCode: string): Record<string, string> {
   return { "X-Account-Book": bookCode };
@@ -652,6 +671,35 @@ export const financeApi = {
   cashflow: (book: string, periodId: number, signal?: AbortSignal) =>
     apiGetScoped<{ ready: boolean; unclassified_amount: string }>(
       `/finance/reports/cashflow?period_id=${periodId}`,
+      financeHeaders(book),
+      signal,
+    ),
+  cashTransactions: (book: string, body: Record<string, unknown>) =>
+    apiPostScoped<CashTransaction>("/finance/cash-transactions", body, financeHeaders(book)),
+  bankStatements: (book: string, periodId?: number, signal?: AbortSignal) =>
+    apiGetScoped<{ total: number; items: BankStatement[] }>(
+      `/finance/bank-statements${buildQuery({ period_id: periodId })}`,
+      financeHeaders(book),
+      signal,
+    ),
+  importBankStatements: (book: string, periodId: number, file: File) => {
+    const form = new FormData();
+    form.append("file", file);
+    return apiUpload<{ imported: number; items: BankStatement[] }>(
+      `/finance/bank-statements/import?period_id=${periodId}`,
+      form,
+      { headers: financeHeaders(book) },
+    );
+  },
+  matchBankStatement: (book: string, statementId: number, voucherId: number) =>
+    apiPostScoped<{ id: number; status: string; matched_voucher_id: number }>(
+      `/finance/bank-statements/${statementId}/match`,
+      { voucher_id: voucherId },
+      financeHeaders(book),
+    ),
+  reconciliation: (book: string, periodId: number, signal?: AbortSignal) =>
+    apiGetScoped<{ period_id: number; bank_total: string; unmatched_count: number; unmatched_amount: string; items: BankStatement[] }>(
+      `/finance/bank-reconciliation?period_id=${periodId}`,
       financeHeaders(book),
       signal,
     ),

@@ -78,6 +78,7 @@ def test_voucher_rejects_internal_sources_and_unreviewed_posting(client):
     book = _book(client, headers, "VOUCHER-SOURCE")
     scoped = _scoped(headers, book)
     accounts = _accounts(client, scoped)
+    cash_account = next(row for row in accounts.values() if row["is_leaf"] and row["aux_flags"].get("cashflow"))
     period = client.get("/api/v1/finance/periods", headers=scoped).json()[0]
     payload = {
         "period_id": period["id"],
@@ -155,6 +156,7 @@ def test_posted_voucher_can_only_be_corrected_by_reversal(client):
     book = _book(client, headers, "VOUCHER-REVERSAL")
     scoped = _scoped(headers, book)
     accounts = _accounts(client, scoped)
+    cash_account = next(row for row in accounts.values() if row["is_leaf"] and row["aux_flags"].get("cashflow"))
     period = client.get("/api/v1/finance/periods", headers=scoped).json()[0]
     payload = {
         "period_id": period["id"],
@@ -191,6 +193,7 @@ def test_close_check_blocks_unreviewed_vouchers_and_close_round_trip(client):
     book = _book(client, headers, "VOUCHER-CLOSE")
     scoped = _scoped(headers, book)
     accounts = _accounts(client, scoped)
+    cash_account = next(row for row in accounts.values() if row["is_leaf"] and row["aux_flags"].get("cashflow"))
     period = client.get("/api/v1/finance/periods", headers=scoped).json()[0]
     payload = {
         "period_id": period["id"],
@@ -413,3 +416,120 @@ def test_voucher_excel_export_contains_current_book_vouchers(client):
     rows = list(sheet.iter_rows(values_only=True))
     assert rows[0][:5] == ("凭证号", "凭证日期", "摘要", "科目编码", "分录摘要")
     assert any(row[0] == "记-0001" for row in rows[1:])
+
+
+def test_cash_transaction_creates_a_book_scoped_draft_voucher(client):
+    headers = _auth(client, "admin", "admin123456")
+    book = _book(client, headers, "CASH-TRANSACTION")
+    scoped = _scoped(headers, book)
+    accounts = _accounts(client, scoped)
+    cash_account = next(row for row in accounts.values() if row["is_leaf"] and row["aux_flags"].get("cashflow"))
+    period = client.get("/api/v1/finance/periods", headers=scoped).json()[0]
+
+    created = client.post(
+        "/api/v1/finance/cash-transactions",
+        headers=scoped,
+        json={
+            "period_id": period["id"],
+            "kind": "receipt",
+            "transaction_date": period["start_date"],
+            "amount": "88.00",
+            "account_id": cash_account["id"],
+            "offset_account_id": accounts["6001"]["id"],
+            "summary": "客户收款",
+            "counterparty": "客户A",
+            "cashflow_item": "C01",
+        },
+    )
+    assert created.status_code == 200, created.text
+    body = created.json()
+    assert body["kind"] == "receipt"
+    assert body["voucher"]["status"] == "draft"
+    assert body["voucher"]["source"] == "cash"
+    assert body["voucher"]["lines"][0]["debit"] == "88.00"
+
+
+def test_bank_statement_import_match_and_reconciliation_summary(client):
+    headers = _auth(client, "admin", "admin123456")
+    book = _book(client, headers, "BANK-RECONCILE")
+    scoped = _scoped(headers, book)
+    accounts = _accounts(client, scoped)
+    cash_account = next(row for row in accounts.values() if row["is_leaf"] and row["aux_flags"].get("cashflow"))
+    period = client.get("/api/v1/finance/periods", headers=scoped).json()[0]
+
+    cash_response = client.post(
+        "/api/v1/finance/cash-transactions",
+        headers=scoped,
+        json={
+            "period_id": period["id"],
+            "kind": "receipt",
+            "transaction_date": period["start_date"],
+            "amount": "50.00",
+            "account_id": cash_account["id"],
+            "offset_account_id": accounts["6001"]["id"],
+            "summary": "银行收款",
+            "cashflow_item": "C01",
+        },
+    )
+    assert cash_response.status_code == 200, cash_response.text
+    cash = cash_response.json()
+    voucher_id = cash["voucher"]["id"]
+    assert client.post(f"/api/v1/finance/vouchers/{voucher_id}/submit", headers=scoped).status_code == 200
+    assert client.post(f"/api/v1/finance/vouchers/{voucher_id}/approve", headers=scoped).status_code == 200
+    assert client.post(f"/api/v1/finance/vouchers/{voucher_id}/post", headers=scoped).status_code == 200
+
+    wb = Workbook()
+    ws = wb.active
+    ws.append(["流水号", "交易日期", "方向", "金额", "银行账户", "摘要", "对方"])
+    ws.append(["BANK-001", period["start_date"], "流入", "50.00", "100201", "银行收款", "客户A"])
+    stream = io.BytesIO()
+    wb.save(stream)
+    stream.seek(0)
+    imported = client.post(
+        f"/api/v1/finance/bank-statements/import?period_id={period['id']}",
+        headers=scoped,
+        files={"file": ("bank.xlsx", stream.getvalue(), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")},
+    )
+    assert imported.status_code == 200
+    statement_id = imported.json()["items"][0]["id"]
+
+    matched = client.post(
+        f"/api/v1/finance/bank-statements/{statement_id}/match",
+        headers=scoped,
+        json={"voucher_id": voucher_id},
+    )
+    assert matched.status_code == 200
+    assert matched.json()["status"] == "matched"
+
+    summary = client.get(
+        "/api/v1/finance/bank-reconciliation",
+        headers=scoped,
+        params={"period_id": period["id"]},
+    )
+    assert summary.status_code == 200
+    assert summary.json()["unmatched_count"] == 0
+    assert Decimal(summary.json()["bank_total"]) == Decimal("50.00")
+
+
+def test_bank_statement_import_is_atomic_and_reports_row_number(client):
+    headers = _auth(client, "admin", "admin123456")
+    book = _book(client, headers, "BANK-IMPORT-ERROR")
+    scoped = _scoped(headers, book)
+    period = client.get("/api/v1/finance/periods", headers=scoped).json()[0]
+    wb = Workbook()
+    ws = wb.active
+    ws.append(["流水号", "交易日期", "方向", "金额", "银行账户", "摘要", "对方"])
+    ws.append(["BANK-OK", period["start_date"], "流入", "10.00", "100201", "正常", "A"])
+    ws.append(["BANK-BAD", period["start_date"], "未知", "20.00", "100201", "错误", "B"])
+    stream = io.BytesIO()
+    wb.save(stream)
+    stream.seek(0)
+    response = client.post(
+        f"/api/v1/finance/bank-statements/import?period_id={period['id']}",
+        headers=scoped,
+        files={"file": ("bank.xlsx", stream.getvalue(), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")},
+    )
+    assert response.status_code == 400
+    assert response.json()["detail"]["code"] == "F-IMPORT-INVALID"
+    assert any(item["row"] == 3 for item in response.json()["detail"]["details"])
+    assert client.get("/api/v1/finance/bank-statements", headers=scoped).json()["total"] == 0
