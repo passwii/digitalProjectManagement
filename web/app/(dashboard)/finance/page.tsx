@@ -14,7 +14,7 @@ import { useAsyncData } from "@/lib/useAsyncData";
 import { useMenus } from "@/lib/useMeta";
 import { LoadingBlock, LoadFailed, NoAccess } from "@/components/ui/PageState";
 import Empty from "@/components/ui/Empty";
-import PageActions from "@/components/ui/PageActions";
+import PageHeader from "@/components/ui/PageHeader";
 import MotionTabs from "@/components/motion/MotionTabs";
 import { Dialog } from "@/components/ui/Modal";
 import { useToast } from "@/components/ui/Toast";
@@ -91,8 +91,20 @@ function FinanceInner() {
 
   return (
     <div>
-      <PageActions
+      <PageHeader
         title="财务管理"
+        filters={
+          <>
+            <label className="toolbar-field">
+              <span>当前账套</span>
+              <select value={activeBook} onChange={(event) => setBookCode(event.target.value)} aria-label="选择财务账套">
+                {!books.data?.length && <option value="">暂无账套</option>}
+                {books.data?.map((item) => <option key={item.code} value={item.code}>{item.name} · {item.code}</option>)}
+              </select>
+            </label>
+            <span className="tiny muted">项目成本与财务账独立，项目支出不会自动生成会计凭证。</span>
+          </>
+        }
         actions={
           <>
             <button className="btn-ghost" onClick={refreshAll} title="刷新财务工作台">刷新</button>
@@ -101,17 +113,6 @@ function FinanceInner() {
           </>
         }
       />
-
-      <div className="toolbar-card" style={{ display: "flex", gap: 16, alignItems: "end", flexWrap: "wrap" }}>
-        <label className="toolbar-field" style={{ minWidth: 280 }}>
-          <span>当前账套</span>
-          <select value={activeBook} onChange={(event) => setBookCode(event.target.value)} aria-label="选择财务账套">
-            {!books.data?.length && <option value="">暂无账套</option>}
-            {books.data?.map((item) => <option key={item.code} value={item.code}>{item.name} · {item.code}</option>)}
-          </select>
-        </label>
-        <div className="tiny muted">项目成本与财务账独立，项目支出不会自动生成会计凭证。</div>
-      </div>
 
       {!book ? (
         <>

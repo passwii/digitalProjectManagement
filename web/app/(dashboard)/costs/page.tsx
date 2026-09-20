@@ -20,7 +20,7 @@ import { LoadingBlock, LoadFailed } from "@/components/ui/PageState";
 import ProgressBar from "@/components/ui/ProgressBar";
 import { Confirm, Dialog } from "@/components/ui/Modal";
 import { useToast } from "@/components/ui/Toast";
-import PageActions from "@/components/ui/PageActions";
+import PageHeader from "@/components/ui/PageHeader";
 import CountUp from "@/components/motion/CountUp";
 import MotionReveal from "@/components/motion/MotionReveal";
 import MotionStagger from "@/components/motion/MotionStagger";
@@ -150,8 +150,35 @@ function CostsInner() {
 
   return (
     <div>
-      <PageActions
+      <PageHeader
         title="支出记录"
+        filters={
+          <>
+            <label className="toolbar-field">
+              <span>项目</span>
+              <ProjectPicker
+                value={url.project_id}
+                onChange={(id) => setUrl({ project_id: id, status: "", page: "1", [TARGET_KEY.expense]: "" }, { history: "push" })}
+                ariaLabel="选择项目"
+                placeholder="搜索项目名称或编号"
+                className="picker-grow"
+              />
+            </label>
+            <label className="toolbar-field">
+              <span>状态</span>
+              <select
+                aria-label="按支出状态筛选"
+                value={url.status}
+                onChange={(e) => setUrl({ status: e.target.value }, { history: "push" })}
+              >
+                <option value="">全部状态</option>
+                {Object.entries(EXPENSE_STATUS).map(([code, label]) => (
+                  <option key={code} value={code}>{label}</option>
+                ))}
+              </select>
+            </label>
+          </>
+        }
         actions={
           <button
             className="btn-primary"
@@ -163,21 +190,6 @@ function CostsInner() {
           </button>
         }
       />
-
-      <MotionReveal delay={0.04}>
-      <div className="toolbar-card">
-        <label className="toolbar-field">
-          <span>项目</span>
-          <ProjectPicker
-            value={url.project_id}
-            onChange={(id) => setUrl({ project_id: id, status: "", page: "1", [TARGET_KEY.expense]: "" }, { history: "push" })}
-            ariaLabel="选择项目"
-            placeholder="搜索项目名称或编号"
-            className="picker-grow"
-          />
-        </label>
-      </div>
-      </MotionReveal>
 
       {error && <LoadFailed message={error} onRetry={reload} />}
 
@@ -214,21 +226,7 @@ function CostsInner() {
           </div>
           </MotionStagger>
 
-          <div className="section-head">
-            <div>
-              <h2>支出明细</h2>
-            </div>
-            <select
-              aria-label="按支出状态筛选"
-              value={url.status}
-              onChange={(e) => setUrl({ status: e.target.value }, { history: "push" })}
-            >
-              <option value="">全部状态</option>
-              {Object.entries(EXPENSE_STATUS).map(([code, label]) => (
-                <option key={code} value={code}>{label}</option>
-              ))}
-            </select>
-          </div>
+          <h2 className="section-title">支出明细</h2>
 
           {expenses.length === 0 ? (
             <div className="card">

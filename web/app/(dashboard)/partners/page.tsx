@@ -17,8 +17,7 @@ import Badge from "@/components/ui/Badge";
 import Empty from "@/components/ui/Empty";
 import Pagination from "@/components/ui/Pagination";
 import { LoadingBlock, LoadFailed } from "@/components/ui/PageState";
-import PageActions from "@/components/ui/PageActions";
-import TableToolbar from "@/components/ui/TableToolbar";
+import PageHeader from "@/components/ui/PageHeader";
 import { Confirm } from "@/components/ui/Modal";
 import { useToast } from "@/components/ui/Toast";
 import PartnerDrawer from "./PartnerDrawer";
@@ -128,8 +127,38 @@ function PartnersInner() {
 
   return (
     <div>
-      <PageActions
+      <PageHeader
         title="我的友商"
+        filters={
+          <>
+            <input
+              value={qDraft}
+              onChange={(e) => setQDraft(e.target.value)}
+              placeholder="搜索友商名称 / 联系人 / 电话…"
+              aria-label="搜索友商"
+            />
+            <select
+              value={url.partner_type}
+              onChange={(e) => setUrl({ partner_type: e.target.value })}
+              aria-label="按友商类型筛选"
+            >
+              <option value="">全部类型</option>
+              {typeOptions.map((item) => (
+                <option key={item.code} value={item.label}>{item.label}</option>
+              ))}
+            </select>
+            {hasFilter && (
+              <button
+                type="button"
+                className="btn-ghost"
+                style={{ width: "auto" }}
+                onClick={() => setUrl({ q: "", partner_type: "" })}
+              >
+                清除筛选
+              </button>
+            )}
+          </>
+        }
         actions={
           <button
             className="btn-primary"
@@ -142,35 +171,6 @@ function PartnersInner() {
       />
 
       {error && <LoadFailed message={error} onRetry={reload} />}
-
-      <TableToolbar>
-        <input
-          value={qDraft}
-          onChange={(e) => setQDraft(e.target.value)}
-          placeholder="搜索友商名称 / 联系人 / 电话…"
-          aria-label="搜索友商"
-        />
-        <select
-          value={url.partner_type}
-          onChange={(e) => setUrl({ partner_type: e.target.value })}
-          aria-label="按友商类型筛选"
-        >
-          <option value="">全部类型</option>
-          {typeOptions.map((item) => (
-            <option key={item.code} value={item.label}>{item.label}</option>
-          ))}
-        </select>
-        {hasFilter && (
-          <button
-            type="button"
-            className="btn-ghost"
-            style={{ width: "auto" }}
-            onClick={() => setUrl({ q: "", partner_type: "" })}
-          >
-            清除筛选
-          </button>
-        )}
-      </TableToolbar>
 
       {firstLoad ? (
         <LoadingBlock kpis={0} label="加载我的友商…" />
