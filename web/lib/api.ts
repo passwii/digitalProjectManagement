@@ -208,9 +208,9 @@ export type { UploadProgress };
 export function apiUploadWithProgress<T>(
   path: string,
   form: FormData,
-  options: { signal?: AbortSignal; onProgress?: (progress: UploadProgress) => void } = {},
+  options: { signal?: AbortSignal; onProgress?: (progress: UploadProgress) => void; headers?: Record<string, string> } = {},
 ): Promise<T> {
-  const { signal, onProgress } = options;
+  const { signal, onProgress, headers: extraHeaders } = options;
   return trackedMutation(
     "上传中",
     () =>
@@ -230,6 +230,7 @@ export function apiUploadWithProgress<T>(
 
         xhr.open("POST", `${API_BASE}${path}`);
         if (token) xhr.setRequestHeader("Authorization", `Bearer ${token}`);
+        Object.entries(extraHeaders ?? {}).forEach(([key, value]) => xhr.setRequestHeader(key, value));
         // 不手动设置 Content-Type：交给浏览器补 multipart boundary。
 
         if (onProgress) {
@@ -315,6 +316,7 @@ export const apiDelete = <T>(path: string) =>
 export type UploadOptions = {
   signal?: AbortSignal;
   onProgress?: (progress: UploadProgress) => void;
+  headers?: Record<string, string>;
 };
 
 /**
@@ -363,6 +365,24 @@ export async function downloadFile(path: string, filename: string) {
   const finish = beginTrackedActivity({ label: "下载中", scope: "form" });
   try {
     const res = await request<Response>(path, {}, true);
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  } finally {
+    finish();
+  }
+}
+
+export async function downloadFileScoped(path: string, filename: string, headers: Record<string, string>) {
+  const finish = beginTrackedActivity({ label: "下载中", scope: "form" });
+  try {
+    const res = await request<Response>(path, { headers }, true);
     const blob = await res.blob();
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -518,6 +538,13 @@ export interface FinanceVoucherInput {
   source?: string;
   lines: FinanceEntry[];
 }
+export interface FinanceVoucherTemplate {
+  id: number;
+  code: string;
+  name: string;
+  lines: FinanceEntry[];
+  is_active: boolean;
+}
 
 function financeHeaders(bookCode: string): Record<string, string> {
   return { "X-Account-Book": bookCode };
@@ -557,6 +584,23 @@ export const financeApi = {
       financeHeaders(book),
       signal,
     ),
+  templates: (book: string, signal?: AbortSignal) =>
+    apiGetScoped<FinanceVoucherTemplate[]>("/finance/voucher-templates", financeHeaders(book), signal),
+  createTemplate: (book: string, body: { code: string; name: string; lines: FinanceEntry[] }) =>
+    apiPostScoped<FinanceVoucherTemplate>("/finance/voucher-templates", body, financeHeaders(book)),
+  fromTemplate: (book: string, body: { template_id: number; period_id: number; voucher_no: string; voucher_date: string; summary: string }) =>
+    apiPostScoped<FinanceVoucher>("/finance/vouchers/from-template", body, financeHeaders(book)),
+  importVouchers: (book: string, periodId: number, file: File) => {
+    const form = new FormData();
+    form.append("file", file);
+    return apiUpload<{ imported: number; vouchers: FinanceVoucher[] }>(
+      `/finance/vouchers/import?period_id=${periodId}`,
+      form,
+      { headers: financeHeaders(book) },
+    );
+  },
+  exportVouchers: (book: string, periodId: number) =>
+    downloadFileScoped(`/finance/vouchers/export?period_id=${periodId}`, `vouchers_${periodId}.xlsx`, financeHeaders(book)),
   createVoucher: (book: string, body: FinanceVoucherInput) =>
     apiPostScoped<FinanceVoucher>("/finance/vouchers", body, financeHeaders(book)),
   submitVoucher: (book: string, id: number) =>

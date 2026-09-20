@@ -4,11 +4,14 @@
 所有会计事实都从本路由的已过账凭证产生。
 """
 
+import io
+import json
 from datetime import date
 from decimal import Decimal, InvalidOperation
 from typing import Any, cast
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Query
+from fastapi import APIRouter, Depends, File, Header, HTTPException, Query, UploadFile
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
@@ -18,7 +21,7 @@ from ..core.database import get_db
 from ..core.deps import get_current_user
 from ..core.rbac import is_admin
 from ..core.timeutil import app_now
-from ..models import Account, AccountBalance, AccountBook, AccountingPeriod, OpeningBalance, User, Voucher, VoucherEntry
+from ..models import Account, AccountBalance, AccountBook, AccountingPeriod, OpeningBalance, User, Voucher, VoucherEntry, VoucherTemplate
 from .finance import _book_header
 
 router = APIRouter(prefix="/finance", tags=["finance-accounting"])
@@ -75,6 +78,20 @@ class VoucherPatch(BaseModel):
 
 class ReasonIn(BaseModel):
     reason: str = Field(default="", max_length=500)
+
+
+class TemplateIn(BaseModel):
+    code: str = Field(min_length=1, max_length=32)
+    name: str = Field(min_length=1, max_length=128)
+    lines: list[EntryIn] = Field(min_length=2)
+
+
+class FromTemplateIn(BaseModel):
+    template_id: int
+    period_id: int
+    voucher_no: str = Field(min_length=1, max_length=32)
+    voucher_date: date
+    summary: str = Field(default="", max_length=255)
 
 
 def _period(db: Session, book_id: int, period_id: int) -> AccountingPeriod:
@@ -160,6 +177,133 @@ def _entries(db: Session, voucher_id: int):
     return rows, accounts
 
 
+def _template_json(template: VoucherTemplate) -> dict:
+    return {"id": template.id, "code": template.code, "name": template.name, "lines": template.lines, "is_active": template.is_active}
+
+
+@router.get("/voucher-templates")
+def list_voucher_templates(x_account_book: str | None = Header(default=None), db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    book = _book_header(db, user, x_account_book)
+    return [_template_json(row) for row in db.query(VoucherTemplate).filter_by(account_book_id=book.id, is_active=True).order_by(VoucherTemplate.code).all()]
+
+
+@router.post("/voucher-templates")
+def create_voucher_template(body: TemplateIn, x_account_book: str | None = Header(default=None), db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    book = _book_header(db, user, x_account_book)
+    _admin(user)
+    if db.query(VoucherTemplate).filter_by(account_book_id=book.id, code=body.code.strip()).first():
+        _error(409, "F-TEMPLATE-DUPLICATE", "模板编码已存在")
+    period = _period(db, book.id, next((row.id for row in db.query(AccountingPeriod).filter_by(account_book_id=book.id).order_by(AccountingPeriod.period_index).all()), 0))
+    prepared, debit, credit = _normalise_lines(db, book.id, period, body.lines)
+    lines = [{"account_id": item["account"].id, "summary": item["summary"], "debit": str(item["debit"]), "credit": str(item["credit"]), "aux_detail": item["aux_detail"], "cashflow_item": item["cashflow_item"]} for item in prepared]
+    template = VoucherTemplate(account_book_id=book.id, code=body.code.strip(), name=body.name.strip(), lines=lines, created_by=user.id, created_at=app_now())
+    db.add(template)
+    commit_audited(db, user.id, "create", "voucher_template", body.code, book.code)
+    return _template_json(template)
+
+
+@router.post("/vouchers/from-template")
+def voucher_from_template(body: FromTemplateIn, x_account_book: str | None = Header(default=None), db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    book = _book_header(db, user, x_account_book)
+    _admin(user)
+    template = db.query(VoucherTemplate).filter_by(id=body.template_id, account_book_id=book.id, is_active=True).first()
+    if not template:
+        _error(404, "F-TEMPLATE-NOT-FOUND", "凭证模板不存在")
+    period = _period(db, book.id, body.period_id)
+    lines = [EntryIn(**line) for line in (template.lines or [])]
+    payload = VoucherIn(period_id=body.period_id, voucher_no=body.voucher_no, voucher_date=body.voucher_date, summary=body.summary, source="template", lines=lines)
+    return create_voucher(payload, x_account_book, db, user)
+
+
+IMPORT_HEADERS = ["凭证号", "凭证日期", "摘要", "科目编码", "分录摘要", "借方", "贷方", "现金流项目", "辅助核算JSON"]
+
+
+@router.post("/vouchers/import")
+def import_vouchers(period_id: int, file: UploadFile = File(...), x_account_book: str | None = Header(default=None), db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    book = _book_header(db, user, x_account_book)
+    _admin(user)
+    period = _period(db, book.id, period_id)
+    if period.status != "open":
+        _error(400, "F-PERIOD-CLOSED", "当前期间不可导入凭证")
+    try:
+        from openpyxl import load_workbook
+        workbook = load_workbook(file.file, read_only=True, data_only=True)
+        sheet = workbook.active
+        rows = list(sheet.iter_rows(values_only=True))
+    except Exception as exc:
+        _error(400, "F-IMPORT-INVALID", "Excel 解析失败", [{"row": "1", "reason": str(exc)}])
+    if not rows or list(rows[0][:len(IMPORT_HEADERS)]) != IMPORT_HEADERS:
+        _error(400, "F-IMPORT-INVALID", "Excel 表头不符合凭证导入模板", [{"row": "1", "reason": "表头必须为：" + "、".join(IMPORT_HEADERS)}])
+    grouped: dict[str, list[tuple[int, list[Any]]]] = {}
+    errors: list[dict[str, Any]] = []
+    for row_number, raw in enumerate(rows[1:], 2):
+        values = list(raw[:len(IMPORT_HEADERS)]) + [None] * max(0, len(IMPORT_HEADERS) - len(raw))
+        if not any(value not in (None, "") for value in values):
+            continue
+        voucher_no, voucher_date, summary, account_code, line_summary, debit, credit, cashflow_item, aux_raw = values
+        grouped.setdefault(str(voucher_no or "").strip(), []).append((row_number, values))
+    payloads: list[VoucherIn] = []
+    for voucher_no, group in grouped.items():
+        if not voucher_no:
+            errors.append({"row": group[0][0], "reason": "凭证号不能为空"})
+            continue
+        lines: list[EntryIn] = []
+        voucher_date = None
+        summary = ""
+        for row_number, values in group:
+            _, raw_date, raw_summary, account_code, line_summary, debit, credit, cashflow_item, aux_raw = values
+            account = db.query(Account).filter_by(account_book_id=book.id, code=str(account_code or "").strip()).first()
+            if not account:
+                errors.append({"row": row_number, "reason": f"科目编码不存在：{account_code}"})
+                continue
+            try:
+                parsed_date = raw_date if isinstance(raw_date, date) else date.fromisoformat(str(raw_date))
+                aux_detail = json.loads(aux_raw or "{}")
+                if not isinstance(aux_detail, dict):
+                    raise ValueError("辅助核算JSON必须为对象")
+                lines.append(EntryIn(account_id=account.id, summary=str(line_summary or ""), debit=Decimal(str(debit or "0")), credit=Decimal(str(credit or "0")), cashflow_item=str(cashflow_item).strip() if cashflow_item else None, aux_detail=aux_detail))
+                voucher_date = parsed_date
+                summary = str(raw_summary or "")
+            except Exception as exc:
+                errors.append({"row": row_number, "reason": f"数据格式错误：{exc}"})
+        if lines and voucher_date:
+            payloads.append(VoucherIn(period_id=period_id, voucher_no=voucher_no, voucher_date=voucher_date, summary=summary, source="import", lines=lines))
+    if errors:
+        _error(400, "F-IMPORT-INVALID", "Excel 导入校验失败，未写入任何凭证", errors)
+    try:
+        created_rows = [_build_draft_voucher(db, book, payload, user) for payload in payloads]
+        commit_audited(db, user.id, "import_vouchers", "vouchers", str(period.id), f"count={len(created_rows)}")
+        created = []
+        for row in created_rows:
+            entries, accounts = _entries(db, row.id)
+            created.append(_serialize(row, entries, accounts))
+        return {"imported": len(created), "vouchers": created}
+    except HTTPException:
+        db.rollback()
+        raise
+
+
+@router.get("/vouchers/export")
+def export_vouchers(period_id: int, x_account_book: str | None = Header(default=None), db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    book = _book_header(db, user, x_account_book)
+    _admin(user)
+    period = _period(db, book.id, period_id)
+    from openpyxl import Workbook
+    workbook = Workbook()
+    sheet = workbook.active
+    sheet.append(IMPORT_HEADERS)
+    rows = db.query(Voucher).filter_by(account_book_id=book.id, period_id=period.id).order_by(Voucher.voucher_date, Voucher.id).all()
+    for voucher in rows:
+        entries, accounts = _entries(db, voucher.id)
+        for entry in entries:
+            sheet.append([voucher.voucher_no, voucher.voucher_date.isoformat(), voucher.summary, accounts[entry.account_id].code, entry.summary, str(entry.debit), str(entry.credit), entry.cashflow_item or "", json.dumps(entry.aux_detail or {}, ensure_ascii=False)])
+    stream = io.BytesIO()
+    workbook.save(stream)
+    stream.seek(0)
+    commit_audited(db, user.id, "export_vouchers", "vouchers", str(period.id), f"book={book.code}")
+    return StreamingResponse(stream, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", headers={"Content-Disposition": f"attachment; filename=vouchers_{period.year:04d}-{period.month:02d}.xlsx"})
+
+
 def _rebuild_entries(db: Session, voucher: Voucher, book_id: int, period: AccountingPeriod, lines: list[EntryIn]):
     prepared, debit, credit = _normalise_lines(db, book_id, period, lines)
     db.query(VoucherEntry).filter_by(voucher_id=voucher.id).delete()
@@ -169,25 +313,31 @@ def _rebuild_entries(db: Session, voucher: Voucher, book_id: int, period: Accoun
     voucher.total_credit = credit
 
 
-@router.post("/vouchers")
-def create_voucher(body: VoucherIn, x_account_book: str | None = Header(default=None), db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    book = _book_header(db, user, x_account_book)
-    _admin(user)
+def _build_draft_voucher(db: Session, book: AccountBook, body: VoucherIn, user: User) -> Voucher:
     period = _period(db, book.id, body.period_id)
     if period.status != "open":
         _error(400, "F-PERIOD-CLOSED", "当前期间不可录入凭证")
     if not (period.start_date <= body.voucher_date <= period.end_date):
         _error(400, "F-PERIOD-CLOSED", "凭证日期不在所属期间")
-    if db.query(Voucher).filter_by(account_book_id=book.id, period_id=period.id, voucher_no=body.voucher_no.strip()).first():
-        _error(409, "F-DUP-VOUCHER-NO", "凭证号在当前期间已存在")
     if body.source not in EXTERNAL_VOUCHER_SOURCES:
         _error(400, "F-INVALID-VOUCHER", "凭证来源不合法")
+    voucher_no = body.voucher_no.strip()
+    if db.query(Voucher).filter_by(account_book_id=book.id, period_id=period.id, voucher_no=voucher_no).first():
+        _error(409, "F-DUP-VOUCHER-NO", "凭证号在当前期间已存在")
     prepared, debit, credit = _normalise_lines(db, book.id, period, body.lines)
-    voucher = Voucher(account_book_id=book.id, period_id=period.id, voucher_no=body.voucher_no.strip(), voucher_date=body.voucher_date, status="draft", source=body.source, summary=body.summary.strip(), total_debit=debit, total_credit=credit, created_by=user.id, updated_at=app_now())
+    voucher = Voucher(account_book_id=book.id, period_id=period.id, voucher_no=voucher_no, voucher_date=body.voucher_date, status="draft", source=body.source, summary=body.summary.strip(), total_debit=debit, total_credit=credit, created_by=user.id, updated_at=app_now())
     db.add(voucher)
     db.flush()
     for line_no, item in enumerate(prepared, 1):
         db.add(VoucherEntry(account_book_id=book.id, voucher_id=voucher.id, line_no=line_no, account_id=item["account"].id, summary=item["summary"], debit=item["debit"], credit=item["credit"], aux_detail=item["aux_detail"], cashflow_item=item["cashflow_item"]))
+    return voucher
+
+
+@router.post("/vouchers")
+def create_voucher(body: VoucherIn, x_account_book: str | None = Header(default=None), db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    book = _book_header(db, user, x_account_book)
+    _admin(user)
+    voucher = _build_draft_voucher(db, book, body, user)
     commit_audited(db, user.id, "create", "voucher", str(voucher.id), voucher.voucher_no)
     entries, accounts = _entries(db, voucher.id)
     return _serialize(voucher, entries, accounts)
