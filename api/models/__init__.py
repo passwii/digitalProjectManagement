@@ -469,6 +469,44 @@ class AssetDepreciation(Base):
   )
 
 
+class ARAPTransaction(Base):
+  __tablename__ = "arap_transactions"
+  id = Column(Integer, primary_key=True)
+  account_book_id = Column(Integer, ForeignKey("account_books.id", ondelete="CASCADE"), nullable=False, index=True)
+  period_id = Column(Integer, nullable=False)
+  kind = Column(String(16), nullable=False)
+  transaction_date = Column(Date, nullable=False)
+  party_id = Column(Integer, nullable=False)
+  amount = Column(Numeric(18, 2), nullable=False)
+  applied_amount = Column(Numeric(18, 2), nullable=False, default=0, server_default="0")
+  account_id = Column(Integer, nullable=False)
+  offset_account_id = Column(Integer, nullable=False)
+  summary = Column(String(255), nullable=False, default="", server_default="")
+  voucher_id = Column(Integer, ForeignKey("vouchers.id"), nullable=True)
+  created_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+  created_at = Column(DateTime, default=_now, nullable=False)
+  __table_args__ = (
+    CheckConstraint("kind IN ('receivable','payable')", name="ck_arap_kind"),
+    CheckConstraint("amount > 0 AND applied_amount >= 0 AND applied_amount <= amount", name="ck_arap_amounts"),
+    ForeignKeyConstraint(["account_book_id", "period_id"], ["accounting_periods.account_book_id", "accounting_periods.id"], name="fk_arap_period_same_book"),
+  )
+
+
+class ARAPAllocation(Base):
+  __tablename__ = "arap_allocations"
+  id = Column(Integer, primary_key=True)
+  account_book_id = Column(Integer, ForeignKey("account_books.id", ondelete="CASCADE"), nullable=False, index=True)
+  source_id = Column(Integer, nullable=False)
+  target_id = Column(Integer, nullable=False)
+  amount = Column(Numeric(18, 2), nullable=False)
+  created_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+  created_at = Column(DateTime, default=_now, nullable=False)
+  __table_args__ = (
+    UniqueConstraint("account_book_id", "source_id", "target_id", name="uq_arap_allocation_pair"),
+    CheckConstraint("amount > 0", name="ck_arap_allocation_amount"),
+  )
+
+
 class Department(Base):
   __tablename__ = "departments"
   id = Column(Integer, primary_key=True)
