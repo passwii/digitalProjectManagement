@@ -66,6 +66,11 @@ const ICON: Record<string, React.ReactNode> = {
       <path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-2.9 1.2 2 2 0 1 1-4 0 1.7 1.7 0 0 0-2.9-1.2l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1A1.7 1.7 0 0 0 3 15a2 2 0 1 1 0-4 1.7 1.7 0 0 0 1.5-2.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1A1.7 1.7 0 0 0 10 4.6a2 2 0 1 1 4 0 1.7 1.7 0 0 0 2.9 1.2l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1A1.7 1.7 0 0 0 21 11a2 2 0 1 1 0 4z" />
     </svg>
   ),
+  "/finance": (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M4 19V5M4 19h16M8 16v-4M12 16V8M16 16v-7M20 16V4" />
+    </svg>
+  ),
   "/contacts": (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
       <path d="M5 4h12a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H5z" />
@@ -91,11 +96,12 @@ const LABEL: Record<string, string> = {
   "/contacts": "通讯录",
   "/partners": "我的友商",
   "/admin": "系统管理",
+  "/finance": "财务管理",
 };
 
 /** 工作台恒可见（非管理与审批入口）；权限同步失败时退回这组参与性入口，绝不默认放行管理入口 */
 const BASE_HREFS = ["/dashboard", "/projects", "/progress", "/costs", "/reports"];
-const ADMIN_HREFS = ["/contacts", "/partners", "/approvals", "/admin"];
+const ADMIN_HREFS = ["/contacts", "/partners", "/approvals", "/finance", "/admin"];
 
 const CRUMB: Record<string, string> = LABEL;
 

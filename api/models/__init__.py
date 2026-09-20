@@ -285,6 +285,89 @@ class AccountBalance(Base):
   )
 
 
+class Voucher(Base):
+  """财务凭证头：账簿、期间和状态是所有会计事实的边界。"""
+
+  __tablename__ = "vouchers"
+  id = Column(Integer, primary_key=True)
+  account_book_id = Column(Integer, ForeignKey("account_books.id", ondelete="CASCADE"), nullable=False, index=True)
+  period_id = Column(Integer, nullable=False)
+  voucher_no = Column(String(32), nullable=False)
+  voucher_date = Column(Date, nullable=False)
+  status = Column(String(16), nullable=False, default="draft", server_default="draft", index=True)
+  source = Column(String(16), nullable=False, default="manual", server_default="manual")
+  summary = Column(String(255), nullable=False, default="", server_default="")
+  total_debit = Column(Numeric(18, 2), nullable=False, default=0, server_default="0")
+  total_credit = Column(Numeric(18, 2), nullable=False, default=0, server_default="0")
+  created_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+  reviewed_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+  posted_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+  voided_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+  reversal_of = Column(Integer, ForeignKey("vouchers.id"), nullable=True)
+  decision_reason = Column(Text, nullable=False, default="", server_default="")
+  created_at = Column(DateTime, default=_now, nullable=False)
+  updated_at = Column(DateTime, default=_now, onupdate=_now, nullable=False)
+  __table_args__ = (
+    UniqueConstraint("account_book_id", "period_id", "voucher_no", name="uq_voucher_book_period_no"),
+    UniqueConstraint("account_book_id", "id", name="uq_voucher_book_id"),
+    ForeignKeyConstraint(
+      ["account_book_id", "period_id"],
+      ["accounting_periods.account_book_id", "accounting_periods.id"],
+      name="fk_voucher_period_same_book",
+      ondelete="CASCADE",
+    ),
+    CheckConstraint("status IN ('draft','pending','posted','void')", name="ck_voucher_status"),
+    CheckConstraint("total_debit >= 0 AND total_credit >= 0 AND total_debit = total_credit", name="ck_voucher_balanced"),
+  )
+
+
+class VoucherEntry(Base):
+  """凭证分录：每行只能有借方或贷方，辅助核算保存在账套内 JSON 快照。"""
+
+  __tablename__ = "voucher_entries"
+  id = Column(Integer, primary_key=True)
+  account_book_id = Column(Integer, nullable=False)
+  voucher_id = Column(Integer, ForeignKey("vouchers.id", ondelete="CASCADE"), nullable=False, index=True)
+  line_no = Column(Integer, nullable=False)
+  account_id = Column(Integer, nullable=False)
+  summary = Column(String(255), nullable=False, default="", server_default="")
+  debit = Column(Numeric(18, 2), nullable=False, default=0, server_default="0")
+  credit = Column(Numeric(18, 2), nullable=False, default=0, server_default="0")
+  aux_detail = Column(JSON, nullable=False, default=dict, server_default="{}")
+  cashflow_item = Column(String(32), nullable=True)
+  __table_args__ = (
+    UniqueConstraint("voucher_id", "line_no", name="uq_voucher_entry_line"),
+    ForeignKeyConstraint(
+      ["account_book_id", "voucher_id"],
+      ["vouchers.account_book_id", "vouchers.id"],
+      name="fk_voucher_entry_voucher_same_book",
+      ondelete="CASCADE",
+    ),
+    ForeignKeyConstraint(
+      ["account_book_id", "account_id"],
+      ["accounts.account_book_id", "accounts.id"],
+      name="fk_voucher_entry_account_same_book",
+    ),
+    CheckConstraint("debit >= 0 AND credit >= 0", name="ck_voucher_entry_nonneg"),
+    CheckConstraint("(debit > 0) <> (credit > 0)", name="ck_voucher_entry_one_side"),
+  )
+
+
+class VoucherTemplate(Base):
+  __tablename__ = "voucher_templates"
+  id = Column(Integer, primary_key=True)
+  account_book_id = Column(Integer, ForeignKey("account_books.id", ondelete="CASCADE"), nullable=False, index=True)
+  code = Column(String(32), nullable=False)
+  name = Column(String(128), nullable=False)
+  lines = Column(JSON, nullable=False, default=list, server_default="[]")
+  is_active = Column(Boolean, nullable=False, default=True, server_default="true")
+  created_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+  created_at = Column(DateTime, default=_now, nullable=False)
+  __table_args__ = (
+    UniqueConstraint("account_book_id", "code", name="uq_voucher_template_book_code"),
+  )
+
+
 class Department(Base):
   __tablename__ = "departments"
   id = Column(Integer, primary_key=True)

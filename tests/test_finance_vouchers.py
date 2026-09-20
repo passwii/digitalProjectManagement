@@ -1,0 +1,298 @@
+"""P0-B regression tests for the finance voucher engine."""
+
+from decimal import Decimal
+
+
+def _auth(client, username, password):
+    response = client.post(
+        "/api/v1/auth/login", json={"username": username, "password": password}
+    )
+    assert response.status_code == 200
+    return {"Authorization": f"Bearer {response.json()['access_token']}"}
+
+
+def _book(client, headers, code="VOUCHER-TEST"):
+    response = client.post(
+        "/api/v1/finance/books", json={"code": code, "name": code}, headers=headers
+    )
+    assert response.status_code == 200
+    return response.json()
+
+
+def _scoped(headers, book):
+    return {**headers, "X-Account-Book": book["code"]}
+
+
+def _accounts(client, headers):
+    rows = client.get("/api/v1/finance/accounts/tree", headers=headers).json()
+    return {row["code"]: row for row in rows}
+
+
+def test_admin_menu_exposes_finance_but_member_does_not(client):
+    admin = _auth(client, "admin", "admin123456")
+    member = _auth(client, "pm", "pm123456")
+
+    admin_menus = client.get("/api/v1/meta/me/menus", headers=admin)
+    member_menus = client.get("/api/v1/meta/me/menus", headers=member)
+
+    assert admin_menus.status_code == member_menus.status_code == 200
+    assert {item["href"] for item in admin_menus.json()["menus"]}.__contains__("/finance")
+    assert "/finance" not in {item["href"] for item in member_menus.json()["menus"]}
+
+    forbidden = client.get("/api/v1/finance/books", headers=member)
+    assert forbidden.status_code == 403
+
+
+def test_voucher_rejects_unbalanced_entries_without_persisting(client):
+    headers = _auth(client, "admin", "admin123456")
+    book = _book(client, headers, "VOUCHER-UNBALANCED")
+    scoped = _scoped(headers, book)
+    accounts = _accounts(client, scoped)
+    periods = client.get("/api/v1/finance/periods", headers=scoped).json()
+
+    response = client.post(
+        "/api/v1/finance/vouchers",
+        headers=scoped,
+        json={
+            "period_id": periods[0]["id"],
+            "voucher_no": "记-0001",
+            "voucher_date": periods[0]["start_date"],
+            "summary": "不平衡测试",
+            "lines": [
+                {"account_id": accounts["1405"]["id"], "debit": "10.00", "credit": "0", "summary": "采购"},
+                {"account_id": accounts["6001"]["id"], "debit": "0", "credit": "9.99", "summary": "收入"},
+            ],
+        },
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"]["code"] == "F-UNBALANCED"
+    assert client.get("/api/v1/finance/vouchers", headers=scoped).json()["total"] == 0
+
+
+def test_voucher_rejects_internal_sources_and_unreviewed_posting(client):
+    headers = _auth(client, "admin", "admin123456")
+    book = _book(client, headers, "VOUCHER-SOURCE")
+    scoped = _scoped(headers, book)
+    accounts = _accounts(client, scoped)
+    period = client.get("/api/v1/finance/periods", headers=scoped).json()[0]
+    payload = {
+        "period_id": period["id"],
+        "voucher_no": "记-0001",
+        "voucher_date": period["start_date"],
+        "source": "auto-close",
+        "lines": [
+            {"account_id": accounts["1405"]["id"], "debit": "1.00", "credit": "0", "summary": "库存"},
+            {"account_id": accounts["6001"]["id"], "debit": "0", "credit": "1.00", "summary": "收入"},
+        ],
+    }
+    rejected = client.post("/api/v1/finance/vouchers", headers=scoped, json=payload)
+    assert rejected.status_code == 400
+    assert rejected.json()["detail"]["code"] == "F-INVALID-VOUCHER"
+
+    payload["source"] = "manual"
+    created = client.post("/api/v1/finance/vouchers", headers=scoped, json=payload).json()
+    assert client.post(f"/api/v1/finance/vouchers/{created['id']}/submit", headers=scoped).status_code == 200
+    blocked = client.post(f"/api/v1/finance/vouchers/{created['id']}/post", headers=scoped)
+    assert blocked.status_code == 400
+    assert blocked.json()["detail"]["code"] == "F-SOD"
+
+
+def test_voucher_lifecycle_posts_once_and_updates_balance(client):
+    headers = _auth(client, "admin", "admin123456")
+    book = _book(client, headers, "VOUCHER-LIFECYCLE")
+    scoped = _scoped(headers, book)
+    accounts = _accounts(client, scoped)
+    periods = client.get("/api/v1/finance/periods", headers=scoped).json()
+    payload = {
+        "period_id": periods[0]["id"],
+        "voucher_no": "记-0001",
+        "voucher_date": periods[0]["start_date"],
+        "summary": "销售收款",
+        "lines": [
+            {"account_id": accounts["1405"]["id"], "debit": "100.00", "credit": "0", "summary": "采购"},
+            {"account_id": accounts["6001"]["id"], "debit": "0", "credit": "100.00", "summary": "收入"},
+        ],
+    }
+
+    created = client.post("/api/v1/finance/vouchers", headers=scoped, json=payload)
+    assert created.status_code == 200
+    assert created.json()["status"] == "draft"
+
+    voucher_id = created.json()["id"]
+    submitted = client.post(f"/api/v1/finance/vouchers/{voucher_id}/submit", headers=scoped)
+    assert submitted.status_code == 200
+    assert submitted.json()["status"] == "pending"
+
+    approved = client.post(f"/api/v1/finance/vouchers/{voucher_id}/approve", headers=scoped)
+    assert approved.status_code == 200
+    assert approved.json()["status"] == "pending"
+
+    posted = client.post(f"/api/v1/finance/vouchers/{voucher_id}/post", headers=scoped)
+    assert posted.status_code == 200
+    assert posted.json()["status"] == "posted"
+
+    duplicate = client.post(f"/api/v1/finance/vouchers/{voucher_id}/post", headers=scoped)
+    assert duplicate.status_code == 400
+    assert duplicate.json()["detail"]["code"] == "F-VOUCHER-STATE"
+
+    balances = client.get(
+        "/api/v1/finance/balances",
+        headers=scoped,
+        params={"period_id": periods[0]["id"]},
+    )
+    assert balances.status_code == 200
+    rows = {row["account_code"]: row for row in balances.json()["items"]}
+    assert Decimal(rows["1405"]["debit_total"]) == Decimal("100.00")
+    assert Decimal(rows["6001"]["credit_total"]) == Decimal("100.00")
+
+
+def test_posted_voucher_can_only_be_corrected_by_reversal(client):
+    headers = _auth(client, "admin", "admin123456")
+    book = _book(client, headers, "VOUCHER-REVERSAL")
+    scoped = _scoped(headers, book)
+    accounts = _accounts(client, scoped)
+    period = client.get("/api/v1/finance/periods", headers=scoped).json()[0]
+    payload = {
+        "period_id": period["id"],
+        "voucher_no": "记-0001",
+        "voucher_date": period["start_date"],
+        "summary": "待冲销",
+        "lines": [
+            {"account_id": accounts["1405"]["id"], "debit": "20.00", "credit": "0", "summary": "采购"},
+            {"account_id": accounts["6001"]["id"], "debit": "0", "credit": "20.00", "summary": "收入"},
+        ],
+    }
+    created = client.post("/api/v1/finance/vouchers", headers=scoped, json=payload).json()
+    vid = created["id"]
+    assert client.post(f"/api/v1/finance/vouchers/{vid}/submit", headers=scoped).status_code == 200
+    assert client.post(f"/api/v1/finance/vouchers/{vid}/approve", headers=scoped).status_code == 200
+    assert client.post(f"/api/v1/finance/vouchers/{vid}/post", headers=scoped).status_code == 200
+
+    edited = client.patch(
+        f"/api/v1/finance/vouchers/{vid}", headers=scoped, json={"summary": "不允许直接改"}
+    )
+    assert edited.status_code == 400
+    assert edited.json()["detail"]["code"] == "F-VOUCHER-POSTED"
+
+    reversal = client.post(f"/api/v1/finance/vouchers/{vid}/reverse", headers=scoped)
+    assert reversal.status_code == 200
+    assert reversal.json()["status"] == "draft"
+    assert reversal.json()["reversal_of"] == vid
+    assert reversal.json()["lines"][0]["credit"] == "20.00"
+    assert reversal.json()["lines"][0]["debit"] == "0.00"
+
+
+def test_close_check_blocks_unreviewed_vouchers_and_close_round_trip(client):
+    headers = _auth(client, "admin", "admin123456")
+    book = _book(client, headers, "VOUCHER-CLOSE")
+    scoped = _scoped(headers, book)
+    accounts = _accounts(client, scoped)
+    period = client.get("/api/v1/finance/periods", headers=scoped).json()[0]
+    payload = {
+        "period_id": period["id"],
+        "voucher_no": "记-0001",
+        "voucher_date": period["start_date"],
+        "summary": "结账检查",
+        "lines": [
+            {"account_id": accounts["1405"]["id"], "debit": "10.00", "credit": "0", "summary": "采购"},
+            {"account_id": accounts["6001"]["id"], "debit": "0", "credit": "10.00", "summary": "收入"},
+        ],
+    }
+    created = client.post("/api/v1/finance/vouchers", headers=scoped, json=payload).json()
+    assert client.post(f"/api/v1/finance/vouchers/{created['id']}/submit", headers=scoped).status_code == 200
+
+    blocked = client.post("/api/v1/finance/close/check", headers=scoped, params={"period_id": period["id"]})
+    assert blocked.status_code == 200
+    assert blocked.json()["ready"] is False
+    assert any(item["code"] == "F-UNREVIEWED-VOUCHER" for item in blocked.json()["issues"])
+
+    assert client.post(f"/api/v1/finance/vouchers/{created['id']}/approve", headers=scoped).status_code == 200
+    assert client.post(f"/api/v1/finance/vouchers/{created['id']}/post", headers=scoped).status_code == 200
+    closed = client.post("/api/v1/finance/close/run", headers={**scoped, "If-Match": str(period["version"])}, params={"period_id": period["id"]})
+    assert closed.status_code == 200
+    assert closed.json()["status"] == "closed"
+
+    reopened = client.post("/api/v1/finance/close/reverse", headers={**scoped, "If-Match": "2"}, params={"period_id": period["id"], "confirm": "true"})
+    assert reopened.status_code == 200
+    assert reopened.json()["status"] == "open"
+    vouchers = client.get("/api/v1/finance/vouchers", headers=scoped, params={"period_id": period["id"], "size": 100}).json()["items"]
+    assert any(item["source"] == "auto-reopen" and item["status"] == "posted" for item in vouchers)
+
+
+def test_posting_carries_previous_period_balance_forward(client):
+    headers = _auth(client, "admin", "admin123456")
+    book = _book(client, headers, "VOUCHER-CARRY-FORWARD")
+    scoped = _scoped(headers, book)
+    accounts = _accounts(client, scoped)
+    periods = client.get("/api/v1/finance/periods", headers=scoped).json()
+    first, second = periods[:2]
+
+    def post(period, number, amount):
+        payload = {
+            "period_id": period["id"],
+            "voucher_no": f"记-{number:04d}",
+            "voucher_date": period["start_date"],
+            "summary": "跨期余额",
+            "lines": [
+                {"account_id": accounts["1405"]["id"], "debit": str(amount), "credit": "0", "summary": "库存"},
+                {"account_id": accounts["6001"]["id"], "debit": "0", "credit": str(amount), "summary": "收入"},
+            ],
+        }
+        created = client.post("/api/v1/finance/vouchers", headers=scoped, json=payload).json()
+        assert client.post(f"/api/v1/finance/vouchers/{created['id']}/submit", headers=scoped).status_code == 200
+        assert client.post(f"/api/v1/finance/vouchers/{created['id']}/approve", headers=scoped).status_code == 200
+        assert client.post(f"/api/v1/finance/vouchers/{created['id']}/post", headers=scoped).status_code == 200
+
+    post(first, 1, "100.00")
+    post(second, 1, "25.00")
+    balances = client.get("/api/v1/finance/balances", headers=scoped, params={"period_id": second["id"]})
+    assert balances.status_code == 200
+    rows = {row["account_code"]: row for row in balances.json()["items"]}
+    assert Decimal(rows["1405"]["debit_total"]) == Decimal("25.00")
+    assert Decimal(rows["1405"]["ending_debit"]) == Decimal("125.00")
+    assert Decimal(rows["6001"]["credit_total"]) == Decimal("25.00")
+    assert Decimal(rows["6001"]["ending_credit"]) == Decimal("125.00")
+
+
+def test_close_generates_profit_carry_forward_and_preserves_income_report(client):
+    headers = _auth(client, "admin", "admin123456")
+    book = _book(client, headers, "VOUCHER-AUTO-CLOSE")
+    scoped = _scoped(headers, book)
+    accounts = _accounts(client, scoped)
+    period = client.get("/api/v1/finance/periods", headers=scoped).json()[0]
+    payload = {
+        "period_id": period["id"],
+        "voucher_no": "记-0001",
+        "voucher_date": period["start_date"],
+        "summary": "结转测试收入",
+        "lines": [
+            {"account_id": accounts["1405"]["id"], "debit": "100.00", "credit": "0", "summary": "库存"},
+            {"account_id": accounts["6001"]["id"], "debit": "0", "credit": "100.00", "summary": "收入"},
+        ],
+    }
+    created = client.post("/api/v1/finance/vouchers", headers=scoped, json=payload).json()
+    assert client.post(f"/api/v1/finance/vouchers/{created['id']}/submit", headers=scoped).status_code == 200
+    assert client.post(f"/api/v1/finance/vouchers/{created['id']}/approve", headers=scoped).status_code == 200
+    assert client.post(f"/api/v1/finance/vouchers/{created['id']}/post", headers=scoped).status_code == 200
+
+    closed = client.post(
+        "/api/v1/finance/close/run",
+        headers={**scoped, "If-Match": str(period["version"])},
+        params={"period_id": period["id"]},
+    )
+    assert closed.status_code == 200
+
+    vouchers = client.get("/api/v1/finance/vouchers", headers=scoped, params={"period_id": period["id"], "size": 100}).json()["items"]
+    auto = next(item for item in vouchers if item["source"] == "auto-close")
+    assert auto["status"] == "posted"
+    auto_lines = {line["account_code"]: line for line in auto["lines"]}
+    assert auto_lines["6001"]["debit"] == "100.00"
+    assert auto_lines["3103"]["credit"] == "100.00"
+
+    income = client.get("/api/v1/finance/reports/income", headers=scoped, params={"period_id": period["id"]})
+    assert income.status_code == 200
+    assert Decimal(income.json()["totals"]["profit"]) == Decimal("100.00")
+    balance_sheet = client.get("/api/v1/finance/reports/balance-sheet", headers=scoped, params={"period_id": period["id"]})
+    assert balance_sheet.status_code == 200
+    assert balance_sheet.json()["totals"]["balanced"] is True

@@ -288,6 +288,8 @@ export function apiUploadWithProgress<T>(
 
 /** GET：可选传 AbortSignal，快速切换筛选/项目时取消过期请求（BLF-1095） */
 export const apiGet = <T>(path: string, signal?: AbortSignal) => request<T>(path, { signal });
+export const apiGetScoped = <T>(path: string, headers: Record<string, string>, signal?: AbortSignal) =>
+  request<T>(path, { signal, headers });
 export const apiPost = <T>(path: string, body?: unknown) =>
   trackedMutation("提交中", () =>
     request<T>(path, { method: "POST", body: body === undefined ? undefined : JSON.stringify(body) }),
@@ -296,6 +298,16 @@ export const apiPut = <T>(path: string, body: unknown) =>
   trackedMutation("保存中", () => request<T>(path, { method: "PUT", body: JSON.stringify(body) }));
 export const apiPatch = <T>(path: string, body: unknown) =>
   trackedMutation("保存中", () => request<T>(path, { method: "PATCH", body: JSON.stringify(body) }));
+export const apiPostScoped = <T>(path: string, body: unknown, headers: Record<string, string>) =>
+  trackedMutation("提交中", () =>
+    request<T>(path, { method: "POST", body: JSON.stringify(body), headers }),
+  );
+export const apiPatchScoped = <T>(path: string, body: unknown, headers: Record<string, string>) =>
+  trackedMutation("保存中", () =>
+    request<T>(path, { method: "PATCH", body: JSON.stringify(body), headers }),
+  );
+export const apiDeleteScoped = <T>(path: string, headers: Record<string, string>) =>
+  trackedMutation("删除中", () => request<T>(path, { method: "DELETE", headers }));
 export const apiDelete = <T>(path: string) =>
   trackedMutation("删除中", () => request<T>(path, { method: "DELETE" }));
 
@@ -427,6 +439,179 @@ export interface MenuResp {
   /** 是否可切换演示开关（仅管理员） */
   can_toggle_demo: boolean;
 }
+
+export interface FinanceBook {
+  id: number;
+  code: string;
+  name: string;
+  base_currency: string;
+  currencies: string[];
+  status: string;
+}
+export interface FinancePeriod {
+  id: number;
+  year: number;
+  month: number;
+  period: string;
+  status: "open" | "closed" | "locked";
+  start_date: string;
+  end_date: string;
+  version: number;
+}
+export interface FinanceAccount {
+  id: number;
+  code: string;
+  name: string;
+  level: number;
+  parent_id: number | null;
+  direction: "D" | "C";
+  category: string;
+  subject_version: string;
+  aux_flags: Record<string, boolean>;
+  is_leaf: boolean;
+  is_active: boolean;
+}
+export interface FinanceEntry {
+  id?: number;
+  line_no?: number;
+  account_id: number;
+  account_code?: string;
+  account_name?: string;
+  summary: string;
+  debit: string;
+  credit: string;
+  aux_detail?: Record<string, unknown>;
+  cashflow_item?: string | null;
+}
+export interface FinanceVoucher {
+  id: number;
+  period_id: number;
+  voucher_no: string;
+  voucher_date: string;
+  status: "draft" | "pending" | "posted" | "void";
+  source: string;
+  summary: string;
+  total_debit: string;
+  total_credit: string;
+  created_by: number | null;
+  reviewed_by: number | null;
+  posted_by: number | null;
+  reversal_of: number | null;
+  decision_reason: string;
+  lines: FinanceEntry[];
+}
+export interface FinanceBalance {
+  account_id: number;
+  account_code: string;
+  account_name: string;
+  debit_total: string;
+  credit_total: string;
+  ending_debit: string;
+  ending_credit: string;
+}
+
+export interface FinanceVoucherInput {
+  period_id: number;
+  voucher_no: string;
+  voucher_date: string;
+  summary: string;
+  source?: string;
+  lines: FinanceEntry[];
+}
+
+function financeHeaders(bookCode: string): Record<string, string> {
+  return { "X-Account-Book": bookCode };
+}
+
+export const financeApi = {
+  books: {
+    list: (signal?: AbortSignal) => apiGet<FinanceBook[]>("/finance/books", signal),
+    create: (body: { code: string; name: string; base_currency?: string }) =>
+      apiPost<FinanceBook>("/finance/books", body),
+  },
+  periods: (book: string, year?: number, signal?: AbortSignal) =>
+    apiGetScoped<FinancePeriod[]>(`/finance/periods${buildQuery({ year })}`, financeHeaders(book), signal),
+  periodStatus: (book: string, id: number, status: FinancePeriod["status"], version: number, reopen = false) =>
+    apiPatchScoped<Pick<FinancePeriod, "id" | "status" | "version">>(
+      `/finance/periods/${id}`,
+      { status },
+      { ...financeHeaders(book), "If-Match": String(version), ...(reopen ? { "X-Reopen-Period": "confirm" } : {}) },
+    ),
+  accounts: (book: string, signal?: AbortSignal) =>
+    apiGetScoped<FinanceAccount[]>("/finance/accounts/tree", financeHeaders(book), signal),
+  opening: (book: string, signal?: AbortSignal) =>
+    apiGetScoped<{ id: number; account_id: number; aux_key: string; debit: string; credit: string }[]>(
+      "/finance/opening-balances",
+      financeHeaders(book),
+      signal,
+    ),
+  openingCheck: (book: string, signal?: AbortSignal) =>
+    apiGetScoped<{ balanced: boolean; debit: string; credit: string; difference: string }>(
+      "/finance/opening-balances/check",
+      financeHeaders(book),
+      signal,
+    ),
+  vouchers: (book: string, params: { status?: string; period_id?: number; page?: number; size?: number } = {}, signal?: AbortSignal) =>
+    apiGetScoped<Paged<FinanceVoucher>>(
+      `/finance/vouchers${buildQuery(params)}`,
+      financeHeaders(book),
+      signal,
+    ),
+  createVoucher: (book: string, body: FinanceVoucherInput) =>
+    apiPostScoped<FinanceVoucher>("/finance/vouchers", body, financeHeaders(book)),
+  submitVoucher: (book: string, id: number) =>
+    apiPostScoped<FinanceVoucher>(`/finance/vouchers/${id}/submit`, {}, financeHeaders(book)),
+  approveVoucher: (book: string, id: number) =>
+    apiPostScoped<FinanceVoucher>(`/finance/vouchers/${id}/approve`, {}, financeHeaders(book)),
+  postVoucher: (book: string, id: number) =>
+    apiPostScoped<FinanceVoucher>(`/finance/vouchers/${id}/post`, {}, financeHeaders(book)),
+  rejectVoucher: (book: string, id: number, reason: string) =>
+    apiPostScoped<FinanceVoucher>(`/finance/vouchers/${id}/reject`, { reason }, financeHeaders(book)),
+  reverseVoucher: (book: string, id: number) =>
+    apiPostScoped<FinanceVoucher>(`/finance/vouchers/${id}/reverse`, {}, financeHeaders(book)),
+  balances: (book: string, periodId: number, signal?: AbortSignal) =>
+    apiGetScoped<{ items: FinanceBalance[] }>(
+      `/finance/balances?period_id=${periodId}`,
+      financeHeaders(book),
+      signal,
+    ),
+  closeCheck: (book: string, periodId: number, signal?: AbortSignal) =>
+    apiGetScoped<{ period_id: number; ready: boolean; issues: { code: string; message: string }[] }>(
+      `/finance/close/check?period_id=${periodId}`,
+      financeHeaders(book),
+      signal,
+    ),
+  close: (book: string, periodId: number, version: number) =>
+    apiPostScoped<{ id: number; status: string; version: number }>(
+      `/finance/close/run?period_id=${periodId}`,
+      {},
+      { ...financeHeaders(book), "If-Match": String(version) },
+    ),
+  reopen: (book: string, periodId: number, version: number) =>
+    apiPostScoped<{ id: number; status: string; version: number }>(
+      `/finance/close/reverse?period_id=${periodId}&confirm=true`,
+      {},
+      { ...financeHeaders(book), "If-Match": String(version) },
+    ),
+  balanceSheet: (book: string, periodId: number, signal?: AbortSignal) =>
+    apiGetScoped<{ totals: { assets: string; liabilities: string; equity: string; profit_before_close: string; balanced: boolean } }>(
+      `/finance/reports/balance-sheet?period_id=${periodId}`,
+      financeHeaders(book),
+      signal,
+    ),
+  income: (book: string, periodId: number, signal?: AbortSignal) =>
+    apiGetScoped<{ totals: { income: string; expense: string; profit: string } }>(
+      `/finance/reports/income?period_id=${periodId}`,
+      financeHeaders(book),
+      signal,
+    ),
+  cashflow: (book: string, periodId: number, signal?: AbortSignal) =>
+    apiGetScoped<{ ready: boolean; unclassified_amount: string }>(
+      `/finance/reports/cashflow?period_id=${periodId}`,
+      financeHeaders(book),
+      signal,
+    ),
+};
 export interface Project {
   id: number;
   code: string;
