@@ -113,4 +113,16 @@ describe("PageHeader", () => {
       expect(source, page).not.toContain("<span>月份</span>");
     }
   });
+
+  it("桌面端限制筛选区最大宽度并隔离操作区", () => {
+    const styles = readFileSync(
+      resolve(__dirname, "../components/ui/PageHeader.module.css"),
+      "utf8",
+    );
+    expect(styles).toContain("flex: 0 1 960px");
+    expect(styles).toContain("border-left: 1px solid var(--line)");
+    expect(styles).toContain("padding-left: 16px");
+    expect(styles).toContain("border-left: 0");
+    expect(styles).toContain("padding-left: 0");
+  });
 });
