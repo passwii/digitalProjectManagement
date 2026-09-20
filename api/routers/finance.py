@@ -87,6 +87,10 @@ class PeriodStatusIn(BaseModel):
 
 
 def _book_access(db: Session, user: User, book_id: int) -> AccountBook:
+    # 首期财务模块严格 admin-only；账套成员表保留给后续财务角色 Stage，
+    # 不能在当前项目管理 RBAC 尚未拆分前形成第二套隐式授权路径。
+    if not is_admin(user):
+        _finance_error(403, "F-NO-BOOK-ACCESS", "仅管理员可访问财务模块")
     book = db.query(AccountBook).filter(AccountBook.id == book_id).first()
     if not book:
         _finance_error(404, "F-NO-BOOK-ACCESS", "账套不存在")
@@ -286,6 +290,8 @@ def create_book(
 
 @router.get("/books")
 def list_books(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    if not is_admin(user):
+        _finance_error(403, "F-NO-BOOK-ACCESS", "仅管理员可访问财务模块")
     q = db.query(AccountBook)
     if not is_admin(user):
         q = q.join(AccountBookMember).filter(AccountBookMember.user_id == user.id)

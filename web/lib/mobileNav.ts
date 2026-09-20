@@ -7,7 +7,7 @@
  *
  * 三条锁死的行为：
  *   · D1 「支出」位吸收 `/meta/me/menus` 的 `costs` + `reports`，标签写「支出」；
- *   · D3 管理与审批入口（contacts / partners / approvals / admin）**不进 Dock**，只进「我的」抽屉；
+ *   · D3 管理与审批入口（contacts / partners / approvals / finance / admin）**不进 Dock**，只进「我的」抽屉；
  *       角色只影响「我的」位的待办红点与抽屉内容，Dock 位数不变；
  *   · §3 权限唯一入口仍是 `/meta/me/menus`：本文件不新增任何角色判断，
  *       只做「契约菜单 → 5 个位」的分组与信令推导。
@@ -60,8 +60,8 @@ export const DOCK_SLOTS: readonly DockSlot[] = [
     // 桌面没有独立的「我的」页面：这一位在 S3 由抽屉（half 档）接管。
     // S1 先落到唯一存在的账号页，保证这一位不是死键。
     href: "/change-password",
-    keys: ["contacts", "partners", "approvals", "admin"],
-    hrefs: ["/contacts", "/partners", "/approvals", "/admin"],
+    keys: ["contacts", "partners", "approvals", "finance", "admin"],
+    hrefs: ["/contacts", "/partners", "/approvals", "/finance", "/admin"],
   },
 ];
 
@@ -144,7 +144,7 @@ function isUnder(pathname: string, href: string): boolean {
 /**
  * 当前路径高亮哪一位；不属于任何位时返回 `null`（如 404 / 登录页）。
  *
- * 管理与审批页（`/approvals`、`/admin`、`/contacts`、`/partners`）归属「我的」位：
+ * 管理与审批页（`/approvals`、`/finance`、`/admin`、`/contacts`、`/partners`）归属「我的」位：
  * D3 规定它们只从「我的」抽屉进入，高亮也应当落在「我的」。
  */
 export function dockIdForPath(pathname: string): DockId | null {
