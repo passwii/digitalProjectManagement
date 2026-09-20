@@ -8,16 +8,21 @@
 from datetime import datetime
 
 from sqlalchemy import (
+  JSON,
   Boolean,
+  CheckConstraint,
   Column,
   Date,
   DateTime,
   Float,
   ForeignKey,
+  ForeignKeyConstraint,
   Index,
   Integer,
+  Numeric,
   String,
   Text,
+  UniqueConstraint,
 )
 from sqlalchemy.orm import relationship
 
@@ -28,6 +33,256 @@ from ..core.timeutil import app_now
 def _now() -> datetime:
   """DateTime 列的默认值：北京时间 naive 墙钟（见 core/timeutil.py）。"""
   return app_now()
+
+
+class AccountBook(Base):
+  """财务账套：独立于项目管理中的 Project。"""
+
+  __tablename__ = "account_books"
+  id = Column(Integer, primary_key=True)
+  code = Column(String(32), unique=True, nullable=False, index=True)
+  name = Column(String(128), nullable=False)
+  base_currency = Column(String(3), nullable=False, default="CNY", server_default="CNY")
+  currencies = Column(
+    JSON, nullable=False, default=lambda: ["CNY"], server_default='["CNY"]'
+  )
+  fiscal_year_start = Column(
+    String(5), nullable=False, default="01-01", server_default="01-01"
+  )
+  status = Column(String(16), nullable=False, default="active", server_default="active")
+  created_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+  created_at = Column(DateTime, default=_now, nullable=False)
+  __table_args__ = (
+    CheckConstraint("status IN ('active','archived')", name="ck_book_status"),
+    CheckConstraint("base_currency ~ '^[A-Z]{3}$'", name="ck_book_currency"),
+  )
+
+
+class AccountBookMember(Base):
+  """账套授权；管理员由应用层视为全局可访问。"""
+
+  __tablename__ = "account_book_members"
+  id = Column(Integer, primary_key=True)
+  account_book_id = Column(
+    Integer, ForeignKey("account_books.id", ondelete="CASCADE"), nullable=False
+  )
+  user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+  role = Column(String(32), nullable=False, default="member", server_default="member")
+  created_at = Column(DateTime, default=_now, nullable=False)
+  __table_args__ = (
+    UniqueConstraint("account_book_id", "user_id", name="uq_book_member"),
+    Index("ix_book_members_user", "user_id"),
+  )
+
+
+class AccountingPeriod(Base):
+  __tablename__ = "accounting_periods"
+  id = Column(Integer, primary_key=True)
+  account_book_id = Column(
+    Integer,
+    ForeignKey("account_books.id", ondelete="CASCADE"),
+    nullable=False,
+    index=True,
+  )
+  year = Column(Integer, nullable=False)
+  month = Column(Integer, nullable=False)
+  period_index = Column(Integer, nullable=False)
+  is_adjustment = Column(Boolean, nullable=False, default=False, server_default="false")
+  status = Column(String(16), nullable=False, default="open", server_default="open")
+  start_date = Column(Date, nullable=False)
+  end_date = Column(Date, nullable=False)
+  closed_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+  closed_at = Column(DateTime, nullable=True)
+  version = Column(Integer, nullable=False, default=1, server_default="1")
+  __table_args__ = (
+    UniqueConstraint("account_book_id", "id", name="uq_period_book_id"),
+    UniqueConstraint(
+      "account_book_id", "year", "month", name="uq_period_book_year_month"
+    ),
+    UniqueConstraint("account_book_id", "period_index", name="uq_period_book_index"),
+    CheckConstraint("month BETWEEN 1 AND 13", name="ck_period_month"),
+    CheckConstraint("(month = 13) = is_adjustment", name="ck_period_adjustment"),
+    CheckConstraint("start_date <= end_date", name="ck_period_range"),
+    CheckConstraint("status IN ('open','closed','locked')", name="ck_period_status"),
+    Index("ix_periods_book_status", "account_book_id", "status"),
+  )
+
+
+class Account(Base):
+  __tablename__ = "accounts"
+  id = Column(Integer, primary_key=True)
+  account_book_id = Column(
+    Integer,
+    ForeignKey("account_books.id", ondelete="CASCADE"),
+    nullable=False,
+    index=True,
+  )
+  code = Column(String(32), nullable=False)
+  name = Column(String(128), nullable=False)
+  level = Column(Integer, nullable=False)
+  parent_id = Column(Integer, nullable=True)
+  direction = Column(String(1), nullable=False)
+  category = Column(String(16), nullable=False)
+  aux_flags = Column(JSON, nullable=False, default=dict, server_default="{}")
+  subject_version = Column(String(16), nullable=False, default="2022", server_default="2022")
+  is_leaf = Column(Boolean, nullable=False, default=True, server_default="true")
+  is_active = Column(Boolean, nullable=False, default=True, server_default="true")
+  __table_args__ = (
+    UniqueConstraint("account_book_id", "id", name="uq_accounts_book_id"),
+    UniqueConstraint("account_book_id", "code", name="uq_account_book_code"),
+    ForeignKeyConstraint(
+      ["account_book_id", "parent_id"],
+      ["accounts.account_book_id", "accounts.id"],
+      name="fk_accounts_parent_same_book",
+    ),
+    CheckConstraint("level BETWEEN 1 AND 4", name="ck_account_level"),
+    CheckConstraint("direction IN ('D','C')", name="ck_account_direction"),
+    CheckConstraint(
+      "category IN ('资产','负债','权益','成本','损益')", name="ck_account_category"
+    ),
+    CheckConstraint("code ~ '^[0-9]{4}([0-9]{2}){0,3}$'", name="ck_account_code"),
+    CheckConstraint("json_typeof(aux_flags) = 'object'", name="ck_account_aux_flags"),
+    Index("ix_accounts_book_parent", "account_book_id", "parent_id"),
+  )
+
+
+class OpeningBalance(Base):
+  __tablename__ = "opening_balances"
+  id = Column(Integer, primary_key=True)
+  account_book_id = Column(
+    Integer,
+    ForeignKey("account_books.id", ondelete="CASCADE"),
+    nullable=False,
+    index=True,
+  )
+  account_id = Column(Integer, nullable=False)
+  aux_key = Column(String(128), nullable=False, default="", server_default="")
+  aux_detail = Column(JSON, nullable=False, default=dict, server_default="{}")
+  debit = Column(Numeric(18, 2), nullable=False, default=0, server_default="0")
+  credit = Column(Numeric(18, 2), nullable=False, default=0, server_default="0")
+  __table_args__ = (
+    UniqueConstraint(
+      "account_book_id", "account_id", "aux_key", name="uq_opening_book_account_aux"
+    ),
+    ForeignKeyConstraint(
+      ["account_book_id", "account_id"],
+      ["accounts.account_book_id", "accounts.id"],
+      name="fk_opening_account_same_book",
+    ),
+    CheckConstraint("debit >= 0 AND credit >= 0", name="ck_opening_nonneg"),
+    CheckConstraint("NOT (debit > 0 AND credit > 0)", name="ck_opening_one_side"),
+  )
+
+
+class AuxiliaryItem(Base):
+  """账套内辅助核算主数据：客户、供应商、部门、员工、项目、现金流项目。"""
+
+  __tablename__ = "auxiliary_items"
+  id = Column(Integer, primary_key=True)
+  account_book_id = Column(
+    Integer,
+    ForeignKey("account_books.id", ondelete="CASCADE"),
+    nullable=False,
+    index=True,
+  )
+  kind = Column(String(16), nullable=False)
+  code = Column(String(64), nullable=False)
+  name = Column(String(128), nullable=False)
+  extra_data = Column(
+    "metadata", JSON, nullable=False, default=dict, server_default="{}"
+  )
+  is_active = Column(Boolean, nullable=False, default=True, server_default="true")
+  created_at = Column(DateTime, default=_now, nullable=False)
+  __table_args__ = (
+    UniqueConstraint("account_book_id", "kind", "code", name="uq_aux_book_kind_code"),
+    # Required by the composite FK from account_auxiliaries.  PostgreSQL
+    # requires the referenced column pair to be covered by a unique key.
+    UniqueConstraint("account_book_id", "id", name="uq_auxiliary_items_book_id"),
+    CheckConstraint(
+      "kind IN ('customer','vendor','department','employee','project','cashflow')",
+      name="ck_aux_kind",
+    ),
+  )
+
+
+class AccountAuxiliary(Base):
+  __tablename__ = "account_auxiliaries"
+  id = Column(Integer, primary_key=True)
+  account_book_id = Column(
+    Integer, ForeignKey("account_books.id", ondelete="CASCADE"), nullable=False
+  )
+  account_id = Column(Integer, nullable=False)
+  auxiliary_item_id = Column(Integer, nullable=False)
+  __table_args__ = (
+    UniqueConstraint("account_book_id", "id", name="uq_account_auxiliaries_book_id"),
+    ForeignKeyConstraint(
+      ["account_book_id", "account_id"],
+      ["accounts.account_book_id", "accounts.id"],
+      name="fk_account_auxiliary_account_same_book",
+      ondelete="CASCADE",
+    ),
+    ForeignKeyConstraint(
+      ["account_book_id", "auxiliary_item_id"],
+      ["auxiliary_items.account_book_id", "auxiliary_items.id"],
+      name="fk_account_auxiliary_item_same_book",
+      ondelete="CASCADE",
+    ),
+    UniqueConstraint(
+      "account_book_id",
+      "account_id",
+      "auxiliary_item_id",
+      name="uq_account_auxiliary_link",
+    ),
+    Index("ix_account_auxiliary_book", "account_book_id"),
+  )
+
+
+class AccountBalance(Base):
+  """Persisted period totals used by account deactivation guards."""
+
+  __tablename__ = "account_balances"
+  id = Column(Integer, primary_key=True)
+  account_book_id = Column(
+    Integer,
+    ForeignKey("account_books.id", ondelete="CASCADE"),
+    nullable=False,
+    index=True,
+  )
+  period_id = Column(Integer, nullable=False)
+  account_id = Column(Integer, nullable=False)
+  aux_key = Column(String(128), nullable=False, default="", server_default="")
+  opening_debit = Column(Numeric(18, 2), nullable=False, default=0, server_default="0")
+  opening_credit = Column(Numeric(18, 2), nullable=False, default=0, server_default="0")
+  debit_total = Column(Numeric(18, 2), nullable=False, default=0, server_default="0")
+  credit_total = Column(Numeric(18, 2), nullable=False, default=0, server_default="0")
+  ending_debit = Column(Numeric(18, 2), nullable=False, default=0, server_default="0")
+  ending_credit = Column(Numeric(18, 2), nullable=False, default=0, server_default="0")
+  __table_args__ = (
+    UniqueConstraint("account_book_id", "id", name="uq_account_balance_book_id"),
+    UniqueConstraint(
+      "account_book_id", "period_id", "account_id", "aux_key",
+      name="uq_account_balance_scope",
+    ),
+    ForeignKeyConstraint(
+      ["account_book_id", "period_id"],
+      ["accounting_periods.account_book_id", "accounting_periods.id"],
+      name="fk_account_balance_period_same_book",
+      ondelete="CASCADE",
+    ),
+    ForeignKeyConstraint(
+      ["account_book_id", "account_id"],
+      ["accounts.account_book_id", "accounts.id"],
+      name="fk_account_balance_account_same_book",
+      ondelete="CASCADE",
+    ),
+    CheckConstraint(
+      "opening_debit >= 0 AND opening_credit >= 0 AND "
+      "debit_total >= 0 AND credit_total >= 0 AND "
+      "ending_debit >= 0 AND ending_credit >= 0",
+      name="ck_account_balance_nonneg",
+    ),
+    Index("ix_account_balances_account", "account_book_id", "account_id"),
+  )
 
 
 class Department(Base):
