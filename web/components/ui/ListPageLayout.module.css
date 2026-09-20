@@ -1,0 +1,60 @@
+.page {
+  min-width: 0;
+  /* 100dvh - 140px = 64px desktop topbar + 28px top and 48px bottom content padding. */
+  min-height: calc(100dvh - 140px);
+  display: flex;
+  flex-direction: column;
+}
+
+.toolbar,
+.notice,
+.content { min-width: 0; }
+.notice { margin-top: 12px; }
+.content {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.viewport {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.body { min-width: 0; }
+.pagination {
+  margin-top: auto;
+  padding-top: 18px;
+}
+
+.tableFrame {
+  width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+@media (max-height: 720px) and (min-width: 768px) {
+  .page { min-height: 0; }
+  .content,
+  .viewport { flex: none; }
+  .pagination { margin-top: 0; }
+}
+
+@media (max-width: 767px) {
+  .page { min-height: 0; }
+  .content,
+  .viewport { flex: none; }
+  .pagination { margin-top: 0; padding-top: 0; }
+  .tableFrame { display: none; }
+}
+
+@media print {
+  .page,
+  .content,
+  .viewport { min-height: 0; display: block; }
+  .pagination { display: none; }
+  .tableFrame { display: block; overflow: visible; }
+}

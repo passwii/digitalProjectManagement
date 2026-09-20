@@ -21,6 +21,7 @@ import {
   DesktopTable,
   useVisibleTargetScroll,
 } from "../components/ui/CardList";
+import { DesktopTableFrame } from "../components/ui/ListPageLayout";
 
 afterEach(() => cleanup());
 
@@ -107,6 +108,20 @@ describe("CardList / CardItem（D4 卡片流）", () => {
     );
     const wrap = document.querySelector(".table-scroll");
     expect(wrap?.querySelector("table.grid td")?.textContent).toBe("行");
+  });
+
+  it("DesktopTableFrame 与 DesktopTable 都保留 table-scroll 语义", () => {
+    render(
+      <>
+        <DesktopTable><table className="grid"><tbody><tr><td>旧</td></tr></tbody></table></DesktopTable>
+        <DesktopTableFrame><table className="grid"><tbody><tr><td>新</td></tr></tbody></table></DesktopTableFrame>
+      </>,
+    );
+
+    expect(document.querySelectorAll("table.grid")).toHaveLength(2);
+    expect(document.querySelectorAll(".table-scroll")).toHaveLength(2);
+    expect(document.body.textContent).toContain("旧");
+    expect(document.body.textContent).toContain("新");
   });
 });
 
