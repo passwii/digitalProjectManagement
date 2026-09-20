@@ -161,9 +161,13 @@ def owner_condition(db: Session, owner_id: int = 0, owner: str = ""):
             .filter(or_(User.real_name == name, User.username == name))
             .all()
         ]
+        # `owner_name` 是台账实际展示口径；只有展示名为空时，才允许用
+        # `owner_id` 按账号姓名兜底。不能把两列无条件 OR，否则历史脏数据中
+        # 多个展示姓名共用同一个 owner_id 时，会把其他负责人的项目一起筛出。
         name_cond = Project.owner_name == name
         if same_name_ids:
-            name_cond = or_(name_cond, Project.owner_id.in_(same_name_ids))
+            empty_display_name = func.coalesce(Project.owner_name, "") == ""
+            name_cond = or_(name_cond, and_(empty_display_name, Project.owner_id.in_(same_name_ids)))
         conds.append(name_cond)
     if not conds:
         return None

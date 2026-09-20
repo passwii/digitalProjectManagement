@@ -59,6 +59,29 @@ def test_owner_name_exact_hit(client, db):
     assert _names(r2) == {"BLF1148-P1", "BLF1148-P2", "BLF1148-P3"}
 
 
+def test_owner_name_does_not_include_other_names_with_same_owner_id(client, db):
+    """负责人姓名是列表展示口径，不能被复用的 owner_id 放宽。"""
+    from api.models import Project
+
+    admin, zhang_id, _ = _setup_owner_data(client, db)
+    session = db()
+    try:
+        session.add(Project(
+            code="PJ-1148-P5",
+            name="BLF1148-P5",
+            owner_id=zhang_id,
+            owner_name="段佳奕",
+            status="doing",
+        ))
+        session.commit()
+    finally:
+        session.close()
+
+    r = client.get("/api/v1/projects?owner=张爱杰", headers=admin)
+    assert r.status_code == 200, r.text
+    assert _names(r) == {"BLF1148-P1", "BLF1148-P2", "BLF1148-P3"}
+
+
 def test_owner_name_miss_returns_empty(client, db):
     admin, _, _ = _setup_owner_data(client, db)
     r = client.get("/api/v1/projects?owner=不存在的人", headers=admin)
