@@ -154,29 +154,23 @@ function CostsInner() {
         title="支出记录"
         filters={
           <>
-            <label className="toolbar-field">
-              <span>项目</span>
-              <ProjectPicker
-                value={url.project_id}
-                onChange={(id) => setUrl({ project_id: id, status: "", page: "1", [TARGET_KEY.expense]: "" }, { history: "push" })}
-                ariaLabel="选择项目"
-                placeholder="搜索项目名称或编号"
-                className="picker-grow"
-              />
-            </label>
-            <label className="toolbar-field">
-              <span>状态</span>
-              <select
-                aria-label="按支出状态筛选"
-                value={url.status}
-                onChange={(e) => setUrl({ status: e.target.value }, { history: "push" })}
-              >
-                <option value="">全部状态</option>
-                {Object.entries(EXPENSE_STATUS).map(([code, label]) => (
-                  <option key={code} value={code}>{label}</option>
-                ))}
-              </select>
-            </label>
+            <ProjectPicker
+              value={url.project_id}
+              onChange={(id) => setUrl({ project_id: id, status: "", page: "1", [TARGET_KEY.expense]: "" }, { history: "push" })}
+              ariaLabel="选择项目"
+              placeholder="搜索项目名称或编号"
+              className="picker-grow filter-span-2"
+            />
+            <select
+              aria-label="按支出状态筛选"
+              value={url.status}
+              onChange={(e) => setUrl({ status: e.target.value }, { history: "push" })}
+            >
+              <option value="">全部状态</option>
+              {Object.entries(EXPENSE_STATUS).map(([code, label]) => (
+                <option key={code} value={code}>{label}</option>
+              ))}
+            </select>
           </>
         }
         actions={

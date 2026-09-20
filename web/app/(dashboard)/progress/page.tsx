@@ -88,16 +88,13 @@ function ProgressInner() {
       <PageHeader
         title="进度跟踪"
         filters={
-          <label className="toolbar-field">
-            <span>项目</span>
-            <ProjectPicker
-              value={url.project_id}
-              onChange={(id) => setUrl({ project_id: id, page: "1", task: "" }, { history: "push" })}
-              ariaLabel="选择项目"
-              placeholder="搜索项目名称或编号"
-              className="picker-grow"
-            />
-          </label>
+          <ProjectPicker
+            value={url.project_id}
+            onChange={(id) => setUrl({ project_id: id, page: "1", task: "" }, { history: "push" })}
+            ariaLabel="选择项目"
+            placeholder="搜索项目名称或编号"
+            className="picker-grow filter-span-2"
+          />
         }
         actions={
           <button

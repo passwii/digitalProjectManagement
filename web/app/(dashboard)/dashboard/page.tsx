@@ -66,7 +66,6 @@ export default function DashboardPage() {
         actions={
           <>
           <button className="btn-ghost" onClick={load}>刷新</button>
-          <Link className="btn-ghost" href="/reports">支出报表</Link>
           {isAdmin && (
             <Link className="btn-primary" href="/approvals">
               待审批 {k.pending_approvals}
