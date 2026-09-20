@@ -5,12 +5,21 @@ import Link from "next/link";
 import { errText, projectsApi, type Project } from "@/lib/api";
 import { useAsyncData } from "@/lib/useAsyncData";
 import { urlInt, useUrlState, useUrlText } from "@/lib/useUrlState";
-import { buildYearOptions, parseYearParam, yearToCodeFilter } from "@/lib/projectYear";
+import {
+  buildYearOptions,
+  parseYearParam,
+  yearToCodeFilter,
+} from "@/lib/projectYear";
 import { buildProjectListQuery } from "@/lib/projectFilters";
 import { useMeta, useMenus } from "@/lib/useMeta";
 import {
-  CONTRACT_STATUS, PROJECT_FLOW, PROJECT_STATUS, fmtMoney,
-  contractStatusLabel, projectStatusLabel, projectTone,
+  CONTRACT_STATUS,
+  PROJECT_FLOW,
+  PROJECT_STATUS,
+  fmtMoney,
+  contractStatusLabel,
+  projectStatusLabel,
+  projectTone,
 } from "@/lib/labels";
 import Badge from "@/components/ui/Badge";
 import Avatar from "@/components/ui/Avatar";
@@ -64,7 +73,9 @@ function ProjectsInner() {
 
   const [url, setUrl] = useUrlState(URL_DEFAULTS, { pageKey: "page" });
   const page = urlInt(url.page, 1);
-  const size = SIZE_OPTIONS.includes(Number(url.size)) ? Number(url.size) : SIZE_OPTIONS[0];
+  const size = SIZE_OPTIONS.includes(Number(url.size))
+    ? Number(url.size)
+    : SIZE_OPTIONS[0];
   const year = parseYearParam(url.year);
   const yearOptions = buildYearOptions(Date.now(), year);
   const [qDraft, setQDraft] = useUrlText(url.q, (next) => setUrl({ q: next }));
@@ -93,11 +104,17 @@ function ProjectsInner() {
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<Project | null>(null);
   const [detail, setDetail] = useState<Project | null>(null);
-  const [confirmFlow, setConfirmFlow] = useState<{ p: Project; to: string } | null>(null);
+  const [confirmFlow, setConfirmFlow] = useState<{
+    p: Project;
+    to: string;
+  } | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Project | null>(null);
   const [busy, setBusy] = useState(false);
 
-  const statusOptions = Object.entries(PROJECT_STATUS).map(([code, label]) => ({ code, label }));
+  const statusOptions = Object.entries(PROJECT_STATUS).map(([code, label]) => ({
+    code,
+    label,
+  }));
   const DESTRUCTIVE = new Set(["cancelled", "archived", "done"]);
   const hasFilter = !!(url.q || url.status || url.owner || year);
   const scopeText = [
@@ -127,76 +144,103 @@ function ProjectsInner() {
 
   return (
     <div>
-      <PageActions
-        title="项目台账"
-        actions={
-          <button
-            className="btn-primary"
-            title="创建一个新的项目档案"
-            onClick={() => { setEditing(null); setFormOpen(true); }}
-          >
-            + 新建项目
-          </button>
-        }
-      />
+      <section
+        className="projects-control-section"
+        aria-label="项目台账操作与筛选"
+      >
+        <PageActions
+          title="项目台账"
+          actions={
+            <button
+              className="btn-primary"
+              title="创建一个新的项目档案"
+              onClick={() => {
+                setEditing(null);
+                setFormOpen(true);
+              }}
+            >
+              + 新建项目
+            </button>
+          }
+        />
+
+        <MotionReveal delay={0.04}>
+          <TableToolbar>
+            <input
+              value={qDraft}
+              onChange={(e) => setQDraft(e.target.value)}
+              placeholder="搜索名称 / 编号 / 客户…"
+              aria-label="搜索项目"
+            />
+            <select
+              value={url.status}
+              onChange={(e) => setUrl({ status: e.target.value })}
+              aria-label="按状态筛选"
+            >
+              <option value="">全部状态</option>
+              {statusOptions.map((s) => (
+                <option key={s.code} value={s.code}>
+                  {s.label}
+                </option>
+              ))}
+            </select>
+            <select
+              value={url.owner}
+              onChange={(e) => setUrl({ owner: e.target.value })}
+              aria-label="按负责人筛选"
+            >
+              <option value="">全部负责人</option>
+              {users.map((u) => (
+                <option key={u.id} value={u.id}>
+                  {u.real_name}
+                </option>
+              ))}
+            </select>
+            <select
+              value={year}
+              onChange={(e) => setUrl({ year: e.target.value })}
+              aria-label="按年度筛选"
+            >
+              <option value="">全部年份</option>
+              {yearOptions.map((y) => (
+                <option key={y} value={y}>
+                  {y}年
+                </option>
+              ))}
+            </select>
+            {hasFilter && (
+              <button
+                type="button"
+                className="btn-ghost"
+                style={{ height: 32, lineHeight: "30px", width: "auto" }}
+                onClick={() =>
+                  setUrl({ q: "", status: "", owner: "", year: "" })
+                }
+              >
+                清除筛选
+              </button>
+            )}
+          </TableToolbar>
+        </MotionReveal>
+      </section>
 
       {demoOn && (
         <MotionReveal>
-        <div
-          className="warn-banner"
-          style={{ background: "var(--brand-soft)", borderColor: "var(--line-blue)", color: "var(--brand)" }}
-        >
-          当前正在显示<b>演示数据</b>（工作台与报表统计同样包含），关闭开关即可全站隐藏。
-        </div>
+          <div
+            className="warn-banner"
+            style={{
+              background: "var(--brand-soft)",
+              borderColor: "var(--line-blue)",
+              color: "var(--brand)",
+            }}
+          >
+            当前正在显示<b>演示数据</b>
+            （工作台与报表统计同样包含），关闭开关即可全站隐藏。
+          </div>
         </MotionReveal>
       )}
 
       {error && <LoadFailed message={error} onRetry={reload} />}
-
-      <MotionReveal delay={0.04}>
-      <TableToolbar>
-        <input
-          value={qDraft}
-          onChange={(e) => setQDraft(e.target.value)}
-          placeholder="搜索名称 / 编号 / 客户…"
-          aria-label="搜索项目"
-        />
-        <select
-          value={url.status}
-          onChange={(e) => setUrl({ status: e.target.value })}
-          aria-label="按状态筛选"
-        >
-          <option value="">全部状态</option>
-          {statusOptions.map((s) => <option key={s.code} value={s.code}>{s.label}</option>)}
-        </select>
-        <select
-          value={url.owner}
-          onChange={(e) => setUrl({ owner: e.target.value })}
-          aria-label="按负责人筛选"
-        >
-          <option value="">全部负责人</option>
-          {users.map((u) => <option key={u.id} value={u.id}>{u.real_name}</option>)}
-        </select>
-        <select
-          value={year}
-          onChange={(e) => setUrl({ year: e.target.value })}
-          aria-label="按年度筛选"
-        >
-          <option value="">全部年份</option>
-          {yearOptions.map((y) => <option key={y} value={y}>{y}年</option>)}
-        </select>
-        {hasFilter && (
-          <button
-            type="button"
-            className="btn-ghost"
-            style={{ height: 32, lineHeight: "30px", width: "auto" }}
-            onClick={() => setUrl({ q: "", status: "", owner: "", year: "" })}
-          >
-            清除筛选
-          </button>
-        )}
-      </TableToolbar>
-      </MotionReveal>
 
       {firstLoad ? (
         <LoadingBlock kpis={0} label="加载项目台账…" />
@@ -231,8 +275,17 @@ function ProjectsInner() {
                       tone={projectTone(p.status)}
                     />
                     <Badge
-                      status={p.contract_status ? contractStatusLabel(p.contract_status) : "未登记"}
-                      tone={p.contract_status && CONTRACT_STATUS[p.contract_status] === "已签订" ? "done" : "todo"}
+                      status={
+                        p.contract_status
+                          ? contractStatusLabel(p.contract_status)
+                          : "未登记"
+                      }
+                      tone={
+                        p.contract_status &&
+                        CONTRACT_STATUS[p.contract_status] === "已签订"
+                          ? "done"
+                          : "todo"
+                      }
                     />
                   </>
                 }
@@ -272,7 +325,6 @@ function ProjectsInner() {
                     >
                       编辑
                     </button>
-
                   </>
                 }
                 onSelect={() => setDetail(p)}
@@ -313,31 +365,55 @@ function ProjectsInner() {
                   >
                     <td className="mono project-code">{p.code}</td>
                     <td>
-                      <span className="ellipsis" title={p.name}>{p.name}</span>{" "}
+                      <span className="ellipsis" title={p.name}>
+                        {p.name}
+                      </span>{" "}
                     </td>
                     <td>
                       <span className="inline-person">
-                        <Avatar name={ownerText(p)} size={22} />{ownerText(p)}
+                        <Avatar name={ownerText(p)} size={22} />
+                        {ownerText(p)}
                       </span>
                     </td>
-                    <td className="muted"><span className="ellipsis" title={p.client}>{p.client || "-"}</span></td>
+                    <td className="muted">
+                      <span className="ellipsis" title={p.client}>
+                        {p.client || "-"}
+                      </span>
+                    </td>
                     <td>
                       <Badge
-                        status={p.contract_status ? contractStatusLabel(p.contract_status) : "未登记"}
-                        tone={p.contract_status && CONTRACT_STATUS[p.contract_status] === "已签订" ? "done" : "todo"}
+                        status={
+                          p.contract_status
+                            ? contractStatusLabel(p.contract_status)
+                            : "未登记"
+                        }
+                        tone={
+                          p.contract_status &&
+                          CONTRACT_STATUS[p.contract_status] === "已签订"
+                            ? "done"
+                            : "todo"
+                        }
                       />
                     </td>
                     <td className="num">{fmtMoney(p.budget_total)}</td>
-                    <td><Badge status={projectStatusLabel(p.status)} tone={projectTone(p.status)} /></td>
+                    <td>
+                      <Badge
+                        status={projectStatusLabel(p.status)}
+                        tone={projectTone(p.status)}
+                      />
+                    </td>
                     <td className="no-print">
                       <span className="table-actions">
                         <button
                           className="btn-ghost btn-xs"
-                          onClick={(e) => { e.stopPropagation(); setEditing(p); setFormOpen(true); }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setEditing(p);
+                            setFormOpen(true);
+                          }}
                         >
                           编辑
                         </button>
-
                       </span>
                     </td>
                   </tr>
@@ -377,7 +453,11 @@ function ProjectsInner() {
             : undefined
         }
         onSaved={(saved, isNew) => {
-          toast.ok(isNew ? `项目已创建：${saved.code}` : "项目信息已保存（变更已留痕）");
+          toast.ok(
+            isNew
+              ? `项目已创建：${saved.code}`
+              : "项目信息已保存（变更已留痕）",
+          );
           setFormOpen(false);
           setDetail((d) => (d && d.id === saved.id ? saved : d));
           reload();
@@ -391,15 +471,40 @@ function ProjectsInner() {
         width={520}
         title={
           detail ? (
-            <span className="ellipsis" style={{ maxWidth: 340, display: "inline-block" }} title={detail.name}>
+            <span
+              className="ellipsis"
+              style={{ maxWidth: 340, display: "inline-block" }}
+              title={detail.name}
+            >
               {detail.name}
             </span>
-          ) : ""
+          ) : (
+            ""
+          )
         }
         footer={
           detail && (
             <>
-              <button className="btn-ghost" onClick={() => { setEditing(detail); setFormOpen(true); }}>编辑</button>
+              <button
+                className="btn-ghost"
+                onClick={() => {
+                  setEditing(detail);
+                  setFormOpen(true);
+                }}
+              >
+                编辑
+              </button>
+              {isAdmin && !["doing", "filed"].includes(detail.status) && (
+                <button
+                  className="btn-ghost danger-link"
+                  onClick={() => {
+                    setDeleteTarget(detail);
+                    setDetail(null);
+                  }}
+                >
+                  删除项目
+                </button>
+              )}
               <Link className="btn-primary" href={`/projects/${detail.id}`}>
                 打开完整档案
               </Link>
@@ -410,48 +515,105 @@ function ProjectsInner() {
         {detail && (
           <>
             <dl className="kv one">
-              <div><dt>项目编号</dt><dd className="mono">{detail.code}</dd></div>
-              <div><dt>项目负责人</dt><dd>{ownerText(detail)}</dd></div>
-              <div><dt>客户 / 委托方</dt><dd>{detail.client || "-"}</dd></div>
-              <div><dt>合同状态</dt><dd>{detail.contract_status ? contractStatusLabel(detail.contract_status) : "-"}</dd></div>
-              <div><dt>前向合同（甲方）</dt><dd>{detail.forward_contract || "-"}</dd></div>
-              <div><dt>后向合同（乙方）</dt><dd>{detail.backward_contract || "-"}</dd></div>
-              <div><dt>合同金额</dt><dd className="mono">{fmtMoney(detail.budget_total)} 元</dd></div>
-              <div><dt>客户联系人</dt><dd>{detail.client_contact || "-"}</dd></div>
-              <div><dt>联系方式</dt><dd>{detail.client_phone || "-"}</dd></div>
-              <div><dt>项目简介</dt><dd>{detail.description || "-"}</dd></div>
+              <div>
+                <dt>项目编号</dt>
+                <dd className="mono">{detail.code}</dd>
+              </div>
+              <div>
+                <dt>项目负责人</dt>
+                <dd>{ownerText(detail)}</dd>
+              </div>
+              <div>
+                <dt>客户 / 委托方</dt>
+                <dd>{detail.client || "-"}</dd>
+              </div>
+              <div>
+                <dt>合同状态</dt>
+                <dd>
+                  {detail.contract_status
+                    ? contractStatusLabel(detail.contract_status)
+                    : "-"}
+                </dd>
+              </div>
+              <div>
+                <dt>前向合同（甲方）</dt>
+                <dd>{detail.forward_contract || "-"}</dd>
+              </div>
+              <div>
+                <dt>后向合同（乙方）</dt>
+                <dd>{detail.backward_contract || "-"}</dd>
+              </div>
+              <div>
+                <dt>合同金额</dt>
+                <dd className="mono">{fmtMoney(detail.budget_total)} 元</dd>
+              </div>
+              <div>
+                <dt>客户联系人</dt>
+                <dd>{detail.client_contact || "-"}</dd>
+              </div>
+              <div>
+                <dt>联系方式</dt>
+                <dd>{detail.client_phone || "-"}</dd>
+              </div>
+              <div>
+                <dt>项目简介</dt>
+                <dd>{detail.description || "-"}</dd>
+              </div>
             </dl>
 
             {(() => {
               // 解归档（archived → doing）仅管理员可操作，非管理员不展示必然 403 的按钮
               const flow = (PROJECT_FLOW[detail.status] ?? []).filter(
-                (to) => !(detail.status === "archived" && to === "doing" && !isAdmin)
+                (to) =>
+                  !(detail.status === "archived" && to === "doing" && !isAdmin),
               );
               if (flow.length === 0) {
                 return detail.status === "archived" && !isAdmin ? (
-                  <div className="muted" style={{ fontSize: 12, marginTop: 16 }}>
+                  <div
+                    className="muted"
+                    style={{ fontSize: 12, marginTop: 16 }}
+                  >
                     项目已归档且为只读，解除归档需管理员操作。
                   </div>
                 ) : null;
               }
               return (
                 <div style={{ marginTop: 16 }}>
-                  <div className="muted" style={{ fontSize: 12, marginBottom: 8 }}>状态流转（操作留痕）</div>
+                  <div
+                    className="muted"
+                    style={{ fontSize: 12, marginBottom: 8 }}
+                  >
+                    状态流转（操作留痕）
+                  </div>
                   <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                     {flow.map((to) =>
                       DESTRUCTIVE.has(to) ? (
-                        <button key={to} className="btn-ghost" onClick={() => setConfirmFlow({ p: detail, to })}>
+                        <button
+                          key={to}
+                          className="btn-ghost"
+                          onClick={() => setConfirmFlow({ p: detail, to })}
+                        >
                           → {projectStatusLabel(to)}
                         </button>
                       ) : (
-                        <button key={to} className="btn-ghost" disabled={busy} onClick={() => changeStatus(detail, to)}>
+                        <button
+                          key={to}
+                          className="btn-ghost"
+                          disabled={busy}
+                          onClick={() => changeStatus(detail, to)}
+                        >
                           → {projectStatusLabel(to)}
                         </button>
-                      )
+                      ),
                     )}
                   </div>
                   {detail.status === "archived" && !isAdmin && (
-                    <div className="muted" style={{ fontSize: 12, marginTop: 8 }}>解除归档需管理员操作。</div>
+                    <div
+                      className="muted"
+                      style={{ fontSize: 12, marginTop: 8 }}
+                    >
+                      解除归档需管理员操作。
+                    </div>
                   )}
                 </div>
               );
@@ -469,17 +631,20 @@ function ProjectsInner() {
         text={
           confirmFlow && (
             <>
-              项目 <b>{confirmFlow.p.name}</b>（<span className="mono">{confirmFlow.p.code}</span>）
+              项目 <b>{confirmFlow.p.name}</b>（
+              <span className="mono">{confirmFlow.p.code}</span>）
               {confirmFlow.to === "archived"
                 ? " 将归档为只读，需管理员才能解除归档。"
                 : confirmFlow.to === "cancelled"
-                ? " 取消后不可再流转（终态）。"
-                : " 完成后可归档。"}
+                  ? " 取消后不可再流转（终态）。"
+                  : " 完成后可归档。"}
             </>
           )
         }
         okText="确认流转"
-        onConfirm={() => confirmFlow && changeStatus(confirmFlow.p, confirmFlow.to)}
+        onConfirm={() =>
+          confirmFlow && changeStatus(confirmFlow.p, confirmFlow.to)
+        }
         onCancel={() => setConfirmFlow(null)}
       />
 
