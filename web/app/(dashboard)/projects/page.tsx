@@ -29,7 +29,6 @@ import { LoadingBlock, LoadFailed } from "@/components/ui/PageState";
 import TableToolbar from "@/components/ui/TableToolbar";
 import { Confirm, Drawer } from "@/components/ui/Modal";
 import { useToast } from "@/components/ui/Toast";
-import PageActions from "@/components/ui/PageActions";
 import { CardItem, CardList, DesktopTable } from "@/components/ui/CardList";
 import MotionReveal from "@/components/motion/MotionReveal";
 import ProjectFormDialog from "./ProjectFormDialog";
@@ -148,24 +147,23 @@ function ProjectsInner() {
         className="projects-control-section"
         aria-label="项目台账操作与筛选"
       >
-        <PageActions
-          title="项目台账"
-          actions={
-            <button
-              className="btn-primary"
-              title="创建一个新的项目档案"
-              onClick={() => {
-                setEditing(null);
-                setFormOpen(true);
-              }}
-            >
-              + 新建项目
-            </button>
-          }
-        />
+        <h1 className="sr-only">项目台账</h1>
 
         <MotionReveal delay={0.04}>
-          <TableToolbar>
+          <TableToolbar
+            action={
+              <button
+                className="btn-primary"
+                title="创建一个新的项目档案"
+                onClick={() => {
+                  setEditing(null);
+                  setFormOpen(true);
+                }}
+              >
+                + 新建项目
+              </button>
+            }
+          >
             <input
               value={qDraft}
               onChange={(e) => setQDraft(e.target.value)}
