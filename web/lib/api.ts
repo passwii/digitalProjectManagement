@@ -462,6 +462,17 @@ export interface ProjectOption {
   /** 仅当回退到 `GET /projects`（后端未升级）时才有客户名 */
   client?: string;
 }
+
+/**
+ * 负责人筛选项（`GET /projects/owners`）：台账「负责人」列实际出现的姓名 + 项目数。
+ *
+ * 选项取「展示口径的姓名」而不是账号 id —— 负责人没有登录账号时后端会把
+ * `owner_id` 落成创建人的 id，按 id 筛会出现「选谁都是全部结果」。
+ */
+export interface ProjectOwnerOption {
+  name: string;
+  count: number;
+}
 export interface ProjectChange {
   id: number;
   field: string;
@@ -651,6 +662,13 @@ export const metaApi = {
 
 export const projectsApi = {
   list: (q = "", signal?: AbortSignal) => apiGet<Paged<Project>>(`/projects${q}`, signal),
+  /**
+   * 负责人筛选项（`GET /projects/owners`）：台账实际出现的负责人姓名 + 项目数。
+   *
+   * 与「负责人」筛选同口径：下拉里选到的任何名字都能被 `GET /projects?owner=<姓名>`
+   * 精确筛出（含没有登录账号的负责人）。服务端有界（200 行），一次取回本地渲染。
+   */
+  owners: (signal?: AbortSignal) => apiGet<ProjectOwnerOption[]>("/projects/owners", signal),
   /** 项目选择器：关键词 + 分页（消费 /projects 的 keyword/page/size 契约） */
   search: (
     { keyword = "", page = 1, size = DEFAULT_PAGE_SIZE }: { keyword?: string; page?: number; size?: number },

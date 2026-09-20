@@ -1,48 +1,43 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { buildProjectListQuery, INVALID_OWNER_ID, normalizeProjectOwnerId } from "./projectFilters";
+import { buildProjectListQuery, normalizeProjectOwnerName } from "./projectFilters";
 
 describe("项目台账负责人查询", () => {
-  it("将下拉选择的负责人 ID 作为 owner_id 传递", () => {
+  it("把下拉选中的负责人姓名作为 owner 传给后端（不传 owner_id）", () => {
     const query = buildProjectListQuery({
       page: 2,
       size: 15,
-      sort: "-id",
+      sort: "-code",
       keyword: "合同",
       status: "doing",
-      owner: "42",
+      owner: "张爱杰",
       code: "PJ-2026-",
     });
 
     assert.equal(
       query,
-      "?page=2&size=15&sort=-id&keyword=%E5%90%88%E5%90%8C&status=doing&owner_id=42&code=PJ-2026-",
+      "?page=2&size=15&sort=-code&keyword=%E5%90%88%E5%90%8C&status=doing" +
+        "&owner=%E5%BC%A0%E7%88%B1%E6%9D%B0&code=PJ-2026-",
+    );
+    // 回归：只要出现 owner_id，按 id 筛就会把创建人名下的项目全捞出来（还是全部结果）
+    assert.doesNotMatch(query, /owner_id/);
+  });
+
+  it("清除负责人时省略 owner，其他筛选仍保持", () => {
+    assert.equal(
+      buildProjectListQuery({ page: 1, size: 15, sort: "-code", owner: "", status: "filed" }),
+      "?page=1&size=15&sort=-code&status=filed",
     );
   });
 
-  it("清除负责人时省略 owner_id，其他筛选仍保持", () => {
+  it("只去掉姓名两侧空白，不改写内容（同名/含空格的历史值也能筛）", () => {
+    assert.equal(normalizeProjectOwnerName("  张爱杰 "), "张爱杰");
+    assert.equal(normalizeProjectOwnerName(undefined), "");
+    assert.equal(normalizeProjectOwnerName(0), "0");
     assert.equal(
-      buildProjectListQuery({ page: 1, size: 15, sort: "-id", owner: "", status: "filed" }),
-      "?page=1&size=15&sort=-id&status=filed",
-    );
-  });
-
-  it("非法 URL 负责人值映射为不可能命中的 ID，不退化为全量", () => {
-    assert.equal(normalizeProjectOwnerId("abc"), INVALID_OWNER_ID);
-    assert.equal(normalizeProjectOwnerId("0"), INVALID_OWNER_ID);
-    assert.equal(normalizeProjectOwnerId("12.5"), INVALID_OWNER_ID);
-    assert.equal(
-      buildProjectListQuery({ page: 1, size: 15, sort: "-id", owner: "abc" }),
-      "?page=1&size=15&sort=-id&owner_id=-1",
-    );
-  });
-
-  it("已不存在但格式合法的负责人 ID 仍保持精确过滤", () => {
-    assert.equal(normalizeProjectOwnerId("999999"), 999999);
-    assert.equal(
-      buildProjectListQuery({ page: 1, size: 15, sort: "-id", owner: "999999" }),
-      "?page=1&size=15&sort=-id&owner_id=999999",
+      buildProjectListQuery({ page: 1, size: 15, sort: "-code", owner: " 李智 " }),
+      "?page=1&size=15&sort=-code&owner=%E6%9D%8E%E6%99%BA",
     );
   });
 });
