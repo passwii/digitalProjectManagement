@@ -21,7 +21,7 @@ from ..core.database import get_db
 from ..core.deps import get_current_user
 from ..core.rbac import ROLE_CASHIER, ROLE_FINANCE_CLERK, ROLE_FINANCE_MANAGER, ROLE_FINANCE_REVIEWER, is_admin, require_finance
 from ..core.timeutil import app_now
-from ..models import Account, AccountBalance, AccountBook, AccountingPeriod, AssetDepreciation, BankStatement, CashTransaction, FixedAsset, OpeningBalance, User, Voucher, VoucherEntry, VoucherTemplate
+from ..models import ARAPAllocation, ARAPTransaction, Account, AccountBalance, AccountBook, AccountingPeriod, AssetDepreciation, BankStatement, CashTransaction, FixedAsset, OpeningBalance, User, Voucher, VoucherEntry, VoucherTemplate
 from .finance import _book_header
 
 router = APIRouter(prefix="/finance", tags=["finance-accounting"])
@@ -129,6 +129,34 @@ class FixedAssetIn(BaseModel):
     asset_account_id: int
     depreciation_account_id: int
     expense_account_id: int
+
+
+class ARAPIn(BaseModel):
+    period_id: int
+    transaction_date: date
+    party_id: int | None = None
+    customer_id: int | None = None
+    vendor_id: int | None = None
+    amount: Decimal
+    account_id: int | None = None
+    offset_account_id: int | None = None
+    receivable_account_id: int | None = None
+    payable_account_id: int | None = None
+    revenue_account_id: int | None = None
+    expense_account_id: int | None = None
+    summary: str = Field(default="", max_length=255)
+
+
+class ARAPPaymentIn(BaseModel):
+    period_id: int
+    transaction_date: date
+    party_id: int | None = None
+    customer_id: int | None = None
+    vendor_id: int | None = None
+    amount: Decimal
+    cash_account_id: int
+    cashflow_item: str | None = None
+    summary: str = Field(default="", max_length=255)
 
 
 def _period(db: Session, book_id: int, period_id: int) -> AccountingPeriod:
@@ -438,6 +466,125 @@ def create_fixed_asset(body: FixedAssetIn, x_account_book: str | None = Header(d
     db.add(asset)
     commit_audited(db, user.id, "create_fixed_asset", "fixed_asset", body.code, book.code)
     return _asset_json(asset)
+
+
+def _arap_items(db: Session, book_id: int, kind: str, party_id: int | None = None):
+    query = db.query(ARAPTransaction).filter_by(account_book_id=book_id, kind=kind)
+    if party_id is not None:
+        query = query.filter_by(party_id=party_id)
+    rows = query.order_by(ARAPTransaction.transaction_date, ARAPTransaction.id).all()
+    return [{"id": row.id, "period_id": row.period_id, "transaction_date": row.transaction_date.isoformat(), "party_id": row.party_id, "amount": str(row.amount), "applied_amount": str(row.applied_amount), "outstanding": str(row.amount - row.applied_amount), "summary": row.summary, "voucher_id": row.voucher_id} for row in rows]
+
+
+def _create_arap_transaction(kind: str, body: ARAPIn, book: AccountBook, db: Session, user: User):
+    _role(db, user, book.id, {ROLE_FINANCE_CLERK, ROLE_FINANCE_MANAGER})
+    amount = _money(body.amount)
+    party_id = body.party_id or body.customer_id or body.vendor_id
+    account_id = body.account_id or body.receivable_account_id or body.payable_account_id
+    offset_account_id = body.offset_account_id or body.revenue_account_id or body.expense_account_id
+    if not party_id or not account_id or not offset_account_id:
+        _error(400, "F-ARAP-INVALID", "往来主体和科目不能为空")
+    _period(db, book.id, body.period_id)
+    account = db.query(Account).filter_by(id=account_id, account_book_id=book.id, is_active=True, is_leaf=True).first()
+    offset = db.query(Account).filter_by(id=offset_account_id, account_book_id=book.id, is_active=True, is_leaf=True).first()
+    if not account or not offset:
+        _error(400, "F-ARAP-INVALID", "往来科目必须是当前账套启用的末级科目")
+    if kind == "receivable":
+        lines = [EntryIn(account_id=account_id, summary=body.summary, debit=amount, credit=Decimal("0"), aux_detail={"customer": str(party_id)}), EntryIn(account_id=offset_account_id, summary=body.summary, debit=Decimal("0"), credit=amount)]
+    else:
+        lines = [EntryIn(account_id=offset_account_id, summary=body.summary, debit=amount, credit=Decimal("0")), EntryIn(account_id=account_id, summary=body.summary, debit=Decimal("0"), credit=amount, aux_detail={"vendor": str(party_id)})]
+    payload = VoucherIn(period_id=body.period_id, voucher_no=f"往来-{app_now().strftime('%H%M%S%f')[:8]}", voucher_date=body.transaction_date, summary=body.summary, source="manual", lines=lines)
+    voucher = _build_draft_voucher(db, book, payload, user)
+    row = ARAPTransaction(account_book_id=book.id, period_id=body.period_id, kind=kind, transaction_date=body.transaction_date, party_id=party_id, amount=amount, applied_amount=Decimal("0"), account_id=account_id, offset_account_id=offset_account_id, summary=body.summary.strip(), voucher_id=voucher.id, created_by=user.id, created_at=app_now())
+    db.add(row)
+    commit_audited(db, user.id, "create_arap", "arap_transactions", str(row.id), f"voucher={voucher.id}")
+    entries, accounts = _entries(db, voucher.id)
+    return {"id": row.id, "kind": kind, "amount": str(amount), "outstanding": str(amount), "voucher": _serialize(voucher, entries, accounts)}
+
+
+@router.post("/receivables")
+def create_receivable(body: ARAPIn, x_account_book: str | None = Header(default=None), db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    book = _book_header(db, user, x_account_book)
+    return _create_arap_transaction("receivable", body, book, db, user)
+
+
+@router.get("/receivables")
+def list_receivables(party_id: int | None = None, x_account_book: str | None = Header(default=None), db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    book = _book_header(db, user, x_account_book)
+    items = _arap_items(db, book.id, "receivable", party_id)
+    return {"total": len(items), "items": items}
+
+
+@router.post("/payables")
+def create_payable(body: ARAPIn, x_account_book: str | None = Header(default=None), db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    book = _book_header(db, user, x_account_book)
+    return _create_arap_transaction("payable", body, book, db, user)
+
+
+@router.get("/payables")
+def list_payables(party_id: int | None = None, x_account_book: str | None = Header(default=None), db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    book = _book_header(db, user, x_account_book)
+    items = _arap_items(db, book.id, "payable", party_id)
+    return {"total": len(items), "items": items}
+
+
+def _apply_arap_payment(kind: str, body: ARAPPaymentIn, book: AccountBook, db: Session, user: User):
+    _role(db, user, book.id, {ROLE_CASHIER, ROLE_FINANCE_MANAGER})
+    amount = _money(body.amount)
+    party_id = body.party_id or body.customer_id or body.vendor_id
+    if not party_id:
+        _error(400, "F-ARAP-INVALID", "往来主体不能为空")
+    candidates = db.query(ARAPTransaction).filter_by(account_book_id=book.id, kind=kind, party_id=party_id).order_by(ARAPTransaction.transaction_date, ARAPTransaction.id).all()
+    remaining = amount
+    allocations = []
+    for target in candidates:
+        outstanding = Decimal(target.amount) - Decimal(target.applied_amount)
+        if outstanding <= 0: continue
+        applied = min(remaining, outstanding)
+        allocations.append((target, applied))
+        remaining -= applied
+        if remaining <= 0: break
+    if remaining > 0:
+        _error(400, "F-ARAP-OVER-APPLY", "收付款金额超过未核销余额")
+    first = allocations[0][0]
+    account = db.query(Account).filter_by(id=body.cash_account_id, account_book_id=book.id, is_active=True, is_leaf=True).first()
+    if not account:
+        _error(400, "F-ARAP-INVALID", "资金科目必须是当前账套启用的末级科目")
+    direction = "receipt" if kind == "receivable" else "payment"
+    cash_body = CashTransactionIn(period_id=body.period_id, kind=direction, transaction_date=body.transaction_date, amount=amount, account_id=body.cash_account_id, offset_account_id=first.account_id, summary=body.summary, counterparty="", cashflow_item=body.cashflow_item)
+    payload = _cash_voucher_payload(book.id, cash_body, account, account, user)
+    payload.lines[1 if direction == "receipt" else 0].account_id = first.account_id
+    payload.lines[1 if direction == "receipt" else 0].aux_detail = {"customer": str(party_id)} if kind == "receivable" else {"vendor": str(party_id)}
+    voucher = _build_draft_voucher(db, book, payload, user)
+    for target, applied in allocations:
+        target.applied_amount += applied
+        db.add(ARAPAllocation(account_book_id=book.id, source_id=voucher.id, target_id=target.id, amount=applied, created_by=user.id, created_at=app_now()))
+    commit_audited(db, user.id, "apply_arap", "arap_transactions", str(first.id), f"voucher={voucher.id},amount={amount}")
+    entries, accounts = _entries(db, voucher.id)
+    key = "receivable_id" if kind == "receivable" else "payable_id"
+    return {"allocations": [{key: target.id, "amount": str(applied)} for target, applied in allocations], "voucher": _serialize(voucher, entries, accounts)}
+
+
+@router.post("/receivable-collections")
+def receive_arap(body: ARAPPaymentIn, x_account_book: str | None = Header(default=None), db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    return _apply_arap_payment("receivable", body, _book_header(db, user, x_account_book), db, user)
+
+
+@router.post("/payable-payments")
+def pay_arap(body: ARAPPaymentIn, x_account_book: str | None = Header(default=None), db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    return _apply_arap_payment("payable", body, _book_header(db, user, x_account_book), db, user)
+
+
+@router.get("/payables/aging")
+def payable_aging(as_of: date, x_account_book: str | None = Header(default=None), db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    book = _book_header(db, user, x_account_book)
+    items = _arap_items(db, book.id, "payable")
+    buckets = {"0_30": Decimal("0"), "31_60": Decimal("0"), "61_90": Decimal("0"), "90_plus": Decimal("0")}
+    for item in items:
+        age = max(0, (as_of - date.fromisoformat(item["transaction_date"])).days)
+        key = "0_30" if age <= 30 else "31_60" if age <= 60 else "61_90" if age <= 90 else "90_plus"
+        buckets[key] += Decimal(item["outstanding"])
+    return {"as_of": as_of.isoformat(), "total_outstanding": str(sum(buckets.values(), Decimal("0"))), "buckets": {key: str(value) for key, value in buckets.items()}}
 
 
 @router.get("/fixed-assets")

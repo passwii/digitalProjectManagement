@@ -642,3 +642,70 @@ def test_fixed_asset_depreciation_is_idempotent_per_period(client):
     assert first.status_code == second.status_code == 200
     assert first.json()["depreciated"] == 1
     assert second.json()["depreciated"] == 0
+
+
+def test_receivable_creation_and_fifo_collection_application(client):
+    headers = _auth(client, "admin", "admin123456")
+    book = _book(client, headers, "AR-AP")
+    scoped = _scoped(headers, book)
+    accounts = _accounts(client, scoped)
+    period = client.get("/api/v1/finance/periods", headers=scoped).json()[0]
+    customer = client.post("/api/v1/finance/auxiliary-items", headers=scoped, json={"kind": "customer", "code": "C001", "name": "客户A"})
+    assert customer.status_code == 200
+    customer_id = customer.json()["id"]
+
+    receivable = client.post(
+        "/api/v1/finance/receivables",
+        headers=scoped,
+        json={
+            "period_id": period["id"], "transaction_date": period["start_date"], "customer_id": customer_id,
+            "amount": "100.00", "receivable_account_id": accounts["11220101"]["id"],
+            "revenue_account_id": accounts["6001"]["id"], "summary": "销售应收",
+        },
+    )
+    assert receivable.status_code == 200, receivable.text
+    receivable_id = receivable.json()["id"]
+    voucher_id = receivable.json()["voucher"]["id"]
+    assert client.post(f"/api/v1/finance/vouchers/{voucher_id}/submit", headers=scoped).status_code == 200
+    assert client.post(f"/api/v1/finance/vouchers/{voucher_id}/approve", headers=scoped).status_code == 200
+    assert client.post(f"/api/v1/finance/vouchers/{voucher_id}/post", headers=scoped).status_code == 200
+
+    collection = client.post(
+        "/api/v1/finance/receivable-collections",
+        headers=scoped,
+        json={"period_id": period["id"], "transaction_date": period["start_date"], "customer_id": customer_id, "amount": "40.00", "cash_account_id": accounts["10020101"]["id"], "cashflow_item": "C01", "summary": "收回部分货款"},
+    )
+    assert collection.status_code == 200, collection.text
+    assert collection.json()["allocations"] == [{"receivable_id": receivable_id, "amount": "40.00"}]
+    assert collection.json()["voucher"]["source"] == "cash"
+
+    outstanding = client.get("/api/v1/finance/receivables", headers=scoped).json()["items"]
+    assert outstanding[0]["outstanding"] == "60.00"
+
+
+def test_payable_aging_buckets_and_over_collection_are_blocked(client):
+    headers = _auth(client, "admin", "admin123456")
+    book = _book(client, headers, "AR-AP-AGING")
+    scoped = _scoped(headers, book)
+    accounts = _accounts(client, scoped)
+    period = client.get("/api/v1/finance/periods", headers=scoped).json()[0]
+    vendor = client.post("/api/v1/finance/auxiliary-items", headers=scoped, json={"kind": "vendor", "code": "V001", "name": "供应商A"}).json()
+    payable = client.post(
+        "/api/v1/finance/payables",
+        headers=scoped,
+        json={"period_id": period["id"], "transaction_date": period["start_date"], "vendor_id": vendor["id"], "amount": "75.00", "payable_account_id": accounts["22020101"]["id"], "expense_account_id": accounts["6401"]["id"], "summary": "采购应付"},
+    )
+    assert payable.status_code == 200
+    voucher_id = payable.json()["voucher"]["id"]
+    assert client.post(f"/api/v1/finance/vouchers/{voucher_id}/submit", headers=scoped).status_code == 200
+    assert client.post(f"/api/v1/finance/vouchers/{voucher_id}/approve", headers=scoped).status_code == 200
+    assert client.post(f"/api/v1/finance/vouchers/{voucher_id}/post", headers=scoped).status_code == 200
+
+    too_much = client.post("/api/v1/finance/payable-payments", headers=scoped, json={"period_id": period["id"], "transaction_date": period["start_date"], "vendor_id": vendor["id"], "amount": "80.00", "cash_account_id": accounts["10020101"]["id"], "summary": "超额付款"})
+    assert too_much.status_code == 400
+    assert too_much.json()["detail"]["code"] == "F-ARAP-OVER-APPLY"
+
+    aging = client.get("/api/v1/finance/payables/aging", headers=scoped, params={"as_of": period["end_date"]})
+    assert aging.status_code == 200
+    assert aging.json()["total_outstanding"] == "75.00"
+    assert aging.json()["buckets"]["0_30"] == "75.00"
