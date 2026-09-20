@@ -109,7 +109,10 @@ function FinanceInner() {
       </div>
 
       {!book ? (
-        <div className="card"><Empty title="还没有财务账套" hint="请先在账套基础设置中创建第一个独立核算账套。" /></div>
+        <>
+          <div className="card"><Empty title="还没有财务账套" hint="点击右上角“新建账套”创建第一个独立核算账套。" /></div>
+          <BookDialog open={bookOpen} onClose={() => setBookOpen(false)} onSaved={() => { setBookOpen(false); books.reload(); toast.ok("账套已创建"); }} />
+        </>
       ) : (
         <>
           <MotionTabs items={TABS.map((item) => ({ id: item, label: item }))} active={tab} onChange={setTab}>
