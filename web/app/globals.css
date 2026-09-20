@@ -614,6 +614,9 @@ th.num {
 }
 .projects-control-section .bar {
  margin-bottom: 0;
+ border: 0;
+ background: transparent;
+ padding: 0;
 }
 
 .page-head {
