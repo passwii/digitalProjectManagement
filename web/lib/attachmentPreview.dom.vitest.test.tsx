@@ -154,6 +154,29 @@ describe("附件预览：按类型给出正确的渲染方式", () => {
     expect(getByText(/预览加载失败/)).not.toBeNull();
     expect(document.querySelector("img.image-preview")).toBeNull();
   });
+
+  it("点击图片后进入全屏放大层，并可关闭放大层", async () => {
+    const { loadUrl } = makeLoader();
+    const { getByRole, queryByRole } = render(
+      <AttachmentPreviewDialog
+        attachment={att(11, "现场照片.png", "image/png")}
+        loadUrl={loadUrl}
+        onClose={() => {}}
+        onDownload={() => {}}
+      />,
+    );
+    await act(async () => {});
+
+    fireEvent.click(document.querySelector("img.image-preview")!);
+    expect(
+      getByRole("dialog", { name: "现场照片.png 放大预览" }),
+    ).not.toBeNull();
+
+    fireEvent.click(getByRole("button", { name: "关闭图片放大预览" }));
+    expect(
+      queryByRole("dialog", { name: "现场照片.png 放大预览" }),
+    ).toBeNull();
+  });
 });
 
 describe("附件预览：失败分层（502 可重试 / 404 已丢失）", () => {
