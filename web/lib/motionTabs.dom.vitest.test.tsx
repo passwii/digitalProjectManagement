@@ -11,8 +11,10 @@ describe("MotionTabs", () => {
   it("活动指示条相对当前页签按钮定位，而不是落到页面定位上下文", () => {
     const styles = readFileSync(resolve(__dirname, "../app/globals.css"), "utf8");
     const tabRule = styles.match(/\.tabs button\s*\{([\s\S]*?)\n\}/)?.[1] ?? "";
+    const activeTabRule = styles.match(/\.tabs button\.active\s*\{([\s\S]*?)\n\}/)?.[1] ?? "";
 
     expect(tabRule).toMatch(/\bposition:\s*relative\s*;/);
+    expect(activeTabRule).not.toMatch(/border-bottom-color\s*:/);
 
     render(
       <MotionTabs

@@ -926,7 +926,6 @@ th.num {
 }
 .tabs button.active {
  color: var(--brand);
- border-bottom-color: var(--brand);
  font-weight: 500;
 }
 .tabs button:hover:not(.active) {

@@ -201,20 +201,23 @@ export type { UploadProgress };
  * 约定：
  *   · 鉴权头、401 清会话、错误文案展开都与 {@link request} 保持一致，调用方拿到的
  *     错误类型不变（`UnauthorizedError` / `NetworkError` / `Error`）；
- *   · `trackedMutation` 的活动追踪保留——成功、失败、取消三条路径都会 `finish()`，
- *     顶部全局活动条不会因改写而失效；
+ *   · 默认通过 `trackedMutation` 追踪活动——成功、失败、取消三条路径都会 `finish()`；
+ *     需要局部展示进度的上传入口可显式关闭，避免全局活动条横跨页面；
  *   · `signal.aborted` 时在途请求立即 `abort()`，`promise` 以 `UploadAbortedError` 收场。
  */
 export function apiUploadWithProgress<T>(
   path: string,
   form: FormData,
-  options: { signal?: AbortSignal; onProgress?: (progress: UploadProgress) => void; headers?: Record<string, string> } = {},
+  options: {
+    signal?: AbortSignal;
+    onProgress?: (progress: UploadProgress) => void;
+    headers?: Record<string, string>;
+    trackActivity?: boolean;
+  } = {},
 ): Promise<T> {
-  const { signal, onProgress, headers: extraHeaders } = options;
-  return trackedMutation(
-    "上传中",
-    () =>
-      new Promise<T>((resolve, reject) => {
+  const { signal, onProgress, headers: extraHeaders, trackActivity = true } = options;
+  const run = () =>
+    new Promise<T>((resolve, reject) => {
         if (signal?.aborted) {
           reject(new UploadAbortedError("上传已取消"));
           return;
@@ -283,8 +286,8 @@ export function apiUploadWithProgress<T>(
 
         signal?.addEventListener("abort", onAbort, { once: true });
         xhr.send(form);
-      }),
-  );
+    });
+  return trackActivity ? trackedMutation("上传中", run) : run();
 }
 
 /** GET：可选传 AbortSignal，快速切换筛选/项目时取消过期请求（BLF-1095） */
@@ -312,11 +315,12 @@ export const apiDeleteScoped = <T>(path: string, headers: Record<string, string>
 export const apiDelete = <T>(path: string) =>
   trackedMutation("删除中", () => request<T>(path, { method: "DELETE" }));
 
-/** 上传入口的可选参数：取消信号 + 进度回调（两者都可缺省）。 */
+/** 上传入口的可选参数：取消信号、进度回调，以及是否显示全局活动条。 */
 export type UploadOptions = {
   signal?: AbortSignal;
   onProgress?: (progress: UploadProgress) => void;
   headers?: Record<string, string>;
+  trackActivity?: boolean;
 };
 
 /**
