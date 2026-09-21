@@ -49,8 +49,8 @@ export default function PdfPreview({
   };
 
   return (
-    <section aria-label={`${filename} PDF 预览`}>
-      <div>
+    <section className="pdf-preview" aria-label={`${filename} PDF 预览`}>
+      <div className="pdf-preview-toolbar">
         <button
           type="button"
           aria-label="缩小 PDF"
@@ -77,22 +77,25 @@ export default function PdfPreview({
           <button type="button" onClick={handleRetry}>重试</button>
         </div>
       ) : (
-        <Document
-          key={url}
-          file={url}
-          onLoadSuccess={handleLoadSuccess}
-          onLoadError={handleLoadError}
-        >
-          {Array.from({ length: numPages }, (_, index) => (
-            <Page
-              key={index + 1}
-              pageNumber={index + 1}
-              width={PAGE_WIDTH * scale}
-              renderTextLayer={false}
-              renderAnnotationLayer={false}
-            />
-          ))}
-        </Document>
+        <div className="pdf-preview-pages">
+          <Document
+            key={url}
+            file={url}
+            onLoadSuccess={handleLoadSuccess}
+            onLoadError={handleLoadError}
+          >
+            {Array.from({ length: numPages }, (_, index) => (
+              <div className="pdf-preview-page" key={index + 1}>
+                <Page
+                  pageNumber={index + 1}
+                  width={PAGE_WIDTH * scale}
+                  renderTextLayer={false}
+                  renderAnnotationLayer={false}
+                />
+              </div>
+            ))}
+          </Document>
+        </div>
       )}
     </section>
   );

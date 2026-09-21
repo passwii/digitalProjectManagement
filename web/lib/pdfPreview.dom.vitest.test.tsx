@@ -39,13 +39,18 @@ afterEach(() => {
 
 describe("PDF 公共预览", () => {
   it("加载页数后渲染全部页面，并可改变缩放比例", async () => {
-    const { getByRole, getByTestId } = render(
+    const { container, getByRole, getByTestId } = render(
       <PdfPreview url="blob:pdf-1" filename="合同.pdf" onRetry={() => {}} />,
     );
     await act(async () => {});
 
+    expect(container.querySelector("section.pdf-preview")).not.toBeNull();
+    expect(container.querySelector(".pdf-preview-toolbar")).not.toBeNull();
+    expect(container.querySelector(".pdf-preview-pages")).not.toBeNull();
     expect(getByTestId("pdf-page-1")).not.toBeNull();
     expect(getByTestId("pdf-page-2")).not.toBeNull();
+    expect(getByTestId("pdf-page-1").parentElement?.classList.contains("pdf-preview-page")).toBe(true);
+    expect(getByTestId("pdf-page-2").parentElement?.classList.contains("pdf-preview-page")).toBe(true);
     const before = getByTestId("pdf-page-1").getAttribute("data-width");
 
     fireEvent.click(getByRole("button", { name: "放大 PDF" }));
