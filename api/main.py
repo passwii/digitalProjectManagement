@@ -20,6 +20,7 @@ from .routers import (
   meta,
   milestones,
   notifications,
+  opportunities,
   partners,
   projects,
   reports,
@@ -135,6 +136,7 @@ for r in (
   finance_accounting.router,
   reports.router,
   notifications.router,
+  opportunities.router,
   approvals.router,
   dashboard.router,
 ):

@@ -634,6 +634,26 @@ class Project(Base):
   )
 
 
+class Opportunity(Base):
+  """商机管理主数据：沿用项目台账的列表 / 分页口径，先提供轻量 CRUD。"""
+
+  __tablename__ = "opportunities"
+  id = Column(Integer, primary_key=True)
+  code = Column(String(32), unique=True, nullable=False, index=True)
+  name = Column(String(128), nullable=False)
+  client = Column(String(128), default="")
+  owner_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
+  owner_name = Column(String(64), default="")
+  budget_total = Column(Float, default=0)
+  stage = Column(String(16), default="new", index=True)
+  expected_close = Column(Date, nullable=True)
+  description = Column(Text, default="")
+  deleted_at = Column(DateTime, nullable=True, index=True)
+  created_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+  created_at = Column(DateTime, default=_now)
+  updated_at = Column(DateTime, default=_now, onupdate=_now)
+
+
 class ProjectMember(Base):
   __tablename__ = "project_members"
   project_id = Column(

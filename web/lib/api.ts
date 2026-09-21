@@ -754,6 +754,19 @@ export interface Project {
   progress: number;
 }
 
+export interface Opportunity {
+  id: number;
+  code: string;
+  name: string;
+  client: string;
+  owner_id: number | null;
+  owner_name: string;
+  budget_total: number;
+  stage: "new" | "qualified" | "proposal" | "negotiation" | "won" | "lost" | string;
+  expected_close: string | null;
+  description: string;
+}
+
 /** 项目选择器最小字段（`GET /projects/options`） */
 export interface ProjectOption {
   id: number;
@@ -961,6 +974,18 @@ export const metaApi = {
   depts: () => apiGet<Dept[]>("/meta/depts"),
   dicts: (type = "") => apiGet<DictItem[]>(`/meta/dicts${type ? `?type=${type}` : ""}`),
   menus: () => apiGet<MenuResp>("/meta/me/menus"),
+};
+
+export const opportunitiesApi = {
+  list: (
+    params: { keyword?: string; stage?: string; owner?: string; page?: number; size?: number; sort?: string } = {},
+    signal?: AbortSignal,
+  ) => apiGet<Paged<Opportunity>>(`/opportunities${buildQuery(params)}`, signal),
+  get: (id: number | string) => apiGet<Opportunity>(`/opportunities/${id}`),
+  create: (body: Partial<Opportunity>) => apiPost<Opportunity>("/opportunities", body),
+  update: (id: number, body: Record<string, unknown>) =>
+    apiPatch<Opportunity>(`/opportunities/${id}`, body),
+  remove: (id: number) => apiDelete<{ ok: boolean }>(`/opportunities/${id}`),
 };
 
 export const projectsApi = {
