@@ -121,8 +121,10 @@ function ProjectDetail({ pid }: { pid: number }) {
     [attachments],
   );
 
-  const loadAll = useCallback(async () => {
-    const finish = beginActivity({ label: "加载项目档案", scope: "content" });
+  const loadAll = useCallback(async ({ trackActivity = true }: { trackActivity?: boolean } = {}) => {
+    const finish = trackActivity
+      ? beginActivity({ label: "加载项目档案", scope: "content" })
+      : () => {};
     setLoading(true);
     setErr("");
     try {
@@ -220,11 +222,11 @@ function ProjectDetail({ pid }: { pid: number }) {
    */
   async function uploadImages(files: File[]) {
     if (!files.length) return;
-    const finish = beginActivity({ label: "上传项目图片", scope: "form" });
     setBusy(true);
     try {
       const result = await imageUploads.start(files, (file, options) =>
-        projectsApi.upload(pid, file, "", options),
+        // 文件行已有局部进度，项目档案上传不再额外拉起横跨页面的全局活动条。
+        projectsApi.upload(pid, file, "", { ...options, trackActivity: false }),
       );
       // 取消（切走页签 / 卸载）不算失败，也不刷新列表
       if (result.aborted) return;
@@ -233,25 +235,23 @@ function ProjectDetail({ pid }: { pid: number }) {
       }
       // 失败原因按档位给（502 可重试 / 404 已丢失 / 400 不合规），不再一律「请查看失败原因」
       if (result.failed) toast.err(batchFailureToast(result.failures));
-      await loadAll();
+      await loadAll({ trackActivity: false });
     } catch (e) {
       toast.err(failureToast(classifyTransferFailure(e)));
     } finally {
       setBusy(false);
-      finish();
     }
   }
 
   /** 重试一条失败的项目图片上传（原文件还在内存里，不必让用户重选） */
   async function retryImage(id: number) {
-    const finish = beginActivity({ label: "重试上传项目图片", scope: "form" });
     setBusy(true);
     try {
       const result = await imageUploads.retry(id);
       if (result.aborted) return;
       if (result.ok.length) {
         toast.ok("图片已上传");
-        await loadAll();
+        await loadAll({ trackActivity: false });
       } else if (result.failures[0]) {
         toast.err(failureToast(result.failures[0]));
       }
@@ -259,7 +259,6 @@ function ProjectDetail({ pid }: { pid: number }) {
       toast.err(failureToast(classifyTransferFailure(e)));
     } finally {
       setBusy(false);
-      finish();
     }
   }
 
@@ -283,36 +282,33 @@ function ProjectDetail({ pid }: { pid: number }) {
   /** 上传文档附件（PDF / Word / Excel / 图片，同一项目级附件接口）。 */
   async function uploadDocuments(files: File[]) {
     if (!files.length) return;
-    const finish = beginActivity({ label: "上传项目附件", scope: "form" });
     setBusy(true);
     try {
       const result = await documentUploads.start(files, (file, options) =>
-        projectsApi.upload(pid, file, "", options),
+        projectsApi.upload(pid, file, "", { ...options, trackActivity: false }),
       );
       if (result.aborted) return;
       if (result.ok.length) {
         toast.ok(result.ok.length === 1 ? "附件已上传" : `${result.ok.length} 个附件已上传`);
       }
       if (result.failed) toast.err(batchFailureToast(result.failures));
-      await loadAll();
+      await loadAll({ trackActivity: false });
     } catch (e) {
       toast.err(failureToast(classifyTransferFailure(e)));
     } finally {
       setBusy(false);
-      finish();
     }
   }
 
   /** 重试一条失败的项目附件上传 */
   async function retryDocument(id: number) {
-    const finish = beginActivity({ label: "重试上传项目附件", scope: "form" });
     setBusy(true);
     try {
       const result = await documentUploads.retry(id);
       if (result.aborted) return;
       if (result.ok.length) {
         toast.ok("附件已上传");
-        await loadAll();
+        await loadAll({ trackActivity: false });
       } else if (result.failures[0]) {
         toast.err(failureToast(result.failures[0]));
       }
@@ -320,17 +316,15 @@ function ProjectDetail({ pid }: { pid: number }) {
       toast.err(failureToast(classifyTransferFailure(e)));
     } finally {
       setBusy(false);
-      finish();
     }
   }
 
   async function uploadContract(files: File[]) {
     if (!files.length) return;
-    const finish = beginActivity({ label: "上传合同附件", scope: "form" });
     setBusy(true);
     try {
       const result = await contractUploads.start(files, (file, options) =>
-        projectsApi.upload(pid, file, "contract", options),
+        projectsApi.upload(pid, file, "contract", { ...options, trackActivity: false }),
       );
       if (result.aborted) return;
       if (result.ok.length) toast.ok("合同附件已上传");
@@ -340,13 +334,11 @@ function ProjectDetail({ pid }: { pid: number }) {
       toast.err(failureToast(classifyTransferFailure(e)));
     } finally {
       setBusy(false);
-      finish();
     }
   }
 
   /** 重试一条失败的合同附件上传 */
   async function retryContract(id: number) {
-    const finish = beginActivity({ label: "重试上传合同附件", scope: "form" });
     setBusy(true);
     try {
       const result = await contractUploads.retry(id);
@@ -361,7 +353,6 @@ function ProjectDetail({ pid }: { pid: number }) {
       toast.err(failureToast(classifyTransferFailure(e)));
     } finally {
       setBusy(false);
-      finish();
     }
   }
 

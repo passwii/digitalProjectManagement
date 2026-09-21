@@ -163,6 +163,13 @@ describe("全局活动条（trackedMutation）不可因改写而失效", () => {
     await expect(promise).rejects.toBeInstanceOf(UploadAbortedError);
     expect(finishes).toEqual(["上传中"]);
   });
+
+  it("局部上传可关闭全局活动条，避免进度线横跨整个页面", async () => {
+    const promise = apiUploadWithProgress("/x", new FormData(), { trackActivity: false });
+    latest().respond(200, "{}");
+    await promise;
+    expect(finishes).toEqual([]);
+  });
 });
 
 describe("取消在途上传", () => {
