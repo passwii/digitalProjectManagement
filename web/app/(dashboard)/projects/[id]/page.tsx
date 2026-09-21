@@ -42,7 +42,7 @@ import MotionTabs from "@/components/motion/MotionTabs";
 import { useActivity } from "@/lib/useActivity";
 import { useUploadQueue } from "@/lib/useUploadQueue";
 import ProjectFormDialog from "../ProjectFormDialog";
-import AttachmentPreviewDialog from "./AttachmentPreviewDialog";
+import AttachmentPreviewDialog from "@/components/ui/AttachmentPreviewDialog";
 import ProgressNodeDialog from "../../progress/ProgressNodeDialog";
 import ExpenseDialog from "../../costs/ExpenseDialog";
 

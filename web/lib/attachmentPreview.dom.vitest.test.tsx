@@ -18,7 +18,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, render } from "@testing-library/react";
 
-import AttachmentPreviewDialog from "../app/(dashboard)/projects/[id]/AttachmentPreviewDialog";
+import AttachmentPreviewDialog from "../components/ui/AttachmentPreviewDialog";
 import { HttpError, type Attachment } from "../lib/api";
 
 const att = (id: number, filename: string, contentType = ""): Attachment => ({

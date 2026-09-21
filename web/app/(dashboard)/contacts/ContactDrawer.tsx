@@ -1,10 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   contactsApi,
   errText,
+  fetchObjectUrl,
   type Contact,
+  type Attachment,
   type ContactAttachment,
   type ContactAttachmentCategory,
 } from "@/lib/api";
@@ -12,6 +14,7 @@ import {
   classifyTransferFailure,
   failureToast,
 } from "@/lib/uploadErrors";
+import { canPreviewInline, previewBlobType } from "@/lib/contentPreview";
 import { useMeta } from "@/lib/useMeta";
 import { useForm } from "@/lib/useForm";
 import { ATTACHMENT_HINT, CONTACT_ATTACHMENT_EXTENSIONS } from "@/lib/uploadLimits";
@@ -20,6 +23,7 @@ import Field from "@/components/ui/Field";
 import FileDropZone from "@/components/ui/FileDropZone";
 import { useToast } from "@/components/ui/Toast";
 import { useUploadQueue } from "@/lib/useUploadQueue";
+import AttachmentPreviewDialog from "@/components/ui/AttachmentPreviewDialog";
 
 const EMPLOYMENT_TYPES = ["正式", "试用", "实习", "劳务", "兼职", "返聘"];
 const EMPLOYMENT_STATUS = [
@@ -200,6 +204,7 @@ export default function ContactDrawer({
   const uploads = useUploadQueue();
   const [formErr, setFormErr] = useState("");
   const [deleting, setDeleting] = useState<ContactAttachment | null>(null);
+  const [preview, setPreview] = useState<ContactAttachment | null>(null);
 
   const form = useForm<FormValues>(BLANK, {
     real_name: { required: "姓名不能为空", max: 64, label: "姓名" },
@@ -341,6 +346,17 @@ export default function ContactDrawer({
       toast.err(failureToast(classifyTransferFailure(e)));
     }
   }
+
+  const fetchPreviewUrl = useCallback(
+    async (item: Attachment): Promise<string> => {
+      if (!contact) return "";
+      return fetchObjectUrl(
+        `/contacts/${contact.id}/attachments/${item.id}/download`,
+        previewBlobType(item) ?? undefined,
+      );
+    },
+    [contact],
+  );
 
   async function removeAttachment() {
     if (!contact || !deleting) return;
@@ -633,6 +649,11 @@ export default function ContactDrawer({
                           <span className="chip">{CATEGORY_LABELS[item.category as ContactAttachmentCategory] || "其他"}</span>
                           <span className="attachment-name" title={item.filename}>{item.filename}</span>
                           <span className="tiny">{formatSize(item.size)}</span>
+                          {canPreviewInline(item) && (
+                            <button type="button" className="linklike" onClick={() => setPreview(item)}>
+                              预览
+                            </button>
+                          )}
                           <button
                             type="button"
                             className="linklike"
@@ -670,6 +691,15 @@ export default function ContactDrawer({
         okText="删除"
         onConfirm={removeAttachment}
         onCancel={() => setDeleting(null)}
+      />
+      <AttachmentPreviewDialog
+        attachment={preview}
+        loadUrl={fetchPreviewUrl}
+        onClose={() => setPreview(null)}
+        onDownload={(item) => {
+          const current = attachments.find((row) => row.id === item.id);
+          if (current) void downloadAttachment(current);
+        }}
       />
     </>
   );

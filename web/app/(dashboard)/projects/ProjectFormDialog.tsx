@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { classifyTransferFailure, batchFailureToast, failureToast } from "@/lib/uploadErrors";
-import { errText, projectsApi, type Attachment, type Project } from "@/lib/api";
+import { errText, fetchObjectUrl, projectsApi, type Attachment, type Project } from "@/lib/api";
+import { canPreviewInline, previewBlobType } from "@/lib/contentPreview";
 import { useMeta } from "@/lib/useMeta";
 import {
   CONTRACT_STATUSES,
@@ -16,6 +17,7 @@ import { useUploadQueue } from "@/lib/useUploadQueue";
 import { Dialog } from "@/components/ui/Modal";
 import Field from "@/components/ui/Field";
 import FileDropZone from "@/components/ui/FileDropZone";
+import AttachmentPreviewDialog from "@/components/ui/AttachmentPreviewDialog";
 
 interface FormValues {
   name: string;
@@ -75,10 +77,22 @@ export default function ProjectFormDialog({
   const [formErr, setFormErr] = useState("");
   const [files, setFiles] = useState<File[]>([]);
   const [existing, setExisting] = useState<Attachment[]>([]);
+  const [preview, setPreview] = useState<Attachment | null>(null);
   const [saving, setSaving] = useState(false);
   const uploads = useUploadQueue();
   /** 主记录已写入（项目已建/已改）但附件可能还失败：重试补传成功时用它收尾 */
   const savedRef = useRef<Project | null>(null);
+
+  const fetchPreviewUrl = useCallback(
+    async (attachment: Attachment): Promise<string> => {
+      if (!project) return "";
+      return fetchObjectUrl(
+        `/projects/${project.id}/attachments/${attachment.id}/download`,
+        previewBlobType(attachment) ?? undefined,
+      );
+    },
+    [project],
+  );
 
   const form = useForm<FormValues>(toValues(project), {
     name: { required: "项目名称不能为空", max: 60, label: "项目名称" },
@@ -101,6 +115,7 @@ export default function ProjectFormDialog({
     if (!open) return;
     form.reset(toValues(project));
     setFiles([]);
+    setPreview(null);
     setFormErr("");
     uploads.reset();
     if (project) {
@@ -207,27 +222,37 @@ export default function ProjectFormDialog({
     }
   }
 
+  async function downloadExisting(a: Attachment) {
+    if (!project) return;
+    try {
+      await projectsApi.downloadAttachment(project.id, a.id, a.filename);
+    } catch (e) {
+      setFormErr(errText(e));
+    }
+  }
+
   return (
-    <Dialog
-      open={open}
-      onClose={onClose}
-      dirty={form.dirty || files.length > 0}
-      size="lg"
-      title={isEdit ? `编辑项目 · ${project?.code ?? ""}` : "新建项目"}
-      footer={
-        <>
-          {isEdit && onRequestDelete && (
-            <button className="btn-ghost btn-danger-outline" onClick={onRequestDelete} disabled={saving}>
-              删除项目
+    <>
+      <Dialog
+        open={open}
+        onClose={onClose}
+        dirty={form.dirty || files.length > 0}
+        size="lg"
+        title={isEdit ? `编辑项目 · ${project?.code ?? ""}` : "新建项目"}
+        footer={
+          <>
+            {isEdit && onRequestDelete && (
+              <button className="btn-ghost btn-danger-outline" onClick={onRequestDelete} disabled={saving}>
+                删除项目
+              </button>
+            )}
+            <button className="btn-ghost" onClick={onClose} disabled={saving}>取消</button>
+            <button className="btn-primary" onClick={submit} disabled={saving}>
+              {saving ? "保存中…" : isEdit ? "保存修改" : "创建项目"}
             </button>
-          )}
-          <button className="btn-ghost" onClick={onClose} disabled={saving}>取消</button>
-          <button className="btn-primary" onClick={submit} disabled={saving}>
-            {saving ? "保存中…" : isEdit ? "保存修改" : "创建项目"}
-          </button>
-        </>
-      }
-    >
+          </>
+        }
+      >
       <div className="form-section">
         <div className="form-section-head">
           <h3>基础信息</h3>
@@ -362,6 +387,11 @@ export default function ProjectFormDialog({
                 <div className="attachment-row" key={a.id}>
                   <span className="attachment-name" title={a.filename}>{a.filename}</span>
                   <span className="tiny">{(a.size / 1024).toFixed(1)} KB</span>
+                  {canPreviewInline(a) && (
+                    <button type="button" className="linklike" onClick={() => setPreview(a)}>
+                      预览
+                    </button>
+                  )}
                   <button type="button" className="linklike danger-link" onClick={() => removeExisting(a)}>移除</button>
                 </div>
               ))}
@@ -371,6 +401,14 @@ export default function ProjectFormDialog({
       </div>
 
       {formErr && <div className="err-banner" style={{ marginTop: 12, marginBottom: 0 }} role="alert">{formErr}</div>}
-    </Dialog>
+      </Dialog>
+
+      <AttachmentPreviewDialog
+        attachment={preview}
+        loadUrl={fetchPreviewUrl}
+        onClose={() => setPreview(null)}
+        onDownload={(attachment) => void downloadExisting(attachment)}
+      />
+    </>
   );
 }

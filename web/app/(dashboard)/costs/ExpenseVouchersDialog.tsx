@@ -19,7 +19,7 @@ import { Confirm, Dialog } from "@/components/ui/Modal";
 import { useToast } from "@/components/ui/Toast";
 import Empty from "@/components/ui/Empty";
 import FileDropZone from "@/components/ui/FileDropZone";
-import AttachmentPreviewDialog from "../projects/[id]/AttachmentPreviewDialog";
+import AttachmentPreviewDialog from "@/components/ui/AttachmentPreviewDialog";
 
 export default function ExpenseVouchersDialog({
   open,

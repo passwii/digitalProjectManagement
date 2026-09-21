@@ -35,7 +35,7 @@ import { Confirm, Drawer } from "@/components/ui/Modal";
 import Field from "@/components/ui/Field";
 import FileDropZone from "@/components/ui/FileDropZone";
 import { useToast } from "@/components/ui/Toast";
-import AttachmentPreviewDialog from "../projects/[id]/AttachmentPreviewDialog";
+import AttachmentPreviewDialog from "@/components/ui/AttachmentPreviewDialog";
 
 interface BasicValues {
   name: string;
