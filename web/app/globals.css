@@ -911,6 +911,7 @@ th.num {
  margin-bottom: 12px;
 }
 .tabs button {
+ position: relative;
  background: none;
  border: none;
  border-bottom: 2px solid transparent;
