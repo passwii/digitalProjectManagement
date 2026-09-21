@@ -1570,9 +1570,10 @@ th.num {
  background: #eff4f2;
 }
 .image-preview-trigger {
+ display: block;
+ width: 100%;
  padding: 0;
  border: 0;
- border-radius: 6px;
  background: transparent;
  cursor: zoom-in;
 }
@@ -1582,30 +1583,66 @@ th.num {
 }
 .image-lightbox {
  position: fixed;
- z-index: 1000;
  inset: 0;
- display: grid;
- place-items: center;
- padding: 24px;
- background: rgb(0 0 0 / 82%);
- cursor: zoom-out;
+ z-index: 70;
+ display: flex;
+ align-items: center;
+ justify-content: center;
+ padding: 5vh 4vw;
+ background: rgb(8 20 34 / 90%);
 }
 .image-lightbox-image {
- max-width: 100%;
- max-height: 100%;
+ max-width: 92vw;
+ max-height: 88vh;
  object-fit: contain;
- cursor: default;
+ cursor: zoom-out;
 }
 .image-lightbox-close {
- position: fixed;
- top: 16px;
- right: 16px;
+ position: absolute;
+ top: 18px;
+ right: 22px;
  padding: 8px 12px;
- border: 1px solid rgb(255 255 255 / 65%);
+ border: 1px solid rgb(255 255 255 / 32%);
  border-radius: 6px;
  color: #fff;
  background: rgb(0 0 0 / 40%);
  cursor: pointer;
+}
+.pdf-preview {
+ display: flex;
+ flex-direction: column;
+ gap: 10px;
+ min-height: 0;
+}
+.pdf-preview-toolbar {
+ display: flex;
+ align-items: center;
+ justify-content: center;
+ position: sticky;
+ top: 0;
+ z-index: 1;
+ gap: 8px;
+ padding: 8px;
+ border: 1px solid var(--line);
+ border-radius: 7px;
+ background: var(--card);
+}
+.pdf-preview-pages {
+ max-height: 68vh;
+ overflow: auto;
+ padding: 4px;
+ background: var(--th-bg);
+}
+.pdf-preview-page {
+ display: flex;
+ justify-content: center;
+ margin: 0 auto 12px;
+}
+.pdf-preview-page canvas {
+ display: block;
+ max-width: 100%;
+ height: auto !important;
+ box-shadow: 0 2px 8px rgb(15 39 66 / 12%);
 }
 .preview-body {
  display: flex;
@@ -1983,5 +2020,22 @@ summary,
  .m-edge-safe {
   padding-left: max(8px, var(--m-safe-l));
   padding-right: max(8px, var(--m-safe-r));
+ }
+
+ .image-lightbox {
+  padding: 7vh 12px;
+ }
+
+ .image-lightbox-close {
+  top: 12px;
+  right: 12px;
+ }
+
+ .pdf-preview-pages {
+  max-height: 62vh;
+ }
+
+ .pdf-preview-toolbar {
+  flex-wrap: wrap;
  }
 }
