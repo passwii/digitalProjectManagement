@@ -2,20 +2,20 @@
 
   1. 权限：全接口仅管理员可用（`require_admin`，与通讯录模块同口径）——
      非管理员稳定 403，未登录 401；鉴权先于业务读写（403 时不落库）。
-  2. 友商 CRUD + 统一分页信封 `{total,page,size,items}`：keyword / partner_type
-     筛选、排序白名单、非法分页参数 400、名称唯一。
-  3. 人员子表 / 业绩合同子表：增删改查 + 校验（必填 / 金额 ≥0 / 有限数字）+
+  2. 友商 CRUD + 统一分页信封 `{total,page,size,items}`：名称 keyword、排序白名单、
+     非法分页参数 400、名称唯一。
+  3. 业绩合同子表：增删改查 + 校验（必填 / 金额 ≥0 / 有限数字）+
      跨友商隔离（换 pid 引用一律 404）。
   4. 附件（`ref_type='partner'`）：分类白名单、扩展名白名单、统一体积上限
      单一来源（`partners.MAX_SIZE is MAX_ATTACHMENT_SIZE`）、小体积超限 400、
      上传/列表/下载/删除 roundtrip、跨友商 404、删除级联清正文。
-  5. 菜单：`/partners` 仅管理员可见；类型字典 `partner_type` 可配。
+  5. 菜单：`/partners` 仅管理员可见。
 """
 from test_mvp import login
 
 
 def _create_partner(client, headers, **overrides):
-    body = {"name": "嵩讯科技", "partner_type": "嵩讯", **overrides}
+    body = {"name": "嵩讯科技", **overrides}
     r = client.post("/api/v1/partners", headers=headers, json=body)
     assert r.status_code == 200, r.text
     return r.json()
@@ -30,8 +30,6 @@ def test_partners_admin_only(client, db):
     assert client.get("/api/v1/partners/1", headers=pm).status_code == 403
     assert client.patch("/api/v1/partners/1", headers=pm, json={}).status_code == 403
     assert client.delete("/api/v1/partners/1", headers=pm).status_code == 403
-    assert client.get("/api/v1/partners/1/members", headers=pm).status_code == 403
-    assert client.post("/api/v1/partners/1/members", headers=pm, json={}).status_code == 403
     assert client.get("/api/v1/partners/1/contracts", headers=pm).status_code == 403
     assert client.post("/api/v1/partners/1/contracts", headers=pm, json={}).status_code == 403
     assert client.get("/api/v1/partners/1/attachments", headers=pm).status_code == 403
@@ -63,14 +61,14 @@ def test_partner_forbidden_writes_nothing(client, db):
 
 def test_partners_crud_and_paging_envelope(client, db):
     h = login(client, "admin")
-    a = _create_partner(client, h, name="嵩讯科技", partner_type="嵩讯",
+    a = _create_partner(client, h, name="嵩讯科技",
                         contact_name="张经理", phone="13800138000",
                         email="bd@example.com", remark="核心伙伴")
-    b = _create_partner(client, h, name="个体户老王", partner_type="个体户")
-    _create_partner(client, h, name="陪标单位A", partner_type="陪标单位")
+    b = _create_partner(client, h, name="个体户老王")
+    _create_partner(client, h, name="陪标单位A")
 
-    assert a["partner_type"] == "嵩讯" and a["contact_name"] == "张经理"
-    assert a["attachment_count"] == 0 and a["members"] == [] and a["contracts"] == []
+    assert "partner_type" not in a and a["contact_name"] == "张经理"
+    assert a["attachment_count"] == 0 and "members" not in a and a["contracts"] == []
 
     # 统一分页信封
     page1 = client.get("/api/v1/partners?page=1&size=2", headers=h).json()
@@ -84,15 +82,11 @@ def test_partners_crud_and_paging_envelope(client, db):
     over = client.get("/api/v1/partners?page=9&size=2", headers=h).json()
     assert over["total"] == 3 and over["items"] == []
 
-    # keyword 匹配名称/联系人/电话
+    # keyword 只匹配名称
     assert client.get("/api/v1/partners?keyword=嵩讯", headers=h).json()["total"] == 1
-    assert client.get("/api/v1/partners?keyword=张经理", headers=h).json()["total"] == 1
-    assert client.get("/api/v1/partners?keyword=13800138000", headers=h).json()["total"] == 1
+    assert client.get("/api/v1/partners?keyword=张经理", headers=h).json()["total"] == 0
+    assert client.get("/api/v1/partners?keyword=13800138000", headers=h).json()["total"] == 0
     assert client.get("/api/v1/partners?keyword=不存在", headers=h).json()["total"] == 0
-
-    # partner_type 等值筛选
-    only = client.get("/api/v1/partners?partner_type=个体户", headers=h).json()
-    assert only["total"] == 1 and only["items"][0]["name"] == "个体户老王"
 
     # 排序白名单：非法 400
     assert client.get("/api/v1/partners?sort=nope", headers=h).status_code == 400
@@ -104,7 +98,7 @@ def test_partners_crud_and_paging_envelope(client, db):
 
     # 详情 / 更新 / 名称唯一
     got = client.get(f"/api/v1/partners/{a['id']}", headers=h).json()
-    assert got["name"] == "嵩讯科技" and got["members"] == [] and got["contracts"] == []
+    assert got["name"] == "嵩讯科技" and "members" not in got and got["contracts"] == []
     assert client.get("/api/v1/partners/999999", headers=h).status_code == 404
 
     upd = client.patch(f"/api/v1/partners/{a['id']}", headers=h,
@@ -127,15 +121,36 @@ def test_partners_crud_and_paging_envelope(client, db):
     assert client.get("/api/v1/partners", headers=h).json()["total"] == 3
 
 
+def test_partner_search_is_name_only(client, db):
+    h = login(client, "admin")
+    _create_partner(client, h, name="名称命中友商", contact_name="联系人命中")
+    _create_partner(client, h, name="另一个友商", phone="13800138000")
+
+    assert client.get("/api/v1/partners?keyword=名称命中", headers=h).json()["total"] == 1
+    assert client.get("/api/v1/partners?keyword=联系人命中", headers=h).json()["total"] == 0
+    assert client.get("/api/v1/partners?keyword=13800138000", headers=h).json()["total"] == 0
+
+
+def test_partner_payload_excludes_removed_fields(client, db):
+    h = login(client, "admin")
+    created = _create_partner(client, h, name="字段清理友商", partner_type="旧类型")
+    assert "partner_type" not in created
+    assert "members" not in created
+    assert "member_count" not in created
+
+    detail = client.get(f"/api/v1/partners/{created['id']}", headers=h).json()
+    assert "partner_type" not in detail
+    assert "members" not in detail
+    assert client.get(f"/api/v1/partners/{created['id']}/members", headers=h).status_code == 404
+
+
 def test_partner_delete_cascades(client, db):
-    """删除友商：人员/合同级联，附件正文与元数据一并清理。"""
-    from api.models import Attachment, PartnerContract, PartnerMember
+    """删除友商：合同级联，附件正文与元数据一并清理。"""
+    from api.models import Attachment, PartnerContract
 
     h = login(client, "admin")
     p = _create_partner(client, h, name="待删友商")
     pid = p["id"]
-    mid = client.post(f"/api/v1/partners/{pid}/members", headers=h,
-                      json={"name": "对接人"}).json()["id"]
     cid = client.post(f"/api/v1/partners/{pid}/contracts", headers=h,
                       json={"project_name": "旧项目", "amount": 10}).json()["id"]
     aid = client.post(f"/api/v1/partners/{pid}/attachments", headers=h,
@@ -146,44 +161,13 @@ def test_partner_delete_cascades(client, db):
     assert client.get(f"/api/v1/partners/{pid}", headers=h).status_code == 404
     session = db()
     try:
-        assert session.query(PartnerMember).filter_by(id=mid).first() is None
         assert session.query(PartnerContract).filter_by(id=cid).first() is None
         assert session.query(Attachment).filter_by(id=aid).first() is None
     finally:
         session.close()
 
 
-# ============ 3. 子表 ============
-
-def test_partner_members_roundtrip(client, db):
-    h = login(client, "admin")
-    p = _create_partner(client, h, name="人员友商")
-    pid = p["id"]
-
-    assert client.get(f"/api/v1/partners/{pid}/members", headers=h).json() == []
-    assert client.post(f"/api/v1/partners/{pid}/members", headers=h,
-                       json={"name": "  "}).status_code == 400
-    assert client.post(f"/api/v1/partners/{pid}/members", headers=h,
-                       json={"name": "x", "email": "bad"}).status_code == 400
-
-    m = client.post(f"/api/v1/partners/{pid}/members", headers=h,
-                    json={"name": "李工", "position": "技术负责人",
-                          "phone": "13600136000", "email": "li@example.com"}).json()
-    assert m["partner_id"] == pid and m["position"] == "技术负责人"
-
-    rows = client.get(f"/api/v1/partners/{pid}/members", headers=h).json()
-    assert [r["name"] for r in rows] == ["李工"]
-
-    upd = client.patch(f"/api/v1/partners/{pid}/members/{m['id']}", headers=h,
-                       json={"position": "商务负责人"})
-    assert upd.status_code == 200 and upd.json()["position"] == "商务负责人"
-
-    assert client.delete(f"/api/v1/partners/{pid}/members/{m['id']}",
-                         headers=h).status_code == 200
-    assert client.get(f"/api/v1/partners/{pid}/members", headers=h).json() == []
-    assert client.delete(f"/api/v1/partners/{pid}/members/{m['id']}",
-                         headers=h).status_code == 404
-
+# ============ 3. 业绩合同子表 ============
 
 def test_partner_contracts_roundtrip_and_validation(client, db):
     h = login(client, "admin")
@@ -228,20 +212,12 @@ def test_partner_subresources_isolated_by_pid(client, db):
     h = login(client, "admin")
     p1 = _create_partner(client, h, name="隔离A")
     p2 = _create_partner(client, h, name="隔离B")
-    mid = client.post(f"/api/v1/partners/{p1['id']}/members", headers=h,
-                      json={"name": "隔离人"}).json()["id"]
     cid = client.post(f"/api/v1/partners/{p1['id']}/contracts", headers=h,
                       json={"project_name": "隔离项目", "amount": 1}).json()["id"]
 
-    assert client.patch(f"/api/v1/partners/{p2['id']}/members/{mid}", headers=h,
-                        json={"position": "x"}).status_code == 404
-    assert client.delete(f"/api/v1/partners/{p2['id']}/members/{mid}",
-                         headers=h).status_code == 404
     assert client.delete(f"/api/v1/partners/{p2['id']}/contracts/{cid}",
                          headers=h).status_code == 404
     # 原友商下仍正常
-    assert client.delete(f"/api/v1/partners/{p1['id']}/members/{mid}",
-                         headers=h).status_code == 200
     assert client.delete(f"/api/v1/partners/{p1['id']}/contracts/{cid}",
                          headers=h).status_code == 200
 
@@ -282,8 +258,15 @@ def test_partner_attachment_flow(client, db):
     rows = client.get(f"/api/v1/partners/{pid}/attachments?category=qual_cert", headers=h)
     assert rows.status_code == 200, rows.text
     assert [r["id"] for r in rows.json()] == [att["id"]]
-    assert client.get(f"/api/v1/partners/{pid}/attachments?category=contract",
-                      headers=h).json() == []
+
+    contract = client.post(f"/api/v1/partners/{pid}/attachments", headers=h,
+                            data={"category": "contract"},
+                            files={"file": ("合同附件.pdf", b"%PDF-1.4 contract", "application/pdf")})
+    assert contract.status_code == 200, contract.text
+    assert contract.json()["category"] == "contract"
+    assert [r["id"] for r in client.get(
+        f"/api/v1/partners/{pid}/attachments?category=contract", headers=h
+    ).json()] == [contract.json()["id"]]
     assert client.get(f"/api/v1/partners/{pid}/attachments?category=nope",
                       headers=h).status_code == 400
 
@@ -350,7 +333,7 @@ def test_partner_attachment_download_audited(client, db):
         session.close()
 
 
-# ============ 5. 菜单与字典 ============
+# ============ 5. 菜单 ============
 
 def test_partners_menu_admin_only(client):
     admin_menus = client.get("/api/v1/meta/me/menus",
@@ -359,24 +342,3 @@ def test_partners_menu_admin_only(client):
                           headers=login(client, "pm")).json()["menus"]
     assert any(m["href"] == "/partners" for m in admin_menus)
     assert all(m["href"] != "/partners" for m in pm_menus)
-
-
-def test_partner_type_dicts_available(client, db):
-    """类型可配：dicts 提供选项（seed DICTS 幂等写入），字段本身只做长度校验。"""
-    from api.models import Dict
-    from api.seed import DICTS
-
-    session = db()
-    try:
-        for i, (t, code, label) in enumerate(DICTS):
-            if t != "partner_type":
-                continue
-            if not session.query(Dict).filter_by(type=t, code=code).first():
-                session.add(Dict(type=t, code=code, label=label, sort=i))
-        session.commit()
-    finally:
-        session.close()
-    rows = client.get("/api/v1/meta/dicts?type=partner_type",
-                      headers=login(client, "admin")).json()
-    labels = {r["label"] for r in rows}
-    assert {"嵩讯", "个体户", "陪标单位", "其他"} <= labels

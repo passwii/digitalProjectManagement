@@ -1189,6 +1189,12 @@ def test_project_custom_code_contract_and_contract_attachment_scope(client):
     assert p["code"] == "SHzk-2026-088"
     assert p["owner_name"] == "张爱杰"
     assert p["contract_status"] == "已签订"
+    assert "forward_contract" not in p
+    assert "backward_contract" not in p
+
+    yearly = client.get("/api/v1/projects?code=-2026-", headers=h)
+    assert yearly.status_code == 200, yearly.text
+    assert [row["code"] for row in yearly.json()["items"]] == ["SHzk-2026-088"]
 
     att = client.post(
         f"/api/v1/projects/{p['id']}/attachments",

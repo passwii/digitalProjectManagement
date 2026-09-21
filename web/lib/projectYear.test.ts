@@ -15,6 +15,11 @@ describe("编号派生年份", () => {
     assert.equal(extractProjectYear("PJ-2023-9123"), "2023");
   });
 
+  it("从任意合同编号前缀提取年份", () => {
+    assert.equal(extractProjectYear("SHZK-2026-009"), "2026");
+    assert.equal(extractProjectYear("ABC-2024-1"), "2024");
+  });
+
   it("非标/空编号返回空串（按无年份处理，不抛错）", () => {
     assert.equal(extractProjectYear(""), "");
     assert.equal(extractProjectYear(null), "");
@@ -46,8 +51,8 @@ describe("URL year 参数解析", () => {
 });
 
 describe("年份转后端 code 过滤", () => {
-  it("2026 → PJ-2026-（后端 LIKE 匹配编号年份）", () => {
-    assert.equal(yearToCodeFilter("2026"), "PJ-2026-");
+  it("2026 → -2026-（匹配任意合同编号前缀的年份段）", () => {
+    assert.equal(yearToCodeFilter("2026"), "-2026-");
   });
 
   it("空/非法年份 → 空串（buildQuery 自动跳过，不过滤）", () => {

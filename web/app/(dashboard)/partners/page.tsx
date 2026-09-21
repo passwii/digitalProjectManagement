@@ -1,19 +1,16 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useState } from "react";
 import {
   buildQuery,
   errText,
-  metaApi,
   partnersApi,
-  type DictItem,
   type Partner,
 } from "@/lib/api";
 import { useAsyncData } from "@/lib/useAsyncData";
 import { urlInt, useUrlState, useUrlText } from "@/lib/useUrlState";
 import { useMenus } from "@/lib/useMeta";
 import { fmtDateTime } from "@/lib/labels";
-import Badge from "@/components/ui/Badge";
 import Empty from "@/components/ui/Empty";
 import Pagination from "@/components/ui/Pagination";
 import { LoadingBlock, LoadFailed } from "@/components/ui/PageState";
@@ -25,7 +22,6 @@ import PartnerDrawer from "./PartnerDrawer";
 const SIZE_OPTIONS = [20, 50, 100];
 const URL_DEFAULTS = {
   q: "",
-  partner_type: "",
   page: "1",
   size: "20",
 };
@@ -53,21 +49,6 @@ function PartnersInner() {
   const [selected, setSelected] = useState<number | "new" | null>(null);
   const [deleting, setDeleting] = useState<Partner | null>(null);
   const [deleteBusy, setDeleteBusy] = useState(false);
-  const [typeOptions, setTypeOptions] = useState<DictItem[]>([]);
-
-  // 友商类型选项（后端字典可配，见 api/seed.py）：筛选与抽屉共用同一份
-  useEffect(() => {
-    if (!isAdmin) return;
-    let alive = true;
-    metaApi.dicts("partner_type").then((rows) => {
-      if (alive) setTypeOptions(rows);
-    }).catch(() => {
-      if (alive) setTypeOptions([]);
-    });
-    return () => {
-      alive = false;
-    };
-  }, [isAdmin]);
 
   const { data, loading, firstLoad, error, reload } = useAsyncData(
     (signal) =>
@@ -76,21 +57,17 @@ function PartnersInner() {
           page,
           size,
           keyword: url.q.trim(),
-          partner_type: url.partner_type,
         }),
         signal,
       ),
-    [page, size, url.q, url.partner_type, isAdmin],
+    [page, size, url.q, isAdmin],
     { enabled: isAdmin, resetOnDepChange: true },
   );
 
   const items = data?.items ?? [];
   const total = data?.total ?? 0;
-  const hasFilter = !!(url.q || url.partner_type);
-  const scopeText = [
-    url.q ? `关键词「${url.q}」` : "",
-    url.partner_type ? `类型=${url.partner_type}` : "",
-  ].filter(Boolean).join(" · ");
+  const hasFilter = !!url.q;
+  const scopeText = url.q ? `关键词「${url.q}」` : "";
 
   async function confirmDelete() {
     if (!deleting) return;
@@ -120,7 +97,7 @@ function PartnersInner() {
   if (!isAdmin) {
     return (
       <div className="card">
-        <Empty title="仅管理员可访问我的友商" hint="友商基本信息、人员、业绩合同与资质附件不对普通账号开放。" />
+        <Empty title="仅管理员可访问我的友商" hint="友商基本信息、业绩合同与资质附件不对普通账号开放。" />
       </div>
     );
   }
@@ -134,25 +111,15 @@ function PartnersInner() {
             <input
               value={qDraft}
               onChange={(e) => setQDraft(e.target.value)}
-              placeholder="搜索友商名称 / 联系人 / 电话…"
+              placeholder="搜索友商名称…"
               aria-label="搜索友商"
             />
-            <select
-              value={url.partner_type}
-              onChange={(e) => setUrl({ partner_type: e.target.value })}
-              aria-label="按友商类型筛选"
-            >
-              <option value="">全部类型</option>
-              {typeOptions.map((item) => (
-                <option key={item.code} value={item.label}>{item.label}</option>
-              ))}
-            </select>
             {hasFilter && (
               <button
                 type="button"
                 className="btn-ghost"
                 style={{ width: "auto" }}
-                onClick={() => setUrl({ q: "", partner_type: "" })}
+                onClick={() => setUrl({ q: "" })}
               >
                 清除筛选
               </button>
@@ -187,14 +154,12 @@ function PartnersInner() {
             <table
               className="grid"
               aria-busy={loading}
-              style={{ minWidth: 1080, tableLayout: "fixed" }}
+              style={{ minWidth: 920, tableLayout: "fixed" }}
             >
               <colgroup>
                 <col style={{ width: 200 }} />
                 <col style={{ width: 120 }} />
-                <col style={{ width: 120 }} />
                 <col style={{ width: 150 }} />
-                <col style={{ width: 80 }} />
                 <col style={{ width: 80 }} />
                 <col style={{ width: 80 }} />
                 <col style={{ width: 160 }} />
@@ -203,10 +168,8 @@ function PartnersInner() {
               <thead>
                 <tr>
                   <th>友商名称</th>
-                  <th>类型</th>
                   <th>联系人</th>
                   <th>联系电话</th>
-                  <th>人员数</th>
                   <th>业绩数</th>
                   <th>附件数</th>
                   <th>更新时间</th>
@@ -222,16 +185,8 @@ function PartnersInner() {
                     title="点击编辑友商档案"
                   >
                     <td><span className="ellipsis" title={row.name}><b>{row.name}</b></span></td>
-                    <td>
-                      {row.partner_type ? (
-                        <Badge status={row.partner_type} tone="doing" />
-                      ) : (
-                        <span className="tiny">未设置</span>
-                      )}
-                    </td>
                     <td><span className="ellipsis" title={row.contact_name}>{row.contact_name || "-"}</span></td>
                     <td className="mono">{row.phone || "-"}</td>
-                    <td className="num">{row.member_count ?? row.members?.length ?? 0}</td>
                     <td className="num">{row.contract_count ?? row.contracts?.length ?? 0}</td>
                     <td className="num">{row.attachment_count}</td>
                     <td className="mono tiny">{fmtDateTime(row.updated_at)}</td>
@@ -276,7 +231,6 @@ function PartnersInner() {
 
       <PartnerDrawer
         partnerId={selected}
-        typeOptions={typeOptions}
         onClose={() => setSelected(null)}
         onSaved={() => reload()}
       />
@@ -284,7 +238,7 @@ function PartnersInner() {
       <Confirm
         open={!!deleting}
         title={`删除友商「${deleting?.name ?? ""}」？`}
-        text="人员、业绩合同与全部附件会一并删除，且不可恢复。如需保留请先下载附件备份。"
+        text="业绩合同与全部附件会一并删除，且不可恢复。如需保留请先下载附件备份。"
         danger
         loading={deleteBusy}
         okText="确认删除"

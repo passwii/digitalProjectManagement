@@ -48,7 +48,7 @@ const URL_DEFAULTS = {
   size: "15",
 };
 
-// 项目编号倒序：按业务编号而非数据库主键排列（例如 PJ-2026-0012 在 PJ-2026-0011 前）
+// 项目编号倒序：按业务编号而非数据库主键排列
 const DEFAULT_SORT = "-code";
 
 export default function ProjectsPage() {
@@ -385,14 +385,6 @@ function ProjectsInner() {
                     ? contractStatusLabel(detail.contract_status)
                     : "-"}
                 </dd>
-              </div>
-              <div>
-                <dt>前向合同（甲方）</dt>
-                <dd>{detail.forward_contract || "-"}</dd>
-              </div>
-              <div>
-                <dt>后向合同（乙方）</dt>
-                <dd>{detail.backward_contract || "-"}</dd>
               </div>
               <div>
                 <dt>合同金额</dt>

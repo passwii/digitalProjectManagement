@@ -750,8 +750,6 @@ export interface Project {
   client_phone: string;
   description: string;
   contract_status?: string;
-  forward_contract?: string;
-  backward_contract?: string;
   status: string;
   progress: number;
 }
@@ -1382,7 +1380,7 @@ export const dashboardApi = {
 
 // ---------------- 我的友商（BLF-1152 后端 / BLF-1153 前端） ----------------
 // 契约见 `api/routers/partners.py`：全接口仅管理员；列表统一分页信封；
-// 人员/业绩合同是作用域内小集合（返回数组）；附件 `ref_type='partner'` + 分类。
+// 业绩合同是作用域内小集合（返回数组）；附件 `ref_type='partner'` + 分类。
 export type PartnerAttachmentCategory =
   | "qual_cert"
   | "performance"
@@ -1402,17 +1400,6 @@ export interface PartnerAttachment extends Attachment {
   category_label?: string;
 }
 
-export interface PartnerMember {
-  id: number;
-  partner_id: number;
-  name: string;
-  position: string;
-  phone: string;
-  email: string;
-  remark: string;
-  created_at: string | null;
-}
-
 export interface PartnerContract {
   id: number;
   partner_id: number;
@@ -1426,16 +1413,13 @@ export interface PartnerContract {
 export interface Partner {
   id: number;
   name: string;
-  partner_type: string;
   contact_name: string;
   phone: string;
   email: string;
   address: string;
   remark: string;
   /** 列表行携带计数；详情携带数组（两者不同时出现，用可选字段如实表达）。 */
-  member_count?: number;
   contract_count?: number;
-  members?: PartnerMember[];
   contracts?: PartnerContract[];
   attachment_count: number;
   created_at: string | null;
@@ -1451,14 +1435,6 @@ export const partnersApi = {
   update: (id: number, body: Record<string, unknown>) =>
     apiPatch<Partner>(`/partners/${id}`, body),
   remove: (id: number) => apiDelete<{ ok: boolean }>(`/partners/${id}`),
-  members: (pid: number, signal?: AbortSignal) =>
-    apiGet<PartnerMember[]>(`/partners/${pid}/members`, signal),
-  createMember: (pid: number, body: Record<string, unknown>) =>
-    apiPost<PartnerMember>(`/partners/${pid}/members`, body),
-  updateMember: (pid: number, mid: number, body: Record<string, unknown>) =>
-    apiPatch<PartnerMember>(`/partners/${pid}/members/${mid}`, body),
-  deleteMember: (pid: number, mid: number) =>
-    apiDelete<{ ok: boolean }>(`/partners/${pid}/members/${mid}`),
   contracts: (pid: number, signal?: AbortSignal) =>
     apiGet<PartnerContract[]>(`/partners/${pid}/contracts`, signal),
   createContract: (pid: number, body: Record<string, unknown>) =>

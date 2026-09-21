@@ -77,8 +77,6 @@ export const PROJECT_CHANGE_FIELD_LABELS: Record<string, string> = {
   client_phone: "联系方式",
   description: "项目简介",
   contract_status: "合同状态",
-  forward_contract: "前向合同（甲方）",
-  backward_contract: "后向合同（乙方）",
   status: "项目状态",
   member_ids: "项目成员",
   members: "项目成员",

@@ -27,8 +27,6 @@ interface FormValues {
   client_phone: string;
   description: string;
   contract_status: string;
-  forward_contract: string;
-  backward_contract: string;
 }
 
 const BLANK: FormValues = {
@@ -41,8 +39,6 @@ const BLANK: FormValues = {
   client_phone: "",
   description: "",
   contract_status: "未签订",
-  forward_contract: "",
-  backward_contract: "",
 };
 
 function toValues(p?: Project | null): FormValues {
@@ -58,8 +54,6 @@ function toValues(p?: Project | null): FormValues {
     description: p.description || "",
     // 历史数据可能仍返回 signed/unsigned 等英文值；表单展示统一中文，提交仍使用中文契约值。
     contract_status: contractStatusLabel(p.contract_status || "未签订"),
-    forward_contract: p.forward_contract || "",
-    backward_contract: p.backward_contract || "",
   };
 }
 
@@ -148,8 +142,6 @@ export default function ProjectFormDialog({
       client_phone: v.client_phone.trim(),
       description: v.description.trim(),
       contract_status: v.contract_status,
-      forward_contract: v.contract_status === "已签订" ? v.forward_contract.trim() : "",
-      backward_contract: v.contract_status === "已签订" ? v.backward_contract.trim() : "",
     };
 
     setSaving(true);
@@ -319,24 +311,6 @@ export default function ProjectFormDialog({
               </span>
             )}
           </Field>
-          {form.values.contract_status === "已签订" && (
-            <>
-              <Field label="前向合同（甲方）">
-                <input
-                  value={form.values.forward_contract}
-                  onChange={(e) => form.set("forward_contract", e.target.value)}
-                  placeholder="填写甲方或前向合同名称"
-                />
-              </Field>
-              <Field label="后向合同（乙方）">
-                <input
-                  value={form.values.backward_contract}
-                  onChange={(e) => form.set("backward_contract", e.target.value)}
-                  placeholder="填写乙方或后向合同名称"
-                />
-              </Field>
-            </>
-          )}
           {form.values.contract_status === "已签订" && (
             <div className="field span-2">
               <span className="field-label">合同附件</span>

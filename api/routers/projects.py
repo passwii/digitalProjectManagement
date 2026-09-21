@@ -100,8 +100,6 @@ def _p(p: Project):
         "client_phone": p.client_phone or "",
         "description": p.description,
         "contract_status": p.contract_status or "",
-        "forward_contract": p.forward_contract or "",
-        "backward_contract": p.backward_contract or "",
         "status": p.status,
         "progress": p.progress,
     }
@@ -217,8 +215,6 @@ class ProjectIn(BaseModel):
     client_phone: str = ""
     description: str = ""
     contract_status: str = ""
-    forward_contract: str = ""
-    backward_contract: str = ""
 
 
 def _code(value: str) -> str:
@@ -468,8 +464,6 @@ def create_project(
                 client_phone=body.client_phone,
                 description=body.description,
                 contract_status=body.contract_status,
-                forward_contract=body.forward_contract,
-                backward_contract=body.backward_contract,
                 status="pending" if filing_on else "draft",
                 created_by=user.id,
             )
@@ -555,8 +549,6 @@ def update_project(
         "client_phone",
         "description",
         "contract_status",
-        "forward_contract",
-        "backward_contract",
     }
     now = app_now()
     for f, v in body.items():

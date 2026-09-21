@@ -575,14 +575,6 @@ function ProjectDetail({ pid }: { pid: number }) {
               <span>联系方式</span>
               <strong>{project.client_phone || "-"}</strong>
             </div>
-            <div className="contract-card">
-              <span>前向合同（甲方）</span>
-              <strong>{project.forward_contract || "-"}</strong>
-            </div>
-            <div className="contract-card">
-              <span>后向合同（乙方）</span>
-              <strong>{project.backward_contract || "-"}</strong>
-            </div>
           </div>
           {contracts.length === 0 ? (
             <Empty title="暂无合同附件" hint="上传合同扫描件或电子文件后，会在这里统一归档。" />

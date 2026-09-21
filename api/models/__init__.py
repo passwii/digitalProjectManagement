@@ -620,8 +620,6 @@ class Project(Base):
   client_phone = Column(String(64), default="")  # 联系方式（BLF-1150）
   description = Column(Text, default="")
   contract_status = Column(String(16), default="")  # 已签订 / 未签订
-  forward_contract = Column(String(128), default="")  # 前向合同（甲方）
-  backward_contract = Column(String(128), default="")  # 后向合同（乙方）
   status = Column(String(16), default="draft", index=True)
   # draft草稿/filed已立项/doing进行中/paused暂停/done已完成/archived已归档/cancelled已取消
   progress = Column(Float, default=0)
@@ -845,9 +843,6 @@ class Partner(Base):
   __tablename__ = "partners"
   id = Column(Integer, primary_key=True)
   name = Column(String(128), unique=True, nullable=False, index=True)
-  # 类型可配：取值建议来自 dicts(type='partner_type')（嵩讯/个体户/陪标单位/其他），
-  # 字段本身只做长度校验，新增类型无需改代码、加字典行即可。
-  partner_type = Column(String(32), default="", index=True)
   contact_name = Column(String(64), default="")
   phone = Column(String(64), default="")
   email = Column(String(128), default="")
@@ -857,29 +852,9 @@ class Partner(Base):
   updated_by = Column(Integer, ForeignKey("users.id"), nullable=True)
   created_at = Column(DateTime, default=_now)
   updated_at = Column(DateTime, default=_now, onupdate=_now)
-  members = relationship(
-    "PartnerMember", back_populates="partner", cascade="all, delete-orphan"
-  )
   contracts = relationship(
     "PartnerContract", back_populates="partner", cascade="all, delete-orphan"
   )
-
-
-class PartnerMember(Base):
-  """友商人员子表：挂在单个友商下，随友商删除级联。"""
-
-  __tablename__ = "partner_members"
-  id = Column(Integer, primary_key=True)
-  partner_id = Column(
-    Integer, ForeignKey("partners.id", ondelete="CASCADE"), nullable=False, index=True
-  )
-  name = Column(String(64), nullable=False, default="")
-  position = Column(String(64), default="")
-  phone = Column(String(64), default="")
-  email = Column(String(128), default="")
-  remark = Column(Text, default="")
-  created_at = Column(DateTime, default=_now)
-  partner = relationship("Partner", back_populates="members")
 
 
 class PartnerContract(Base):

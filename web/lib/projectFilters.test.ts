@@ -12,13 +12,13 @@ describe("项目台账负责人查询", () => {
       keyword: "合同",
       status: "doing",
       owner: "张爱杰",
-      code: "PJ-2026-",
+      code: "-2026-",
     });
 
     assert.equal(
       query,
       "?page=2&size=15&sort=-code&keyword=%E5%90%88%E5%90%8C&status=doing" +
-        "&owner=%E5%BC%A0%E7%88%B1%E6%9D%B0&code=PJ-2026-",
+        "&owner=%E5%BC%A0%E7%88%B1%E6%9D%B0&code=-2026-",
     );
     // 回归：只要出现 owner_id，按 id 筛就会把创建人名下的项目全捞出来（还是全部结果）
     assert.doesNotMatch(query, /owner_id/);

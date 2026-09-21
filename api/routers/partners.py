@@ -19,7 +19,6 @@ from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from pydantic import BaseModel
-from sqlalchemy import or_
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -35,7 +34,7 @@ from ..core.limits import MAX_ATTACHMENT_SIZE, read_within_limit
 from ..core.paging import DEFAULT_PAGE_SIZE, paginate
 from ..core.rbac import require_admin
 from ..core.timeutil import app_now, iso
-from ..models import Attachment, Partner, PartnerContract, PartnerMember, User
+from ..models import Attachment, Partner, PartnerContract, User
 
 router = APIRouter(prefix="/partners", tags=["partners"])
 
@@ -60,12 +59,10 @@ EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 PARTNER_SORTS = {
     "id": Partner.id,
     "name": Partner.name,
-    "partner_type": Partner.partner_type,
     "updated_at": Partner.updated_at,
 }
 
 PARTNER_TEXT_LIMITS = {
-    "partner_type": 32,
     "contact_name": 64,
     "phone": 64,
     "email": 128,
@@ -73,29 +70,12 @@ PARTNER_TEXT_LIMITS = {
     "remark": 1000,
 }
 
-MEMBER_TEXT_LIMITS = {
-    "position": 64,
-    "phone": 64,
-    "email": 128,
-    "remark": 1000,
-}
-
-
 class PartnerIn(BaseModel):
     name: str | None = None
-    partner_type: str | None = None
     contact_name: str | None = None
     phone: str | None = None
     email: str | None = None
     address: str | None = None
-    remark: str | None = None
-
-
-class PartnerMemberIn(BaseModel):
-    name: str | None = None
-    position: str | None = None
-    phone: str | None = None
-    email: str | None = None
     remark: str | None = None
 
 
@@ -130,17 +110,6 @@ def _partner_or_404(db: Session, pid: int) -> Partner:
     return partner
 
 
-def _member_or_404(db: Session, pid: int, mid: int) -> PartnerMember:
-    row = (
-        db.query(PartnerMember)
-        .filter(PartnerMember.id == mid, PartnerMember.partner_id == pid)
-        .first()
-    )
-    if not row:
-        raise HTTPException(404, "友商人员不存在")
-    return row
-
-
 def _contract_or_404(db: Session, pid: int, cid: int) -> PartnerContract:
     row = (
         db.query(PartnerContract)
@@ -168,7 +137,6 @@ def _serialize(partner: Partner, db: Session, detail: bool = False) -> dict:
     body = {
         "id": partner.id,
         "name": partner.name or "",
-        "partner_type": partner.partner_type or "",
         "contact_name": partner.contact_name or "",
         "phone": partner.phone or "",
         "email": partner.email or "",
@@ -179,25 +147,10 @@ def _serialize(partner: Partner, db: Session, detail: bool = False) -> dict:
         "created_at": iso(partner.created_at),
     }
     if detail:
-        body["members"] = [_serialize_member(m) for m in (partner.members or [])]
         body["contracts"] = [_serialize_contract(c) for c in (partner.contracts or [])]
     else:
-        body["member_count"] = len(partner.members or [])
         body["contract_count"] = len(partner.contracts or [])
     return body
-
-
-def _serialize_member(m: PartnerMember) -> dict:
-    return {
-        "id": m.id,
-        "partner_id": m.partner_id,
-        "name": m.name or "",
-        "position": m.position or "",
-        "phone": m.phone or "",
-        "email": m.email or "",
-        "remark": m.remark or "",
-        "created_at": iso(m.created_at),
-    }
 
 
 def _serialize_contract(c: PartnerContract) -> dict:
@@ -230,24 +183,6 @@ def _apply_partner_payload(partner: Partner, data: dict, actor_id: int) -> None:
     _check_email(partner.email or "")
     partner.updated_by = actor_id
     partner.updated_at = app_now()
-
-
-def _apply_member_payload(member: PartnerMember, data: dict) -> None:
-    if "name" in data:
-        name = _clean_text(data["name"])
-        if not name:
-            raise HTTPException(400, "人员姓名不能为空")
-        if len(name) > 64:
-            raise HTTPException(400, "人员姓名最多 64 个字符")
-        member.name = name
-    for field, limit in MEMBER_TEXT_LIMITS.items():
-        if field not in data:
-            continue
-        value = _clean_text(data[field])
-        if len(value) > limit:
-            raise HTTPException(400, f"{field} 最多 {limit} 个字符")
-        setattr(member, field, value)
-    _check_email(member.email or "")
 
 
 def _apply_contract_payload(contract: PartnerContract, data: dict) -> None:
@@ -293,27 +228,18 @@ def _attachment(a: Attachment) -> dict:
 @router.get("")
 def list_partners(
     keyword: str = "",
-    partner_type: str = "",
     sort: str = "-id",
     page: int = 1,
     size: int = DEFAULT_PAGE_SIZE,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    """友商列表（统一分页信封）：keyword 匹配名称/联系人/电话，partner_type 等值筛选。"""
+    """友商列表（统一分页信封）：keyword 只匹配友商名称。"""
     _admin(user)
     q = db.query(Partner)
     if keyword:
         like = f"%{keyword.strip()}%"
-        q = q.filter(
-            or_(
-                Partner.name.ilike(like),
-                Partner.contact_name.ilike(like),
-                Partner.phone.ilike(like),
-            )
-        )
-    if partner_type:
-        q = q.filter(Partner.partner_type == partner_type.strip())
+        q = q.filter(Partner.name.ilike(like))
     return paginate(
         q,
         page=page,
@@ -360,7 +286,7 @@ def create_partner(
 def get_partner(
     pid: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)
 ):
-    """友商详情：基本信息 + 人员 + 业绩合同 + 附件计数。"""
+    """友商详情：基本信息 + 业绩合同 + 附件计数。"""
     _admin(user)
     return _serialize(_partner_or_404(db, pid), db, detail=True)
 
@@ -389,7 +315,7 @@ def update_partner(
 def delete_partner(
     pid: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)
 ):
-    """删除友商：人员与业绩合同级联删除，附件正文先删、再删元数据。"""
+    """删除友商：业绩合同级联删除，附件正文先删、再删元数据。"""
     _admin(user)
     partner = _partner_or_404(db, pid)
     name = partner.name or ""
@@ -409,85 +335,6 @@ def delete_partner(
     db.delete(partner)
     db.flush()
     commit_audited(db, user.id, "delete_partner", "partners", pid, name)
-    return {"ok": True}
-
-
-# ============ 人员子表 ============
-
-
-@router.get("/{pid}/members")
-def list_members(
-    pid: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)
-):
-    """单个友商下的人员列表（作用域内小集合，返回数组）。"""
-    _admin(user)
-    _partner_or_404(db, pid)
-    rows = (
-        db.query(PartnerMember)
-        .filter(PartnerMember.partner_id == pid)
-        .order_by(PartnerMember.id)
-        .all()
-    )
-    return [_serialize_member(m) for m in rows]
-
-
-@router.post("/{pid}/members")
-def create_member(
-    pid: int,
-    body: PartnerMemberIn,
-    db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
-):
-    """新增友商人员：姓名必填。"""
-    _admin(user)
-    _partner_or_404(db, pid)
-    data = body.model_dump(exclude_unset=True)
-    if not _clean_text(data.get("name")):
-        raise HTTPException(400, "人员姓名不能为空")
-    member = PartnerMember(partner_id=pid, name=_clean_text(data["name"]))
-    db.add(member)
-    db.flush()
-    _apply_member_payload(member, data)
-    commit_audited(
-        db, user.id, "create_partner_member", "partner_members", member.id, member.name
-    )
-    return _serialize_member(member)
-
-
-@router.patch("/{pid}/members/{mid}")
-def update_member(
-    pid: int,
-    mid: int,
-    body: PartnerMemberIn,
-    db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
-):
-    """更新友商人员（部分字段）。"""
-    _admin(user)
-    _partner_or_404(db, pid)
-    member = _member_or_404(db, pid, mid)
-    _apply_member_payload(member, body.model_dump(exclude_unset=True))
-    commit_audited(
-        db, user.id, "update_partner_member", "partner_members", member.id, member.name
-    )
-    return _serialize_member(member)
-
-
-@router.delete("/{pid}/members/{mid}")
-def delete_member(
-    pid: int,
-    mid: int,
-    db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
-):
-    """删除友商人员。"""
-    _admin(user)
-    _partner_or_404(db, pid)
-    member = _member_or_404(db, pid, mid)
-    name = member.name or ""
-    db.delete(member)
-    db.flush()
-    commit_audited(db, user.id, "delete_partner_member", "partner_members", mid, name)
     return {"ok": True}
 
 
