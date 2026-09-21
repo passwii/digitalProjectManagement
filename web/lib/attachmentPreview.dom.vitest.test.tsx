@@ -4,7 +4,7 @@
  *
  * `lib/contentPreview.test.ts` 测的是「这个文件能不能内联预览」的规则；
  * 本文件测的是**接线与生命周期**：
- *   · 图片 → 渲染 `<img>`；PDF → 渲染 `<iframe>`；Word / Excel → 既不给 iframe
+ *   · 图片 → 渲染 `<img>`；PDF → 由 PDF.js 子组件渲染；Word / Excel → 既不给 iframe
  *     也不给空白框，而是给出可读的下载引导；
  *   · 对象 URL 由本组件自己取、自己撤销 —— 关闭时撤销、切换附件时撤销旧的那份，
  *     且**父级传入的缩略图 URL 不受影响**（另一处漏 revoke 会让素材墙变破图）。
@@ -20,6 +20,13 @@ import { act, cleanup, fireEvent, render } from "@testing-library/react";
 
 import AttachmentPreviewDialog from "../components/ui/AttachmentPreviewDialog";
 import { HttpError, type Attachment } from "../lib/api";
+
+// 保留真实 next/dynamic 接线；只隔离 jsdom 无法执行的 PDF canvas 渲染内核。
+vi.mock("react-pdf", () => ({
+  pdfjs: { GlobalWorkerOptions: { workerSrc: "" } },
+  Document: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  Page: () => <div />,
+}));
 
 const att = (id: number, filename: string, contentType = ""): Attachment => ({
   id,
@@ -82,7 +89,7 @@ describe("附件预览：按类型给出正确的渲染方式", () => {
     expect(document.querySelector("iframe")).toBeNull();
   });
 
-  it("PDF 渲染 <iframe>，让浏览器内置阅读器接管滚动与缩放", async () => {
+  it("PDF 交给 PDF.js 子组件渲染，不保留浏览器 iframe 预览", async () => {
     const { loadUrl } = makeLoader();
     render(
       <AttachmentPreviewDialog
@@ -93,15 +100,14 @@ describe("附件预览：按类型给出正确的渲染方式", () => {
       />,
     );
     await act(async () => {});
-    const frame = document.querySelector("iframe");
-    expect(frame).not.toBeNull();
-    expect(frame?.getAttribute("title")).toBe("合同扫描件.pdf");
+    expect(document.querySelector("section[aria-label='合同扫描件.pdf PDF 预览']")).not.toBeNull();
+    expect(document.querySelector("iframe")).toBeNull();
     expect(document.querySelector("img.image-preview")).toBeNull();
   });
 
-  it("PDF 的 src 是父级给的 blob URL，组件自己不构造也不改写类型", async () => {
+  it("PDF 的 Blob URL 由父级提供，组件自己不构造也不改写类型", async () => {
     // 安全边界在父级（`fetchObjectUrl(path, previewBlobType(a))`），不在本组件：
-    // 弹层只把拿到的 URL 原样交给 iframe，因此这里守住「不去拿原始响应头当类型」这件事 ——
+    // 弹层把拿到的 URL 原样交给 PDF.js，因此这里守住「不去拿原始响应头当类型」这件事 ——
     // 若哪天有人把取 URL 的逻辑挪回弹层（绕过定权），这两个断言会直接戳穿。
     const { loadUrl } = makeLoader();
     render(
@@ -113,10 +119,10 @@ describe("附件预览：按类型给出正确的渲染方式", () => {
       />,
     );
     await act(async () => {});
-    // 附件自称 text/html，但扩展名是 .pdf：仍然按 PDF 走 iframe
+    // 附件自称 text/html，但扩展名是 .pdf：仍然按 PDF 走 PDF.js
     expect(loadUrl).toHaveBeenCalledTimes(1);
-    const frame = document.querySelector("iframe");
-    expect(frame?.getAttribute("src")).toBe("blob:preview-9-1");
+    expect(document.querySelector("section[aria-label='任意.pdf PDF 预览']")).not.toBeNull();
+    expect(document.querySelector("iframe")).toBeNull();
     // 弹层不得自己造 blob
     expect(URL.createObjectURL).not.toHaveBeenCalled();
   });
@@ -155,7 +161,7 @@ describe("附件预览：按类型给出正确的渲染方式", () => {
     expect(document.querySelector("img.image-preview")).toBeNull();
   });
 
-  it("点击图片后进入全屏放大层，并可关闭放大层", async () => {
+  it("图片放大入口可聚焦，点击后进入全屏放大层，并可关闭放大层", async () => {
     const { loadUrl } = makeLoader();
     const { getByRole, queryByRole } = render(
       <AttachmentPreviewDialog
@@ -167,7 +173,10 @@ describe("附件预览：按类型给出正确的渲染方式", () => {
     );
     await act(async () => {});
 
-    fireEvent.click(document.querySelector("img.image-preview")!);
+    const trigger = getByRole("button", { name: "放大预览 现场照片.png" });
+    trigger.focus();
+    expect(document.activeElement).toBe(trigger);
+    fireEvent.click(trigger);
     expect(
       getByRole("dialog", { name: "现场照片.png 放大预览" }),
     ).not.toBeNull();
@@ -176,6 +185,30 @@ describe("附件预览：按类型给出正确的渲染方式", () => {
     expect(
       queryByRole("dialog", { name: "现场照片.png 放大预览" }),
     ).toBeNull();
+  });
+
+  it("放大层打开时 Escape 和附件关闭按钮都只退出放大层", async () => {
+    const { loadUrl } = makeLoader();
+    const onClose = vi.fn();
+    const { getAllByRole, getByRole, queryByRole } = render(
+      <AttachmentPreviewDialog
+        attachment={att(12, "现场照片.png", "image/png")}
+        loadUrl={loadUrl}
+        onClose={onClose}
+        onDownload={() => {}}
+      />,
+    );
+    await act(async () => {});
+
+    fireEvent.click(getByRole("button", { name: "放大预览 现场照片.png" }));
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(queryByRole("dialog", { name: "现场照片.png 放大预览" })).toBeNull();
+    expect(onClose).not.toHaveBeenCalled();
+
+    fireEvent.click(getByRole("button", { name: "放大预览 现场照片.png" }));
+    fireEvent.click(getAllByRole("button", { name: "关闭" })[0]);
+    expect(queryByRole("dialog", { name: "现场照片.png 放大预览" })).toBeNull();
+    expect(onClose).not.toHaveBeenCalled();
   });
 });
 

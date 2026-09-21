@@ -6,6 +6,7 @@
  * 各业务模块只需要提供附件、鉴权后的对象 URL 加载函数和下载回调即可复用。
  * 对象 URL 的生命周期严格收在本组件内：打开 / 切换 / 关闭 / 卸载时 revoke。
  */
+import dynamic from "next/dynamic";
 import { useEffect, useState } from "react";
 import type { Attachment } from "@/lib/api";
 import { classifyTransferFailure, failureLine, type TransferFailure } from "@/lib/uploadErrors";
@@ -17,6 +18,11 @@ import {
 } from "@/lib/contentPreview";
 import { formatFileSize } from "@/lib/uploadLimits";
 import { Dialog } from "@/components/ui/Modal";
+
+const PdfPreview = dynamic(() => import("./PdfPreview"), {
+  ssr: false,
+  loading: () => <div className="preview-note" role="status">正在加载 PDF 预览…</div>,
+});
 
 const EMPTY_URL_FAILURE: TransferFailure = {
   kind: "unknown",
@@ -44,9 +50,22 @@ export default function AttachmentPreviewDialog({
   const [loading, setLoading] = useState(false);
   const [failure, setFailure] = useState<TransferFailure | null>(null);
   const [attempt, setAttempt] = useState(0);
+  const [imageZoomed, setImageZoomed] = useState(false);
 
   const kind = attachment ? previewKindOf(attachment) : "other";
   const inline = attachment ? canPreviewInline(attachment) : false;
+
+  const closeDialog = () => {
+    if (imageZoomed) {
+      setImageZoomed(false);
+      return;
+    }
+    onClose();
+  };
+
+  useEffect(() => {
+    setImageZoomed(false);
+  }, [attachment?.id]);
 
   useEffect(() => {
     if (!attachment || !inline) {
@@ -85,7 +104,7 @@ export default function AttachmentPreviewDialog({
   return (
     <Dialog
       open={!!attachment}
-      onClose={onClose}
+      onClose={closeDialog}
       size="lg"
       title={attachment?.filename || "附件预览"}
       footer={
@@ -99,7 +118,7 @@ export default function AttachmentPreviewDialog({
             {attachment && (
               <button className="btn-ghost" onClick={() => onDownload(attachment)}>下载</button>
             )}
-            <button className="btn-primary" onClick={onClose}>关闭</button>
+            <button className="btn-primary" onClick={closeDialog}>关闭</button>
           </span>
         </>
       }
@@ -120,10 +139,46 @@ export default function AttachmentPreviewDialog({
             </div>
           )}
           {inline && !failure && url && kind === "image" && (
-            <img className="image-preview" src={url} alt={attachment.filename} />
+            <button
+              type="button"
+              className="image-preview-trigger"
+              aria-label={`放大预览 ${attachment.filename}`}
+              onClick={() => setImageZoomed(true)}
+            >
+              <img className="image-preview" src={url} alt={attachment.filename} />
+            </button>
           )}
           {inline && !failure && url && kind === "pdf" && (
-            <iframe className="preview-frame" src={url} title={attachment.filename} />
+            <PdfPreview
+              key={`${attachment.id}-${attempt}`}
+              url={url}
+              filename={attachment.filename}
+              onRetry={() => setAttempt((value) => value + 1)}
+            />
+          )}
+          {imageZoomed && url && kind === "image" && (
+            <div
+              className="image-lightbox"
+              role="dialog"
+              aria-modal="true"
+              aria-label={`${attachment.filename} 放大预览`}
+              onClick={() => setImageZoomed(false)}
+            >
+              <button
+                type="button"
+                className="image-lightbox-close"
+                aria-label="关闭图片放大预览"
+                onClick={() => setImageZoomed(false)}
+              >
+                关闭
+              </button>
+              <img
+                className="image-lightbox-image"
+                src={url}
+                alt={attachment.filename}
+                onClick={(event) => event.stopPropagation()}
+              />
+            </div>
           )}
         </div>
       )}
