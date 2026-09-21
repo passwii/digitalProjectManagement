@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
-import { useEffect, type ReactNode } from "react";
-import { act, fireEvent, render } from "@testing-library/react";
+import { useEffect, useState, type ReactNode } from "react";
+import { act, cleanup, fireEvent, render } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import PdfPreview from "../components/ui/PdfPreview";
@@ -32,7 +32,10 @@ vi.mock("react-pdf", () => ({
   ),
 }));
 
-afterEach(() => vi.clearAllMocks());
+afterEach(() => {
+  cleanup();
+  vi.clearAllMocks();
+});
 
 describe("PDF 公共预览", () => {
   it("加载页数后渲染全部页面，并可改变缩放比例", async () => {
@@ -51,15 +54,36 @@ describe("PDF 公共预览", () => {
     );
   });
 
-  it("PDF 解析失败时显示错误并提供重试入口", async () => {
+  it("父级换用新的 Blob URL 后会清除错误并重新渲染全部页面", async () => {
     const onRetry = vi.fn();
-    const { getByText, getByRole } = render(
-      <PdfPreview url="blob:pdf-error" filename="合同.pdf" onRetry={onRetry} />,
-    );
+    function RetryHarness() {
+      const [url, setUrl] = useState("blob:pdf-error");
+
+      return (
+        <PdfPreview
+          url={url}
+          filename="合同.pdf"
+          onRetry={() => {
+            onRetry();
+            setTimeout(() => setUrl("blob:pdf-recovered"), 0);
+          }}
+        />
+      );
+    }
+
+    const { getByText, getByRole, getByTestId, queryByText } = render(<RetryHarness />);
     await act(async () => {});
 
     expect(getByText("PDF 加载失败")).not.toBeNull();
     fireEvent.click(getByRole("button", { name: "重试" }));
     expect(onRetry).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    expect(queryByText("PDF 加载失败")).toBeNull();
+    expect(getByTestId("pdf-page-1")).not.toBeNull();
+    expect(getByTestId("pdf-page-2")).not.toBeNull();
   });
 });

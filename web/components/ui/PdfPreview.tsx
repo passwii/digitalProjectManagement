@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Document, Page, pdfjs } from "react-pdf";
 
 pdfjs.GlobalWorkerOptions.workerSrc = new URL(
@@ -22,7 +22,17 @@ export default function PdfPreview({
   const [numPages, setNumPages] = useState(0);
   const [scale, setScale] = useState(1);
   const [error, setError] = useState(false);
-  const [attempt, setAttempt] = useState(0);
+  const previousUrl = useRef(url);
+
+  useEffect(() => {
+    if (previousUrl.current === url) {
+      return;
+    }
+
+    previousUrl.current = url;
+    setError(false);
+    setNumPages(0);
+  }, [url]);
 
   const handleLoadSuccess = useCallback(({ numPages: pages }: { numPages: number }) => {
     setNumPages(pages);
@@ -30,12 +40,11 @@ export default function PdfPreview({
   }, []);
 
   const handleLoadError = useCallback(() => {
+    setNumPages(0);
     setError(true);
   }, []);
 
   const handleRetry = () => {
-    setAttempt((value) => value + 1);
-    setError(false);
     onRetry();
   };
 
@@ -69,7 +78,7 @@ export default function PdfPreview({
         </div>
       ) : (
         <Document
-          key={`${url}-${attempt}`}
+          key={url}
           file={url}
           onLoadSuccess={handleLoadSuccess}
           onLoadError={handleLoadError}
