@@ -5,8 +5,8 @@ import sqlalchemy as sa
 from alembic import op
 
 
-revision = "0023_remove_partner_type_and_members"
-down_revision = "0022_remove_project_directional_contracts"
+revision = "0023_partner_cleanup"
+down_revision = "0022_project_contracts"
 branch_labels = None
 depends_on = None
 

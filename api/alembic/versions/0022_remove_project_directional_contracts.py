@@ -4,7 +4,7 @@ from alembic import op
 import sqlalchemy as sa
 
 
-revision = "0022_remove_project_directional_contracts"
+revision = "0022_project_contracts"
 down_revision = "0021_merge_finance_heads"
 branch_labels = None
 depends_on = None
