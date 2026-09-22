@@ -9,9 +9,11 @@ const page = readFileSync(
 );
 
 test("项目完整档案的合同附件接入在线预览", () => {
-  assert.match(page, /contracts\.map\(\(a\) =>/);
-  assert.match(page, /canPreviewInline\(a\)\s*\?\s*"预览"\s*:\s*"查看"/);
-  assert.match(page, /onClick=\{\(\) => setFilePreview\(a\)\}/);
+  const contractList = page.match(/\{contracts\.length === 0[\s\S]*?<\/section>/)?.[0];
+  assert.ok(contractList, "合同 Tab 应包含合同附件列表");
+  assert.match(contractList, /contracts\.map\(\(a\) =>/);
+  assert.match(contractList, /canPreviewInline\(a\)\s*\?\s*"预览"\s*:\s*"查看"/);
+  assert.match(contractList, /onClick=\{\(\) => setFilePreview\(a\)\}/);
   assert.match(page, /<AttachmentPreviewDialog[\s\S]*loadUrl=\{fetchPreviewUrl\}/);
 });
 

@@ -584,6 +584,13 @@ function ProjectDetail({ pid }: { pid: number }) {
                 <div className="attachment-row" key={a.id}>
                   <span className="attachment-name" title={a.filename}>{a.filename}</span>
                   <span className="tiny">{(a.size / 1024).toFixed(1)} KB · {fmtDateTime(a.uploaded_at)}</span>
+                  <button
+                    type="button"
+                    className="linklike"
+                    onClick={() => setFilePreview(a)}
+                  >
+                    {canPreviewInline(a) ? "预览" : "查看"}
+                  </button>
                   <button className="linklike" onClick={() => download(a)}>下载</button>
                 </div>
               ))}
