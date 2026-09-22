@@ -4,7 +4,7 @@
 // 权限边界：列表与下载要求单据可见（后端 `_expense_for_read` 卡）；上传要求项目可写，
 // 删除要求上传者本人或管理员（后端 403 卡）。前端按同一口径隐藏删除入口，
 // 不可见项目的人根本进不到成本页（`pid` 守卫），因此无额外前端路由守卫。
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   errText, expensesApi, fetchObjectUrl,
   type Attachment, type Expense, type ExpenseVoucher,
@@ -14,6 +14,7 @@ import { canPreviewInline, previewBlobType } from "@/lib/contentPreview";
 import { fmtDateTime } from "@/lib/labels";
 import { VOUCHER_ATTACHMENT_EXTENSIONS, VOUCHER_ATTACHMENT_HINT, formatFileSize } from "@/lib/uploadLimits";
 import { useUploadQueue } from "@/lib/useUploadQueue";
+import { isAbortError } from "@/lib/useAsyncData";
 import { useMe, useMenus, useMeta } from "@/lib/useMeta";
 import { Confirm, Dialog } from "@/components/ui/Modal";
 import { useToast } from "@/components/ui/Toast";
@@ -35,6 +36,7 @@ export default function ExpenseVouchersDialog({
 }) {
   const toast = useToast();
   const uploads = useUploadQueue();
+  const resetUploads = uploads.reset;
   const { userName } = useMeta();
   const { me } = useMe();
   const { isAdmin } = useMenus();
@@ -44,30 +46,43 @@ export default function ExpenseVouchersDialog({
   const [preview, setPreview] = useState<Attachment | null>(null);
   const [deleting, setDeleting] = useState<ExpenseVoucher | null>(null);
   const [busy, setBusy] = useState(false);
+  const readControllerRef = useRef<AbortController | null>(null);
 
   const eid = expense?.id ?? 0;
 
   const reload = useCallback(async () => {
     if (!eid) return;
+    readControllerRef.current?.abort();
+    const controller = new AbortController();
+    readControllerRef.current = controller;
     setLoading(true);
     setLoadErr("");
     try {
-      setRows(await expensesApi.vouchers(eid));
+      const next = await expensesApi.vouchers(eid, controller.signal);
+      if (!controller.signal.aborted) setRows(next);
     } catch (e) {
-      setLoadErr(errText(e));
+      if (!controller.signal.aborted && !isAbortError(e)) setLoadErr(errText(e));
     } finally {
-      setLoading(false);
+      if (readControllerRef.current === controller) {
+        readControllerRef.current = null;
+        if (!controller.signal.aborted) setLoading(false);
+      }
     }
   }, [eid]);
 
   useEffect(() => {
+    readControllerRef.current?.abort();
+    readControllerRef.current = null;
     if (!open || !eid) return;
-    uploads.reset();
+    resetUploads();
     setPreview(null);
     setDeleting(null);
     void reload();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, eid]);
+    return () => {
+      readControllerRef.current?.abort();
+      readControllerRef.current = null;
+    };
+  }, [open, eid, reload, resetUploads]);
 
   // 弹层关闭即中止在途上传：避免「关掉弹层还在传」
   useEffect(() => {

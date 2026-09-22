@@ -5,6 +5,7 @@ import {
   serializeIdentitySnapshot,
   type IdentityUser,
 } from "./identityCore";
+import { runReadWithRetry } from "./readClient";
 import { uploadPercent, type UploadProgress } from "./uploadZone";
 
 /**
@@ -21,7 +22,9 @@ export const API_BASE =
   process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8001/api/v1";
 
 export class UnauthorizedError extends Error {}
-export class NetworkError extends Error {}
+export class NetworkError extends Error {
+  override name = "NetworkError";
+}
 
 /**
  * 带状态码与响应体的 HTTP 错误（非 2xx）。
@@ -36,13 +39,16 @@ export class HttpError extends Error {
   readonly body: string;
   /** 响应为空时的兜底文本（fetch 的 statusText / XHR 的 statusText） */
   readonly statusText: string;
+  /** 服务端建议的下一次读取等待时间（毫秒）；没有或无法解析时为 null */
+  readonly retryAfterMs: number | null;
 
-  constructor(status: number, body: string, statusText = "") {
+  constructor(status: number, body: string, statusText = "", retryAfterMs: number | null = null) {
     super(`API ${status}: ${body || statusText}`);
     this.name = "HttpError";
     this.status = status;
     this.body = body || "";
     this.statusText = statusText || "";
+    this.retryAfterMs = retryAfterMs;
   }
 }
 
@@ -136,7 +142,20 @@ export function errText(e: unknown): string {
   return body || "请求失败";
 }
 
-async function request<T>(path: string, init: RequestInit = {}, raw = false): Promise<T> {
+function parseRetryAfter(value: string | null): number | null {
+  if (!value) return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+
+  const seconds = Number(trimmed);
+  if (Number.isFinite(seconds) && seconds >= 0) return Math.round(seconds * 1000);
+
+  const timestamp = Date.parse(trimmed);
+  if (Number.isNaN(timestamp)) return null;
+  return Math.max(0, timestamp - Date.now());
+}
+
+async function requestOnce<T>(path: string, init: RequestInit = {}, raw = false): Promise<T> {
   const token = getToken();
   const isForm = init.body instanceof FormData;
   const headers: Record<string, string> = {
@@ -158,7 +177,12 @@ async function request<T>(path: string, init: RequestInit = {}, raw = false): Pr
   }
   if (!res.ok) {
     const body = await res.text().catch(() => "");
-    throw new HttpError(res.status, body, res.statusText);
+    throw new HttpError(
+      res.status,
+      body,
+      res.statusText,
+      parseRetryAfter(res.headers.get("Retry-After")),
+    );
   }
   if (raw) {
     // SAFETY: `raw` 只用于下载/二进制路径，调用方按泛型 T 自行解释响应体，这里不做运行时校验
@@ -199,7 +223,7 @@ export type { UploadProgress };
  * 不要再各写一遍 XHR。
  *
  * 约定：
- *   · 鉴权头、401 清会话、错误文案展开都与 {@link request} 保持一致，调用方拿到的
+ *   · 鉴权头、401 清会话、错误文案展开都与 {@link requestOnce} 保持一致，调用方拿到的
  *     错误类型不变（`UnauthorizedError` / `NetworkError` / `Error`）；
  *   · 默认通过 `trackedMutation` 追踪活动——成功、失败、取消三条路径都会 `finish()`；
  *     需要局部展示进度的上传入口可显式关闭，避免全局活动条横跨页面；
@@ -290,30 +314,34 @@ export function apiUploadWithProgress<T>(
   return trackActivity ? trackedMutation("上传中", run) : run();
 }
 
-/** GET：可选传 AbortSignal，快速切换筛选/项目时取消过期请求（BLF-1095） */
-export const apiGet = <T>(path: string, signal?: AbortSignal) => request<T>(path, { signal });
+/** GET：JSON 读取统一进入可取消的后台恢复运行器。 */
+export const apiGet = <T>(path: string, signal?: AbortSignal) =>
+  runReadWithRetry((retrySignal) => requestOnce<T>(path, { signal: retrySignal }), { signal });
 export const apiGetScoped = <T>(path: string, headers: Record<string, string>, signal?: AbortSignal) =>
-  request<T>(path, { signal, headers });
+  runReadWithRetry(
+    (retrySignal) => requestOnce<T>(path, { signal: retrySignal, headers }),
+    { signal },
+  );
 export const apiPost = <T>(path: string, body?: unknown) =>
   trackedMutation("提交中", () =>
-    request<T>(path, { method: "POST", body: body === undefined ? undefined : JSON.stringify(body) }),
+    requestOnce<T>(path, { method: "POST", body: body === undefined ? undefined : JSON.stringify(body) }),
   );
 export const apiPut = <T>(path: string, body: unknown) =>
-  trackedMutation("保存中", () => request<T>(path, { method: "PUT", body: JSON.stringify(body) }));
+  trackedMutation("保存中", () => requestOnce<T>(path, { method: "PUT", body: JSON.stringify(body) }));
 export const apiPatch = <T>(path: string, body: unknown) =>
-  trackedMutation("保存中", () => request<T>(path, { method: "PATCH", body: JSON.stringify(body) }));
+  trackedMutation("保存中", () => requestOnce<T>(path, { method: "PATCH", body: JSON.stringify(body) }));
 export const apiPostScoped = <T>(path: string, body: unknown, headers: Record<string, string>) =>
   trackedMutation("提交中", () =>
-    request<T>(path, { method: "POST", body: JSON.stringify(body), headers }),
+    requestOnce<T>(path, { method: "POST", body: JSON.stringify(body), headers }),
   );
 export const apiPatchScoped = <T>(path: string, body: unknown, headers: Record<string, string>) =>
   trackedMutation("保存中", () =>
-    request<T>(path, { method: "PATCH", body: JSON.stringify(body), headers }),
+    requestOnce<T>(path, { method: "PATCH", body: JSON.stringify(body), headers }),
   );
 export const apiDeleteScoped = <T>(path: string, headers: Record<string, string>) =>
-  trackedMutation("删除中", () => request<T>(path, { method: "DELETE", headers }));
+  trackedMutation("删除中", () => requestOnce<T>(path, { method: "DELETE", headers }));
 export const apiDelete = <T>(path: string) =>
-  trackedMutation("删除中", () => request<T>(path, { method: "DELETE" }));
+  trackedMutation("删除中", () => requestOnce<T>(path, { method: "DELETE" }));
 
 /** 上传入口的可选参数：取消信号、进度回调，以及是否显示全局活动条。 */
 export type UploadOptions = {
@@ -368,7 +396,7 @@ let optionsSupported: boolean | null = null;
 export async function downloadFile(path: string, filename: string) {
   const finish = beginTrackedActivity({ label: "下载中", scope: "form" });
   try {
-    const res = await request<Response>(path, {}, true);
+    const res = await requestOnce<Response>(path, {}, true);
     const blob = await res.blob();
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -386,7 +414,7 @@ export async function downloadFile(path: string, filename: string) {
 export async function downloadFileScoped(path: string, filename: string, headers: Record<string, string>) {
   const finish = beginTrackedActivity({ label: "下载中", scope: "form" });
   try {
-    const res = await request<Response>(path, { headers }, true);
+    const res = await requestOnce<Response>(path, { headers }, true);
     const blob = await res.blob();
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -411,7 +439,7 @@ export async function downloadFileScoped(path: string, filename: string, headers
  * `blob.slice` 只改写类型、不重编码字节。不传 `type` 时保持原行为（如下载/缩略图路径的调用方）。
  */
 export async function fetchObjectUrl(path: string, type?: string): Promise<string> {
-  const res = await request<Response>(path, {}, true);
+  const res = await requestOnce<Response>(path, {}, true);
   const blob = await res.blob();
   return URL.createObjectURL(type ? blob.slice(0, blob.size, type) : blob);
 }
@@ -963,17 +991,18 @@ export interface Warnings {
 export const authApi = {
   login: (username: string, password: string) =>
     apiPost<LoginResp>("/auth/login", { username, password }),
-  me: () => apiGet<Me>("/auth/me"),
+  me: (signal?: AbortSignal) => apiGet<Me>("/auth/me", signal),
   logout: () => apiPost<{ ok: boolean }>("/auth/logout", {}),
   changePassword: (old_password: string, new_password: string) =>
     apiPost<{ ok: boolean }>("/auth/change-password", { old_password, new_password }),
 };
 
 export const metaApi = {
-  users: () => apiGet<UserOption[]>("/meta/users"),
-  depts: () => apiGet<Dept[]>("/meta/depts"),
-  dicts: (type = "") => apiGet<DictItem[]>(`/meta/dicts${type ? `?type=${type}` : ""}`),
-  menus: () => apiGet<MenuResp>("/meta/me/menus"),
+  users: (signal?: AbortSignal) => apiGet<UserOption[]>("/meta/users", signal),
+  depts: (signal?: AbortSignal) => apiGet<Dept[]>("/meta/depts", signal),
+  dicts: (type = "", signal?: AbortSignal) =>
+    apiGet<DictItem[]>(`/meta/dicts${type ? `?type=${type}` : ""}`, signal),
+  menus: (signal?: AbortSignal) => apiGet<MenuResp>("/meta/me/menus", signal),
 };
 
 export const opportunitiesApi = {
@@ -981,7 +1010,7 @@ export const opportunitiesApi = {
     params: { keyword?: string; stage?: string; owner?: string; page?: number; size?: number; sort?: string } = {},
     signal?: AbortSignal,
   ) => apiGet<Paged<Opportunity>>(`/opportunities${buildQuery(params)}`, signal),
-  get: (id: number | string) => apiGet<Opportunity>(`/opportunities/${id}`),
+  get: (id: number | string, signal?: AbortSignal) => apiGet<Opportunity>(`/opportunities/${id}`, signal),
   create: (body: Partial<Opportunity>) => apiPost<Opportunity>("/opportunities", body),
   update: (id: number, body: Record<string, unknown>) =>
     apiPatch<Opportunity>(`/opportunities/${id}`, body),
@@ -1225,7 +1254,7 @@ export interface DemoDataState {
 }
 
 export const demoApi = {
-  get: () => apiGet<DemoDataState>("/admin/demo-data"),
+  get: (signal?: AbortSignal) => apiGet<DemoDataState>("/admin/demo-data", signal),
   set: (on: boolean) => apiPut<{ on: boolean }>("/admin/demo-data", { on }),
 };
 
@@ -1246,13 +1275,14 @@ export const adminApi = {
 export const contactsApi = {
   list: (q = "", signal?: AbortSignal) =>
     apiGet<Paged<Contact>>(`/contacts${q}`, signal),
-  options: (keyword = "") =>
+  options: (keyword = "", signal?: AbortSignal) =>
     apiGet<{ id: number; name: string; dept_id: number | null; position: string }[]>(
       `/contacts/options${keyword ? `?keyword=${encodeURIComponent(keyword)}` : ""}`,
+      signal,
     ),
   create: (body: Record<string, unknown>) =>
     apiPost<Contact>("/contacts", body),
-  get: (id: number) => apiGet<Contact>(`/contacts/${id}`),
+  get: (id: number, signal?: AbortSignal) => apiGet<Contact>(`/contacts/${id}`, signal),
   update: (id: number, body: Record<string, unknown>) =>
     apiPatch<Contact>(`/contacts/${id}`, body),
   attachments: (id: number, category: ContactAttachmentCategory | "" = "", signal?: AbortSignal) =>
@@ -1336,13 +1366,13 @@ export interface PendingApprovals {
 export const notificationsApi = {
   list: (q = "", signal?: AbortSignal) =>
     apiGet<{ total: number; unread: number; page: number; size: number; items: Notification[] }>(`/notifications${q}`, signal),
-  count: () => apiGet<{ unread: number }>("/notifications/count"),
+  count: (signal?: AbortSignal) => apiGet<{ unread: number }>("/notifications/count", signal),
   read: (id: number) => apiPost<{ ok: boolean }>(`/notifications/${id}/read`, {}),
   readAll: () => apiPost<{ ok: boolean; read: number }>("/notifications/read-all", {}),
 };
 
 export const approvalsApi = {
-  pending: () => apiGet<PendingApprovals>("/approvals/pending"),
+  pending: (signal?: AbortSignal) => apiGet<PendingApprovals>("/approvals/pending", signal),
   decide: (kind: string, id: number, approve: boolean, reason = "") =>
     apiPost<{ kind: string; id: number; status: string }>(`/approvals/${kind}/${id}/decide`, { approve, reason }),
   exception: (eid: number, reason = "") =>
@@ -1398,9 +1428,9 @@ export interface Weekly {
 }
 
 export const dashboardApi = {
-  summary: () => apiGet<DashboardSummary>("/dashboard/summary"),
-  weekly: (projectId = 0) =>
-    apiGet<Weekly>(`/dashboard/my-weekly${projectId ? `?project_id=${projectId}` : ""}`),
+  summary: (signal?: AbortSignal) => apiGet<DashboardSummary>("/dashboard/summary", signal),
+  weekly: (projectId = 0, signal?: AbortSignal) =>
+    apiGet<Weekly>(`/dashboard/my-weekly${projectId ? `?project_id=${projectId}` : ""}`, signal),
 };
 
 // ---------------- 我的友商（BLF-1152 后端 / BLF-1153 前端） ----------------
@@ -1454,7 +1484,7 @@ export interface Partner {
 export const partnersApi = {
   list: (q = "", signal?: AbortSignal) =>
     apiGet<Paged<Partner>>(`/partners${q}`, signal),
-  get: (id: number) => apiGet<Partner>(`/partners/${id}`),
+  get: (id: number, signal?: AbortSignal) => apiGet<Partner>(`/partners/${id}`, signal),
   create: (body: Record<string, unknown>) =>
     apiPost<Partner>("/partners", body),
   update: (id: number, body: Record<string, unknown>) =>

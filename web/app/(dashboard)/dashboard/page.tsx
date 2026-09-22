@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useReducedMotion } from "framer-motion";
 import {
@@ -26,6 +26,7 @@ import CountUp from "@/components/motion/CountUp";
 import MotionStagger from "@/components/motion/MotionStagger";
 import { useActivity } from "@/lib/useActivity";
 import s from "./dashboard.module.css";
+import { isAbortError } from "@/lib/useAsyncData";
 
 const SUBJECT_SIGNALS = ["cyan", "lime", "amber", "violet", "muted"] as const;
 
@@ -88,27 +89,42 @@ export default function DashboardPage() {
   const [weekly, setWeekly] = useState<Weekly | null>(null);
   const [err, setErr] = useState("");
   const [loading, setLoading] = useState(true);
+  const loadSeq = useRef(0);
+  const controllerRef = useRef<AbortController | null>(null);
 
   const load = useCallback(async () => {
+    controllerRef.current?.abort();
+    const controller = new AbortController();
+    controllerRef.current = controller;
+    const id = ++loadSeq.current;
     const finish = beginActivity({ label: "刷新工作台", scope: "content" });
     setLoading(true);
     setErr("");
     try {
-      const [summary, currentWeek] = await Promise.all([
-        dashboardApi.summary(),
-        dashboardApi.weekly().catch(() => null),
+      const [s, w] = await Promise.all([
+        dashboardApi.summary(controller.signal),
+        dashboardApi.weekly(0, controller.signal).catch(() => null),
       ]);
-      setData(summary);
-      setWeekly(currentWeek);
+      if (controller.signal.aborted || loadSeq.current !== id) return;
+      setData(s);
+      setWeekly(w);
     } catch (e) {
+      if (controller.signal.aborted || loadSeq.current !== id || isAbortError(e)) return;
       setErr(errText(e));
     } finally {
-      setLoading(false);
+      if (loadSeq.current === id) setLoading(false);
       finish();
+      if (controllerRef.current === controller) controllerRef.current = null;
     }
   }, [beginActivity]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    load();
+    return () => {
+      controllerRef.current?.abort();
+      controllerRef.current = null;
+    };
+  }, [load]);
 
   if (!data) {
     if (loading) {
@@ -162,6 +178,7 @@ export default function DashboardPage() {
           </>
         }
       />
+      {err && <div className="err-banner" role="alert">{err}</div>}
 
       {err && (
         <div className={s.staleBanner} role="alert">

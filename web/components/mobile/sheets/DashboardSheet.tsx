@@ -24,10 +24,10 @@ export default function DashboardSheet({
   onSelect,
   canApprove,
 }: SheetContentProps) {
-  const { data, firstLoad, error, reload } = useAsyncData(async () => {
+  const { data, firstLoad, error, reload } = useAsyncData(async (signal) => {
     const [summary, weekly] = await Promise.all([
-      dashboardApi.summary(),
-      dashboardApi.weekly().catch(() => null),
+      dashboardApi.summary(signal),
+      dashboardApi.weekly(0, signal).catch(() => null),
     ]);
     return { summary, weekly };
   }, []);

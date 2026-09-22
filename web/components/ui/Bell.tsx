@@ -78,39 +78,71 @@ export default function Bell() {
   const [readAllBusy, setReadAllBusy] = useState(false);
   const boxRef = useRef<HTMLDivElement | null>(null);
   const bellRef = useRef<HTMLButtonElement | null>(null);
+  const countControllerRef = useRef<AbortController | null>(null);
+  const countInFlightRef = useRef<Promise<void> | null>(null);
+  const listControllerRef = useRef<AbortController | null>(null);
+  const listInFlightRef = useRef<Promise<void> | null>(null);
 
-  const loadCount = useCallback(async () => {
-    try {
-      const r = await notificationsApi.count();
-      setUnread(r.unread);
-    } catch {
-      /* 静默：通知不影响主流程 */
-    }
+  const loadCount = useCallback(() => {
+    if (countInFlightRef.current) return countInFlightRef.current;
+    const controller = new AbortController();
+    countControllerRef.current = controller;
+    const task = notificationsApi
+      .count(controller.signal)
+      .then((r) => {
+        setUnread(r.unread);
+      })
+      .catch(() => {
+        /* 静默：通知不影响主流程 */
+      })
+      .finally(() => {
+        if (countInFlightRef.current === task) countInFlightRef.current = null;
+        if (countControllerRef.current === controller) countControllerRef.current = null;
+      });
+    countInFlightRef.current = task;
+    return task;
   }, []);
 
-  const loadList = useCallback(async () => {
+  const loadList = useCallback(() => {
+    listControllerRef.current?.abort();
+    const controller = new AbortController();
+    listControllerRef.current = controller;
     setLoading(true);
-    try {
-      const r = await notificationsApi.list("?size=12");
-      setItems(r.items ?? []);
-      setUnread(r.unread);
-      setErr("");
-    } catch (e) {
-      setErr(errText(e));
-    } finally {
-      setLoading(false);
-    }
+    const task = notificationsApi
+      .list("?size=12", controller.signal)
+      .then((r) => {
+        if (controller.signal.aborted) return;
+        setItems(r.items ?? []);
+        setUnread(r.unread);
+        setErr("");
+      })
+      .catch((e) => {
+        if (!controller.signal.aborted) setErr(errText(e));
+      })
+      .finally(() => {
+        if (listInFlightRef.current === task) {
+          listInFlightRef.current = null;
+          setLoading(false);
+        }
+        if (listControllerRef.current === controller) listControllerRef.current = null;
+      });
+    listInFlightRef.current = task;
+    return task;
   }, []);
 
   useEffect(() => {
-    loadCount();
-    const t = setInterval(loadCount, 60000); // 每分钟刷新未读数
-    return () => clearInterval(t);
+    void loadCount();
+    const t = setInterval(() => void loadCount(), 60000); // 每分钟刷新未读数
+    return () => {
+      clearInterval(t);
+      countControllerRef.current?.abort();
+      countControllerRef.current = null;
+    };
   }, [loadCount]);
 
   useEffect(() => {
     if (!open) return;
-    loadList();
+    void loadList();
     function onDown(e: MouseEvent) {
       if (boxRef.current && !boxRef.current.contains(e.target as Node)) setOpen(false);
     }
@@ -126,6 +158,8 @@ export default function Bell() {
     return () => {
       document.removeEventListener("mousedown", onDown);
       document.removeEventListener("keydown", onKey);
+      listControllerRef.current?.abort();
+      listControllerRef.current = null;
     };
   }, [open, loadList]);
 

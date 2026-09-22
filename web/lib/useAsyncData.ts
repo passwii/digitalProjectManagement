@@ -9,7 +9,6 @@
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import { errText } from "./api";
-import { getReadRetryDelay, isRetryableReadError } from "./readRetry";
 import { useActivity } from "./useActivity";
 
 export function isAbortError(e: unknown): boolean {
@@ -48,11 +47,7 @@ export function useAsyncData<T>(
   const seqRef = useRef(0);
   const lastDepRef = useRef<string | null>(null);
   const resetRef = useRef(resetOnDepChange);
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const controllerRef = useRef<AbortController | null>(null);
-  const retryAttemptRef = useRef(0);
-  const needsRecoveryRef = useRef(false);
-  const wakeRef = useRef<(() => void) | null>(null);
   resetRef.current = resetOnDepChange;
 
   const depKey = JSON.stringify(deps);
@@ -61,14 +56,8 @@ export function useAsyncData<T>(
     if (!enabled) {
       // 让禁用前启动的请求响应失效；cleanup/abort 仍负责结束它自己的 activity。
       ++seqRef.current;
-      if (timerRef.current !== null) {
-        clearTimeout(timerRef.current);
-        timerRef.current = null;
-      }
       controllerRef.current?.abort();
       controllerRef.current = null;
-      needsRecoveryRef.current = false;
-      wakeRef.current = null;
       setLoading(false);
       setError("");
       lastDepRef.current = depKey;
@@ -91,97 +80,38 @@ export function useAsyncData<T>(
       finishedActivity = true;
       finishActivity();
     };
-    retryAttemptRef.current = 0;
     setLoading(true);
     setError("");
 
-    const scheduleRetry = () => {
-      if (!active || seqRef.current !== id || timerRef.current !== null) return;
-      const attempt = retryAttemptRef.current++;
-      timerRef.current = setTimeout(() => {
-        timerRef.current = null;
-        if (active && seqRef.current === id) startRequest();
-      }, getReadRetryDelay(attempt));
-    };
-
-    const startRequest = () => {
-      if (!active || seqRef.current !== id || controllerRef.current !== null) return;
-      const requestController = new AbortController();
-      controllerRef.current = requestController;
-      loaderRef.current(requestController.signal)
-        .then((value) => {
-          if (!active || seqRef.current !== id) return; // 过期响应：丢弃
-          setData(value);
-          setError("");
-          setLoading(false);
-          retryAttemptRef.current = 0;
-          needsRecoveryRef.current = false;
-          finishOnce();
-        })
-        .catch((e) => {
-          if (!active || seqRef.current !== id || isAbortError(e)) return; // 主动取消 / 过期：静默
-          if (isRetryableReadError(e)) {
-            // 网络抖动不清空已展示数据，也不把短暂断联升级成页面错误。
-            setError("");
-            setLoading(true);
-            needsRecoveryRef.current = true;
-            // retry 在后台静默进行，不让全局活动条一直暴露短暂断联。
-            finishOnce();
-            scheduleRetry();
-            return;
-          }
-          setError(errText(e));
-          setData(null);
-          setLoading(false);
-          needsRecoveryRef.current = false;
-          finishOnce();
-        })
-        .finally(() => {
-          if (controllerRef.current === requestController) controllerRef.current = null;
-        });
-    };
-
-    wakeRef.current = () => {
-      if (!active || seqRef.current !== id || !needsRecoveryRef.current || controllerRef.current !== null) return;
-      if (timerRef.current !== null) {
-        clearTimeout(timerRef.current);
-        timerRef.current = null;
-      }
-      retryAttemptRef.current = 0;
-      startRequest();
-    };
-    startRequest();
+    const controller = new AbortController();
+    controllerRef.current = controller;
+    loaderRef.current(controller.signal)
+      .then((value) => {
+        if (!active || seqRef.current !== id) return; // 过期响应：丢弃
+        setData(value);
+        setError("");
+        setLoading(false);
+        finishOnce();
+      })
+      .catch((e) => {
+        if (!active || seqRef.current !== id || isAbortError(e)) return; // 主动取消 / 过期：静默
+        setError(errText(e));
+        setData(null);
+        setLoading(false);
+        finishOnce();
+      })
+      .finally(() => {
+        if (controllerRef.current === controller) controllerRef.current = null;
+      });
 
     return () => {
       active = false;
       ++seqRef.current;
-      needsRecoveryRef.current = false;
-      if (wakeRef.current) wakeRef.current = null;
-      if (timerRef.current !== null) {
-        clearTimeout(timerRef.current);
-        timerRef.current = null;
-      }
-      controllerRef.current?.abort();
-      controllerRef.current = null;
+      controller.abort();
+      if (controllerRef.current === controller) controllerRef.current = null;
       finishOnce();
     };
   }, [beginActivity, enabled, tick, depKey]);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return undefined;
-    const wake = () => wakeRef.current?.();
-    const wakeWhenVisible = () => {
-      if (document.visibilityState === "visible") wake();
-    };
-    window.addEventListener("online", wake);
-    window.addEventListener("focus", wake);
-    document.addEventListener("visibilitychange", wakeWhenVisible);
-    return () => {
-      window.removeEventListener("online", wake);
-      window.removeEventListener("focus", wake);
-      document.removeEventListener("visibilitychange", wakeWhenVisible);
-    };
-  }, []);
 
   const reload = useCallback(() => setTick((t) => t + 1), []);
   const setDataDirect = useCallback((next: T | null) => setData(next), []);

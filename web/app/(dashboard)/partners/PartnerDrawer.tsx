@@ -4,7 +4,7 @@
 //
 // 口径与 ContactDrawer 对齐：先保存基本信息拿到建档 id，子表与附件区才可用；
 // 失败只 Toast + 行内报错，表单内容保留（不 reset）。
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   PARTNER_ATTACHMENT_CATEGORY_LABELS,
   errText,
@@ -24,6 +24,7 @@ import {
 import { canPreviewInline, previewBlobType } from "@/lib/contentPreview";
 import { fmtDateTime, fmtMoney } from "@/lib/labels";
 import { useForm } from "@/lib/useForm";
+import { isAbortError } from "@/lib/useAsyncData";
 import {
   CONTRACT_ATTACHMENT_EXTENSIONS,
   PARTNER_ATTACHMENT_EXTENSIONS,
@@ -137,6 +138,7 @@ export default function PartnerDrawer({
   const [contractErr, setContractErr] = useState("");
   const [contractBusy, setContractBusy] = useState(false);
   const [editingContract, setEditingContract] = useState<{ id: number; draft: ContractDraft } | null>(null);
+  const readControllerRef = useRef<AbortController | null>(null);
 
   const form = useForm<BasicValues>(BLANK_BASIC, {
     name: { required: "友商名称不能为空", max: 128, label: "友商名称" },
@@ -152,7 +154,11 @@ export default function PartnerDrawer({
   });
 
   useEffect(() => {
+    readControllerRef.current?.abort();
+    readControllerRef.current = null;
     if (!partnerId) return;
+    const controller = new AbortController();
+    readControllerRef.current = controller;
     if (partnerId === "new") {
       setPartner(null);
       setContracts([]);
@@ -165,33 +171,50 @@ export default function PartnerDrawer({
       setPendingDelete(null);
       setLoading(false);
       form.reset(BLANK_BASIC);
-      return;
+      return () => {
+        controller.abort();
+        if (readControllerRef.current === controller) readControllerRef.current = null;
+      };
     }
     let alive = true;
     setLoading(true);
     setFormErr("");
     Promise.all([
-      partnersApi.get(partnerId),
-      partnersApi.attachments(partnerId),
+      partnersApi.get(partnerId, controller.signal),
+      partnersApi.attachments(partnerId, "", controller.signal),
     ])
       .then(([detail, files]) => {
-        if (!alive) return;
+        if (!alive || controller.signal.aborted) return;
         setPartner(detail);
         form.reset(toBasic(detail));
         setContracts(detail.contracts ?? []);
         setAttachments(files);
       })
       .catch((e) => {
-        if (alive) setFormErr(errText(e));
+        if (alive && !controller.signal.aborted && !isAbortError(e)) setFormErr(errText(e));
       })
       .finally(() => {
-        if (alive) setLoading(false);
+        if (alive && !controller.signal.aborted) setLoading(false);
+        if (readControllerRef.current === controller) readControllerRef.current = null;
       });
     return () => {
       alive = false;
+      controller.abort();
+      if (readControllerRef.current === controller) readControllerRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [partnerId]);
+
+  const refreshAttachments = useCallback(async (partnerIdValue: number) => {
+    readControllerRef.current?.abort();
+    const controller = new AbortController();
+    readControllerRef.current = controller;
+    try {
+      return await partnersApi.attachments(partnerIdValue, "", controller.signal);
+    } finally {
+      if (readControllerRef.current === controller) readControllerRef.current = null;
+    }
+  }, []);
 
   // 抽屉关闭或切换档案时中止在途上传，避免「关掉抽屉还在传」
   useEffect(() => {
@@ -314,7 +337,12 @@ export default function PartnerDrawer({
       toast.err(batchFailureToast(result.failures));
       return;
     }
-    const fresh = await partnersApi.attachments(partner.id).catch(() => null);
+    let fresh: PartnerAttachment[] | null = null;
+    try {
+      fresh = await refreshAttachments(partner.id);
+    } catch (e) {
+      if (isAbortError(e)) return;
+    }
     if (fresh) setAttachments(fresh);
     else setAttachments((rows) => [...result.ok, ...rows]);
     toast.ok(`附件已上传 ${result.ok.length} 份`);
@@ -330,7 +358,12 @@ export default function PartnerDrawer({
       toast.err(batchFailureToast(result.failures));
       return;
     }
-    const fresh = await partnersApi.attachments(partner.id).catch(() => null);
+    let fresh: PartnerAttachment[] | null = null;
+    try {
+      fresh = await refreshAttachments(partner.id);
+    } catch (e) {
+      if (isAbortError(e)) return;
+    }
     if (fresh) setAttachments(fresh);
     else setAttachments((rows) => [...result.ok, ...rows]);
     toast.ok("附件已补传成功");
@@ -346,7 +379,12 @@ export default function PartnerDrawer({
       toast.err(batchFailureToast(result.failures));
       return;
     }
-    const fresh = await partnersApi.attachments(partner.id).catch(() => null);
+    let fresh: PartnerAttachment[] | null = null;
+    try {
+      fresh = await refreshAttachments(partner.id);
+    } catch (e) {
+      if (isAbortError(e)) return;
+    }
     if (fresh) setAttachments(fresh);
     else setAttachments((rows) => [...result.ok, ...rows]);
     toast.ok(`合同附件已上传 ${result.ok.length} 份`);
@@ -360,7 +398,12 @@ export default function PartnerDrawer({
       toast.err(batchFailureToast(result.failures));
       return;
     }
-    const fresh = await partnersApi.attachments(partner.id).catch(() => null);
+    let fresh: PartnerAttachment[] | null = null;
+    try {
+      fresh = await refreshAttachments(partner.id);
+    } catch (e) {
+      if (isAbortError(e)) return;
+    }
     if (fresh) setAttachments(fresh);
     else setAttachments((rows) => [...result.ok, ...rows]);
     toast.ok("合同附件已补传成功");
