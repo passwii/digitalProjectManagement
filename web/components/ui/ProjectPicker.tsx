@@ -18,6 +18,7 @@ import {
   reconcileValidatedRecentProjects,
   rememberProject,
   removeRecentProject,
+  syncRecentProjects,
   type RecentProject,
 } from "@/lib/recentProjects";
 import st from "./ProjectPicker.module.css";
@@ -93,8 +94,8 @@ export default function ProjectPicker({
     void Promise.all(
       stored.map(async (project) => {
         try {
-          await projectsApi.get(project.id, signal);
-          return project;
+          const current = await projectsApi.get(project.id, signal);
+          return { id: current.id, code: current.code, name: current.name };
         } catch (error) {
           // 软删除和失去可见权限都按「不可再选」处理；网络故障则保留本地项，
           // 避免一次临时断网把用户的最近使用记录误删。
@@ -103,14 +104,14 @@ export default function ProjectPicker({
       }),
     ).then((valid) => {
       if (signal.aborted || recentRefreshRef.current?.generation !== generation) return;
-      const validIds = new Set(
-        valid.filter((project): project is RecentProject => project !== null).map((project) => project.id),
-      );
+      const validated = valid.filter((project): project is RecentProject => project !== null);
+      const validatedIds = new Set(validated.map((project) => project.id));
       for (const project of stored) {
-        if (!validIds.has(project.id)) removeRecentProject(project.id);
+        if (!validatedIds.has(project.id)) removeRecentProject(project.id);
       }
       // 校验期间用户可能刚选中了一个新项目；以最新快照为准，不能被旧请求的结果覆盖。
-      const next = reconcileValidatedRecentProjects(stored, loadRecentProjects(), validIds);
+      const next = reconcileValidatedRecentProjects(stored, loadRecentProjects(), validated);
+      syncRecentProjects(next);
       setRecent(next);
       setRecentReady(true);
     });
