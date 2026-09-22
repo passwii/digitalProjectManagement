@@ -1043,7 +1043,7 @@ export const projectsApi = {
       })),
     };
   },
-  get: (id: number | string) => apiGet<Project>(`/projects/${id}`),
+  get: (id: number | string, signal?: AbortSignal) => apiGet<Project>(`/projects/${id}`, signal),
   create: (body: Partial<Project>) => apiPost<Project>("/projects", body),
   update: (id: number, body: Record<string, unknown>) => apiPatch<Project>(`/projects/${id}`, body),
   remove: (id: number) => apiDelete<{ ok: boolean }>(`/projects/${id}`),

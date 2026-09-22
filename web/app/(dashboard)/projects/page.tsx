@@ -11,6 +11,7 @@ import {
   yearToCodeFilter,
 } from "@/lib/projectYear";
 import { buildProjectListQuery } from "@/lib/projectFilters";
+import { removeRecentProject } from "@/lib/recentProjects";
 import { useMeta, useMenus } from "@/lib/useMeta";
 import {
   CONTRACT_STATUS,
@@ -504,6 +505,7 @@ function ProjectsInner() {
           setBusy(true);
           try {
             await projectsApi.remove(deleteTarget.id);
+            removeRecentProject(deleteTarget.id);
             toast.ok("项目已移入回收站（系统管理 → 回收站可恢复）");
             reload();
           } catch (e) {
