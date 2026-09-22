@@ -10,13 +10,11 @@
   max-width: 520px;
   margin: 0 auto;
   padding: 12px 14px 12px 12px;
-  color: #f5f8fb;
-  background: linear-gradient(135deg, #123553 0%, #0f2742 100%);
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  border-radius: 18px;
-  box-shadow:
-    0 18px 45px rgba(8, 25, 42, 0.3),
-    0 4px 12px rgba(8, 25, 42, 0.16);
+  color: var(--ink);
+  background: var(--navy);
+  border: 1px solid var(--line-blue);
+  border-radius: 0;
+  box-shadow: var(--shadow-float);
 }
 
 .icon {
@@ -25,10 +23,11 @@
   width: 40px;
   height: 40px;
   place-items: center;
-  color: #0f2742;
+  color: var(--brand);
   font-weight: 800;
-  background: #e5b85b;
-  border-radius: 12px;
+  background: var(--brand-soft);
+  border: 1px solid var(--line-blue);
+  border-radius: 0;
 }
 
 .copy {
@@ -43,7 +42,7 @@
   letter-spacing: 0.01em;
 }
 .copy span {
-  color: rgba(245, 248, 251, 0.74);
+  color: var(--ink-2);
   font-size: 12px;
   line-height: 1.45;
 }
@@ -60,19 +59,20 @@
   flex: 0 0 auto;
   min-height: 36px;
   padding: 0 14px;
-  color: #0f2742;
+  color: var(--on-brand);
   font-size: 13px;
   font-weight: 750;
-  background: #f4cf7b;
-  border-radius: 10px;
+  background: var(--brand-hover);
+  border: 1px solid var(--brand-hover);
+  border-radius: 0;
 }
 
 .install:hover {
-  background: #ffe09a;
+  background: #d9ff9b;
 }
 .install:focus-visible,
 .close:focus-visible {
-  outline: 2px solid #f4cf7b;
+  outline: 2px solid var(--brand);
   outline-offset: 3px;
 }
 
@@ -81,14 +81,16 @@
   width: 24px;
   height: 24px;
   padding: 0;
-  color: rgba(245, 248, 251, 0.72);
+  color: var(--ink-2);
   background: transparent;
-  border-radius: 50%;
+  border: 1px solid transparent;
+  border-radius: 0;
 }
 
 .close:hover {
-  color: #fff;
-  background: rgba(255, 255, 255, 0.1);
+  color: var(--brand);
+  background: var(--brand-soft);
+  border-color: var(--line-blue);
 }
 
 @media (min-width: 768px) {

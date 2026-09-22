@@ -89,7 +89,6 @@ export default function ChangelogPage() {
     <div className={s.page}>
       <header className={s.hero}>
         <div>
-          <div className={s.eyebrow}>RELEASE NOTES / 产品迭代</div>
           <h1>功能更新</h1>
           <p className={s.lede}>记录每一次重要能力的上线与迭代。</p>
           <p className={s.sublede}>从项目管理基本盘，到财务与移动协同，持续推进。</p>
@@ -110,7 +109,6 @@ export default function ChangelogPage() {
       >
         <div className={s.panelHead}>
           <div>
-            <p className={s.panelKicker}>{active.label} / VERSION</p>
             <h2>{active.label} · {active.title}</h2>
             <p>{active.summary}</p>
           </div>

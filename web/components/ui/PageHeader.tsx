@@ -21,6 +21,9 @@ export default function PageHeader({
         className={`${s.pageHeader}${className ? ` ${className}` : ""}`}
         data-page-header="true"
       >
+        <div className={s.titleWrap} data-page-header-title="true">
+          <span className={s.title}>{title}</span>
+        </div>
         {filters && (
           <div className={s.filters} data-page-header-filters="true">
             {filters}

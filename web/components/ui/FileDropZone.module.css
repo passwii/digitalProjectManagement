@@ -200,7 +200,7 @@
   height: 100%;
   border-radius: 2px;
   background: var(--brand);
-  transition: width 120ms ease-out;
+  transition: none;
 }
 /* 体积不可知：不确定态来回滑动，不伪造具体百分比 */
 .trackIndeterminate .fill {

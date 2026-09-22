@@ -1,34 +1,24 @@
 .page {
-  width: min(100%, 1080px);
+  width: min(100%, 1180px);
   margin: 0 auto;
 }
 
 .hero {
-  min-height: 156px;
+  min-height: 132px;
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: 28px;
-  padding: 8px 2px 28px;
+  padding: 0 0 24px;
   border-bottom: 1px solid var(--line);
 }
 
-.eyebrow,
-.panelKicker {
-  color: var(--brand);
-  font-family: var(--font-mono);
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: .12em;
-  line-height: 1.5;
-}
-
 .hero h1 {
-  margin: 8px 0 6px;
+  margin: 0 0 8px;
   color: var(--ink);
   font-size: 38px;
   font-weight: 750;
-  letter-spacing: 0;
+  letter-spacing: -.035em;
   line-height: 1.2;
 }
 
@@ -54,7 +44,7 @@
   flex: none;
   min-width: 112px;
   padding: 12px 14px 13px;
-  border-left: 2px solid var(--brand);
+  border: 1px solid var(--line-blue);
   background: var(--brand-soft);
 }
 
@@ -83,7 +73,7 @@
   padding: 4px;
   overflow-x: auto;
   border: 1px solid var(--line);
-  border-radius: var(--radius);
+  border-radius: 0;
   background: var(--th-bg);
   scrollbar-width: none;
 }
@@ -99,7 +89,7 @@
   gap: 10px;
   padding: 0 16px;
   border: 0;
-  border-radius: var(--radius-sm);
+  border-radius: 0;
   color: var(--ink-2);
   background: transparent;
   font-size: 13px;
@@ -111,7 +101,7 @@
 .tabActive {
   color: var(--ink);
   background: var(--card);
-  box-shadow: 0 1px 3px rgba(23, 43, 77, .08);
+  box-shadow: inset 0 -1px 0 var(--brand);
 }
 
 .tabVersion {
@@ -124,9 +114,9 @@
 .panel {
   overflow: hidden;
   border: 1px solid var(--line);
-  border-radius: var(--radius);
-  background: rgba(255, 255, 255, .82);
-  box-shadow: var(--shadow-card);
+  border-radius: 0;
+  background: rgba(13, 29, 44, .72);
+  box-shadow: none;
 }
 
 .panelHead {
@@ -136,16 +126,15 @@
   gap: 24px;
   padding: 24px 28px 22px;
   border-bottom: 1px solid var(--line-soft);
-  background: linear-gradient(110deg, rgba(234, 243, 255, .68), rgba(255, 255, 255, .28));
+  background: var(--th-bg);
 }
 
-.panelKicker { margin: 0 0 5px; color: var(--ink-3); }
 .panelHead h2 {
   margin: 0;
   color: var(--ink);
   font-size: 22px;
   font-weight: 720;
-  letter-spacing: 0;
+  letter-spacing: -.025em;
 }
 
 .panelHead p:last-child {
@@ -258,7 +247,7 @@
   justify-content: center;
   min-height: 22px;
   padding: 0 6px;
-  border-radius: 4px;
+  border-radius: 0;
   font-size: 10px;
   font-weight: 700;
   line-height: 1;
@@ -268,7 +257,7 @@
 .kindFeature { color: var(--brand-hover); background: var(--brand-soft); }
 .kindImprove { color: var(--warn); background: var(--warn-bg); }
 .kindFix { color: var(--ink-2); background: var(--todo-bg); }
-.kindMobile { color: #176d73; background: #e8f6f6; }
+.kindMobile { color: var(--brand); background: var(--brand-soft); }
 .kindFinance { color: var(--done); background: var(--done-bg); }
 
 .entryCopy { min-width: 0; }

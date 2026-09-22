@@ -13,6 +13,31 @@
   box-shadow: none;
 }
 
+.titleWrap {
+  display: flex;
+  align-items: center;
+  flex: 0 0 auto;
+  min-width: max-content;
+}
+
+.titleWrap::before {
+  width: 8px;
+  height: 8px;
+  margin-right: 10px;
+  border: 1px solid var(--brand);
+  background: var(--brand-soft);
+  box-shadow: 0 0 14px rgba(108, 243, 255, 0.18);
+  content: "";
+}
+
+.title {
+  color: var(--ink);
+  font-size: clamp(24px, 2.1vw, 32px);
+  font-weight: 740;
+  letter-spacing: -.025em;
+  line-height: 1.2;
+}
+
 .filters {
   display: flex;
   align-items: center;
@@ -84,7 +109,8 @@
     width: 100%;
     flex: 0 0 auto;
   }
-  .filters > .toolbar-field {
+  .titleWrap { width: 100%; }
+  .filters > :global(.toolbar-field) {
     width: 100%;
     flex: 1 1 100%;
   }

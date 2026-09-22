@@ -139,10 +139,6 @@ export default function DashboardPage() {
         className={s.commandHeader}
         filters={
           <div className={s.headerCluster}>
-            <div className={s.headerTitleLine}>
-              <span className={s.headerPulse} aria-hidden="true" />
-              <span className={s.pageTitle} aria-hidden="true">交付坐标盘</span>
-            </div>
             <p className={s.pageIntro}>把项目状态、介入事项与资金脉冲收束在同一张工作面上。</p>
           </div>
         }
@@ -181,7 +177,7 @@ export default function DashboardPage() {
               <h2 id="dashboard-readouts-title">当前工作态势</h2>
               <p>实时读数 · 数据源已连接</p>
             </div>
-            <span className={s.zoneCode}>COORDINATE / LIVE</span>
+            <span className={s.zoneCode}>实时坐标</span>
           </div>
           <div className={s.readoutRail}>
             <DashboardReadout
@@ -237,7 +233,7 @@ export default function DashboardPage() {
                 <h2 id="dashboard-interventions-title">需要介入</h2>
                 <p>优先处理会改变交付节奏的事项</p>
               </div>
-              <span className={s.zoneCode}>ACTION / QUEUE</span>
+              <span className={s.zoneCode}>待办队列</span>
             </div>
             <DashboardInterventionQueue weekly={weekly} kpi={k} isAdmin={isAdmin} userName={userName} />
           </section>
@@ -249,7 +245,7 @@ export default function DashboardPage() {
               <h2 id="dashboard-pulse-title">数据脉冲</h2>
               <p>资金流动和团队动作的连续读数</p>
             </div>
-            <span className={s.zoneCode}>PULSE / 06 MONTHS</span>
+            <span className={s.zoneCode}>近 6 个月</span>
           </div>
 
           <div className={s.pulseGrid}>

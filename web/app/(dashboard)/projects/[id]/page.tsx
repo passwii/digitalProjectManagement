@@ -101,7 +101,7 @@ function ProjectDetail({ pid }: { pid: number }) {
    */
   const fetchPreviewUrl = useCallback(
     async (a: Attachment): Promise<string> =>
-      // 强制按扩展名定 blob MIME：这份 URL 会交给 <img> / <iframe>，
+      // 强制按扩展名定 blob MIME：这份 URL 会交给图片元素 / iframe，
       // 不能让上传时客户端声明的 Content-Type 决定字节怎么被解释（存储型 XSS）。
       fetchObjectUrl(
         `/projects/${pid}/attachments/${a.id}/download`,
@@ -396,7 +396,6 @@ function ProjectDetail({ pid }: { pid: number }) {
     <div>
       <div className="page-head project-detail-head">
         <div>
-          <div className="eyebrow">项目完整档案</div>
           <h1>
             <span className="ellipsis" title={project.name}>{project.name}</span>
             <span className="sub mono">{project.code}</span>

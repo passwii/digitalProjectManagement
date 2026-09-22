@@ -19,6 +19,7 @@ describe("PageHeader", () => {
 
     expect(document.querySelector("h1.sr-only")?.textContent).toBe("项目台账");
     expect(document.querySelector('[data-page-header="true"]')).not.toBeNull();
+    expect(document.querySelector('[data-page-header-title="true"]')?.textContent).toBe("项目台账");
     expect(document.querySelector('[data-page-header-filters="true"] input')).not.toBeNull();
     expect(document.querySelector('[data-page-header-actions="true"] button')?.textContent).toBe("新建项目");
   });

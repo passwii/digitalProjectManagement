@@ -122,15 +122,21 @@ body {
 
 body {
  font-family: var(--font-body);
- background:
-  linear-gradient(rgba(22, 119, 255, 0.026) 1px, transparent 1px),
-  linear-gradient(90deg, rgba(22, 119, 255, 0.026) 1px, transparent 1px),
-  var(--bg);
- background-size: 32px 32px;
+ background: var(--bg);
  color: var(--ink);
  font-size: 14px;
  line-height: 1.5;
  -webkit-font-smoothing: antialiased;
+}
+
+::selection {
+ background: var(--brand);
+ color: var(--on-brand);
+}
+
+input,
+textarea {
+ caret-color: var(--brand);
 }
 
 a {
@@ -954,9 +960,9 @@ th.num {
 /* 时间线里的定位命中项（跟进深链，BLF-1093） */
 .timeline li.row-target {
  background: var(--brand-soft);
- border-left: 3px solid var(--brand);
- padding-left: 8px;
- border-radius: 0 var(--radius) var(--radius) 0;
+ border-left: 1px solid var(--brand);
+ padding-left: 10px;
+ border-radius: 0;
 }
 
 /* member picker（成员管理弹窗） */
@@ -1059,15 +1065,6 @@ th.num {
 }
 
 /* ---------- 统一业务组件 ---------- */
-.eyebrow {
- margin-bottom: 5px;
- color: var(--brand);
- font-family: var(--font-mono);
- font-size: 10px;
- font-weight: 700;
- letter-spacing: 0.16em;
-}
-
 .toolbar-card {
  margin-bottom: 14px;
  padding: 12px 14px;
@@ -1879,6 +1876,317 @@ th.num {
  }
 }
 
+/* ============ 全站交付控制台表面 ============ */
+/* 共享业务页继承同一套“工作面”节奏：表格保留密度，容器负责托举而不抢内容。 */
+.shell[data-console-shell="true"] .card,
+.shell[data-console-shell="true"] .toolbar-card,
+.shell[data-console-shell="true"] .projects-control-section,
+.shell[data-console-shell="true"] .doc-shell {
+ background: rgba(13, 29, 44, 0.72);
+ border-color: var(--line);
+ box-shadow: none;
+}
+
+.shell[data-console-shell="true"] .card,
+.shell[data-console-shell="true"] .toolbar-card,
+.shell[data-console-shell="true"] .projects-control-section {
+ border-radius: 0;
+}
+
+.shell[data-console-shell="true"] .toolbar-card,
+.shell[data-console-shell="true"] .projects-control-section {
+ border: 0;
+ border-bottom: 1px solid var(--line);
+ box-shadow: none;
+}
+
+.shell[data-console-shell="true"] .card {
+ position: relative;
+}
+
+.shell[data-console-shell="true"] .card::before,
+.shell[data-console-shell="true"] .doc-shell::before {
+ position: absolute;
+ inset: 0 0 auto;
+ height: 1px;
+ content: "";
+ background: var(--line-blue);
+ opacity: .48;
+ pointer-events: none;
+}
+
+.shell[data-console-shell="true"] .card::before {
+ opacity: .28;
+}
+
+.shell[data-console-shell="true"] .card > :first-child,
+.shell[data-console-shell="true"] .doc-shell > :first-child {
+ position: relative;
+ z-index: 1;
+}
+
+.shell[data-console-shell="true"] .page-head {
+ align-items: flex-start;
+ min-height: 72px;
+ margin-bottom: 22px;
+ padding: 0 0 16px;
+ border-bottom: 1px solid var(--line);
+}
+
+.shell[data-console-shell="true"] .page-head h1 {
+ display: flex;
+ align-items: baseline;
+ gap: 10px;
+ color: var(--ink);
+ font-size: clamp(24px, 3vw, 36px);
+ font-weight: 740;
+ letter-spacing: -.03em;
+ line-height: 1.18;
+}
+
+.shell[data-console-shell="true"] .page-head h1::before {
+ width: 8px;
+ height: 8px;
+ flex: 0 0 auto;
+ margin-top: .2em;
+ border: 1px solid var(--brand);
+ background: var(--brand-soft);
+ box-shadow: 0 0 14px rgba(108, 243, 255, .18);
+ content: "";
+}
+
+.shell[data-console-shell="true"] .page-head .sub {
+ margin-left: 0;
+ color: var(--brand);
+ font-family: var(--font-mono);
+ font-size: 12px;
+ letter-spacing: .03em;
+}
+
+.shell[data-console-shell="true"] .page-head .actions {
+ margin-left: auto;
+ padding-left: 16px;
+ border-left: 1px solid var(--line);
+}
+
+.shell[data-console-shell="true"] .project-detail-head h1 .ellipsis {
+ max-width: min(560px, 48vw);
+}
+
+.shell[data-console-shell="true"] .project-meta {
+ margin-top: 12px;
+ color: var(--ink-2);
+ font-size: 13px;
+}
+
+.shell[data-console-shell="true"] table.grid {
+ border-color: var(--line);
+}
+
+.shell[data-console-shell="true"] table.grid th,
+.shell[data-console-shell="true"] table.grid td {
+ font-size: 13.5px;
+}
+
+.shell[data-console-shell="true"] table.grid thead th {
+ height: 44px;
+ color: var(--ink-2);
+ font-family: var(--font-mono);
+ font-size: 11px;
+ letter-spacing: .06em;
+}
+
+.shell[data-console-shell="true"] table.grid tbody tr {
+ min-height: 46px;
+}
+
+.shell[data-console-shell="true"] .warn-banner,
+.shell[data-console-shell="true"] .err-banner {
+ border-radius: 0;
+ padding: 12px 14px;
+}
+
+.shell[data-console-shell="true"] .toolbar-card {
+ padding: 16px 0;
+}
+
+.shell[data-console-shell="true"] .toolbar-card .toolbar-field > span {
+ color: var(--brand);
+ font-family: var(--font-mono);
+ font-size: 11px;
+ letter-spacing: .05em;
+}
+
+.shell[data-console-shell="true"] .doc-shell,
+.shell[data-console-shell="true"] .attachment-list,
+.shell[data-console-shell="true"] .pending-file-list {
+ border-radius: 0;
+}
+
+.shell[data-console-shell="true"] .doc-shell {
+ position: relative;
+}
+
+.shell[data-console-shell="true"] .doc-empty,
+.shell[data-console-shell="true"] .preview-note {
+ border-radius: 0;
+ background: var(--th-bg);
+}
+
+.shell[data-console-shell="true"] .contract-card,
+.shell[data-console-shell="true"] .asset-tile {
+ border-radius: 0;
+ box-shadow: none;
+}
+
+.shell[data-console-shell="true"] .contract-card {
+ background: transparent;
+}
+
+.shell[data-console-shell="true"] .detail-tabs {
+ border-bottom: 1px solid var(--line);
+}
+
+.shell[data-console-shell="true"] .detail-tabs button.active {
+ border-radius: 0;
+ box-shadow: inset 0 -1px 0 var(--brand);
+}
+
+.shell[data-console-shell="true"] .row-actions {
+ display: flex;
+ align-items: center;
+ flex-wrap: wrap;
+ gap: 8px;
+}
+
+.shell[data-console-shell="true"] .route-state {
+ max-width: 560px;
+ padding: 28px;
+}
+
+.shell[data-console-shell="true"] .route-state-title {
+ margin: 0;
+ font-size: 22px;
+}
+
+.shell[data-console-shell="true"] .route-state-detail {
+ margin: 10px 0 0;
+ font-size: 14px;
+ line-height: 1.7;
+ overflow-wrap: anywhere;
+}
+
+.shell[data-console-shell="true"] .route-state-actions {
+ display: flex;
+ flex-wrap: wrap;
+ gap: 8px;
+ margin-top: 20px;
+}
+
+.shell[data-console-shell="true"] .route-loading {
+ min-height: 360px;
+}
+
+.shell[data-console-shell="true"] .kpi-row {
+ gap: 0;
+ margin-bottom: 22px;
+ padding: 0;
+ border-top: 1px solid var(--line);
+ border-bottom: 1px solid var(--line);
+}
+
+.shell[data-console-shell="true"] .kpi {
+ min-width: 0;
+ padding: 18px 20px 17px;
+ border: 0;
+ border-radius: 0;
+ background: transparent;
+ box-shadow: none;
+}
+
+.shell[data-console-shell="true"] .kpi + .kpi {
+ border-left: 1px solid var(--line-soft);
+}
+
+.shell[data-console-shell="true"] .kpi .k {
+ color: var(--ink-3);
+ font-family: var(--font-mono);
+ font-size: 10px;
+ letter-spacing: .1em;
+}
+
+.shell[data-console-shell="true"] .kpi .v {
+ color: var(--ink);
+ font-family: var(--font-mono);
+ font-variant-numeric: tabular-nums;
+}
+
+.shell[data-console-shell="true"] .section-head {
+ align-items: flex-end;
+ padding-bottom: 12px;
+ border-bottom: 1px solid var(--line);
+}
+
+.shell[data-console-shell="true"] .section-head h2,
+.shell[data-console-shell="true"] .section-title {
+ color: var(--ink);
+ letter-spacing: -.02em;
+}
+
+.shell[data-console-shell="true"] .section-head p,
+.shell[data-console-shell="true"] .kpi-foot {
+ color: var(--ink-3);
+}
+
+.shell[data-console-shell="true"] .tabs button {
+ border-radius: 0;
+}
+
+.shell[data-console-shell="true"] .tabs button.active {
+ color: var(--brand);
+ border-bottom-color: var(--brand);
+ background: var(--brand-soft);
+}
+
+.shell[data-console-shell="true"] .timeline li.row-target {
+ border-left: 1px solid var(--brand);
+ border-radius: 0;
+}
+
+.shell[data-console-shell="true"] .warning-list,
+.shell[data-console-shell="true"] .status-row {
+ border-color: var(--line-soft);
+}
+
+@media (max-width: 900px) {
+ .shell[data-console-shell="true"] .kpi {
+  padding: 15px 14px;
+ }
+ .shell[data-console-shell="true"] .kpi + .kpi {
+  border-left: 0;
+ }
+ .shell[data-console-shell="true"] .kpi:nth-child(n + 3) {
+  border-top: 1px solid var(--line-soft);
+ }
+
+ .shell[data-console-shell="true"] .page-head {
+  flex-direction: column;
+  min-height: 0;
+ }
+
+ .shell[data-console-shell="true"] .page-head .actions {
+  width: 100%;
+  margin-left: 0;
+  padding-left: 0;
+  border-left: 0;
+  justify-content: flex-start;
+ }
+
+ .shell[data-console-shell="true"] .project-detail-head h1 .ellipsis {
+  max-width: 100%;
+ }
+}
+
 /* ---------- print: 报表黑白可读 ---------- */
 @media print {
  body {
@@ -1968,7 +2276,7 @@ summary,
  display: grid;
  place-items: center;
  color: var(--brand);
- transition: height 200ms var(--ease-console);
+ transition: opacity 200ms var(--ease-console);
 }
 .ptr-ring {
  width: 18px;

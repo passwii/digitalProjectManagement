@@ -189,6 +189,29 @@
   background: var(--bg);
 }
 
+.shell[data-console-shell="true"] .sidebar {
+  border-right-color: rgba(108, 243, 255, .16);
+}
+
+.shell[data-console-shell="true"] .brandSeal {
+  border-radius: 0;
+  border-color: rgba(108, 243, 255, .5);
+  color: var(--brand);
+}
+
+.shell[data-console-shell="true"] .navGroupLabel {
+  color: rgba(213, 237, 249, .68);
+  font-size: 11px;
+}
+
+.shell[data-console-shell="true"] .navLink {
+  font-size: 14px;
+}
+
+.shell[data-console-shell="true"] .navLink.active svg {
+  color: var(--brand);
+}
+
 .shell[data-console-shell="true"] .main,
 .shell[data-console-shell="true"] .content {
   background: var(--bg);
@@ -219,6 +242,7 @@
   background: var(--navy);
   border-bottom-color: rgba(108, 243, 255, .18);
   box-shadow: 0 1px 0 rgba(108, 243, 255, .08), 0 10px 28px rgba(7, 19, 31, .12);
+  backdrop-filter: none;
 }
 .shell[data-console-shell="true"] .crumb { color: rgba(213, 237, 249, .66); }
 .shell[data-console-shell="true"] .crumb b { color: #fff; }
@@ -227,6 +251,12 @@
 .shell[data-console-shell="true"] .userChipText b { color: #fff; }
 .shell[data-console-shell="true"] .userChip:hover,
 .shell[data-console-shell="true"] .userChip[aria-expanded="true"] { background: rgba(108, 243, 255, .1); }
+.shell[data-console-shell="true"] .userMenu,
+.shell[data-console-shell="true"] .userMenuItem,
+.shell[data-console-shell="true"] .navError,
+.shell[data-console-shell="true"] .collapseBtn {
+  border-radius: 0;
+}
 .topContext { min-width: 0; display: flex; align-items: baseline; gap: 12px; }
 .crumb {
   overflow: hidden;
