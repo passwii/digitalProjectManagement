@@ -1,0 +1,68 @@
+.picker {
+  margin: 5px 2px 2px;
+  padding: 9px 6px 4px;
+  border-top: 1px solid var(--line-soft);
+}
+
+.title {
+  padding: 0 4px 7px;
+  color: var(--ink-3);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: .08em;
+}
+
+.options {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 4px;
+}
+
+.option {
+  position: relative;
+  min-width: 0;
+  min-height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 0 5px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--ink-2);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.option:hover {
+  color: var(--ink);
+  background: var(--row-hover);
+}
+
+.option.selected {
+  border-color: var(--line-blue);
+  background: var(--brand-soft);
+  color: var(--brand);
+}
+
+.dot {
+  position: absolute;
+  right: 4px;
+  top: 4px;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: currentColor;
+  box-shadow: 0 0 8px currentColor;
+}
+
+@media (max-width: 767px) {
+  .option {
+    min-height: var(--m-tap);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .option { transition: none; }
+}
