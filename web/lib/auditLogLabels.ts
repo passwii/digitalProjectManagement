@@ -241,8 +241,10 @@ function formatPairs(detail: string): string | null {
 
 function formatFieldList(detail: string): string | null {
   if (!/^\[.*\]$/.test(detail)) return null;
-  const fields = [...detail.matchAll(/['"]([^'"]+)['"]/g)]
-    .map((match) => DETAIL_FIELD_LABELS[match[1]] ?? match[1]);
+  const fields = (detail.match(/['"][^'"]+['"]/g) ?? []).map((field) => {
+    const raw = field.slice(1, -1);
+    return DETAIL_FIELD_LABELS[raw] ?? raw;
+  });
   return fields.length ? `更新字段：${fields.join("、")}` : null;
 }
 
