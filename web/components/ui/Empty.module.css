@@ -1,6 +1,6 @@
 .empty { text-align: center; padding: 38px 16px; color: var(--ink-2); }
-.art { display: flex; justify-content: center; align-items: flex-end; gap: 6px; width: 72px; height: 48px; margin: 0 auto 14px; padding: 6px; border: 1px solid var(--line-soft); border-radius: 14px; background: var(--th-bg); }
-.art span { display: inline-block; width: 16px; border-radius: 3px 3px 2px 2px; background: var(--line); }
+.art { display: flex; justify-content: center; align-items: flex-end; gap: 6px; width: 72px; height: 48px; margin: 0 auto 14px; padding: 6px; border: 1px solid var(--line-soft); border-radius: 0; background: var(--th-bg); }
+.art span { display: inline-block; width: 16px; border-radius: 0; background: var(--line); }
 .c1 { height: 22px; }
 .c2 { height: 32px; background: var(--brand-soft) !important; border: 1px solid var(--line-blue); }
 .c3 { height: 30px; }

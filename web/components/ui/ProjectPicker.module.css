@@ -48,7 +48,7 @@
   background: var(--card);
   border: 1px solid var(--line);
   border-radius: var(--radius);
-  box-shadow: 0 12px 32px rgba(23, 43, 77, 0.18);
+  box-shadow: var(--shadow-float);
   overflow: hidden;
 }
 

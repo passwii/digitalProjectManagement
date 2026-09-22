@@ -23,7 +23,7 @@
   padding: 0 3px;
   border-radius: 8px;
   background: var(--danger);
-  color: #fff;
+  color: var(--on-brand);
   font-size: 10px;
   line-height: 15px;
   font-family: var(--font-mono);

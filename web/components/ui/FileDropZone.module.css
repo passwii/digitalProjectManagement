@@ -23,9 +23,9 @@
   align-items: center;
   justify-content: center;
   gap: 4px;
-  border: 1px dashed #b9ceca;
+  border: 1px dashed var(--line-blue);
   border-radius: var(--radius);
-  background: #f8fbfa;
+  background: var(--th-bg);
   text-align: center;
   cursor: pointer;
   transition: border-color var(--motion), background var(--motion), box-shadow var(--motion);
@@ -169,8 +169,8 @@
   line-height: 18px;
   white-space: nowrap;
 }
-.failTagRetry { color: #a35a00; background: #fff5e6; border-color: #f0c48a; }
-.failTagLost { color: var(--danger); background: var(--card); border-color: #e5b3ad; }
+.failTagRetry { color: var(--warn); background: var(--warn-bg); border-color: var(--line-warn); }
+.failTagLost { color: var(--danger); background: var(--card); border-color: var(--line-danger); }
 .retry {
   flex: none;
   height: 24px;

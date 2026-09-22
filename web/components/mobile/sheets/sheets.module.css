@@ -39,8 +39,8 @@
  align-items: flex-start;
  padding: 10px 12px;
  border: 1px solid var(--line);
- border-radius: 10px;
- background: #f4f7fb;
+ border-radius: 0;
+ background: var(--th-bg);
  color: var(--ink-3);
  font-size: 11.5px;
  line-height: 1.65;
@@ -62,7 +62,7 @@
  min-height: 40px;
  padding: 0 14px;
  border: 1px solid var(--line);
- border-radius: 999px;
+ border-radius: 0;
  background: var(--card);
  color: var(--ink);
  font-size: 12.5px;
@@ -70,7 +70,7 @@
 }
 .chip[aria-pressed="true"] {
  border-color: var(--brand);
- background: #f0f7ff;
+ background: var(--brand-soft);
  color: var(--brand);
  font-weight: 700;
 }
@@ -84,7 +84,7 @@
  gap: 12px;
  padding: 12px;
  border: 1px solid var(--line);
- border-radius: 11px;
+ border-radius: 0;
  background: var(--card);
 }
 .accountMeta {
@@ -107,13 +107,13 @@
  flex: none;
  padding: 3px 10px;
  border-radius: 999px;
- background: #eef4ff;
+ background: var(--brand-soft);
  color: var(--brand);
  font-size: 11.5px;
  font-weight: 700;
 }
 .rolePill[data-admin="false"] {
- background: #f2f4f7;
+ background: var(--th-bg);
  color: var(--ink-3);
 }
 .nameSkel {
