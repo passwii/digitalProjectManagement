@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   contactsApi,
   errText,
@@ -16,6 +16,7 @@ import {
 } from "@/lib/uploadErrors";
 import { canPreviewInline, previewBlobType } from "@/lib/contentPreview";
 import { useMeta } from "@/lib/useMeta";
+import { isAbortError } from "@/lib/useAsyncData";
 import { useForm } from "@/lib/useForm";
 import { ATTACHMENT_HINT, CONTACT_ATTACHMENT_EXTENSIONS } from "@/lib/uploadLimits";
 import { Confirm, Drawer } from "@/components/ui/Modal";
@@ -205,6 +206,7 @@ export default function ContactDrawer({
   const [formErr, setFormErr] = useState("");
   const [deleting, setDeleting] = useState<ContactAttachment | null>(null);
   const [preview, setPreview] = useState<ContactAttachment | null>(null);
+  const readControllerRef = useRef<AbortController | null>(null);
 
   const form = useForm<FormValues>(BLANK, {
     real_name: { required: "姓名不能为空", max: 64, label: "姓名" },
@@ -226,39 +228,58 @@ export default function ContactDrawer({
   });
 
   useEffect(() => {
+    readControllerRef.current?.abort();
+    readControllerRef.current = null;
     if (!contactId) return;
+    const controller = new AbortController();
+    readControllerRef.current = controller;
     if (contactId === "new") {
       setContact(null);
       setAttachments([]);
       setFormErr("");
       setLoading(false);
       form.reset(BLANK);
-      contactsApi.options().then(setManagerOptions).catch(() => setManagerOptions([]));
-      return;
+      contactsApi.options("", controller.signal)
+        .then((options) => {
+          if (!controller.signal.aborted) setManagerOptions(options);
+        })
+        .catch((e) => {
+          if (!isAbortError(e) && !controller.signal.aborted) setManagerOptions([]);
+        })
+        .finally(() => {
+          if (readControllerRef.current === controller) readControllerRef.current = null;
+        });
+      return () => {
+        controller.abort();
+        if (readControllerRef.current === controller) readControllerRef.current = null;
+      };
     }
     let alive = true;
     setLoading(true);
     setFormErr("");
     Promise.all([
-      contactsApi.get(contactId),
-      contactsApi.attachments(contactId),
-      contactsApi.options(),
+      contactsApi.get(contactId, controller.signal),
+      contactsApi.attachments(contactId, "", controller.signal),
+      contactsApi.options("", controller.signal),
     ])
       .then(([detail, files, managers]) => {
-        if (!alive) return;
+        if (!alive || controller.signal.aborted) return;
         setContact(detail);
         form.reset(toValues(detail));
         setAttachments(files);
         setManagerOptions(managers);
       })
       .catch((e) => {
-        if (alive) setFormErr(errText(e));
+        if (alive && !controller.signal.aborted && !isAbortError(e)) setFormErr(errText(e));
       })
       .finally(() => {
-        if (alive) setLoading(false);
+        if (alive && !controller.signal.aborted) setLoading(false);
+        if (readControllerRef.current === controller) readControllerRef.current = null;
       });
     return () => {
       alive = false;
+      controller.abort();
+      if (readControllerRef.current === controller) readControllerRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [contactId]);
