@@ -5,6 +5,7 @@ import {
   rememberProject,
   reconcileValidatedRecentProjects,
   removeRecentProject,
+  syncRecentProjects,
 } from "./recentProjects";
 
 const STORAGE_KEY = "pm_recent_projects_v1";
@@ -44,10 +45,23 @@ test("服务端校验合并最新快照时，保留校验期间新选择的项�
     ...stored,
   ];
 
-  const next = reconcileValidatedRecentProjects(stored, latest, new Set([202]));
+  const next = reconcileValidatedRecentProjects(stored, latest, [stored[1]]);
 
   assert.deepEqual(next, [
     { id: 303, code: "PJ-NEW", name: "新选择项目" },
     { id: 202, code: "PJ-KEEP", name: "保留项目" },
   ]);
+});
+
+test("服务端校验时，用最新项目编号和名称更新 Recent 快照", () => {
+  installStorage();
+  const stored = [{ id: 12, code: "PJ-OLD-001", name: "项目旧名称" }];
+  const latest = [...stored];
+  const validated = [{ id: 12, code: "SHZK-NEW-001", name: "项目新名称" }];
+
+  const next = reconcileValidatedRecentProjects(stored, latest, validated);
+  syncRecentProjects(next);
+
+  assert.deepEqual(next, validated);
+  assert.deepEqual(loadRecentProjects(), validated);
 });

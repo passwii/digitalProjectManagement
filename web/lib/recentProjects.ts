@@ -55,12 +55,22 @@ export function removeRecentProject(id: number): RecentProject[] {
   return next;
 }
 
+/** 将校验后的最新快照写回本地，保持 Recent 展示字段与服务端一致。 */
+export function syncRecentProjects(projects: RecentProject[]): RecentProject[] {
+  const next = projects.slice(0, MAX);
+  saveRecentProjects(next);
+  return next;
+}
+
 /** 将服务端校验结果合并回最新本地快照，避免旧请求覆盖校验期间的新选择。 */
 export function reconcileValidatedRecentProjects(
   checked: RecentProject[],
   latest: RecentProject[],
-  validIds: Set<number>,
+  validated: RecentProject[],
 ): RecentProject[] {
   const checkedIds = new Set(checked.map((project) => project.id));
-  return latest.filter((project) => !checkedIds.has(project.id) || validIds.has(project.id));
+  const validatedById = new Map(validated.map((project) => [project.id, project]));
+  return latest
+    .filter((project) => !checkedIds.has(project.id) || validatedById.has(project.id))
+    .map((project) => validatedById.get(project.id) ?? project);
 }
