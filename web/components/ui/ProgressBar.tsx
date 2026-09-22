@@ -9,7 +9,7 @@ export default function ProgressBar({ value, tone = "auto" }: { value: number; t
   return (
     <span className={st.wrap} role="progressbar" aria-valuenow={v} aria-valuemin={0} aria-valuemax={100} title={`${v}%`}>
       <span className={`${st.track}`}>
-        <span className={`${st.fill} ${cls}`} style={{ width: `${v}%` }} />
+        <span className={`${st.fill} ${cls}`} style={{ transform: `scaleX(${v / 100})` }} />
       </span>
       <span className={`mono ${st.label}`}>{v}%</span>
     </span>

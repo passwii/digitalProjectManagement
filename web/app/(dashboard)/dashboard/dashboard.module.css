@@ -11,14 +11,6 @@
   background: linear-gradient(110deg, rgba(108, 243, 255, .08), transparent 38%), var(--card);
 }
 
-.pageHeader[data-page-header="true"]::before {
-  position: absolute;
-  inset: 0 auto 0 0;
-  width: 3px;
-  content: "";
-  background: linear-gradient(var(--dashboard-cyan), var(--brand));
-}
-
 .metricGrid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -147,8 +139,4 @@
   .sectionTitle { font-size: 15px; }
   .staleBanner { align-items: flex-start; flex-direction: column; }
   .staleBanner button { width: 100%; }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .pageHeader::before { opacity: .6; }
 }
