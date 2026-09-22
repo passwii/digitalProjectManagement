@@ -21,7 +21,9 @@ export function middleware(req: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  const isPublic = PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith("/_next"));
+  const isPublic = PUBLIC_PATHS.some(
+    (p) => pathname === p || pathname.startsWith(`${p}/`),
+  ) || pathname.startsWith("/_next");
   if (!isPublic && !token) {
     const url = req.nextUrl.clone();
     url.pathname = "/login";
