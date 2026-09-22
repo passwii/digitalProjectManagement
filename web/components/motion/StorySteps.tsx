@@ -20,7 +20,7 @@
  * 因此动效层 `aria-hidden`，步骤文本保持可读；`prefers-reduced-motion` 下
  * 直接落在终态，不做任何演进。
  */
-import { m, useReducedMotion, type Variants } from "framer-motion";
+import { motion as m, useReducedMotion, type Variants } from "framer-motion";
 import st from "./StorySteps.module.css";
 
 /** 单个步骤（编号 + 文案），由调用方提供，组件不写死业务词。 */

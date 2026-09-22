@@ -1,56 +1,102 @@
 .wrap {
+  --login-bg: #07131f;
+  --login-surface: #0d1d2c;
+  --login-line: rgba(146, 189, 210, 0.2);
+  --login-ink: #eaf9fb;
+  --login-muted: rgba(201, 227, 235, 0.64);
+  --login-dim: rgba(201, 227, 235, 0.38);
+  --login-signal: #6cf3ff;
+  --login-active: #c6ff72;
   min-height: 100vh;
   display: grid;
-  grid-template-columns: minmax(0, 1.15fr) minmax(440px, 0.85fr);
-  background: #F3F7FD;
+  grid-template-columns: minmax(0, 1.14fr) minmax(440px, 0.86fr);
+  overflow: hidden;
+  background: var(--login-bg);
+  color: var(--login-ink);
 }
 
 .solo {
+  min-height: 100vh;
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 24px;
+  overflow: auto;
+  background:
+    radial-gradient(circle at 50% 0%, rgba(30, 122, 150, 0.18), transparent 52%),
+    #07131f;
 }
 
 .solo .auth {
-  width: min(100%, 430px);
+  width: min(100%, 480px);
   min-height: auto;
   padding: 0;
+  background: none;
 }
+
+.solo .authShell { width: 100%; }
+.solo .consoleTop { display: none; }
 
 .story {
   position: relative;
-  overflow: hidden;
-  min-height: 100vh;
-  padding: 44px clamp(36px, 6vw, 92px);
-  color: #F5F9FF;
-  /* 与侧栏同一个基准色：globals.css 的 --navy（BLF-1142） */
-  background: var(--navy);
   display: flex;
+  min-height: 100vh;
   flex-direction: column;
   justify-content: space-between;
+  overflow: hidden;
+  padding: 38px clamp(28px, 5vw, 84px) 32px;
+  isolation: isolate;
+  background:
+    radial-gradient(circle at 63% 46%, rgba(16, 94, 119, 0.28), transparent 34%),
+    radial-gradient(circle at 0% 100%, rgba(17, 46, 81, 0.72), transparent 40%),
+    #07131f;
 }
 
+.story::before,
 .story::after {
   content: "";
   position: absolute;
-  width: 420px;
-  height: 420px;
-  right: -190px;
-  bottom: -160px;
-  border: 72px solid rgba(22, 119, 255, 0.18);
+  pointer-events: none;
+}
+
+.story::before {
+  inset: 0;
+  z-index: -3;
+  opacity: 0.7;
+  background:
+    radial-gradient(circle at 16% 20%, rgba(108, 243, 255, 0.85) 0 1px, transparent 1.6px),
+    radial-gradient(circle at 58% 13%, rgba(198, 255, 114, 0.68) 0 1px, transparent 1.5px),
+    radial-gradient(circle at 74% 72%, rgba(108, 243, 255, 0.52) 0 1px, transparent 1.6px),
+    radial-gradient(circle at 28% 76%, rgba(186, 234, 241, 0.4) 0 1px, transparent 1.5px),
+    radial-gradient(circle at 92% 28%, rgba(108, 243, 255, 0.48) 0 1px, transparent 1.5px);
+  background-size: 260px 240px, 340px 300px, 420px 360px, 310px 280px, 510px 430px;
+  animation: starDrift 22s linear infinite;
+}
+
+.story::after {
+  right: -260px;
+  bottom: -250px;
+  z-index: -2;
+  width: 650px;
+  height: 650px;
+  border: 1px solid rgba(108, 243, 255, 0.14);
   border-radius: 50%;
+  box-shadow:
+    0 0 0 44px rgba(108, 243, 255, 0.025),
+    0 0 0 126px rgba(108, 243, 255, 0.018);
+  transform: rotate(-18deg) skewX(-12deg);
 }
 
 .storyGrid {
   position: absolute;
   inset: 0;
-  opacity: 0.16;
+  z-index: -1;
+  opacity: 0.22;
   background-image:
-    linear-gradient(rgba(255,255,255,.28) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255,255,255,.28) 1px, transparent 1px);
-  background-size: 52px 52px;
-  mask-image: linear-gradient(120deg, #000 15%, transparent 82%);
+    linear-gradient(rgba(108, 243, 255, 0.08) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(108, 243, 255, 0.08) 1px, transparent 1px);
+  background-size: 42px 42px;
+  mask-image: linear-gradient(128deg, #000 0%, rgba(0, 0, 0, 0.72) 46%, transparent 87%);
 }
 
 .storyTop,
@@ -65,337 +111,647 @@
   align-items: center;
   justify-content: space-between;
   gap: 20px;
+  animation: surfaceIn 760ms var(--ease-console) both;
 }
+
+.brandLockup {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.brandGlyph,
+.cardBadge {
+  position: relative;
+  display: inline-flex;
+  width: 32px;
+  height: 32px;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  border: 1px solid rgba(108, 243, 255, 0.56);
+  background: rgba(108, 243, 255, 0.05);
+  box-shadow: inset 0 0 16px rgba(108, 243, 255, 0.08), 0 0 18px rgba(108, 243, 255, 0.06);
+}
+
+.brandGlyph::before,
+.brandGlyph::after,
+.cardBadge::before,
+.cardBadge::after {
+  content: "";
+  position: absolute;
+  background: var(--login-signal);
+}
+
+.brandGlyph::before,
+.cardBadge::before {
+  top: -4px;
+  right: 5px;
+  width: 4px;
+  height: 1px;
+}
+
+.brandGlyph::after,
+.cardBadge::after {
+  bottom: -4px;
+  left: 5px;
+  width: 4px;
+  height: 1px;
+}
+
+.brandGlyph i,
+.cardBadge i {
+  display: block;
+  width: 2px;
+  height: 13px;
+  background: var(--login-signal);
+  box-shadow: 0 0 7px rgba(108, 243, 255, 0.75);
+  transform: skewY(-24deg);
+}
+
+.brandGlyph i:nth-child(2),
+.cardBadge i:nth-child(2) {
+  height: 20px;
+  background: var(--login-active);
+}
+
+.brandGlyph i:nth-child(3),
+.cardBadge i:nth-child(3) { height: 9px; }
 
 .mark {
+  color: var(--login-ink);
   font-family: var(--font-brand);
+  font-size: 18px;
   font-weight: 700;
-  font-size: 20px;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.12em;
 }
 
-.edition {
+.edition,
+.storyFootMeta,
+.consoleTop,
+.cardMeta,
+.copyright {
   font-family: var(--font-mono);
-  font-size: 11px;
-  color: rgba(220, 234, 255, 0.64);
-  letter-spacing: 0.14em;
-}
-
-.storyMain {
-  max-width: 650px;
-  padding: 48px 0;
-}
-
-.kicker {
-  margin: 0 0 18px;
-  color: #68AFFF;
-  font-family: var(--font-mono);
-  font-size: 12px;
-  letter-spacing: 0.16em;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
 }
 
+.edition {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--login-muted);
+  font-size: 10px;
+}
+
+.editionDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--login-active);
+  box-shadow: 0 0 14px rgba(198, 255, 114, 0.9);
+  animation: statusPulse 2.4s ease-in-out infinite;
+}
+
+.storyMain {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  flex-direction: column;
+  justify-content: center;
+  gap: clamp(22px, 4vh, 42px);
+  padding: clamp(36px, 5vh, 72px) 0;
+}
+
+.storyCopy {
+  max-width: 590px;
+  animation: surfaceIn 820ms 90ms var(--ease-console) both;
+}
+
 .storyMain h1 {
+  max-width: 600px;
   margin: 0;
+  color: var(--login-ink);
   font-family: var(--font-brand);
-  font-size: clamp(48px, 6vw, 86px);
+  font-size: clamp(46px, 5.7vw, 84px);
   font-weight: 800;
-  line-height: 1.04;
-  letter-spacing: 0.01em;
+  line-height: 1.02;
+  letter-spacing: -0.025em;
 }
 
 .storyMain h1 span {
   display: block;
-  margin-top: 8px;
-  color: #79B8FF;
+  color: var(--login-active);
+  text-shadow: 0 0 30px rgba(198, 255, 114, 0.14);
 }
 
 .storyText {
-  max-width: 500px;
-  margin: 28px 0 0;
-  color: rgba(232, 241, 255, 0.76);
+  max-width: 520px;
+  margin: 22px 0 0;
+  color: var(--login-muted);
   font-size: 16px;
-  line-height: 1.85;
+  line-height: 1.8;
 }
 
-/* 三段式进度的位置容器；线、编号、文案的外观与动效都在 StorySteps 自己那套样式里 */
+.storyText strong {
+  color: var(--login-signal);
+  font-family: var(--font-mono);
+  font-size: 0.9em;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+}
+
 .storyFoot {
-  max-width: 680px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 20px;
+  animation: surfaceIn 760ms 180ms var(--ease-console) both;
+}
+
+.storyFootMeta {
+  color: var(--login-dim);
+  font-size: 10px;
+  white-space: nowrap;
 }
 
 .auth {
-  min-height: 100vh;
-  padding: 36px clamp(28px, 6vw, 80px);
+  position: relative;
   display: flex;
-  flex-direction: column;
+  min-height: 100vh;
   align-items: center;
   justify-content: center;
+  overflow: hidden;
+  padding: 44px clamp(26px, 6vw, 82px);
+  background:
+    radial-gradient(circle at 20% 36%, rgba(26, 86, 111, 0.18), transparent 38%),
+    linear-gradient(112deg, rgba(108, 243, 255, 0.045), transparent 16%),
+    #081622;
 }
 
+.auth::before,
+.auth::after {
+  content: "";
+  position: absolute;
+  pointer-events: none;
+}
+
+.auth::before {
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 1px;
+  background: linear-gradient(transparent, rgba(108, 243, 255, 0.5), transparent);
+  box-shadow: 0 0 26px rgba(108, 243, 255, 0.25);
+}
+
+.auth::after {
+  right: 18%;
+  bottom: 9%;
+  width: 140px;
+  height: 140px;
+  border: 1px solid rgba(108, 243, 255, 0.08);
+  border-radius: 50%;
+  box-shadow: 0 0 0 18px rgba(108, 243, 255, 0.02), 0 0 0 46px rgba(108, 243, 255, 0.015);
+}
+
+.authShell {
+  position: relative;
+  z-index: 1;
+  width: min(100%, 460px);
+}
+
+.consoleTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+  color: var(--login-dim);
+  font-size: 10px;
+}
+
+.consoleTop span:first-child { color: var(--login-signal); }
+
 .card {
-  width: min(100%, 430px);
-  background: #fff;
-  border: 1px solid #DCE5F0;
-  border-radius: 8px;
-  padding: 34px;
-  box-shadow: 0 24px 60px rgba(23, 52, 90, 0.13);
-  animation: cardIn 360ms cubic-bezier(.2,.8,.2,1) both;
+  position: relative;
+  width: 100%;
+  overflow: hidden;
+  border: 1px solid rgba(146, 189, 210, 0.28);
+  background:
+    linear-gradient(90deg, rgba(108, 243, 255, 0.035) 1px, transparent 1px),
+    #0d1d2c;
+  background-size: 32px 32px, auto;
+  padding: clamp(26px, 4vw, 38px);
+  box-shadow:
+    0 30px 90px rgba(0, 0, 0, 0.32),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.022);
+  animation: cardIn 720ms 120ms var(--ease-console) both;
+}
+
+.card::before,
+.card::after {
+  content: "";
+  position: absolute;
+  pointer-events: none;
+}
+
+.card::before {
+  top: 0;
+  right: 12%;
+  left: 12%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--login-signal), transparent);
+  box-shadow: 0 0 18px rgba(108, 243, 255, 0.45);
+}
+
+.card::after {
+  right: 0;
+  bottom: 0;
+  width: 72px;
+  height: 1px;
+  background: var(--login-active);
+  box-shadow: 0 0 12px rgba(198, 255, 114, 0.4);
 }
 
 .cardHead {
   display: flex;
-  align-items: center;
-  gap: 14px;
-  margin-bottom: 8px;
+  align-items: flex-start;
+  gap: 15px;
 }
 
 .cardBadge {
   width: 48px;
   height: 48px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 6px;
-  background: var(--navy);
-  color: #8CBCFF;
-  font-family: var(--font-mono);
-  font-size: 12px;
-  letter-spacing: .08em;
+  flex: 0 0 auto;
 }
 
-.cardEyebrow {
-  margin: 0 0 4px;
-  color: #5C79A0;
-  font-size: 12px;
-  font-weight: 600;
-  letter-spacing: .08em;
-}
+.cardBadge i:nth-child(2) { height: 27px; }
 
 .card h2 {
   margin: 0;
-  color: #17263B;
-  font-size: 23px;
+  color: var(--login-ink);
+  font-size: 24px;
+  font-weight: 700;
   line-height: 1.25;
+  letter-spacing: -0.02em;
 }
+
+.cardIntro {
+  margin: 8px 0 0;
+  color: var(--login-muted);
+  font-size: 14px;
+}
+
+.card form { margin-top: 32px; }
 
 .field {
   display: flex;
   flex-direction: column;
-  gap: 7px;
-  margin-bottom: 16px;
+  gap: 8px;
+  margin-bottom: 18px;
 }
 
 .field label {
-  color: #395673;
-  font-size: 13px;
-  font-weight: 600;
+  color: var(--login-muted);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.16em;
 }
 
 .field input {
-  height: 46px;
-  padding: 0 13px;
-  border-radius: 6px;
-  border-color: #D8E2EF;
-  background: #FBFCFE;
-  font-size: 15px;
+  height: 48px;
+  padding: 0 14px;
+  border: 1px solid rgba(146, 189, 210, 0.28);
+  border-radius: 0;
+  background: rgba(4, 13, 22, 0.76);
+  color: var(--login-ink);
+  caret-color: var(--login-active);
+  font-size: 16px;
+  transition:
+    border-color 180ms ease,
+    background-color 180ms ease,
+    box-shadow 180ms ease,
+    transform 180ms ease;
 }
 
+.field input::placeholder { color: rgba(201, 227, 235, 0.34); }
+
+.field input:hover { border-color: rgba(108, 243, 255, 0.42); }
+
 .field input:focus {
-  background: #fff;
-  border-color: #1677FF;
-  box-shadow: 0 0 0 3px rgba(22, 119, 255, 0.12);
+  border-color: var(--login-active);
+  background: rgba(6, 23, 34, 0.92);
+  box-shadow: 0 0 0 1px var(--login-active), 0 0 26px rgba(198, 255, 114, 0.12);
+  outline: none;
+  transform: translateY(-1px);
 }
 
 .alert {
-  padding: 10px 12px;
-  margin: 4px 0 12px;
-  border-radius: 6px;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 11px 12px;
+  margin: 3px 0 13px;
+  border: 1px solid rgba(255, 154, 106, 0.42);
+  border-radius: 0;
+  background: rgba(98, 39, 34, 0.22);
+  color: #ffd0bb;
   font-size: 13px;
+  line-height: 1.55;
 }
 
-.alertErr {
-  color: #a53030;
-  background: #fff1f1;
-  border: 1px solid #f3caca;
+.alert::before {
+  content: "//";
+  color: #ff9a6a;
+  font-family: var(--font-mono);
+  font-size: 10px;
 }
 
 .submit {
-  width: 100%;
-  height: 46px;
-  margin-top: 8px;
-  border: 0;
-  border-radius: 6px;
-  background: #1677FF;
-  color: #fff;
-  font-size: 15px;
-  font-weight: 700;
-  letter-spacing: .04em;
-}
-
-.submit:hover { background: #0E5FD8; }
-.submit:disabled { cursor: wait; opacity: .7; }
-
-.hint {
-  margin-top: 22px;
-  padding-top: 16px;
-  border-top: 1px solid #E7EDF5;
+  position: relative;
   display: flex;
-  flex-wrap: wrap;
+  width: 100%;
+  height: 50px;
   align-items: center;
-  gap: 6px 10px;
-  color: #8594A6;
-  font-size: 12px;
+  justify-content: space-between;
+  gap: 14px;
+  overflow: hidden;
+  margin-top: 8px;
+  border: 1px solid var(--login-active);
+  border-radius: 0;
+  background: var(--login-active);
+  color: #10220d;
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  transition:
+    background-color 180ms ease,
+    border-color 180ms ease,
+    box-shadow 180ms ease,
+    transform 180ms ease;
 }
 
-.hint b { color: #315C8F; }
+.submit::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -42%;
+  width: 30%;
+  background: rgba(255, 255, 255, 0.36);
+  transform: skewX(-22deg);
+  transition: left 520ms var(--ease-console);
+}
+
+.submit:hover {
+  border-color: #e0ffb5;
+  background: #d5ff91;
+  box-shadow: 0 0 28px rgba(198, 255, 114, 0.18);
+}
+
+.submit:hover::before { left: 122%; }
+.submit:active { transform: translateY(1px); }
+
+.submit:focus-visible {
+  outline: 2px solid var(--login-signal);
+  outline-offset: 3px;
+}
+
+.submit:disabled {
+  cursor: wait;
+  background: #8fae63;
+  border-color: #b7d886;
+  box-shadow: 0 0 22px rgba(198, 255, 114, 0.12);
+}
+
+.submitArrow {
+  position: relative;
+  display: inline-flex;
+  width: 16px;
+  height: 16px;
+  align-items: center;
+  justify-content: center;
+}
+
+.submitArrow svg {
+  width: 16px;
+  height: 16px;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: square;
+  stroke-linejoin: miter;
+}
+
+.cardMeta {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding-top: 16px;
+  margin-top: 18px;
+  border-top: 1px solid rgba(146, 189, 210, 0.16);
+  color: var(--login-dim);
+  font-size: 10px;
+}
 
 .copyright {
-  margin: 24px 0 0;
-  color: #8291A4;
-  font-size: 12px;
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 17px 0 0;
+  color: var(--login-dim);
+  font-size: 9px;
+}
+
+@keyframes starDrift {
+  from { transform: translate3d(0, 0, 0); }
+  to { transform: translate3d(-24px, 18px, 0); }
+}
+
+@keyframes surfaceIn {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 @keyframes cardIn {
-  from { opacity: 0; transform: translateY(12px); }
-  to { opacity: 1; transform: none; }
+  from { opacity: 0.2; transform: translateY(18px) scale(0.985); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes statusPulse {
+  0%, 100% { opacity: 0.45; }
+  50% { opacity: 1; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .card { animation: none; }
+  .wrap *,
+  .wrap::before,
+  .wrap::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+  }
+
+  .storyTop,
+  .storyCopy,
+  .storyFoot,
+  .card {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (max-width: 1100px) {
+  .wrap { grid-template-columns: minmax(0, 1fr) minmax(390px, 0.78fr); }
+  .story { padding-right: 48px; padding-left: 48px; }
+  .storyMain h1 { font-size: clamp(44px, 5.2vw, 68px); }
+}
+
+@media (min-width: 981px) and (max-height: 820px) {
+  .story {
+    padding-top: 24px;
+    padding-bottom: 20px;
+  }
+
+  .storyMain {
+    gap: 18px;
+    padding: 18px 0;
+  }
+
+  .storyMain h1 { font-size: clamp(42px, 4.8vw, 66px); }
+  .storyText { margin-top: 13px; font-size: 14px; }
+  .storyFootMeta { display: none; }
 }
 
 @media (max-width: 980px) {
-  .wrap { grid-template-columns: 1fr; }
+  .wrap {
+    display: flex;
+    flex-direction: column;
+    overflow: visible;
+  }
+
   .story {
     min-height: auto;
-    padding: 28px 24px 34px;
+    padding: 28px 28px 34px;
   }
-  .storyMain { padding: 36px 0 30px; }
-  .storyMain h1 { font-size: clamp(42px, 12vw, 64px); }
-  .storyFoot { display: none; }
-  .auth { min-height: auto; padding: 30px 18px 40px; }
+
+  .storyMain { padding: 50px 0 26px; }
+  .storyCopy { max-width: 720px; }
+  .storyMain h1 { font-size: clamp(46px, 9vw, 74px); }
+
+  .auth {
+    min-height: auto;
+    padding: 40px 28px 50px;
+  }
+
+  .auth::before { display: none; }
 }
 
-@media (max-width: 520px) {
-  .storyTop .edition { display: none; }
-  .storyMain h1 { font-size: 40px; }
-  .storyText { font-size: 14px; }
-  .card { padding: 24px 20px; }
-  .cardBadge { width: 42px; height: 42px; }
-  .card h2 { font-size: 20px; }
-}
-
-/*
- * 手机端（≤767px）：登录页真居中。
- *
- * 契约：docs/superpowers/specs/2026-09-18-mobile-pwa-navigation-design.md §5 + §7。
- * 桌面是「左品牌故事 + 右表单」两栏；手机端把品牌故事压成卡片上方的一个品牌块
- * （SHZK 印章仍在卡片头里），整组「品牌块 + 表单卡」在视口里垂直居中。
- * 断点取 767px（而不是上面那几个 900px）：767px 才是手机，与手机壳的断点一致。
- * 本块放在 980px / 520px 分支之后：≤520px 时两块同时命中，以本块为准。
- */
 @media (max-width: 767px) {
   .wrap {
     position: relative;
-    z-index: 0;                 /* 纹理用 z-index:-1 垫在底色之上、卡片之下 */
-    display: flex;
-    flex-direction: column;
-    /* 手机上 100vh 含地址栏，会把内容顶偏；dvh 才是真正看得见的高度。
-       上面留 vh 兜底，老浏览器只多一点点滚动，不会丢掉居中。 */
+    z-index: 0;
     min-height: 100vh;
     min-height: 100dvh;
-    /* 不写 overflow: hidden：视口比整组矮时（横屏 / 极小屏）必须还能往下滚到主按钮 */
-    /* 深色底 + 顶部径向蓝光：桌面 .story 的底色（与侧栏同源，globals.css 的 --navy）搬到整页 */
-    background:
-      radial-gradient(120% 60% at 50% -10%, rgba(22, 119, 255, 0.2), transparent 70%),
-      var(--navy);
-    /* 上下留白对称：整组的中点才落在视口中心（安全区上下不等时按可用区居中） */
-    padding: calc(env(safe-area-inset-top, 0px) + 16px) 22px
+    padding: calc(env(safe-area-inset-top, 0px) + 16px) 18px
       calc(env(safe-area-inset-bottom, 0px) + 16px);
+    background:
+      radial-gradient(120% 60% at 50% -10%, rgba(30, 122, 150, 0.3), transparent 74%),
+      var(--login-bg);
   }
 
-  /* 品牌块：原来的左侧深色故事栏，手机端只留字标 + slogan。
-     居中用 auto margin 而不是 justify-content: center——视口比整组还矮时
-     （软键盘抬起 / 横屏），center 会让整组上下同时溢出且顶部滚不到；
-     auto margin 在空间不足时退化成 0，内容从顶部对齐，仍可滚动。 */
   .story {
-    position: static;
-    overflow: visible;
     min-height: auto;
-    margin: auto 0 26px;
+    margin: auto 0 24px;
     padding: 0;
     background: none;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 12px;
     text-align: center;
   }
-  /* 右下角圆环让位给顶部径向渐变 */
+
   .story::after { display: none; }
-  /* 网格纹理：跟着整页走，不再只铺左侧栏（.story 已 static → 相对 .wrap 定位） */
+
   .storyGrid {
-    inset: 0;
-    z-index: -1;
-    opacity: 0.1;
-    background-size: 46px 46px;
-    mask-image: linear-gradient(180deg, #000 0%, transparent 62%);
+    inset: -16px -18px 0;
+    opacity: 0.14;
+    background-size: 32px 32px;
+    mask-image: linear-gradient(180deg, #000, transparent 76%);
   }
+
   .storyTop { justify-content: center; }
-  .storyTop .edition { display: none; }
-  .mark { font-size: 25px; letter-spacing: 0.14em; }
-  .storyMain { padding: 0; max-width: none; }
-  /* 桌面大标题与 kicker 在手机端删掉：品牌块只留字标 + slogan */
-  .kicker,
-  .storyMain h1 { display: none; }
-  .storyText {
-    max-width: none;
-    margin: 0;
-    color: rgba(226, 238, 255, 0.62);
-    font-size: 12.5px;
-    line-height: 1.6;
-    letter-spacing: 0.18em;
+  .brandLockup { gap: 10px; }
+  .brandGlyph { width: 28px; height: 28px; }
+  .mark { font-size: 20px; letter-spacing: 0.13em; }
+  .edition { display: none; }
+
+  .storyMain {
+    flex: none;
+    gap: 22px;
+    padding: 20px 0 0;
   }
-  /* 01/02/03 卖点行删掉 */
+
+  .storyCopy { max-width: none; }
+  .storyMain h1 { font-size: clamp(31px, 9.5vw, 42px); letter-spacing: -0.02em; }
+
+  .storyText {
+    max-width: 300px;
+    margin: 10px auto 0;
+    color: rgba(201, 227, 235, 0.58);
+    font-size: 12px;
+    line-height: 1.65;
+  }
+
   .storyFoot { display: none; }
 
-  /* 表单区：高度只由卡片决定（卡片下方的版权行脱离文档流，不参与居中） */
   .auth {
-    position: static;           /* 让 .copyright 相对 .wrap 贴底，而不是贴卡片底 */
     min-height: auto;
     margin-bottom: auto;
     padding: 0;
-    display: block;
+    background: none;
   }
+
+  .auth::after { display: none; }
+  .authShell { width: 100%; }
+  .consoleTop { margin-bottom: 8px; font-size: 9px; }
+
   .card {
-    width: 100%;
-    border: 0;
-    border-radius: 14px;
-    padding: 22px 20px 20px;
-    box-shadow: 0 22px 54px rgba(6, 22, 42, 0.38);
+    padding: 19px 18px 15px;
+    box-shadow: 0 26px 70px rgba(0, 0, 0, 0.38);
   }
-  .card h2 { font-size: 18px; letter-spacing: 0.01em; }
-  .field { margin-bottom: 13px; }
-  .field label { font-size: 12px; }
-  .field input {
-    height: 46px;               /* ≥ 触控下限 --m-tap(44px) */
-    border-radius: 10px;
-    /* 必须 ≥16px：iOS Safari 在 <16px 的输入框聚焦时会自动放大整页 */
-    font-size: 16px;
-  }
-  .alert { margin-bottom: 12px; font-size: 12.5px; }
-  .submit { height: 48px; border-radius: 11px; font-size: 15.5px; }
-  /* 提示行脱离文档流：留在文档流里会把「品牌块 + 卡片」整组往上顶 */
+
+  .cardBadge { width: 42px; height: 42px; }
+  .card h2 { font-size: 19px; }
+  .cardIntro { margin-top: 6px; font-size: 13px; }
+  .card form { margin-top: 21px; }
+  .field { gap: 7px; margin-bottom: 12px; }
+  .field label { font-size: 10px; }
+  .field input { height: 46px; min-height: 46px; font-size: 16px; }
+  .submit { height: 48px; min-height: 48px; font-size: 15px; }
+  .cardMeta { padding-top: 11px; margin-top: 12px; font-size: 9px; }
+
   .copyright {
     position: absolute;
-    left: 22px;
-    right: 22px;
+    right: 18px;
     bottom: calc(env(safe-area-inset-bottom, 0px) + 2px);
+    left: 18px;
     margin: 0;
-    text-align: center;
-    /* .55 在新底色上只剩 4.29:1（11.5px 小字不达标），提到 .60 回到调色前水平：4.78:1 */
-    color: rgba(226, 238, 255, 0.60);
-    font-size: 11.5px;
+    font-size: 8px;
   }
+
+  .solo {
+    min-height: 100vh;
+    min-height: 100dvh;
+    padding: calc(env(safe-area-inset-top, 0px) + 18px) 18px
+      calc(env(safe-area-inset-bottom, 0px) + 18px);
+  }
+
+  .solo .auth { margin: auto; }
+  .solo .copyright { display: none; }
+}
+
+@media (max-width: 400px) {
+  .cardHead { gap: 11px; }
+  .cardBadge { width: 38px; height: 38px; }
+  .card h2 { font-size: 18px; }
+  .cardIntro { font-size: 12px; }
+  .cardMeta span:last-child { display: none; }
 }

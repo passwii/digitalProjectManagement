@@ -47,12 +47,12 @@
 .no {
   font-family: var(--font-mono);
   color: #68AFFF;
-  font-size: 12px;
+  font-size: 13px;
 }
 
 .label {
   color: rgba(244, 249, 255, .88);
-  font-size: 13px;
+  font-size: 14px;
   letter-spacing: 0.06em;
 }
 
