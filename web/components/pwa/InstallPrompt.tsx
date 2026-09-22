@@ -26,6 +26,16 @@ function isIos() {
   );
 }
 
+function isMobileDevice() {
+  return (
+    /android.*mobile|iphone|ipad|ipod|windows phone|iemobile|opera mini|kaios/i.test(
+      navigator.userAgent,
+    ) ||
+    // iPadOS 13+ 默认伪装成桌面版 macOS，但仍暴露多点触控能力。
+    (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1)
+  );
+}
+
 export default function InstallPrompt() {
   const [installEvent, setInstallEvent] =
     useState<BeforeInstallPromptEvent | null>(null);
@@ -33,7 +43,7 @@ export default function InstallPrompt() {
   const [visible, setVisible] = useState(false);
 
   useEffect(() => {
-    if (isStandalone()) return;
+    if (isStandalone() || !isMobileDevice()) return;
 
     // 注册一个最小的 service worker，让支持安装的浏览器把本站识别为可安装应用。
     // 不接管请求、不做缓存，避免部署新版本时引入旧资源或离线数据风险。
@@ -70,7 +80,7 @@ export default function InstallPrompt() {
     };
   }, []);
 
-  if (!visible || isStandalone()) return null;
+  if (!visible || isStandalone() || !isMobileDevice()) return null;
 
   function dismiss() {
     window.localStorage.setItem(DISMISS_KEY, String(Date.now()));
