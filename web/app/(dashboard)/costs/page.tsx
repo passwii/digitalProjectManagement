@@ -75,7 +75,7 @@ function CostsInner() {
   const { data, loading, firstLoad, error, reload } = useAsyncData(
     async (signal) => {
       const [p, rows, pending, report] = await Promise.all([
-        projectsApi.get(pid),
+        projectsApi.get(pid, signal),
         expensesApi.list(buildQuery({ project_id: pid, status: url.status, page, size, sort: "-exp_date" }), signal),
         expensesApi.list(buildQuery({ project_id: pid, status: "pending", page: 1, size: 1 }), signal),
         reportsApi.cost(buildQuery({ project_id: pid }), signal),
