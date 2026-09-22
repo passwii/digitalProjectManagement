@@ -9,6 +9,8 @@ import { clearMetaCache, loadMe, useMe, useMenus } from "@/lib/useMeta";
 import { identityViewOf } from "@/lib/identityCore";
 import Avatar from "@/components/ui/Avatar";
 import Bell from "@/components/ui/Bell";
+import ThemeModePicker from "@/components/theme/ThemeModePicker";
+import { useTheme } from "@/components/theme/ThemeProvider";
 import { ToastProvider } from "@/components/ui/Toast";
 import ActivityBar from "@/components/motion/ActivityBar";
 import MotionProvider from "@/components/motion/MotionProvider";
@@ -140,6 +142,7 @@ const MENU_CLOSE_DELAY = 180;
  * 也不再出现在 chip 上。
  */
 function UserMenu({ name, onLogout }: { name: string | null; onLogout: () => void }) {
+  const { mode, setMode } = useTheme();
   const [open, setOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement | null>(null);
   const chipRef = useRef<HTMLButtonElement | null>(null);
@@ -177,7 +180,7 @@ function UserMenu({ name, onLogout }: { name: string | null; onLogout: () => voi
   useEffect(() => cancelClose, [cancelClose]);
 
   function menuItems(): HTMLElement[] {
-    const found = wrapRef.current?.querySelectorAll<HTMLElement>('[role="menuitem"]');
+    const found = wrapRef.current?.querySelectorAll<HTMLElement>('[role="menuitem"], [role="menuitemradio"]');
     return found ? Array.from(found) : [];
   }
 
@@ -350,6 +353,7 @@ function UserMenu({ name, onLogout }: { name: string | null; onLogout: () => voi
             </svg>
             退出登录
           </button>
+          <ThemeModePicker mode={mode} onChange={setMode} />
         </div>
       )}
     </div>

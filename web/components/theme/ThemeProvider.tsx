@@ -15,7 +15,12 @@ interface ThemeContextValue {
   setMode: (mode: ThemeMode) => void;
 }
 
-const ThemeContext = createContext<ThemeContextValue | null>(null);
+const DEFAULT_THEME_CONTEXT: ThemeContextValue = {
+  mode: "dark",
+  resolvedTheme: "dark",
+  setMode: () => {},
+};
+const ThemeContext = createContext<ThemeContextValue>(DEFAULT_THEME_CONTEXT);
 
 const MEDIA_QUERY = "(prefers-color-scheme: dark)";
 
@@ -86,7 +91,5 @@ export default function ThemeProvider({ children }: { children: React.ReactNode 
 }
 
 export function useTheme(): ThemeContextValue {
-  const context = useContext(ThemeContext);
-  if (!context) throw new Error("useTheme 必须在 ThemeProvider 内使用");
-  return context;
+  return useContext(ThemeContext);
 }
