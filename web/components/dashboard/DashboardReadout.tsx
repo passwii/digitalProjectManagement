@@ -2,11 +2,11 @@
 
 import type { ReactNode } from "react";
 import CountUp from "@/components/motion/CountUp";
-import s from "./DashboardMetricCard.module.css";
+import s from "./DashboardReadout.module.css";
 
-export type DashboardMetricTone = "neutral" | "warn" | "danger" | "done";
+export type DashboardReadoutTone = "neutral" | "warn" | "danger" | "done";
 
-export default function DashboardMetricCard({
+export default function DashboardReadout({
   label,
   value,
   format,
@@ -17,13 +17,13 @@ export default function DashboardMetricCard({
   value: number;
   format?: (value: number) => string;
   detail: ReactNode;
-  tone?: DashboardMetricTone;
+  tone?: DashboardReadoutTone;
 }) {
   return (
     <article
-      className={`${s.card} ${s[tone]}`}
-      data-dashboard-metric="true"
-      data-testid="dashboard-metric"
+      className={`${s.readout} ${s[tone]}`}
+      data-dashboard-readout="true"
+      data-testid="dashboard-readout"
       data-tone={tone}
       aria-label={label}
     >
@@ -31,7 +31,7 @@ export default function DashboardMetricCard({
         <span className={s.label}>{label}</span>
         <span className={s.signal} aria-hidden="true" />
       </div>
-      <div className={s.value} data-metric-value={value}>
+      <div className={s.value} data-readout-value={value}>
         <CountUp value={value} format={format} />
       </div>
       <div className={s.detail}>{detail}</div>
