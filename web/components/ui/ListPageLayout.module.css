@@ -4,12 +4,16 @@
   min-height: calc(100dvh - 140px);
   display: flex;
   flex-direction: column;
+  color: var(--ink);
 }
 
 .toolbar,
 .notice,
 .content { min-width: 0; }
-.notice { margin-top: 12px; }
+.notice {
+  margin-top: -8px;
+  margin-bottom: 18px;
+}
 .content {
   flex: 1 1 auto;
   min-height: 0;
@@ -26,7 +30,7 @@
 .body { min-width: 0; }
 .pagination {
   margin-top: auto;
-  padding-top: 18px;
+  padding-top: 22px;
 }
 
 .tableFrame {

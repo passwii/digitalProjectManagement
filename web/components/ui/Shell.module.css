@@ -84,7 +84,7 @@
   display: flex;
   align-items: center;
   gap: 11px;
-  border-radius: 6px;
+  border-radius: 0;
   color: rgba(231, 239, 252, .72);
   font-size: 13px;
   font-weight: 500;
@@ -99,9 +99,9 @@
   position: absolute;
   inset: 0;
   z-index: 0;
-  border-radius: 6px;
-  background: rgba(22, 119, 255, .20);
-  box-shadow: inset 0 0 18px rgba(104, 174, 255, .16);
+  border-radius: 0;
+  background: rgba(108, 243, 255, .06);
+  box-shadow: inset 0 0 18px rgba(108, 243, 255, .12);
 }
 .navLink svg { flex: none; opacity: .82; }
 .navLink:hover {
@@ -169,8 +169,8 @@
   flex-direction: column;
 }
 
-/* Dashboard 继承 Login 的控制环境；变量只在工作台壳内生效，其他业务路由保持原主题。 */
-.shell[data-dashboard-shell="true"] {
+/* 所有已登录路由继承 Login / Dashboard 的控制环境。 */
+.shell[data-console-shell="true"] {
   --bg: #07131f;
   --card: #0d1d2c;
   --ink: #eaf9fb;
@@ -189,12 +189,12 @@
   background: var(--bg);
 }
 
-.shell[data-dashboard-shell="true"] .main,
-.shell[data-dashboard-shell="true"] .content {
+.shell[data-console-shell="true"] .main,
+.shell[data-console-shell="true"] .content {
   background: var(--bg);
 }
 
-.shell[data-dashboard-shell="true"] .content {
+.shell[data-console-shell="true"] .content {
   color: var(--ink);
 }
 
@@ -209,24 +209,24 @@
   justify-content: space-between;
   gap: 20px;
   padding: 0 28px;
-  background: rgba(255,255,255,.92);
+  background: var(--navy);
   border-bottom: 1px solid var(--line);
   backdrop-filter: blur(12px);
 }
 
-.shell[data-dashboard-shell="true"] .topbar {
+.shell[data-console-shell="true"] .topbar {
   color: #eaf7ff;
-  background: linear-gradient(100deg, rgba(7, 19, 31, .98), rgba(11, 27, 41, .94));
+  background: var(--navy);
   border-bottom-color: rgba(108, 243, 255, .18);
   box-shadow: 0 1px 0 rgba(108, 243, 255, .08), 0 10px 28px rgba(7, 19, 31, .12);
 }
-.shell[data-dashboard-shell="true"] .crumb { color: rgba(213, 237, 249, .66); }
-.shell[data-dashboard-shell="true"] .crumb b { color: #fff; }
-.shell[data-dashboard-shell="true"] .topDate { color: rgba(213, 237, 249, .62); }
-.shell[data-dashboard-shell="true"] .userChipWrap { border-left-color: rgba(108, 243, 255, .2); }
-.shell[data-dashboard-shell="true"] .userChipText b { color: #fff; }
-.shell[data-dashboard-shell="true"] .userChip:hover,
-.shell[data-dashboard-shell="true"] .userChip[aria-expanded="true"] { background: rgba(108, 243, 255, .1); }
+.shell[data-console-shell="true"] .crumb { color: rgba(213, 237, 249, .66); }
+.shell[data-console-shell="true"] .crumb b { color: #fff; }
+.shell[data-console-shell="true"] .topDate { color: rgba(213, 237, 249, .62); }
+.shell[data-console-shell="true"] .userChipWrap { border-left-color: rgba(108, 243, 255, .2); }
+.shell[data-console-shell="true"] .userChipText b { color: #fff; }
+.shell[data-console-shell="true"] .userChip:hover,
+.shell[data-console-shell="true"] .userChip[aria-expanded="true"] { background: rgba(108, 243, 255, .1); }
 .topContext { min-width: 0; display: flex; align-items: baseline; gap: 12px; }
 .crumb {
   overflow: hidden;
@@ -399,7 +399,7 @@
     padding: 0 12px;
   }
   .collapsed .navLink .label { display: inline; }
-  .navActive { box-shadow: inset 0 0 14px rgba(104, 174, 255, .18); }
+  .navActive { box-shadow: inset 0 0 14px rgba(108, 243, 255, .14); }
   .navGroupLabel,
   .collapseBar,
   .navError { display: none; }

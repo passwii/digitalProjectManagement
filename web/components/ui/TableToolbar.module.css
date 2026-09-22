@@ -1,8 +1,8 @@
 .bar {
   display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
-  background: var(--card); border: 1px solid var(--line); border-radius: var(--radius);
-  min-height: 54px;
-  padding: 10px 12px; margin-bottom: 14px;
+  background: transparent; border: 0; border-bottom: 1px solid var(--line);
+  min-height: 50px;
+  padding: 0 0 12px; margin-bottom: 18px;
 }
 .filters { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; flex: 1; }
 .filters input, .filters select { width: auto; min-width: 140px; }

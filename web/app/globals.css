@@ -1,14 +1,14 @@
 :root {
- --bg: #f3f6fa;
- --card: #fff;
- --ink: #17263b;
- --ink-2: #5c6b7c;
- --ink-3: #8b99aa;
- --line: #dee5ee;
- --line-soft: #eef3f8;
- --brand: #1677ff;
- --brand-hover: #0e5fd8;
- --brand-soft: #eaf3ff;
+ --bg: #07131f;
+ --card: #0d1d2c;
+ --ink: #eaf9fb;
+ --ink-2: rgba(201, 227, 235, 0.72);
+ --ink-3: rgba(201, 227, 235, 0.48);
+ --line: rgba(146, 189, 210, 0.22);
+ --line-soft: rgba(146, 189, 210, 0.12);
+ --brand: #6cf3ff;
+ --brand-hover: #c6ff72;
+ --brand-soft: rgba(108, 243, 255, 0.08);
  /*
    * 品牌深蓝（BLF-1142）：侧栏与登录页左侧深色区共用的**同一个**基准色，单点定义。
    * 旧值是两处各写一个 hex（侧栏 #0F2742 / 登录 #0D2B4E），既有肉眼可见的色差，
@@ -17,21 +17,21 @@
    *   #0F2742 = H211.8 S63.0% L15.9%  →  --navy = H211.7 S61.4% L22.4%（+6.5pp）
    * 与品牌蓝 --brand 的层次关系不变（其上正文对比度 ≥ 10:1，数值见 Shell.module.css）。
    */
- --navy: #16375c;
- --todo: #66788c;
- --todo-bg: #f1f5fa;
- --doing: #2e6be6;
- --doing-bg: #eaf1ff;
- --warn: #9a620b;
- --warn-bg: #fff5df;
- --danger: #b53c35;
- --danger-bg: #fff0ee;
- --done: #2c9c69;
- --done-bg: #eaf8f1;
- --paused: #66788c;
- --paused-bg: #f1f5fa;
- --radius: 8px;
- --radius-sm: 6px;
+ --navy: #081622;
+ --todo: #9cb4c4;
+ --todo-bg: rgba(146, 189, 210, 0.08);
+ --doing: #6cf3ff;
+ --doing-bg: rgba(108, 243, 255, 0.08);
+ --warn: #ffc46b;
+ --warn-bg: rgba(255, 196, 107, 0.09);
+ --danger: #ff9a6a;
+ --danger-bg: rgba(255, 154, 106, 0.09);
+ --done: #c6ff72;
+ --done-bg: rgba(198, 255, 114, 0.09);
+ --paused: #9cb4c4;
+ --paused-bg: rgba(146, 189, 210, 0.08);
+ --radius: 0px;
+ --radius-sm: 0px;
  --radius-pill: 999px;
  --row-h: 44px;
  --avatar-1: #1677ff;
@@ -40,13 +40,13 @@
  --avatar-4: #d48806;
  --avatar-5: #b24d86;
  --avatar-6: #d14343;
- --on-brand: #fff;
- --th-bg: #f7f9fc;
- --row-hover: #f5f8ff;
- --line-blue: #c7dbff;
- --line-warn: #efd29a;
- --line-danger: #efc0bb;
- --line-done: #b7ddc8;
+ --on-brand: #07131f;
+ --th-bg: rgba(13, 29, 44, 0.72);
+ --row-hover: rgba(108, 243, 255, 0.05);
+ --line-blue: rgba(108, 243, 255, 0.34);
+ --line-warn: rgba(255, 196, 107, 0.42);
+ --line-danger: rgba(255, 154, 106, 0.42);
+ --line-done: rgba(198, 255, 114, 0.42);
  --font-body:
   "Noto Sans SC", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei",
   system-ui, sans-serif;
@@ -64,10 +64,8 @@
  --font-brand:
   "Noto Sans SC", "Source Han Sans SC", "PingFang SC", "HarmonyOS Sans SC",
   "Microsoft YaHei", "Hiragino Sans GB", system-ui, sans-serif;
- --shadow-card:
-  0 1px 2px rgba(23, 43, 77, 0.05), 0 8px 24px rgba(23, 43, 77, 0.035);
- --shadow-float:
-  0 14px 36px rgba(23, 43, 77, 0.16), 0 2px 8px rgba(23, 43, 77, 0.06);
+ --shadow-card: 0 16px 40px rgba(0, 0, 0, 0.14);
+ --shadow-float: 0 30px 90px rgba(0, 0, 0, 0.32), 0 0 0 1px rgba(108, 243, 255, 0.08);
  --motion: 140ms ease-out;
  --motion-fast: 160ms;
  --motion-base: 220ms;
@@ -234,7 +232,7 @@ input:focus,
 select:focus,
 textarea:focus {
  border-color: var(--brand);
- box-shadow: 0 0 0 3px rgba(22, 119, 255, 0.11);
+ box-shadow: 0 0 0 2px rgba(108, 243, 255, 0.16), 0 0 18px rgba(108, 243, 255, 0.08);
 }
 select {
  appearance: none;
@@ -255,7 +253,7 @@ select:disabled,
 input:disabled,
 textarea:disabled {
  color: var(--ink-3);
- background-color: #f1f4f8;
+ background-color: var(--th-bg);
  cursor: not-allowed;
 }
 label {
@@ -332,9 +330,9 @@ summary:focus-visible {
  align-items: center;
  justify-content: center;
  gap: 6px;
- background: var(--brand);
+ background: var(--brand-hover);
  color: var(--on-brand);
- border: 1px solid var(--brand);
+ border: 1px solid var(--brand-hover);
  border-radius: var(--radius);
  padding: 0 16px;
  height: 38px;
@@ -343,8 +341,8 @@ summary:focus-visible {
  white-space: nowrap;
 }
 .btn-primary:hover {
- background: var(--brand-hover);
- border-color: var(--brand-hover);
+ background: #d9ff9b;
+ border-color: #d9ff9b;
 }
 .btn-primary:not(:disabled):active {
  transform: translateY(1px);
@@ -400,14 +398,14 @@ summary:focus-visible {
  border: 1px solid var(--danger);
  border-radius: var(--radius);
  background: var(--danger);
- color: #fff;
+ color: #07131f;
  font-weight: 650;
  line-height: 1;
  white-space: nowrap;
 }
 .btn-danger:hover {
- background: #9f2f2a;
- border-color: #9f2f2a;
+ background: #ffb486;
+ border-color: #ffb486;
 }
 .btn-danger:disabled {
  opacity: 0.65;
@@ -524,7 +522,7 @@ table.grid tbody tr:last-child td {
 }
 @media (hover: hover) {
  .clickable-row:hover > td:first-child {
-  box-shadow: inset 3px 0 0 var(--brand);
+  box-shadow: inset 0 0 18px rgba(108, 243, 255, 0.10);
  }
 }
 
@@ -1002,7 +1000,7 @@ th.num {
 
 /* 骨架屏 */
 .skel {
- background: linear-gradient(90deg, #eef0f4 25%, #f6f7fa 37%, #eef0f4 63%);
+ background: linear-gradient(90deg, rgba(146, 189, 210, 0.08) 25%, rgba(108, 243, 255, 0.16) 37%, rgba(146, 189, 210, 0.08) 63%);
  background-size: 400% 100%;
  animation: skelShine 1.2s ease-in-out infinite;
  border-radius: var(--radius-sm);
@@ -1190,7 +1188,7 @@ th.num {
  border: 1px solid var(--line);
  border-radius: var(--radius);
  overflow: hidden;
- background: #fff;
+ background: var(--card);
 }
 .attachment-row {
  min-height: 44px;
@@ -1261,12 +1259,8 @@ th.num {
 
 .notice-panel {
  padding: 14px;
- border-left: 3px solid var(--brand);
- background: linear-gradient(
-  90deg,
-  var(--brand-soft),
-  rgba(234, 243, 255, 0.45)
- );
+ border: 1px solid var(--line-blue);
+ background: var(--brand-soft);
 }
 .notice-panel p {
  margin: 6px 0 0;
@@ -1325,7 +1319,7 @@ th.num {
  border-radius: 6px 6px 0 0;
 }
 .detail-tabs button.active {
- background: #fff;
+ background: var(--card);
  box-shadow:
   0 -1px 0 var(--line),
   1px 0 0 var(--line),
@@ -1338,7 +1332,7 @@ th.num {
 .doc-shell {
  border: 1px solid var(--line);
  border-radius: 8px;
- background: #fff;
+ background: var(--card);
  box-shadow: var(--shadow-card);
  overflow: hidden;
 }
@@ -1391,8 +1385,8 @@ th.num {
  resize: vertical;
 }
 .doc-editor:focus {
- background: #fff;
- box-shadow: inset 0 0 0 2px rgba(22, 119, 255, 0.12);
+ background: var(--card);
+ box-shadow: inset 0 0 0 2px rgba(108, 243, 255, 0.16);
 }
 /* 正文与附件区之间的分隔：两个 block 各自带标题与说明，靠上边框分开 */
 .doc-block {
@@ -1485,14 +1479,14 @@ th.num {
 .doc-assets .doc-empty {
  grid-column: 1 / -1;
  border-color: var(--line);
- background: #fff;
+ background: var(--card);
 }
 .asset-tile {
  margin: 0;
  overflow: hidden;
  border: 1px solid var(--line);
  border-radius: 7px;
- background: #fff;
+ background: var(--card);
  transition:
   border-color 150ms ease,
   box-shadow 150ms ease;
@@ -1507,7 +1501,7 @@ th.num {
  display: block;
  padding: 0;
  border: 0;
- background: #eaf0ee;
+ background: var(--th-bg);
  cursor: zoom-in;
 }
 .asset-preview img {
@@ -1522,7 +1516,7 @@ th.num {
  align-items: center;
  justify-content: center;
  color: var(--ink-3);
- background: #eff4f2;
+ background: var(--th-bg);
  font-family: var(--font-mono);
  font-size: 12px;
 }
@@ -1567,7 +1561,7 @@ th.num {
  display: block;
  object-fit: contain;
  border-radius: 6px;
- background: #eff4f2;
+ background: var(--th-bg);
 }
 .image-preview-trigger {
  display: block;
@@ -1695,7 +1689,7 @@ th.num {
  gap: 10px;
  border: 1px solid var(--line);
  border-radius: 7px;
- background: #fafcfb;
+ background: var(--card);
 }
 .contract-card > span {
  color: var(--ink-3);
