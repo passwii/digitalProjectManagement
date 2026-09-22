@@ -334,6 +334,10 @@ def test_soft_delete_recycle_restore(client):
     # 台账不再可见
     ids = [x["id"] for x in client.get("/api/v1/projects", headers=ha).json()["items"]]
     assert p["id"] not in ids
+    option_ids = [x["id"] for x in client.get(
+        f"/api/v1/projects/options?keyword={p['code']}", headers=ha
+    ).json()["items"]]
+    assert p["id"] not in option_ids
     bin_rows = items(client.get("/api/v1/projects/recycle-bin/list", headers=ha))
     assert any(x["id"] == p["id"] for x in bin_rows)
     assert client.post(f"/api/v1/projects/{p['id']}/restore", headers=ha).status_code == 200

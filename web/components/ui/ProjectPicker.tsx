@@ -9,10 +9,17 @@
  * - 键盘：↑/↓ 移动、Enter 选择、Esc 关闭；移动端弹层宽度自适应，不产生横向溢出
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { DEFAULT_PAGE_SIZE, errText, projectsApi, type ProjectOption } from "@/lib/api";
+import { DEFAULT_PAGE_SIZE, errText, HttpError, projectsApi, type ProjectOption } from "@/lib/api";
 import { useAsyncData } from "@/lib/useAsyncData";
 import { useDebouncedValue } from "@/lib/useDebouncedValue";
-import { loadRecentProjects, rememberProject, type RecentProject } from "@/lib/recentProjects";
+import {
+  loadRecentProjects,
+  RECENT_PROJECTS_STORAGE_KEY,
+  reconcileValidatedRecentProjects,
+  rememberProject,
+  removeRecentProject,
+  type RecentProject,
+} from "@/lib/recentProjects";
 import st from "./ProjectPicker.module.css";
 
 const PAGE_SIZE = DEFAULT_PAGE_SIZE;
@@ -23,6 +30,10 @@ interface OptionRow {
   name: string;
   hint?: string;
   section?: string;
+}
+
+function isUnavailableProjectError(error: unknown) {
+  return error instanceof HttpError && (error.status === 404 || error.status === 403);
 }
 
 export default function ProjectPicker({
@@ -52,6 +63,8 @@ export default function ProjectPicker({
   const [page, setPage] = useState(1);
   const [active, setActive] = useState(-1);
   const [recent, setRecent] = useState<RecentProject[]>([]);
+  const [recentReady, setRecentReady] = useState(false);
+  const recentRefreshRef = useRef<{ controller: AbortController; generation: number } | null>(null);
   const boxRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -63,7 +76,66 @@ export default function ProjectPicker({
     if (page !== 1) setPage(1);
   }
 
-  useEffect(() => setRecent(loadRecentProjects()), []);
+  const refreshRecent = useCallback(() => {
+    recentRefreshRef.current?.controller.abort();
+    const controller = new AbortController();
+    const generation = (recentRefreshRef.current?.generation ?? 0) + 1;
+    recentRefreshRef.current = { controller, generation };
+    const { signal } = controller;
+    const stored = loadRecentProjects();
+    setRecent(stored);
+    if (stored.length === 0) {
+      setRecentReady(true);
+      return;
+    }
+    setRecentReady(false);
+
+    void Promise.all(
+      stored.map(async (project) => {
+        try {
+          await projectsApi.get(project.id, signal);
+          return project;
+        } catch (error) {
+          // 软删除和失去可见权限都按「不可再选」处理；网络故障则保留本地项，
+          // 避免一次临时断网把用户的最近使用记录误删。
+          return isUnavailableProjectError(error) ? null : project;
+        }
+      }),
+    ).then((valid) => {
+      if (signal.aborted || recentRefreshRef.current?.generation !== generation) return;
+      const validIds = new Set(
+        valid.filter((project): project is RecentProject => project !== null).map((project) => project.id),
+      );
+      for (const project of stored) {
+        if (!validIds.has(project.id)) removeRecentProject(project.id);
+      }
+      // 校验期间用户可能刚选中了一个新项目；以最新快照为准，不能被旧请求的结果覆盖。
+      const next = reconcileValidatedRecentProjects(stored, loadRecentProjects(), validIds);
+      setRecent(next);
+      setRecentReady(true);
+    });
+  }, []);
+
+  // 选择器可能常驻布局中：跨标签删除项目后，下一次打开前同步刷新快照。
+  useEffect(() => {
+    const onStorage = (event: StorageEvent) => {
+      if (event.key !== RECENT_PROJECTS_STORAGE_KEY) return;
+      if (open) {
+        refreshRecent();
+      } else {
+        setRecent(loadRecentProjects());
+        setRecentReady(false);
+      }
+    };
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+  }, [open, refreshRecent]);
+
+  useEffect(() => {
+    if (!open) return;
+    refreshRecent();
+    return () => recentRefreshRef.current?.controller.abort();
+  }, [open, refreshRecent]);
 
   // 已选项目的展示名：先从最近使用命中（无请求），否则按 id 查询
   const [selected, setSelected] = useState<{ id: number; code: string; name: string } | null>(null);
@@ -78,31 +150,33 @@ export default function ProjectPicker({
       return;
     }
     const id = Number(value);
-    const cached = recent.find((r) => r.id === id);
+    const cached = recentReady ? recent.find((r) => r.id === id) : undefined;
     if (cached) {
       setSelected({ id: cached.id, code: cached.code, name: cached.name });
       setResolving(false);
       return;
     }
     let alive = true;
+    const controller = new AbortController();
     setSelected(null); // 解析完成前不展示上一个项目名
     setResolving(true);
     projectsApi
-      .get(id)
+      .get(id, controller.signal)
       .then((p) => {
         if (!alive) return;
         setSelected({ id: p.id, code: p.code, name: p.name });
       })
       .catch((e) => {
-        if (alive) setResolveErr(errText(e));
+        if (alive && !controller.signal.aborted) setResolveErr(errText(e));
       })
       .finally(() => {
         if (alive) setResolving(false);
       });
     return () => {
       alive = false;
+      controller.abort();
     };
-  }, [value, recent]);
+  }, [value, recent, recentReady]);
 
   const { data, loading, firstLoad, error, reload } = useAsyncData(
     (signal) =>
@@ -125,7 +199,7 @@ export default function ProjectPicker({
     if (open && data && page > pages) setPage(pages);
   }, [open, data, page, pages]);
 
-  const showRecent = !debouncedKeyword && page === 1 && recent.length > 0;
+  const showRecent = !debouncedKeyword && page === 1 && recentReady && recent.length > 0;
   const rows: OptionRow[] = useMemo(() => {
     const list: OptionRow[] = [];
     if (allOption && !debouncedKeyword) list.push({ id: null, name: allLabel });
@@ -177,6 +251,9 @@ export default function ProjectPicker({
       close(true);
       return;
     }
+    // 当前候选结果可能是在项目被删除前加载的；选中后先暂停本地快照直显，
+    // 由下面的单项目请求确认仍可见后再展示，避免竞态下闪出已删除项目。
+    setRecentReady(false);
     setRecent(rememberProject({ id: row.id, code: row.code ?? "", name: row.name }));
     onChange(String(row.id));
     setKeyword("");
