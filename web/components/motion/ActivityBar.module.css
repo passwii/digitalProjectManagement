@@ -16,7 +16,7 @@
   height: 100%;
   background: var(--brand);
   transform-origin: left center;
-  box-shadow: 0 0 10px rgba(22, 119, 255, .42);
+ box-shadow: 0 0 10px var(--signal-glow);
 }
 
 @media (prefers-reduced-motion: reduce) {

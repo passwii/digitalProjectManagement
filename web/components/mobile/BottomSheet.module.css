@@ -49,7 +49,7 @@
 .scrim {
  position: absolute;
  inset: 0;
- background: rgba(15, 39, 66, 0.34);
+ background: var(--overlay);
  opacity: 0;
  pointer-events: none;
  transition: opacity var(--m-sheet-motion) var(--ease-console);
@@ -71,7 +71,7 @@
  max-height: calc(100% - var(--m-sheet-top));
  background: var(--card);
  border-radius: var(--m-sheet-r) var(--m-sheet-r) 0 0;
- box-shadow: 0 -12px 40px rgba(23, 43, 77, 0.18);
+ box-shadow: 0 -12px 40px var(--dock-shadow);
  /* 「Dock 带」：Dock 高度 + 安全区。Dock 压在抽屉之上，这一段是它的地盘 */
  padding-bottom: calc(var(--m-dock-h) + var(--m-safe-b));
  pointer-events: auto;
@@ -126,7 +126,7 @@
  width: 38px;
  height: 4px;
  border-radius: 999px;
- background: #d2dae5;
+ background: var(--line);
 }
 
 .head {

@@ -59,16 +59,16 @@
   flex: 0 0 auto;
   min-height: 36px;
   padding: 0 14px;
-  color: var(--on-brand);
+  color: var(--on-action);
   font-size: 13px;
   font-weight: 750;
-  background: var(--brand-hover);
-  border: 1px solid var(--brand-hover);
+  background: var(--action);
+  border: 1px solid var(--action);
   border-radius: 0;
 }
 
 .install:hover {
-  background: #d9ff9b;
+  background: var(--action-hover);
 }
 .install:focus-visible,
 .close:focus-visible {

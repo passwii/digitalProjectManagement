@@ -1,7 +1,7 @@
 .overlay {
   position: fixed;
   inset: 0;
-  background: rgba(7, 19, 31, 0.56);
+  background: var(--overlay);
   backdrop-filter: blur(6px);
   z-index: 60;
   display: flex;
@@ -14,7 +14,7 @@
   background: var(--card);
   border: 1px solid var(--line);
   border-radius: var(--radius);
-  box-shadow: var(--shadow-float), 0 0 0 1px rgba(108, 243, 255, .08);
+  box-shadow: var(--shadow-float);
   display: flex;
   flex-direction: column;
   max-height: 86vh;
@@ -32,7 +32,7 @@
   max-width: 100%;
   background: var(--card);
   border-left: 1px solid var(--line);
-  box-shadow: -16px 0 36px rgba(7, 19, 31, 0.24), 0 0 0 1px rgba(108, 243, 255, .08);
+  box-shadow: var(--shadow-drawer);
   display: flex;
   flex-direction: column;
 }
@@ -84,7 +84,7 @@
 }
 
 .dangerBtn { background: var(--danger); border-color: var(--danger); }
-.dangerBtn:hover { background: #b91c1c; border-color: #b91c1c; }
+.dangerBtn:hover { filter: brightness(1.08); background: var(--danger); border-color: var(--danger); }
 .dangerBtn:disabled { background: var(--danger); border-color: var(--danger); opacity: .65; }
 
 /* 内嵌二次确认（脏数据） */

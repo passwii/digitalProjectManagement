@@ -1,17 +1,17 @@
 .dashboard {
-  --dash-bg: #07131f;
-  --dash-surface: #0d1d2c;
-  --dash-surface-raised: #102538;
-  --dash-line: rgba(146, 189, 210, 0.22);
-  --dash-line-soft: rgba(146, 189, 210, 0.12);
-  --dash-ink: #eaf9fb;
-  --dash-muted: rgba(201, 227, 235, 0.72);
-  --dash-dim: rgba(201, 227, 235, 0.48);
-  --dash-cyan: #6cf3ff;
-  --dash-lime: #c6ff72;
-  --dash-amber: #ffc46b;
-  --dash-alert: #ff9a6a;
-  --dash-violet: #bda6ff;
+  --dash-bg: var(--bg);
+  --dash-surface: var(--card);
+  --dash-surface-raised: var(--th-bg);
+  --dash-line: var(--line);
+  --dash-line-soft: var(--line-soft);
+  --dash-ink: var(--ink);
+  --dash-muted: var(--ink-2);
+  --dash-dim: var(--ink-3);
+  --dash-cyan: var(--brand);
+  --dash-lime: var(--action);
+  --dash-amber: var(--warn);
+  --dash-alert: var(--danger);
+  --dash-violet: var(--data-violet);
   min-width: 0;
   color: var(--dash-ink);
 }
@@ -71,7 +71,7 @@
   height: 5px;
   border-radius: 50%;
   background: var(--dash-lime);
-  box-shadow: 0 0 9px rgba(198, 255, 114, 0.75);
+  box-shadow: 0 0 9px color-mix(in srgb, var(--dash-lime) 75%, transparent);
 }
 
 .headerButton,
@@ -95,7 +95,7 @@
 .headerButton:hover,
 .headerButton:focus-visible {
   border-color: var(--dash-cyan);
-  background: rgba(108, 243, 255, 0.07);
+  background: var(--brand-soft);
   color: var(--dash-cyan);
 }
 
@@ -107,14 +107,14 @@
 .approvalButton {
   border-color: var(--dash-lime);
   background: var(--dash-lime);
-  color: #10220d;
+  color: var(--on-action);
 }
 
 .approvalButton:hover,
 .approvalButton:focus-visible {
-  border-color: #d9ff9b;
-  background: #d9ff9b;
-  color: #10220d;
+  border-color: var(--action-hover);
+  background: var(--action-hover);
+  color: var(--on-action);
   text-decoration: none;
   transform: translateY(-1px);
 }
@@ -126,14 +126,14 @@
   gap: 18px;
   margin: -6px 0 20px;
   padding: 11px 0 12px;
-  border-bottom: 1px solid rgba(255, 154, 106, 0.38);
+  border-bottom: 1px solid var(--line-danger);
   color: var(--dash-amber);
   font-size: 12px;
   line-height: 1.6;
 }
 
 .staleBanner b { color: var(--dash-alert); font-weight: 700; }
-.staleBanner .headerButton { flex: none; border-color: rgba(255, 196, 107, 0.45); color: var(--dash-amber); }
+.staleBanner .headerButton { flex: none; border-color: var(--line-warn); color: var(--dash-amber); }
 
 .motion { min-width: 0; }
 
@@ -145,8 +145,8 @@
 .zone {
   min-width: 0;
   border: 1px solid var(--dash-line);
-  background: rgba(13, 29, 44, 0.66);
-  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.14);
+  background: var(--dash-surface-raised);
+  box-shadow: var(--shadow-card);
 }
 
 .readoutZone,
@@ -322,7 +322,7 @@
   margin-top: 4px;
   border: 1px solid var(--dash-cyan);
   background: var(--dash-bg);
-  box-shadow: 0 0 8px rgba(108, 243, 255, 0.46);
+  box-shadow: 0 0 8px var(--signal-glow);
 }
 
 .logNode::after {
@@ -359,7 +359,7 @@
 
 .bootLoading :global(.skel) {
   border-radius: 0;
-  background: rgba(108, 243, 255, 0.09);
+  background: var(--skeleton-shine);
 }
 
 .initialError {
@@ -372,7 +372,7 @@
 
 .initialError strong { color: var(--dash-ink); font-size: 17px; }
 .initialError > span:not(.errorSignal) { color: var(--dash-muted); font-size: 13px; }
-.errorSignal { width: 10px; height: 10px; border: 1px solid var(--dash-alert); box-shadow: 0 0 14px rgba(255, 154, 106, 0.45); }
+.errorSignal { width: 10px; height: 10px; border: 1px solid var(--dash-alert); box-shadow: 0 0 14px var(--line-danger); }
 .initialError .headerButton { margin-top: 5px; border-color: var(--dash-alert); color: var(--dash-alert); }
 
 @media (max-width: 1180px) {

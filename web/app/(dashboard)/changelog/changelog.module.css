@@ -115,7 +115,7 @@
   overflow: hidden;
   border: 1px solid var(--line);
   border-radius: 0;
-  background: rgba(13, 29, 44, .72);
+  background: var(--th-bg);
   box-shadow: none;
 }
 

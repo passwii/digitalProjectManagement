@@ -49,7 +49,7 @@
 .link:focus-visible {
   transform: translateX(5px);
   color: var(--queue-signal);
-  background: rgba(108, 243, 255, 0.035);
+  background: var(--row-hover);
   text-decoration: none;
 }
 

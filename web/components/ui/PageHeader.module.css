@@ -26,7 +26,7 @@
   margin-right: 10px;
   border: 1px solid var(--brand);
   background: var(--brand-soft);
-  box-shadow: 0 0 14px rgba(108, 243, 255, 0.18);
+  box-shadow: 0 0 14px var(--signal-glow);
   content: "";
 }
 

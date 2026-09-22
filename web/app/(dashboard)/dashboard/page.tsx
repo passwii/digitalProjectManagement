@@ -260,11 +260,11 @@ export default function DashboardPage() {
                 <div className={s.chart}>
                   <ResponsiveContainer>
                     <LineChart data={trendData} margin={{ top: 12, right: 18, bottom: 0, left: 0 }}>
-                      <CartesianGrid stroke="rgba(146, 189, 210, 0.12)" vertical={false} />
-                      <XAxis dataKey="label" tick={{ fontSize: 11, fill: "rgba(201, 227, 235, .64)" }} axisLine={{ stroke: "rgba(146, 189, 210, .24)" }} tickLine={false} />
-                      <YAxis tick={{ fontSize: 11, fill: "rgba(201, 227, 235, .64)" }} axisLine={false} tickLine={false} width={58} tickFormatter={(value) => (Number(value) >= 10000 ? `${Math.round(Number(value) / 10000)}万` : String(value))} />
-                      <Tooltip formatter={(value) => [`${fmtMoney(Number(value))} 元`, "支出"]} contentStyle={{ background: "#0d1d2c", border: "1px solid rgba(108, 243, 255, .32)", borderRadius: 0, color: "#eaf9fb", fontSize: 12 }} />
-                      <Line type="monotone" dataKey="spent" stroke="#6cf3ff" strokeWidth={2} dot={{ r: 3, fill: "#07131f", stroke: "#6cf3ff", strokeWidth: 1.5 }} activeDot={{ r: 5, fill: "#c6ff72", stroke: "#07131f", strokeWidth: 2 }} name="支出" isAnimationActive={!reduced} animationDuration={620} />
+                      <CartesianGrid stroke="var(--line-soft)" vertical={false} />
+                      <XAxis dataKey="label" tick={{ fontSize: 11, fill: "var(--ink-2)" }} axisLine={{ stroke: "var(--line)" }} tickLine={false} />
+                      <YAxis tick={{ fontSize: 11, fill: "var(--ink-2)" }} axisLine={false} tickLine={false} width={58} tickFormatter={(value) => (Number(value) >= 10000 ? `${Math.round(Number(value) / 10000)}万` : String(value))} />
+                      <Tooltip formatter={(value) => [`${fmtMoney(Number(value))} 元`, "支出"]} contentStyle={{ background: "var(--card)", border: "1px solid var(--line-blue)", borderRadius: 0, color: "var(--ink)", fontSize: 12 }} />
+                      <Line type="monotone" dataKey="spent" stroke="var(--brand)" strokeWidth={2} dot={{ r: 3, fill: "var(--bg)", stroke: "var(--brand)", strokeWidth: 1.5 }} activeDot={{ r: 5, fill: "var(--action)", stroke: "var(--bg)", strokeWidth: 2 }} name="支出" isAnimationActive={!reduced} animationDuration={620} />
                     </LineChart>
                   </ResponsiveContainer>
                 </div>
