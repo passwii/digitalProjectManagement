@@ -21,10 +21,12 @@ describe("生产端中文界面文案", () => {
     assert.match(labels, /archived: "已归档"/);
   });
 
-  it("审计日志仍保留原始动作码与详情，不做展示层翻译覆盖", () => {
+  it("审计日志使用集中中文格式化，不直接展示原始编码", () => {
     const admin = source("app/(dashboard)/admin/page.tsx");
-    assert.match(admin, /l\.action/);
-    assert.match(admin, /l\.detail/);
-    assert.match(admin, /如 login \/ create_project/);
+    assert.match(admin, /auditActionLabel/);
+    assert.match(admin, /auditResourceDisplay/);
+    assert.match(admin, /auditDetailLabel/);
+    assert.doesNotMatch(admin, /<td className="mono tiny">\{l\.action\}<\/td>/);
+    assert.doesNotMatch(admin, /title=\{l\.detail\}/);
   });
 });
