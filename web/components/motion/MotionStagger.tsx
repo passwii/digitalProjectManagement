@@ -12,10 +12,17 @@ const child: Variants = {
   show: { opacity: 1, y: 0, transition: { duration: 0.22, ease: [0.2, 0.72, 0.2, 1] } },
 };
 
-export default function MotionStagger({ children }: { children: React.ReactNode }) {
+export default function MotionStagger({
+  children,
+  className,
+}: {
+  children: React.ReactNode;
+  className?: string;
+}) {
   const reduced = useReducedMotion();
   return (
     <m.div
+      className={className}
       variants={reduced ? undefined : parent}
       initial={reduced ? false : "hidden"}
       animate="show"
