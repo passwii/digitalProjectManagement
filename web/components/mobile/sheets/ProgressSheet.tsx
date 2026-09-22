@@ -22,10 +22,10 @@ export default function ProgressSheet({
   variant,
   onSelect,
 }: SheetContentProps) {
-  const { data, firstLoad, error, reload } = useAsyncData(async () => {
+  const { data, firstLoad, error, reload } = useAsyncData(async (signal) => {
     const [weekly, warns] = await Promise.all([
-      dashboardApi.weekly().catch(() => null),
-      reportsApi.warnings().catch(() => null),
+      dashboardApi.weekly(0, signal).catch(() => null),
+      reportsApi.warnings(signal).catch(() => null),
     ]);
     return { weekly, warns };
   }, []);

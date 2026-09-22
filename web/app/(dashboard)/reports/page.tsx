@@ -77,7 +77,7 @@ function ReportsInner() {
     async (signal) => {
       const [report, warns] = await Promise.all([
         reportsApi.cost(query, signal),
-        reportsApi.warnings().catch(() => null),
+        reportsApi.warnings(signal).catch(() => null),
       ]);
       return { rows: report.items ?? [], warns: warns as Warnings | null };
     },

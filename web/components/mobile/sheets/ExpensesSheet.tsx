@@ -36,7 +36,7 @@ export default function ExpensesSheet({
 }: SheetContentProps) {
   const { data, firstLoad, error, reload } = useAsyncData(async (signal) => {
     const [summary, pending] = await Promise.all([
-      dashboardApi.summary(),
+      dashboardApi.summary(signal),
       expensesApi
         .list(buildQuery({ status: "pending", page: 1, size: 1 }), signal)
         .then((r) => unwrapPaged<Expense>(r).total)

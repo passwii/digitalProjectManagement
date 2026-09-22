@@ -36,7 +36,7 @@ export default function MineSheet({
 
   // 管理员才需要待审批总数；非管理员 / 权限未确认时不发这个请求
   const showAdmin = ready && !failed && canApprove && item.visible.length > 0;
-  const { data: pending } = useAsyncData(() => approvalsApi.pending(), [], {
+  const { data: pending } = useAsyncData((signal) => approvalsApi.pending(signal), [], {
     enabled: showAdmin,
   });
 
