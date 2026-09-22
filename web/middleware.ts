@@ -7,6 +7,8 @@ const PUBLIC_PATHS = [
   "/icon.svg",
   "/manifest.webmanifest",
   "/sw.js",
+  "/pdf-cmaps",
+  "/pdf-standard-fonts",
 ];
 
 export function middleware(req: NextRequest) {
