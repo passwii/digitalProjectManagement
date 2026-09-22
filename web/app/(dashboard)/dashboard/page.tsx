@@ -178,8 +178,6 @@ export default function DashboardPage() {
           </>
         }
       />
-      {err && <div className="err-banner" role="alert">{err}</div>}
-
       {err && (
         <div className={s.staleBanner} role="alert">
           <span><b>链路未完成校准。</b> 以下为上次成功数据。{err}</span>
