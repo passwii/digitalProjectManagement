@@ -1636,11 +1636,16 @@ th.num {
 .pdf-preview-page {
  display: flex;
  justify-content: center;
+ width: max-content;
+ min-width: 100%;
  margin: 0 auto 12px;
+}
+.pdf-preview-page > div {
+ width: max-content;
 }
 .pdf-preview-page canvas {
  display: block;
- max-width: 100%;
+ max-width: none;
  height: auto !important;
  box-shadow: 0 2px 8px rgb(15 39 66 / 12%);
 }

@@ -7,7 +7,7 @@
  * 对象 URL 的生命周期严格收在本组件内：打开 / 切换 / 关闭 / 卸载时 revoke。
  */
 import dynamic from "next/dynamic";
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { Attachment } from "@/lib/api";
 import { classifyTransferFailure, failureLine, type TransferFailure } from "@/lib/uploadErrors";
 import {
@@ -51,6 +51,8 @@ export default function AttachmentPreviewDialog({
   const [failure, setFailure] = useState<TransferFailure | null>(null);
   const [attempt, setAttempt] = useState(0);
   const [imageZoomed, setImageZoomed] = useState(false);
+  const imageTriggerRef = useRef<HTMLButtonElement>(null);
+  const imageLightboxRef = useRef<HTMLDivElement>(null);
 
   const kind = attachment ? previewKindOf(attachment) : "other";
   const inline = attachment ? canPreviewInline(attachment) : false;
@@ -66,6 +68,61 @@ export default function AttachmentPreviewDialog({
   useEffect(() => {
     setImageZoomed(false);
   }, [attachment?.id]);
+
+  useLayoutEffect(() => {
+    if (!imageZoomed) return;
+    const lightbox = imageLightboxRef.current;
+    if (!lightbox) return;
+
+    const closeButton = lightbox.querySelector<HTMLButtonElement>(
+      ".image-lightbox-close",
+    );
+    closeButton?.focus();
+    const trigger = imageTriggerRef.current;
+
+    const getFocusable = () =>
+      Array.from(
+        lightbox.querySelectorAll<HTMLElement>(
+          "button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex='-1'])",
+        ),
+      ).filter((element) => element.offsetParent !== null);
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        event.stopPropagation();
+        setImageZoomed(false);
+        return;
+      }
+      if (event.key !== "Tab") return;
+
+      const focusable = getFocusable();
+      if (focusable.length === 0) {
+        event.preventDefault();
+        return;
+      }
+
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      const active = document.activeElement;
+      if (!lightbox.contains(active)) {
+        event.preventDefault();
+        first.focus();
+      } else if (event.shiftKey && active === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && active === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+
+    document.addEventListener("keydown", onKeyDown, true);
+    return () => {
+      document.removeEventListener("keydown", onKeyDown, true);
+      trigger?.focus();
+    };
+  }, [imageZoomed]);
 
   useEffect(() => {
     if (!attachment || !inline) {
@@ -143,6 +200,7 @@ export default function AttachmentPreviewDialog({
               type="button"
               className="image-preview-trigger"
               aria-label={`放大预览 ${attachment.filename}`}
+              ref={imageTriggerRef}
               onClick={() => setImageZoomed(true)}
             >
               <img className="image-preview" src={url} alt={attachment.filename} />
@@ -158,6 +216,7 @@ export default function AttachmentPreviewDialog({
           )}
           {imageZoomed && url && kind === "image" && (
             <div
+              ref={imageLightboxRef}
               className="image-lightbox"
               role="dialog"
               aria-modal="true"

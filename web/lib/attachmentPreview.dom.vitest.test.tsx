@@ -16,7 +16,7 @@
  * `document.body`，不在 render 容器里，用 container 查会得到「什么都没渲染」。
  */
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { act, cleanup, fireEvent, render } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, waitFor } from "@testing-library/react";
 
 import AttachmentPreviewDialog from "../components/ui/AttachmentPreviewDialog";
 import { HttpError, type Attachment } from "../lib/api";
@@ -24,7 +24,9 @@ import { HttpError, type Attachment } from "../lib/api";
 // 保留真实 next/dynamic 接线；只隔离 jsdom 无法执行的 PDF canvas 渲染内核。
 vi.mock("react-pdf", () => ({
   pdfjs: { GlobalWorkerOptions: { workerSrc: "" } },
-  Document: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  Document: ({ children, file }: { children: React.ReactNode; file?: string }) => (
+    <div data-testid="pdf-document" data-file={file}>{children}</div>
+  ),
   Page: () => <div />,
 }));
 
@@ -82,7 +84,7 @@ describe("附件预览：按类型给出正确的渲染方式", () => {
         onDownload={() => {}}
       />,
     );
-    await act(async () => {});
+    await waitFor(() => expect(document.querySelector("img.image-preview")).not.toBeNull());
     const img = document.querySelector("img.image-preview");
     expect(img).not.toBeNull();
     expect(img?.getAttribute("src")).toContain("blob:preview-1");
@@ -99,8 +101,10 @@ describe("附件预览：按类型给出正确的渲染方式", () => {
         onDownload={() => {}}
       />,
     );
-    await act(async () => {});
-    expect(document.querySelector("section[aria-label='合同扫描件.pdf PDF 预览']")).not.toBeNull();
+    await waitFor(() => expect(document.querySelector("section[aria-label='合同扫描件.pdf PDF 预览']")).not.toBeNull());
+    expect(document.querySelector("[data-testid='pdf-document']")?.getAttribute("data-file")).toBe(
+      "blob:preview-2-1",
+    );
     expect(document.querySelector("iframe")).toBeNull();
     expect(document.querySelector("img.image-preview")).toBeNull();
   });
@@ -118,9 +122,12 @@ describe("附件预览：按类型给出正确的渲染方式", () => {
         onDownload={() => {}}
       />,
     );
-    await act(async () => {});
+    await waitFor(() => expect(document.querySelector("section[aria-label='任意.pdf PDF 预览']")).not.toBeNull());
     // 附件自称 text/html，但扩展名是 .pdf：仍然按 PDF 走 PDF.js
     expect(loadUrl).toHaveBeenCalledTimes(1);
+    expect(document.querySelector("[data-testid='pdf-document']")?.getAttribute("data-file")).toBe(
+      "blob:preview-9-1",
+    );
     expect(document.querySelector("section[aria-label='任意.pdf PDF 预览']")).not.toBeNull();
     expect(document.querySelector("iframe")).toBeNull();
     // 弹层不得自己造 blob
@@ -209,6 +216,34 @@ describe("附件预览：按类型给出正确的渲染方式", () => {
     fireEvent.click(getAllByRole("button", { name: "关闭" })[0]);
     expect(queryByRole("dialog", { name: "现场照片.png 放大预览" })).toBeNull();
     expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it("放大层打开后焦点进入关闭按钮，Tab 在层内循环，关闭后恢复触发按钮", async () => {
+    const { loadUrl } = makeLoader();
+    const { findByRole, getByRole, queryByRole } = render(
+      <AttachmentPreviewDialog
+        attachment={att(13, "现场照片.png", "image/png")}
+        loadUrl={loadUrl}
+        onClose={() => {}}
+        onDownload={() => {}}
+      />,
+    );
+    await waitFor(() => expect(document.querySelector("img.image-preview")).not.toBeNull());
+
+    const trigger = getByRole("button", { name: "放大预览 现场照片.png" });
+    trigger.focus();
+    fireEvent.click(trigger);
+    const close = await findByRole("button", { name: "关闭图片放大预览" });
+    await waitFor(() => expect(document.activeElement).toBe(close));
+
+    fireEvent.keyDown(document, { key: "Tab" });
+    expect(document.activeElement).toBe(close);
+    fireEvent.keyDown(document, { key: "Tab", shiftKey: true });
+    expect(document.activeElement).toBe(close);
+
+    fireEvent.click(close);
+    await waitFor(() => expect(queryByRole("dialog", { name: "现场照片.png 放大预览" })).toBeNull());
+    expect(document.activeElement).toBe(trigger);
   });
 });
 

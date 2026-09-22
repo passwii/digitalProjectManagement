@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { useEffect, useState, type ReactNode } from "react";
-import { act, cleanup, fireEvent, render } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import PdfPreview from "../components/ui/PdfPreview";
@@ -12,11 +12,13 @@ vi.mock("react-pdf", () => ({
     children,
     onLoadSuccess,
     onLoadError,
+    options,
   }: {
     file?: string;
     children: ReactNode;
     onLoadSuccess?: (value: { numPages: number }) => void;
     onLoadError?: (error: Error) => void;
+    options?: Record<string, unknown>;
   }) => {
     useEffect(() => {
       if (String(file).includes("error")) {
@@ -25,15 +27,31 @@ vi.mock("react-pdf", () => ({
         onLoadSuccess?.({ numPages: 2 });
       }
     }, [file, onLoadError, onLoadSuccess]);
-    return <div data-testid="pdf-document">{children}</div>;
+    return (
+      <div data-testid="pdf-document" data-file={file} data-options={JSON.stringify(options)}>
+        {children}
+      </div>
+    );
   },
-  Page: ({ pageNumber, width }: { pageNumber: number; width?: number }) => (
-    <div data-testid={`pdf-page-${pageNumber}`} data-width={width} />
-  ),
+  Page: ({ pageNumber, width, onRenderError }: {
+    pageNumber: number;
+    width?: number;
+    onRenderError?: (error: Error) => void;
+  }) => {
+    useEffect(() => {
+      if (pageRenderShouldFail && pageNumber === 2) {
+        onRenderError?.(new Error("canvas render error"));
+      }
+    }, [onRenderError, pageNumber]);
+    return <div data-testid={`pdf-page-${pageNumber}`} data-width={width} />;
+  },
 }));
+
+let pageRenderShouldFail = false;
 
 afterEach(() => {
   cleanup();
+  pageRenderShouldFail = false;
   vi.clearAllMocks();
 });
 
@@ -57,6 +75,30 @@ describe("PDF 公共预览", () => {
     expect(getByTestId("pdf-page-1").getAttribute("data-width")).not.toBe(
       before,
     );
+  });
+
+  it("为 PDF.js 配置本地 CMap 和标准字体资源", async () => {
+    const { getByTestId } = render(
+      <PdfPreview url="blob:pdf-cmap" filename="中文合同.pdf" onRetry={() => {}} />,
+    );
+    await waitFor(() => expect(getByTestId("pdf-document")).not.toBeNull());
+
+    const options = JSON.parse(getByTestId("pdf-document").getAttribute("data-options") || "null");
+    expect(options).toMatchObject({
+      cMapUrl: "/pdf-cmaps/",
+      cMapPacked: true,
+      standardFontDataUrl: "/pdf-standard-fonts/",
+    });
+  });
+
+  it("页面级渲染失败时显示重试入口，而不是留下空白页面", async () => {
+    pageRenderShouldFail = true;
+    const { getByText, getByRole } = render(
+      <PdfPreview url="blob:pdf-page-render" filename="合同.pdf" onRetry={() => {}} />,
+    );
+
+    await waitFor(() => expect(getByText("PDF 加载失败")).not.toBeNull());
+    expect(getByRole("button", { name: "重试" })).not.toBeNull();
   });
 
   it("父级换用新的 Blob URL 后会清除错误并重新渲染全部页面", async () => {

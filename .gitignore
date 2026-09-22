@@ -27,6 +27,8 @@ data/
 # 项目使用 npm；忽略误生成的 pnpm workspace 文件
 /web/pnpm-lock.yaml
 /web/pnpm-workspace.yaml
+/web/public/pdf-cmaps/
+/web/public/pdf-standard-fonts/
 
 # os
 .DS_Store

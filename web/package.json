@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev --hostname 0.0.0.0 --port 3001",
+    "prebuild": "node scripts/copy-pdf-assets.mjs",
     "test": "npm run test:unit && npm run test:motion",
     "test:unit": "tsc -p tsconfig.test.json && node --test .test-dist/lib/",
     "build": "next build",
