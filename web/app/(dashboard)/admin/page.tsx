@@ -18,6 +18,11 @@ import { useToast } from "@/components/ui/Toast";
 import PageHeader from "@/components/ui/PageHeader";
 import MotionTabs from "@/components/motion/MotionTabs";
 import { useActivity } from "@/lib/useActivity";
+import {
+  auditActionLabel,
+  auditDetailLabel,
+  auditResourceDisplay,
+} from "@/lib/auditLogLabels";
 import DictDialog from "./DictDialog";
 import ParamDialog, { PARAM_LABELS } from "./ParamDialog";
 import UserDialog from "./UserDialog";
@@ -332,9 +337,16 @@ function AdminInner() {
                       <tr key={l.id} className="clickable-row" onClick={() => setLogDetail(l)}>
                         <td className="mono tiny">{fmtDateTime(l.created_at)}</td>
                         <td>{l.operator_name}</td>
-                        <td className="mono tiny">{l.action}</td>
-                        <td className="mono tiny">{l.resource}{l.resource_id ? `#${l.resource_id}` : ""}</td>
-                        <td><span className="ellipsis" title={l.detail}>{l.detail || "-"}</span></td>
+                        <td className="tiny">{auditActionLabel(l.action, l.resource)}</td>
+                        <td className="tiny">{auditResourceDisplay(l.resource, l.resource_id)}</td>
+                        <td>
+                          <span
+                            className="ellipsis"
+                            title={auditDetailLabel(l.action, l.resource, l.detail)}
+                          >
+                            {auditDetailLabel(l.action, l.resource, l.detail)}
+                          </span>
+                        </td>
                         <td className="mono tiny">{l.ip || "-"}</td>
                       </tr>
                     ))}
@@ -436,10 +448,10 @@ function AdminInner() {
           <dl className="kv one">
             <div><dt>时间</dt><dd className="mono">{fmtDateTime(logDetail.created_at)}</dd></div>
             <div><dt>操作人</dt><dd>{logDetail.operator_name}</dd></div>
-            <div><dt>动作</dt><dd className="mono">{logDetail.action}</dd></div>
-            <div><dt>资源</dt><dd className="mono">{logDetail.resource}{logDetail.resource_id ? `#${logDetail.resource_id}` : ""}</dd></div>
+            <div><dt>动作</dt><dd>{auditActionLabel(logDetail.action, logDetail.resource)}</dd></div>
+            <div><dt>资源</dt><dd>{auditResourceDisplay(logDetail.resource, logDetail.resource_id)}</dd></div>
             <div><dt>IP</dt><dd className="mono">{logDetail.ip || "-"}</dd></div>
-            <div><dt>详情</dt><dd>{logDetail.detail || "-"}</dd></div>
+            <div><dt>详情</dt><dd>{auditDetailLabel(logDetail.action, logDetail.resource, logDetail.detail)}</dd></div>
           </dl>
         )}
       </Drawer>
