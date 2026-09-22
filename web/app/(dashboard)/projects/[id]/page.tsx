@@ -40,6 +40,7 @@ import FileDropZone from "@/components/ui/FileDropZone";
 import { useToast } from "@/components/ui/Toast";
 import MotionTabs from "@/components/motion/MotionTabs";
 import { useActivity } from "@/lib/useActivity";
+import { isAbortError } from "@/lib/useAsyncData";
 import { useUploadQueue } from "@/lib/useUploadQueue";
 import ProjectFormDialog from "../ProjectFormDialog";
 import AttachmentPreviewDialog from "@/components/ui/AttachmentPreviewDialog";
@@ -92,6 +93,20 @@ function ProjectDetail({ pid }: { pid: number }) {
   const [filePreview, setFilePreview] = useState<Attachment | null>(null);
   const previewUrlsRef = useRef<string[]>([]);
   const hydratedRef = useRef(false);
+  const loadSeqRef = useRef(0);
+  const loadControllerRef = useRef<AbortController | null>(null);
+  const auxiliaryControllerRef = useRef<AbortController | null>(null);
+
+  const readAuxiliary = useCallback(async <T,>(loader: (signal: AbortSignal) => Promise<T>): Promise<T> => {
+    auxiliaryControllerRef.current?.abort();
+    const controller = new AbortController();
+    auxiliaryControllerRef.current = controller;
+    try {
+      return await loader(controller.signal);
+    } finally {
+      if (auxiliaryControllerRef.current === controller) auxiliaryControllerRef.current = null;
+    }
+  }, []);
   /**
    * 取附件预览的对象 URL：**一律走鉴权下载接口**（`Attachment.path` 是私有桶 S3 URL，不可热链）。
    *
@@ -122,6 +137,12 @@ function ProjectDetail({ pid }: { pid: number }) {
   );
 
   const loadAll = useCallback(async ({ trackActivity = true }: { trackActivity?: boolean } = {}) => {
+    loadControllerRef.current?.abort();
+    auxiliaryControllerRef.current?.abort();
+    auxiliaryControllerRef.current = null;
+    const controller = new AbortController();
+    const loadId = ++loadSeqRef.current;
+    loadControllerRef.current = controller;
     const finish = trackActivity
       ? beginActivity({ label: "加载项目档案", scope: "content" })
       : () => {};
@@ -129,13 +150,14 @@ function ProjectDetail({ pid }: { pid: number }) {
     setErr("");
     try {
       const [p, assetRows, contractRows, changeRows, taskRows, expenseRows] = await Promise.all([
-        projectsApi.get(pid),
-        projectsApi.attachments(pid),
-        projectsApi.attachments(pid, "contract"),
-        projectsApi.changes(pid),
-        tasksApi.list(`?project_id=${pid}&page=1&size=100&sort=-plan_end`),
-        expensesApi.list(`?project_id=${pid}&page=1&size=100&sort=-exp_date`),
+        projectsApi.get(pid, controller.signal),
+        projectsApi.attachments(pid, "", controller.signal),
+        projectsApi.attachments(pid, "contract", controller.signal),
+        projectsApi.changes(pid, controller.signal),
+        tasksApi.list(`?project_id=${pid}&page=1&size=100&sort=-plan_end`, controller.signal),
+        expensesApi.list(`?project_id=${pid}&page=1&size=100&sort=-exp_date`, controller.signal),
       ]);
+      if (controller.signal.aborted || loadSeqRef.current !== loadId) return;
       const pagedTasks = unwrapPaged<Task>(taskRows);
       const pagedExpenses = unwrapPaged<Expense>(expenseRows);
       setProject(p);
@@ -161,6 +183,7 @@ function ProjectDetail({ pid }: { pid: number }) {
           }
         }),
       );
+      if (controller.signal.aborted || loadSeqRef.current !== loadId) return;
       const next: Record<number, string> = {};
       const nextFailures: Record<number, TransferFailure> = {};
       for (const { id, url, failure } of outcomes) {
@@ -174,14 +197,24 @@ function ProjectDetail({ pid }: { pid: number }) {
       setPreviews(next);
       setPreviewFailures(nextFailures);
     } catch (e) {
+      if (controller.signal.aborted || loadSeqRef.current !== loadId || isAbortError(e)) return;
       setErr(errText(e));
     } finally {
-      setLoading(false);
+      if (loadSeqRef.current === loadId) setLoading(false);
       finish();
+      if (loadControllerRef.current === controller) loadControllerRef.current = null;
     }
   }, [beginActivity, fetchPreviewUrl, pid]);
 
-  useEffect(() => { loadAll(); }, [loadAll]);
+  useEffect(() => {
+    loadAll();
+    return () => {
+      loadControllerRef.current?.abort();
+      loadControllerRef.current = null;
+      auxiliaryControllerRef.current?.abort();
+      auxiliaryControllerRef.current = null;
+    };
+  }, [loadAll]);
   useEffect(() => () => previewUrlsRef.current.forEach(URL.revokeObjectURL), []);
   useEffect(() => {
     const t = parseProjectTab(search.get("tab"));
@@ -329,7 +362,11 @@ function ProjectDetail({ pid }: { pid: number }) {
       if (result.aborted) return;
       if (result.ok.length) toast.ok("合同附件已上传");
       if (result.failed) toast.err(batchFailureToast(result.failures));
-      setContracts(await projectsApi.attachments(pid, "contract"));
+      try {
+        setContracts(await readAuxiliary((signal) => projectsApi.attachments(pid, "contract", signal)));
+      } catch (e) {
+        if (!isAbortError(e)) throw e;
+      }
     } catch (e) {
       toast.err(failureToast(classifyTransferFailure(e)));
     } finally {
@@ -345,7 +382,11 @@ function ProjectDetail({ pid }: { pid: number }) {
       if (result.aborted) return;
       if (result.ok.length) {
         toast.ok("合同附件已上传");
-        setContracts(await projectsApi.attachments(pid, "contract"));
+        try {
+          setContracts(await readAuxiliary((signal) => projectsApi.attachments(pid, "contract", signal)));
+        } catch (e) {
+          if (!isAbortError(e)) throw e;
+        }
       } else if (result.failures[0]) {
         toast.err(failureToast(result.failures[0]));
       }
@@ -702,8 +743,14 @@ function ProjectDetail({ pid }: { pid: number }) {
         task={editingTask}
         onSaved={async () => {
           toast.ok(editingTask ? "进度已更新" : "进度已添加");
-          const rows = await tasksApi.list(`?project_id=${pid}&page=1&size=100&sort=-plan_end`);
-          setTasks(unwrapPaged<Task>(rows).items);
+          try {
+            const rows = await readAuxiliary((signal) =>
+              tasksApi.list(`?project_id=${pid}&page=1&size=100&sort=-plan_end`, signal),
+            );
+            setTasks(unwrapPaged<Task>(rows).items);
+          } catch (e) {
+            if (!isAbortError(e)) throw e;
+          }
         }}
       />
       <ExpenseDialog
@@ -712,8 +759,14 @@ function ProjectDetail({ pid }: { pid: number }) {
         projectId={pid}
         onSaved={async (msg) => {
           toast.ok(msg);
-          const rows = await expensesApi.list(`?project_id=${pid}&page=1&size=100&sort=-exp_date`);
-          setExpenses(unwrapPaged<Expense>(rows).items);
+          try {
+            const rows = await readAuxiliary((signal) =>
+              expensesApi.list(`?project_id=${pid}&page=1&size=100&sort=-exp_date`, signal),
+            );
+            setExpenses(unwrapPaged<Expense>(rows).items);
+          } catch (e) {
+            if (!isAbortError(e)) throw e;
+          }
         }}
       />
       <AttachmentPreviewDialog

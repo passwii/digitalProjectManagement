@@ -19,6 +19,7 @@ import CountUp from "@/components/motion/CountUp";
 import MotionReveal from "@/components/motion/MotionReveal";
 import MotionStagger from "@/components/motion/MotionStagger";
 import { useActivity } from "@/lib/useActivity";
+import { isAbortError } from "@/lib/useAsyncData";
 import { CardItem, CardList, DesktopTable, useVisibleTargetScroll } from "@/components/ui/CardList";
 
 type Decision = {
@@ -79,19 +80,22 @@ function ApprovalsInner() {
   const [notice, setNotice] = useState("");
   const loadSeq = useRef(0);
   const hasLoadedRef = useRef(false);
+  const controllerRef = useRef<AbortController | null>(null);
 
   const load = useCallback(async () => {
+    controllerRef.current?.abort();
+    const controller = new AbortController();
     const finish = beginActivity({ label: "刷新审批待办", scope: "content" });
     const id = ++loadSeq.current;
-    const first = !hasLoadedRef.current;
-    if (first) setLoading(true);
+    controllerRef.current = controller;
+    setLoading(true);
     setErr("");
     try {
-      const r = await approvalsApi.pending();
-      if (loadSeq.current !== id) return;
+      const r = await approvalsApi.pending(controller.signal);
+      if (controller.signal.aborted || loadSeq.current !== id) return;
       setData(r);
     } catch (e) {
-      if (loadSeq.current !== id) return;
+      if (controller.signal.aborted || loadSeq.current !== id || isAbortError(e)) return;
       setErr(errText(e));
     } finally {
       if (loadSeq.current === id) {
@@ -99,10 +103,17 @@ function ApprovalsInner() {
         setLoading(false);
       }
       finish();
+      if (controllerRef.current === controller) controllerRef.current = null;
     }
   }, [beginActivity]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    load();
+    return () => {
+      controllerRef.current?.abort();
+      controllerRef.current = null;
+    };
+  }, [load]);
 
   // 命中行滚动入视口（通知点进来时直接看到那一条待办）
   useTargetScroll(filingTarget || adjustTarget || expenseTarget, !loading && !!data);
@@ -179,7 +190,7 @@ function ApprovalsInner() {
         </div>
       )}
 
-      {loading ? (
+      {loading && !data ? (
         <LoadingBlock kpis={4} />
       ) : nothing ? (
         <div className="card">

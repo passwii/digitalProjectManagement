@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useReducedMotion } from "framer-motion";
 import {
@@ -19,6 +19,7 @@ import PageHeader from "@/components/ui/PageHeader";
 import CountUp from "@/components/motion/CountUp";
 import MotionStagger from "@/components/motion/MotionStagger";
 import { useActivity } from "@/lib/useActivity";
+import { isAbortError } from "@/lib/useAsyncData";
 
 const SUBJECT_COLORS = ["#1677FF", "#5B8DEF", "#7C5CFC", "#2C9C69", "#D48806"];
 
@@ -33,28 +34,45 @@ export default function DashboardPage() {
   const [weekly, setWeekly] = useState<Weekly | null>(null);
   const [err, setErr] = useState("");
   const [loading, setLoading] = useState(true);
+  const loadSeq = useRef(0);
+  const controllerRef = useRef<AbortController | null>(null);
 
   const load = useCallback(async () => {
+    controllerRef.current?.abort();
+    const controller = new AbortController();
+    controllerRef.current = controller;
+    const id = ++loadSeq.current;
     const finish = beginActivity({ label: "刷新工作台", scope: "content" });
     setLoading(true);
     setErr("");
     try {
-      const [s, w] = await Promise.all([dashboardApi.summary(), dashboardApi.weekly().catch(() => null)]);
+      const [s, w] = await Promise.all([
+        dashboardApi.summary(controller.signal),
+        dashboardApi.weekly(0, controller.signal).catch(() => null),
+      ]);
+      if (controller.signal.aborted || loadSeq.current !== id) return;
       setData(s);
       setWeekly(w);
     } catch (e) {
+      if (controller.signal.aborted || loadSeq.current !== id || isAbortError(e)) return;
       setErr(errText(e));
     } finally {
-      setLoading(false);
+      if (loadSeq.current === id) setLoading(false);
       finish();
+      if (controllerRef.current === controller) controllerRef.current = null;
     }
   }, [beginActivity]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    load();
+    return () => {
+      controllerRef.current?.abort();
+      controllerRef.current = null;
+    };
+  }, [load]);
 
-  if (loading) return <LoadingBlock kpis={4} />;
-  if (err) return <div className="err-banner" role="alert">{err}</div>;
-  if (!data) return null;
+  if (loading && !data) return <LoadingBlock kpis={4} />;
+  if (!data) return err ? <div className="err-banner" role="alert">{err}</div> : null;
 
   const k = data.kpi;
   const trendData = data.trend.map((t) => ({ ...t, label: t.month.slice(5) + "月" }));
@@ -74,6 +92,7 @@ export default function DashboardPage() {
           </>
         }
       />
+      {err && <div className="err-banner" role="alert">{err}</div>}
 
       <MotionStagger>
       <div className="kpi-row">
