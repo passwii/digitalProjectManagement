@@ -184,6 +184,20 @@
   border-bottom: 1px solid var(--line);
   backdrop-filter: blur(12px);
 }
+
+.shell[data-dashboard-shell="true"] .topbar {
+  color: #eaf7ff;
+  background: linear-gradient(100deg, rgba(7, 19, 31, .98), rgba(11, 27, 41, .94));
+  border-bottom-color: rgba(108, 243, 255, .18);
+  box-shadow: 0 1px 0 rgba(108, 243, 255, .08), 0 10px 28px rgba(7, 19, 31, .12);
+}
+.shell[data-dashboard-shell="true"] .crumb { color: rgba(213, 237, 249, .66); }
+.shell[data-dashboard-shell="true"] .crumb b { color: #fff; }
+.shell[data-dashboard-shell="true"] .topDate { color: rgba(213, 237, 249, .62); }
+.shell[data-dashboard-shell="true"] .userChipWrap { border-left-color: rgba(108, 243, 255, .2); }
+.shell[data-dashboard-shell="true"] .userChipText b { color: #fff; }
+.shell[data-dashboard-shell="true"] .userChip:hover,
+.shell[data-dashboard-shell="true"] .userChip[aria-expanded="true"] { background: rgba(108, 243, 255, .1); }
 .topContext { min-width: 0; display: flex; align-items: baseline; gap: 12px; }
 .crumb {
   overflow: hidden;

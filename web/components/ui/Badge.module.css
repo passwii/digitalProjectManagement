@@ -3,8 +3,10 @@
   border-radius: 11px; font-size: 12px; font-weight: 500;
   font-family: var(--font-mono); white-space: nowrap;
   border: 1px solid transparent;
-  transition: background 120ms ease-out;
+  letter-spacing: .01em;
+  transition: background 120ms ease-out, border-color 120ms ease-out;
 }
+.badge::before { width: 4px; height: 4px; margin-right: 5px; border-radius: 50%; background: currentColor; content: ""; opacity: .72; }
 .todo { background: var(--todo-bg); color: var(--todo); border-color: var(--line); }
 .doing { background: var(--doing-bg); color: var(--doing); border-color: var(--line-blue); }
 .paused { background: var(--paused-bg); color: var(--paused); border-color: var(--line); }

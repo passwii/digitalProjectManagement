@@ -428,7 +428,10 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
   return (
     <>
     <a className="skip-link" href="#main-content">跳到主要内容</a>
-    <div className={`${s.shell} ${collapsed ? s.collapsed : ""}`}>
+    <div
+      className={`${s.shell} ${collapsed ? s.collapsed : ""}`}
+      data-dashboard-shell={pathname === "/dashboard" ? "true" : undefined}
+    >
       <aside className={s.sidebar} data-shell="sidebar">
         <div className={s.ws}>
           <div className={s.wsName} title="数科云办公">
