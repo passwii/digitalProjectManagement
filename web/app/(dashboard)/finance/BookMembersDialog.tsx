@@ -73,6 +73,19 @@ export default function BookMembersDialog({
   const userOptions = searchResults.filter((user) => !memberIds.has(user.id));
   const userPageCount = Math.max(1, Math.ceil((users.data?.total ?? 0) / (users.data?.size || 20)));
 
+  function closeDialog() {
+    if (busyKey) return;
+    members.setData(null);
+    users.setData(null);
+    setKeyword("");
+    setDebouncedKeyword("");
+    setUserPage(1);
+    setSelectedUserId(null);
+    setDraftRoles({});
+    setRemovingMember(null);
+    onClose();
+  }
+
   useEffect(() => {
     if (!open) return;
     setKeyword("");
@@ -154,11 +167,11 @@ export default function BookMembersDialog({
     <>
       <Dialog
         open={open}
-        onClose={() => { if (!busyKey) onClose(); }}
+        onClose={closeDialog}
         title={book ? `成员与权限 · ${book.name}（${book.code}）` : "成员与权限"}
         size="lg"
         maskClosable={!busyKey}
-        footer={<button className="btn-ghost" onClick={onClose} disabled={!!busyKey}>关闭</button>}
+        footer={<button className="btn-ghost" onClick={closeDialog} disabled={!!busyKey}>关闭</button>}
       >
         <p className="tiny muted" style={{ marginTop: 0 }}>
           这里维护当前账套的财务授权。系统管理员始终拥有全局财务管理权限，不需要单独添加为账套成员。

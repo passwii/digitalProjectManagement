@@ -84,7 +84,7 @@ interface BookMembersDialogProps {
 }
 ```
 
-- [x] 用 `useAsyncData` 加载 `financeApi.members(book.id, signal)`，依赖 `open` 和 `book.id`；关闭弹窗或切换账套时禁用旧请求并重置数据。
+- [x] 用 `useAsyncData` 加载 `financeApi.members(book.id, signal)`，依赖 `open` 和 `book.id`；关闭弹窗时清空成员/搜索缓存，组件按账套 ID 隔离，切换账套时禁用旧请求并重置数据。
 - [x] 用独立 `useAsyncData` 搜索 `metaApi.searchUsers({ keyword: debouncedKeyword, status: "active", page: userPage, size: 20 }, signal)`；结果过滤当前账套已有 `user_id`，并提供上一页/下一页及总人数提示。
 - [x] 显示姓名、账号、中文角色名称；历史非财务角色显示原值提示，选择合法角色后可保存；每行提供角色选择、仅在角色变化时可用的保存按钮和移除按钮。
 - [x] 新增区从分页搜索结果选择一个用户，并选择五种财务角色之一；重复成员不能再次选择。

@@ -159,6 +159,7 @@ function FinanceInner() {
       )}
       {isAdmin && <AccountBookRecycleBinDialog open={recycleBinOpen} onClose={() => setRecycleBinOpen(false)} onRestored={() => books.reload()} />}
       {isAdmin && <BookMembersDialog
+        key={book?.id ?? "no-book"}
         open={bookMembersOpen}
         book={book}
         onClose={() => setBookMembersOpen(false)}
