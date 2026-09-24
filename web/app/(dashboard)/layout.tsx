@@ -17,7 +17,7 @@ import PullToRefresh from "@/components/mobile/PullToRefresh";
 import s from "@/components/ui/Shell.module.css";
 
 /**
- * 导航单一入口：菜单项由 `/meta/me/menus` 决定（Stage 1 契约）。
+ * 业务菜单由 `/meta/me/menus` 决定（Stage 1 契约）；Spark 演示站是独立的本地静态入口。
  * · 管理员额外拿到「审批中心」「系统管理」；
  * · 非管理员不会拿到管理与审批入口，也不会看到必然 403 的按钮。
  * 这里只做 href → 图标/兜底文案的映射，不硬编码角色判断。
@@ -85,6 +85,12 @@ const ICON: Record<string, React.ReactNode> = {
       <circle cx="9" cy="8" r="2" />
     </svg>
   ),
+  "/spark": (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="m12 3 1.9 6.1L20 11l-6.1 1.9L12 19l-1.9-6.1L4 11l6.1-1.9L12 3Z" />
+      <path d="m19 16 .8 2.2L22 19l-2.2.8L19 22l-.8-2.2L16 19l2.2-.8L19 16Z" />
+    </svg>
+  ),
   "/partners": (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
       <rect x="3" y="7" width="18" height="13" rx="2" />
@@ -106,6 +112,7 @@ const LABEL: Record<string, string> = {
   "/changelog": "功能更新",
   "/admin": "系统管理",
   "/finance": "财务管理",
+  "/spark": "NebulaCloud 演示站",
 };
 
 /** 工作台恒可见（非管理与审批入口）；权限同步失败时退回这组参与性入口，绝不默认放行管理入口 */
@@ -369,7 +376,10 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
   const today = new Date().toISOString().slice(0, 10);
 
   const navItems = useMemo<NavItem[]>(() => {
-    const fromMenus = menus.map((m) => ({ href: m.href, label: m.label || LABEL[m.href] || m.href }));
+    // Spark 是本地静态入口，不属于后端权限菜单。
+    const fromMenus = menus
+      .filter((m) => m.href !== "/spark")
+      .map((m) => ({ href: m.href, label: m.label || LABEL[m.href] || m.href }));
     // 权限同步失败（或菜单为空）：只保留参与性入口并提示重试，绝不猜测管理员身份
     const list = permsError || menus.length === 0
       ? BASE_HREFS.map((href) => ({ href, label: LABEL[href] }))
@@ -379,6 +389,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
       if (out.some((o) => o.href === it.href)) continue;
       out.push({ ...it, icon: ICON[it.href] });
     }
+    out.push({ href: "/spark", label: LABEL["/spark"], icon: ICON["/spark"] });
     return out;
   }, [menus, permsError]);
 
@@ -443,11 +454,17 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
             const active = pathname === n.href || pathname.startsWith(n.href + "/");
             const prev = navItems[i - 1]?.href ?? "";
             const startsAdminGroup = ADMIN_HREFS.includes(n.href) && !ADMIN_HREFS.includes(prev);
+            const startsSparkGroup = n.href === "/spark";
             return (
               <Fragment key={n.href}>
                 {startsAdminGroup && (
                   <span className={s.navGroupLabel} title="仅管理员可见" aria-hidden={collapsed}>
                     {collapsed ? "——" : "管理与审批"}
+                  </span>
+                )}
+                {startsSparkGroup && (
+                  <span className={s.navGroupLabel} title="Spark" aria-hidden={collapsed}>
+                    {collapsed ? "——" : "Spark"}
                   </span>
                 )}
                 <Link

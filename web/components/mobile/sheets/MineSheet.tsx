@@ -120,6 +120,15 @@ export default function MineSheet({
         )
       )}
 
+      <div className={s.sec}>通用入口</div>
+      <SheetCard
+        variant={variant}
+        href="/spark"
+        title="Spark 演示站"
+        note="NebulaCloud 演示站"
+        onSelect={onSelect}
+      />
+
       <div className={s.sec}>账号</div>
       <SheetCard
         variant={variant}
