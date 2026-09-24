@@ -148,12 +148,16 @@ export default function LoginPage() {
               </div>
               {fieldErr && <div className={`${st.alert} ${st.alertErr}`} role="alert">{fieldErr}</div>}
               {apiErr && <div className={`${st.alert} ${st.alertErr}`} role="alert">{apiErr}</div>}
-              <button className={st.submit} type="submit" disabled={loading}>
-                <span>{loading ? "正在建立链路…" : "进入管理平台"}</span>
+              <button className={st.submit} type="submit" disabled={loading} aria-busy={loading}>
+                <span>{loading ? "正在验证身份…" : "进入管理平台"}</span>
                 <span className={st.submitArrow} aria-hidden="true">
-                  <svg viewBox="0 0 16 16" fill="none" aria-hidden="true">
-                    <path d="M3 13 13 3M6 3h7v7" />
-                  </svg>
+                  {loading ? (
+                    <span className={st.submitSpinner} />
+                  ) : (
+                    <svg viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                      <path d="M3 13 13 3M6 3h7v7" />
+                    </svg>
+                  )}
                 </span>
               </button>
             </form>
