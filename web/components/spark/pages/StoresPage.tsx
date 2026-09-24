@@ -27,7 +27,7 @@ function StoreCard({ store }: { store: SparkStore }) {
       </div>
       <p className={s.storeAddress}><span aria-hidden="true">⌖</span>{store.address}</p>
       <div className={s.storeLoad}>
-        <span>实时负载</span>
+        <span>Mock 负载</span>
         <SparkProgress value={store.load} tone={store.load >= 90 ? "amber" : "cyan"} label={`${store.load}%`} />
         <strong>{store.online}/{store.terminals}</strong>
       </div>

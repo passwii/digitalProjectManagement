@@ -12,6 +12,7 @@
 
 - Spark 所有路由都可在没有 `pm_access_token` 时访问；主项目现有路由保护继续生效。
 - Spark 只消费本地 mock 数据，不请求主项目业务 API、原 Coze 站点或数据库。
+- 所有页面须明确标识本地 Mock 演示；静态 fixtures 不展示无实际机制支撑的实时状态或自动刷新承诺。
 - 主项目后端 `/meta/me/menus` 契约与五位手机 Dock 不变。
 - Spark 样式必须限定在 Spark root/classes/CSS Modules 内，不能改主项目全局浅色 token。
 - 页面包含八个已采集模块；原站登录页与其凭据不进入演示 UI。
@@ -106,6 +107,7 @@ out.push({
 - [x] 运维页展示工单 KPI、六类子系统状态、SLA 和状态筛选；筛选能改变表格行集合。
 - [x] 权限页展示成员表、角色筛选、角色权限面板、操作日志；角色切换更新当前权限矩阵。
 - [x] 所有 mock 状态以组件 state 管理，不发写请求、不写 localStorage、不改变主项目登录状态。
+- [x] Spark 全站标明本地 Mock；无刷新机制的数据不显示为实时数据，也不承诺自动刷新。
 
 **验收：** `security-toggle`、`ops-pending`、`permissions-roles`、`permissions-logs`、`permissions-manager-filter` 对应状态可重现；表格窄屏下可读。
 

@@ -28,7 +28,7 @@ export default function DashboardPage() {
     <div className={p.pageStack}>
       <SparkPageHeader
         title="苏州运营总览"
-        subtitle="数据截至 2026-06-08 22:30 · 苏州全域实时监测"
+        subtitle="本地 Mock 快照 · 数据截至 2026-06-08 22:30"
         icon="dashboard"
         status="全部子系统运行正常"
       />
@@ -38,7 +38,7 @@ export default function DashboardPage() {
       </div>
 
       <div className={s.dashboardMainGrid}>
-        <SparkPanel title="苏州全域 24h 营收曲线" subtitle="网吧时段 + 电竞酒店（元 / 2 小时）" action={<SparkBadge tone="green">实时</SparkBadge>}>
+        <SparkPanel title="苏州全域 24h 营收曲线" subtitle="网吧时段 + 电竞酒店（元 / 2 小时）" action={<SparkBadge tone="slate">本地 Mock</SparkBadge>}>
           <div className={`${p.chartBox} ${p.chartBoxTall}`}>
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={DASHBOARD_REVENUE} margin={{ top: 8, right: 6, bottom: 0, left: -18 }}>
@@ -105,7 +105,7 @@ export default function DashboardPage() {
           </div>
         </SparkPanel>
 
-        <SparkPanel title="实时事件与告警" subtitle="今日 24 条">
+        <SparkPanel title="模拟事件与告警" subtitle="今日 24 条">
           <div className={s.alertList}>
             {DASHBOARD_ALERTS.map((alert) => (
               <div className={s.alertItem} key={`${alert.time}-${alert.name}`}>
@@ -117,7 +117,7 @@ export default function DashboardPage() {
         </SparkPanel>
       </div>
 
-      <SparkPanel title="今日营收 Top 6" subtitle="苏州全域门店实时排序">
+      <SparkPanel title="今日营收 Top 6" subtitle="苏州全域门店 Mock 数据排序">
         <div className={s.rankList}>
           {REVENUE_LEADERS.map((store) => (
             <div className={s.rankItem} key={store.rank}>

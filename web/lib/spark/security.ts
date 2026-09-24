@@ -39,8 +39,8 @@ export const SECURITY_DISASTER_RECOVERY = [
 ] as const;
 
 export const REGULATORY_CONNECTIONS = [
-  { name: "苏州市文化广电和旅游局", scope: "网吧实名登记 / 电竞酒店内容审核", sync: "22:00 实时上报" },
-  { name: "苏州市公安局网安支队", scope: "实名身份 / 网络安全 / 案件协查", sync: "22:28 实时同步" },
+  { name: "苏州市文化广电和旅游局", scope: "网吧实名登记 / 电竞酒店内容审核", sync: "22:00 · 模拟上报记录" },
+  { name: "苏州市公安局网安支队", scope: "实名身份 / 网络安全 / 案件协查", sync: "22:28 · 模拟同步记录" },
   { name: "江苏省通信管理局", scope: "IDC/云资源 / 网络数据安全", sync: "今日 09:00 日报" },
   { name: "苏州市消防救援支队", scope: "消防物联网 / 烟感告警联动", sync: "22:30 心跳正常" },
   { name: "国家税务总局苏州市税务局", scope: "电子发票自动开具 / 营收对账", sync: "今日开票 1,284 张" },

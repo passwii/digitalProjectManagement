@@ -56,7 +56,7 @@ export default function OpsPage() {
         {OPS_METRICS.map((metric) => <SparkMetric key={metric.label} {...metric} />)}
       </div>
 
-      <SparkPanel title="六大子系统健康度" subtitle="各系统实时健康评分">
+      <SparkPanel title="六大子系统健康度" subtitle="各系统 Mock 健康评分">
         <div className={s.subsystemGrid}>{OPS_SUBSYSTEMS.map((item) => <article className={s.subsystemCard} key={item.name}><span>{item.name}</span><strong>{item.score}</strong><small>{item.health}</small></article>)}</div>
       </SparkPanel>
 

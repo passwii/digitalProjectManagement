@@ -21,16 +21,16 @@ export default function ComputePage() {
 
   return (
     <div className={p.pageStack}>
-      <SparkPageHeader title="算力智能调度" subtitle="苏州 3 大边缘机房 + 4 个区县边缘节点 · GPU 资源池实时监控" icon="compute" status="AI 调度引擎运行中" />
+      <SparkPageHeader title="算力智能调度" subtitle="苏州 3 大边缘机房 + 4 个区县边缘节点 · GPU 资源池 Mock 快照" icon="compute" status="AI 调度演示状态" />
 
       <div className={`${p.metricGrid} ${s.computeMetrics}`}>
-        <SparkMetric label="GPU 平均负载" value="73" unit="%" detail="苏州算力池实时利用率" tone="cyan" icon="compute" />
+        <SparkMetric label="GPU 平均负载" value="73" unit="%" detail="苏州算力池 Mock 利用率" tone="cyan" icon="compute" />
         <SparkMetric label="平均端到端时延" value="18" unit="ms" detail="跨区调度目标 ≤ 30ms" tone="violet" icon="dashboard" />
         <SparkMetric label="活跃云机会话" value="294" unit="路" detail="8 个 GPU 节点在线" tone="green" icon="store" />
         <SparkMetric label="告警节点" value="1/8" detail="SIP-GPU-B07 温度偏高" tone="amber" icon="security" />
       </div>
 
-      <SparkPanel title="苏州算力池 24h 负载" subtitle="GPU 利用率 & 网络吞吐基线" action={<SparkBadge tone="green">每 3 秒刷新</SparkBadge>}>
+      <SparkPanel title="苏州算力池 24h 负载" subtitle="GPU 利用率 & 网络吞吐基线" action={<SparkBadge tone="slate">静态 Mock</SparkBadge>}>
         <div className={`${p.chartBox} ${p.chartBoxTall}`}>
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={COMPUTE_LOAD} margin={{ top: 8, right: 8, bottom: 0, left: -20 }}>
@@ -89,7 +89,7 @@ export default function ComputePage() {
         </div>
       </SparkPanel>
 
-      <SparkPanel title="GPU 节点实时状态" subtitle="8 个节点 · 资源与链路时延" action={<span className={p.muted} style={{ fontSize: 9 }}>当前策略：{strategy}</span>}>
+      <SparkPanel title="GPU 节点状态（Mock）" subtitle="8 个节点 · 资源与链路时延" action={<span className={p.muted} style={{ fontSize: 9 }}>当前策略：{strategy}</span>}>
         <div className={p.tableWrap}>
           <table className={p.dataTable}>
             <thead><tr><th>节点 ID / 机房</th><th>型号</th><th>GPU 利用率</th><th>显存</th><th>温度</th><th>功耗</th><th>会话</th><th>时延</th></tr></thead>
