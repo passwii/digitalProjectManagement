@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session
 from ..core.database import get_db
 from ..core.deps import get_current_user
 from ..core.paging import DEFAULT_PAGE_SIZE, paginate
-from ..models import AccountBookMember, Department, Dict, User
+from ..models import AccountBook, AccountBookMember, Department, Dict, User
 
 router = APIRouter(prefix="/meta", tags=["meta"])
 
@@ -121,7 +121,12 @@ def menus(db: Session = Depends(get_db), user: User = Depends(get_current_user))
         items.append({"key": "partners", "label": "我的友商", "href": "/partners"})
         items.append({"key": "approvals", "label": "审批中心", "href": "/approvals"})
         items.append({"key": "admin", "label": "系统管理", "href": "/admin"})
-    finance_books = db.query(AccountBookMember.account_book_id).filter_by(user_id=user.id).count()
+    finance_books = (
+        db.query(AccountBookMember.account_book_id)
+        .join(AccountBook, AccountBook.id == AccountBookMember.account_book_id)
+        .filter(AccountBookMember.user_id == user.id, AccountBook.deleted_at.is_(None))
+        .count()
+    )
     can_finance = admin or finance_books > 0
     if can_finance and not any(item["key"] == "finance" for item in items):
         items.append({"key": "finance", "label": "财务管理", "href": "/finance"})

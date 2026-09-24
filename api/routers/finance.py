@@ -53,6 +53,11 @@ class BookIn(BaseModel):
     base_currency: str = Field(default="CNY", min_length=3, max_length=3)
 
 
+class BookDeleteIn(BaseModel):
+    confirmation_code: str = Field(min_length=1, max_length=32)
+    acknowledged_retention: bool = False
+
+
 class AccountIn(BaseModel):
     code: str = Field(min_length=4, max_length=32)
     name: str = Field(min_length=1, max_length=128)
@@ -87,7 +92,7 @@ class PeriodStatusIn(BaseModel):
 
 
 def _book_access(db: Session, user: User, book_id: int) -> AccountBook:
-    book = db.query(AccountBook).filter(AccountBook.id == book_id).first()
+    book = db.query(AccountBook).filter(AccountBook.id == book_id, AccountBook.deleted_at.is_(None)).first()
     if not book:
         _finance_error(404, "F-NO-BOOK-ACCESS", "账套不存在")
     if not is_admin(user) and not db.query(AccountBookMember).filter_by(account_book_id=book_id, user_id=user.id).first():
@@ -99,7 +104,7 @@ def _book_header(db: Session, user: User, header: str | None) -> AccountBook:
     code = (header or "").strip()
     if not code:
         _finance_error(403, "F-NO-BOOK-ACCESS", "请通过 X-Account-Book 指定账套 code")
-    book = db.query(AccountBook).filter(AccountBook.code == code).first()
+    book = db.query(AccountBook).filter(AccountBook.code == code, AccountBook.deleted_at.is_(None)).first()
     if not book:
         _finance_error(403, "F-NO-BOOK-ACCESS", "账套不存在")
     return _book_access(db, user, book.id)  # type: ignore[arg-type]
@@ -283,10 +288,80 @@ def create_book(
 def list_books(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     if not is_admin(user):
         _finance_error(403, "F-NO-BOOK-ACCESS", "仅管理员可访问财务模块")
-    q = db.query(AccountBook)
-    if not is_admin(user):
-        q = q.join(AccountBookMember).filter(AccountBookMember.user_id == user.id)
+    q = db.query(AccountBook).filter(AccountBook.deleted_at.is_(None))
     return [_serialize_book(x) for x in q.order_by(AccountBook.id).all()]
+
+
+@router.delete("/books/{book_id}")
+def delete_book(
+    book_id: int,
+    body: BookDeleteIn,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """把账套移入回收站；数据库中的账套及其业务数据全部保留。"""
+    if not is_admin(user):
+        _finance_error(403, "F-NO-BOOK-ACCESS", "仅系统管理员可移入账套回收站")
+    book = (
+        db.query(AccountBook)
+        .filter(AccountBook.id == book_id, AccountBook.deleted_at.is_(None))
+        .with_for_update()
+        .first()
+    )
+    if not book:
+        _finance_error(404, "F-NO-BOOK-ACCESS", "账套不存在或已在回收站")
+    if body.confirmation_code.strip() != book.code:
+        _finance_error(400, "F-BOOK-DELETE-CONFIRM", "账套编码确认不匹配")
+    if not body.acknowledged_retention:
+        _finance_error(400, "F-BOOK-DELETE-CONFIRM", "请确认账套数据将保留并可由管理员恢复")
+    book.deleted_at = app_now()
+    book.deleted_by = user.id
+    commit_audited(db, user.id, "soft_delete", "account_book", str(book.id), f"移入回收站：{book.code}")
+    return {"ok": True, "id": book_id, "deleted_at": book.deleted_at.isoformat()}
+
+
+@router.get("/books/recycle-bin/list")
+def list_deleted_books(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """列出保留在数据库中的账套（仅系统管理员）。"""
+    if not is_admin(user):
+        _finance_error(403, "F-NO-BOOK-ACCESS", "仅系统管理员可访问账套回收站")
+    books = (
+        db.query(AccountBook)
+        .filter(AccountBook.deleted_at.is_not(None))
+        .order_by(AccountBook.deleted_at.desc(), AccountBook.id.desc())
+        .all()
+    )
+    return [
+        {
+            **_serialize_book(book),
+            "deleted_at": book.deleted_at.isoformat() if book.deleted_at else None,
+            "deleted_by": book.deleted_by,
+        }
+        for book in books
+    ]
+
+
+@router.post("/books/{book_id}/restore")
+def restore_book(
+    book_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """从回收站恢复账套及其原有业务数据（仅系统管理员）。"""
+    if not is_admin(user):
+        _finance_error(403, "F-NO-BOOK-ACCESS", "仅系统管理员可恢复账套")
+    book = (
+        db.query(AccountBook)
+        .filter(AccountBook.id == book_id, AccountBook.deleted_at.is_not(None))
+        .with_for_update()
+        .first()
+    )
+    if not book:
+        _finance_error(404, "F-NO-BOOK-ACCESS", "回收站中不存在该账套")
+    book.deleted_at = None
+    book.deleted_by = None
+    commit_audited(db, user.id, "restore", "account_book", str(book.id), f"恢复账套：{book.code}")
+    return _serialize_book(book)
 
 
 @router.get("/books/{book_id}/members")

@@ -229,8 +229,11 @@ def _serialize(voucher: Voucher, entries: list[VoucherEntry], accounts: dict[int
     }
 
 
-def _load_voucher(db: Session, book_id: int, voucher_id: int) -> Voucher:
-    row = db.query(Voucher).filter_by(id=voucher_id, account_book_id=book_id).first()
+def _load_voucher(db: Session, book_id: int, voucher_id: int, for_update: bool = False) -> Voucher:
+    query = db.query(Voucher).filter_by(id=voucher_id, account_book_id=book_id)
+    if for_update:
+        query = query.with_for_update()
+    row = query.first()
     if not row:
         _error(404, "F-VOUCHER-NOT-FOUND", "凭证不存在")
     return cast(Voucher, row)
@@ -400,6 +403,45 @@ def _build_draft_voucher(db: Session, book: AccountBook, body: VoucherIn, user: 
     return voucher
 
 
+def _release_arap_allocations(
+    db: Session,
+    book_id: int,
+    source_voucher_id: int,
+    user_id: int,
+    reason: str,
+    release_voucher_id: int | None = None,
+) -> int:
+    """释放一个收付款凭证仍有效的核销分配，保留行记录作为历史。"""
+    allocations = (
+        db.query(ARAPAllocation)
+        .filter_by(account_book_id=book_id, source_id=source_voucher_id)
+        .filter(ARAPAllocation.released_at.is_(None))
+        .order_by(ARAPAllocation.target_id, ARAPAllocation.id)
+        .with_for_update()
+        .all()
+    )
+    released_at = app_now()
+    for allocation in allocations:
+        target = (
+            db.query(ARAPTransaction)
+            .filter_by(account_book_id=book_id, id=allocation.target_id)
+            .with_for_update()
+            .first()
+        )
+        if not target:
+            _error(409, "F-ARAP-ALLOCATION-STATE", "核销目标单据不存在，无法安全释放分配")
+        current = Decimal(str(target.applied_amount or 0))
+        allocated = Decimal(str(allocation.amount))
+        if current < allocated:
+            _error(409, "F-ARAP-ALLOCATION-STATE", "已核销余额小于待释放金额，请联系管理员核对账套数据")
+        target.applied_amount = current - allocated
+        allocation.released_at = released_at
+        allocation.released_by = user_id
+        allocation.release_reason = reason.strip()
+        allocation.release_voucher_id = release_voucher_id
+    return len(allocations)
+
+
 @router.post("/vouchers")
 def create_voucher(body: VoucherIn, x_account_book: str | None = Header(default=None), db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     book = _book_header(db, user, x_account_book)
@@ -546,7 +588,7 @@ def _apply_arap_payment(kind: str, body: ARAPPaymentIn, book: AccountBook, db: S
     candidate_query = db.query(ARAPTransaction).filter_by(account_book_id=book.id, kind=kind, party_id=party_id)
     if body.account_id is not None:
         candidate_query = candidate_query.filter_by(account_id=body.account_id)
-    candidates = candidate_query.order_by(ARAPTransaction.transaction_date, ARAPTransaction.id).all()
+    candidates = candidate_query.order_by(ARAPTransaction.transaction_date, ARAPTransaction.id).with_for_update().all()
     remaining = amount
     allocations = []
     for target in candidates:
@@ -749,9 +791,17 @@ def list_vouchers(status: str = "", period_id: int | None = None, page: int = Qu
 def update_voucher(voucher_id: int, body: VoucherPatch, x_account_book: str | None = Header(default=None), db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     book = _book_header(db, user, x_account_book)
     _role(db, user, book.id, {ROLE_FINANCE_CLERK, ROLE_FINANCE_MANAGER})
-    voucher = _load_voucher(db, book.id, voucher_id)
+    voucher = _load_voucher(db, book.id, voucher_id, for_update=True)
     if voucher.status != "draft":
         _error(400, "F-VOUCHER-POSTED" if voucher.status == "posted" else "F-VOUCHER-STATE", "只有草稿凭证可以编辑")
+    has_active_arap = (
+        db.query(ARAPAllocation.id)
+        .filter_by(account_book_id=book.id, source_id=voucher.id)
+        .filter(ARAPAllocation.released_at.is_(None))
+        .first()
+    )
+    if has_active_arap:
+        _error(400, "F-VOUCHER-ARAP-LOCKED", "收付款凭证已占用核销余额，不能编辑；请删除草稿后重新录入")
     period = _period(db, book.id, body.period_id or voucher.period_id)
     voucher.period_id = period.id
     if body.voucher_no is not None:
@@ -774,11 +824,14 @@ def update_voucher(voucher_id: int, body: VoucherPatch, x_account_book: str | No
 def delete_voucher(voucher_id: int, x_account_book: str | None = Header(default=None), db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     book = _book_header(db, user, x_account_book)
     _role(db, user, book.id, {ROLE_FINANCE_CLERK, ROLE_FINANCE_MANAGER})
-    voucher = _load_voucher(db, book.id, voucher_id)
+    voucher = _load_voucher(db, book.id, voucher_id, for_update=True)
     if voucher.status != "draft":
         _error(400, "F-VOUCHER-STATE", "只有草稿凭证可以删除")
+    released = _release_arap_allocations(
+        db, book.id, voucher.id, user.id, f"删除收付款草稿凭证 {voucher.voucher_no}"
+    )
     db.delete(voucher)
-    commit_audited(db, user.id, "delete", "voucher", str(voucher_id), "delete draft voucher")
+    commit_audited(db, user.id, "delete", "voucher", str(voucher_id), f"删除草稿凭证；释放核销分配 {released} 笔")
     return {"deleted": True, "id": voucher_id}
 
 
@@ -791,7 +844,7 @@ def _transition(voucher: Voucher, expected: set[str], target: str):
 
 @router.post("/vouchers/{voucher_id}/submit")
 def submit_voucher(voucher_id: int, x_account_book: str | None = Header(default=None), db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    book = _book_header(db, user, x_account_book); _role(db, user, book.id, {ROLE_FINANCE_CLERK, ROLE_FINANCE_MANAGER}); voucher = _load_voucher(db, book.id, voucher_id)
+    book = _book_header(db, user, x_account_book); _role(db, user, book.id, {ROLE_FINANCE_CLERK, ROLE_FINANCE_MANAGER}); voucher = _load_voucher(db, book.id, voucher_id, for_update=True)
     _transition(voucher, {"draft"}, "pending")
     commit_audited(db, user.id, "submit", "voucher", str(voucher.id), voucher.voucher_no)
     entries, accounts = _entries(db, voucher.id); return _serialize(voucher, entries, accounts)
@@ -799,7 +852,7 @@ def submit_voucher(voucher_id: int, x_account_book: str | None = Header(default=
 
 @router.post("/vouchers/{voucher_id}/approve")
 def approve_voucher(voucher_id: int, x_account_book: str | None = Header(default=None), db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    book = _book_header(db, user, x_account_book); _role(db, user, book.id, {ROLE_FINANCE_REVIEWER, ROLE_FINANCE_MANAGER}); voucher = _load_voucher(db, book.id, voucher_id)
+    book = _book_header(db, user, x_account_book); _role(db, user, book.id, {ROLE_FINANCE_REVIEWER, ROLE_FINANCE_MANAGER}); voucher = _load_voucher(db, book.id, voucher_id, for_update=True)
     _transition(voucher, {"pending"}, "pending")
     voucher.reviewed_by = user.id
     commit_audited(db, user.id, "approve", "voucher", str(voucher.id), voucher.voucher_no)
@@ -808,7 +861,7 @@ def approve_voucher(voucher_id: int, x_account_book: str | None = Header(default
 
 @router.post("/vouchers/{voucher_id}/reject")
 def reject_voucher(voucher_id: int, body: ReasonIn, x_account_book: str | None = Header(default=None), db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    book = _book_header(db, user, x_account_book); _role(db, user, book.id, {ROLE_FINANCE_REVIEWER, ROLE_FINANCE_MANAGER}); voucher = _load_voucher(db, book.id, voucher_id)
+    book = _book_header(db, user, x_account_book); _role(db, user, book.id, {ROLE_FINANCE_REVIEWER, ROLE_FINANCE_MANAGER}); voucher = _load_voucher(db, book.id, voucher_id, for_update=True)
     if not body.reason.strip(): _error(400, "F-REASON-REQUIRED", "驳回凭证必须填写原因")
     _transition(voucher, {"pending"}, "draft"); voucher.decision_reason = body.reason.strip()
     commit_audited(db, user.id, "reject", "voucher", str(voucher.id), voucher.decision_reason)
@@ -1005,24 +1058,51 @@ def post_voucher(voucher_id: int, x_account_book: str | None = Header(default=No
         _error(400, "F-SOD", "凭证必须先审核后过账")
     voucher.posted_by = user.id
     _update_balance(db, voucher, book.id)
-    commit_audited(db, user.id, "post", "voucher", str(voucher.id), voucher.voucher_no)
+    released = 0
+    if voucher.reversal_of is not None:
+        released = _release_arap_allocations(
+            db,
+            book.id,
+            voucher.reversal_of,
+            user.id,
+            f"冲销凭证 {voucher.voucher_no} 已过账",
+            release_voucher_id=voucher.id,
+        )
+    detail = voucher.voucher_no
+    if released:
+        detail += f"；冲销后释放核销分配 {released} 笔"
+    commit_audited(db, user.id, "post", "voucher", str(voucher.id), detail)
     entries, accounts = _entries(db, voucher.id); return _serialize(voucher, entries, accounts)
 
 
 @router.post("/vouchers/{voucher_id}/void")
 def void_voucher(voucher_id: int, body: ReasonIn, x_account_book: str | None = Header(default=None), db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    book = _book_header(db, user, x_account_book); _role(db, user, book.id, {ROLE_FINANCE_MANAGER}); voucher = _load_voucher(db, book.id, voucher_id)
+    book = _book_header(db, user, x_account_book); _role(db, user, book.id, {ROLE_FINANCE_MANAGER}); voucher = _load_voucher(db, book.id, voucher_id, for_update=True)
     if voucher.status not in {"draft", "pending"}: _error(400, "F-VOUCHER-STATE", "已过账凭证不能作废，请使用红字冲销")
     if not body.reason.strip(): _error(400, "F-REASON-REQUIRED", "作废凭证必须填写原因")
     voucher.status = "void"; voucher.voided_by = user.id; voucher.decision_reason = body.reason.strip(); voucher.updated_at = app_now()
-    commit_audited(db, user.id, "void", "voucher", str(voucher.id), voucher.decision_reason)
+    released = _release_arap_allocations(db, book.id, voucher.id, user.id, body.reason.strip())
+    detail = voucher.decision_reason
+    if released:
+        detail += f"；释放核销分配 {released} 笔"
+    commit_audited(db, user.id, "void", "voucher", str(voucher.id), detail)
     entries, accounts = _entries(db, voucher.id); return _serialize(voucher, entries, accounts)
 
 
 @router.post("/vouchers/{voucher_id}/reverse")
 def reverse_voucher(voucher_id: int, x_account_book: str | None = Header(default=None), db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    book = _book_header(db, user, x_account_book); _role(db, user, book.id, {ROLE_FINANCE_MANAGER}); original = _load_voucher(db, book.id, voucher_id)
+    book = _book_header(db, user, x_account_book); _role(db, user, book.id, {ROLE_FINANCE_MANAGER}); original = _load_voucher(db, book.id, voucher_id, for_update=True)
     if original.status != "posted": _error(400, "F-VOUCHER-STATE", "只有已过账凭证可以红字冲销")
+    if original.reversal_of is not None:
+        _error(400, "F-VOUCHER-STATE", "冲销凭证不能再次冲销")
+    active_reversal = (
+        db.query(Voucher.id)
+        .filter_by(account_book_id=book.id, reversal_of=original.id)
+        .filter(Voucher.status != "void")
+        .first()
+    )
+    if active_reversal:
+        _error(400, "F-VOUCHER-STATE", "该凭证已有未作废的冲销凭证，不能重复冲销")
     period = _period(db, book.id, original.period_id)
     if period.status != "open": _error(400, "F-PERIOD-CLOSED", "当前期间不可生成冲销凭证")
     entries, accounts = _entries(db, original.id)
