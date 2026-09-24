@@ -6,6 +6,7 @@
 
 import io
 import json
+import re
 from datetime import date
 from decimal import Decimal, InvalidOperation
 from typing import Any, cast
@@ -14,19 +15,20 @@ from fastapi import APIRouter, Depends, File, Header, HTTPException, Query, Uplo
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import func, or_
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from ..core.audit import commit_audited
+from ..core.audit import audit_row, commit_audited
 from ..core.database import get_db
 from ..core.deps import get_current_user
-from ..core.rbac import ROLE_CASHIER, ROLE_FINANCE_CLERK, ROLE_FINANCE_MANAGER, ROLE_FINANCE_REVIEWER, is_admin, require_finance
+from ..core.rbac import ROLE_CASHIER, ROLE_FINANCE_CLERK, ROLE_FINANCE_MANAGER, ROLE_FINANCE_REVIEWER, is_admin, require_finance, visible_project_ids
 from ..core.timeutil import app_now
-from ..models import ARAPAllocation, ARAPTransaction, Account, AccountBalance, AccountBook, AccountingPeriod, AssetDepreciation, BankStatement, CashTransaction, FixedAsset, OpeningBalance, User, Voucher, VoucherEntry, VoucherTemplate
+from ..models import ARAPAllocation, ARAPTransaction, Account, AccountBalance, AccountBook, AccountingPeriod, AssetDepreciation, AuxiliaryItem, BankStatement, CashTransaction, Expense, FixedAsset, OpeningBalance, Project, User, Voucher, VoucherEntry, VoucherTemplate
 from .finance import _book_header
 
 router = APIRouter(prefix="/finance", tags=["finance-accounting"])
 EXTERNAL_VOUCHER_SOURCES = {"manual", "template", "import"}
-INTERNAL_VOUCHER_SOURCES = EXTERNAL_VOUCHER_SOURCES | {"cash", "auto-close", "auto-reopen", "reversal", "auto-asset"}
+INTERNAL_VOUCHER_SOURCES = EXTERNAL_VOUCHER_SOURCES | {"cash", "auto-close", "auto-reopen", "reversal", "auto-asset", "project-expense"}
 
 
 def _error(status: int, code: str, message: str, details: list[dict[str, str]] | None = None):
@@ -74,6 +76,20 @@ class VoucherIn(BaseModel):
     summary: str = Field(default="", max_length=255)
     source: str = Field(default="manual", max_length=16)
     lines: list[EntryIn] = Field(min_length=2)
+
+
+class ProjectExpenseLineIn(BaseModel):
+    account_id: int
+    aux_detail: dict = Field(default_factory=dict)
+    cashflow_item: str | None = Field(default=None, max_length=32)
+
+
+class ProjectExpenseVoucherIn(BaseModel):
+    period_id: int
+    voucher_date: date
+    summary: str = Field(default="", max_length=255)
+    debit: ProjectExpenseLineIn
+    credit: ProjectExpenseLineIn
 
 
 class VoucherPatch(BaseModel):
@@ -214,6 +230,7 @@ def _serialize(voucher: Voucher, entries: list[VoucherEntry], accounts: dict[int
         "voucher_date": voucher.voucher_date.isoformat(),
         "status": voucher.status,
         "source": voucher.source,
+        "source_expense_id": voucher.source_expense_id,
         "summary": voucher.summary,
         "total_debit": str(voucher.total_debit),
         "total_credit": str(voucher.total_credit),
@@ -383,7 +400,7 @@ def _rebuild_entries(db: Session, voucher: Voucher, book_id: int, period: Accoun
     voucher.total_credit = credit
 
 
-def _build_draft_voucher(db: Session, book: AccountBook, body: VoucherIn, user: User) -> Voucher:
+def _build_draft_voucher(db: Session, book: AccountBook, body: VoucherIn, user: User, source_expense_id: int | None = None) -> Voucher:
     period = _period(db, book.id, body.period_id)
     if period.status != "open":
         _error(400, "F-PERIOD-CLOSED", "当前期间不可录入凭证")
@@ -395,12 +412,167 @@ def _build_draft_voucher(db: Session, book: AccountBook, body: VoucherIn, user: 
     if db.query(Voucher).filter_by(account_book_id=book.id, period_id=period.id, voucher_no=voucher_no).first():
         _error(409, "F-DUP-VOUCHER-NO", "凭证号在当前期间已存在")
     prepared, debit, credit = _normalise_lines(db, book.id, period, body.lines)
-    voucher = Voucher(account_book_id=book.id, period_id=period.id, voucher_no=voucher_no, voucher_date=body.voucher_date, status="draft", source=body.source, summary=body.summary.strip(), total_debit=debit, total_credit=credit, created_by=user.id, updated_at=app_now())
+    voucher = Voucher(account_book_id=book.id, period_id=period.id, voucher_no=voucher_no, voucher_date=body.voucher_date, status="draft", source=body.source, source_expense_id=source_expense_id, summary=body.summary.strip(), total_debit=debit, total_credit=credit, created_by=user.id, updated_at=app_now())
     db.add(voucher)
     db.flush()
     for line_no, item in enumerate(prepared, 1):
         db.add(VoucherEntry(account_book_id=book.id, voucher_id=voucher.id, line_no=line_no, account_id=item["account"].id, summary=item["summary"], debit=item["debit"], credit=item["credit"], aux_detail=item["aux_detail"], cashflow_item=item["cashflow_item"]))
     return voucher
+
+
+def _source_voucher_summary(voucher: Voucher, book_id: int) -> dict:
+    if voucher.account_book_id != book_id:
+        return {"converted": True, "message": "已在其他账套转换"}
+    return {
+        "id": voucher.id,
+        "voucher_no": voucher.voucher_no,
+        "voucher_date": voucher.voucher_date.isoformat(),
+        "status": voucher.status,
+        "summary": voucher.summary,
+    }
+
+
+def _linked_expense_conflict(db: Session, expense_id: int, book_id: int) -> None:
+    linked = db.query(Voucher).filter_by(source_expense_id=expense_id).first()
+    if linked:
+        raise HTTPException(409, detail={
+            "code": "F-PROJECT-EXPENSE-LINKED",
+            "message": "项目支出已生成凭证" if linked.account_book_id == book_id else "已在其他账套转换",
+            "details": [],
+            "source_voucher_summary": _source_voucher_summary(linked, book_id),
+        })
+
+
+def _validate_project_expense_line(db: Session, book_id: int, line: ProjectExpenseLineIn, field: str) -> None:
+    account = db.query(Account).filter_by(id=line.account_id, account_book_id=book_id, is_active=True, is_leaf=True).first()
+    if not account:
+        _error(400, "F-INVALID-VOUCHER", "凭证分录校验失败", [{"field": f"{field}.account_id", "reason": "只能使用当前账套启用的末级科目"}])
+    flags = account.aux_flags or {}
+    aux = line.aux_detail or {}
+    kinds = {"customer": "customer", "vendor": "vendor", "dept": "department", "employee": "employee", "project": "project"}
+    errors = []
+    for key, kind in kinds.items():
+        value = aux.get(key)
+        if flags.get(key) and value in (None, ""):
+            errors.append({"field": f"{field}.aux_detail.{key}", "reason": "缺少科目要求的辅助核算"})
+        if value not in (None, ""):
+            try:
+                item_id = int(value)
+            except (ValueError, TypeError):
+                item_id = -1
+            item = db.query(AuxiliaryItem).filter_by(id=item_id, account_book_id=book_id, kind=kind, is_active=True).first()
+            if not item:
+                errors.append({"field": f"{field}.aux_detail.{key}", "reason": "辅助资料不存在、类型不符或不属于当前账套"})
+    for key in aux.keys() - kinds.keys():
+        errors.append({"field": f"{field}.aux_detail.{key}", "reason": "不支持的辅助核算类型"})
+    if flags.get("cashflow") and not line.cashflow_item:
+        errors.append({"field": f"{field}.cashflow_item", "reason": "现金类科目必须填写现金流项目"})
+    if line.cashflow_item:
+        item = db.query(AuxiliaryItem).filter_by(account_book_id=book_id, kind="cashflow", code=line.cashflow_item, is_active=True).first()
+        if not item:
+            errors.append({"field": f"{field}.cashflow_item", "reason": "现金流项目不属于当前账套"})
+    if errors:
+        _error(400, "F-INVALID-VOUCHER", "凭证分录校验失败", errors)
+
+
+@router.get("/project-expenses")
+def list_project_expenses(
+    project_id: int | None = Query(default=None, gt=0),
+    status: str | None = None,
+    date_from: date | None = None,
+    date_to: date | None = None,
+    page: int = Query(default=1, ge=1),
+    size: int = Query(default=20, ge=1, le=100),
+    x_account_book: str | None = Header(default=None),
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    book = _book_header(db, user, x_account_book)
+    _role(db, user, book.id)
+    query = db.query(Expense, Project).join(Project, Project.id == Expense.project_id).filter(
+        Expense.project_id.in_(visible_project_ids(db, user)),
+        Expense.status.in_(("approved", "exception")),
+    )
+    if project_id is not None:
+        query = query.filter(Expense.project_id == project_id)
+    if status:
+        query = query.filter(Expense.status == status)
+    if date_from:
+        query = query.filter(Expense.exp_date >= date_from)
+    if date_to:
+        query = query.filter(Expense.exp_date <= date_to)
+    total = query.count()
+    rows = query.order_by(Expense.id.desc()).offset((page - 1) * size).limit(size).all()
+    expense_ids = [expense.id for expense, _ in rows]
+    linked = {voucher.source_expense_id: voucher for voucher in db.query(Voucher).filter(Voucher.source_expense_id.in_(expense_ids)).all()} if expense_ids else {}
+    return {
+        "total": total, "page": page, "size": size,
+        "items": [
+            {
+                "id": expense.id, "project_id": expense.project_id, "subject": expense.subject,
+                "amount": expense.amount, "exp_date": expense.exp_date.isoformat() if expense.exp_date else None,
+                "note": expense.note, "status": expense.status, "by_id": expense.by_id,
+                "approved_by": expense.approved_by,
+                "project": {"id": project.id, "code": project.code, "name": project.name},
+                "source_voucher_summary": _source_voucher_summary(linked[expense.id], book.id) if expense.id in linked else None,
+            }
+            for expense, project in rows
+        ],
+    }
+
+
+@router.post("/project-expenses/{expense_id}/voucher")
+def create_project_expense_voucher(
+    expense_id: int,
+    body: ProjectExpenseVoucherIn,
+    x_account_book: str | None = Header(default=None),
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    book = _book_header(db, user, x_account_book)
+    _role(db, user, book.id, {ROLE_FINANCE_CLERK, ROLE_FINANCE_MANAGER})
+    try:
+        period = db.query(AccountingPeriod).filter_by(id=body.period_id, account_book_id=book.id).with_for_update().first()
+        if not period or period.status != "open" or not (period.start_date <= body.voucher_date <= period.end_date):
+            _error(400, "F-PERIOD-CLOSED", "期间关闭或凭证日期不在所属期间")
+        expense = db.query(Expense).filter_by(id=expense_id).with_for_update().first()
+        if not expense or not db.query(Project.id).filter(Project.id == expense.project_id, Project.id.in_(visible_project_ids(db, user))).first():
+            _error(404, "F-PROJECT-EXPENSE-NOT-FOUND", "项目支出不存在")
+        _linked_expense_conflict(db, expense_id, book.id)
+        if expense.status not in ("approved", "exception"):
+            _error(400, "F-PROJECT-EXPENSE-STATUS", "项目支出尚未通过审批")
+        amount = Decimal(str(expense.amount)).quantize(Decimal("0.01"))
+        if not amount.is_finite() or amount <= 0:
+            _error(400, "F-INVALID-AMOUNT", "项目支出金额必须大于零")
+        _validate_project_expense_line(db, book.id, body.debit, "debit")
+        _validate_project_expense_line(db, book.id, body.credit, "credit")
+        numbers = db.query(Voucher.voucher_no).filter_by(account_book_id=book.id, period_id=period.id).all()
+        next_number = max((int(match.group(1)) for (number,) in numbers if (match := re.fullmatch(r"记-(\d+)", number))), default=0) + 1
+        payload = VoucherIn(
+            period_id=period.id, voucher_no=f"记-{next_number:04d}", voucher_date=body.voucher_date,
+            summary=body.summary, source="project-expense",
+            lines=[
+                EntryIn(account_id=body.debit.account_id, summary=body.summary, debit=amount, aux_detail=body.debit.aux_detail, cashflow_item=body.debit.cashflow_item),
+                EntryIn(account_id=body.credit.account_id, summary=body.summary, credit=amount, aux_detail=body.credit.aux_detail, cashflow_item=body.credit.cashflow_item),
+            ],
+        )
+        voucher = _build_draft_voucher(db, book, payload, user, source_expense_id=expense.id)
+        audit_row(db, user.id, "create_project_expense_voucher", "expenses", expense.id, f"voucher={voucher.id}")
+        db.commit()
+        entries, accounts = _entries(db, voucher.id)
+        return _serialize(voucher, entries, accounts)
+    except IntegrityError as exc:
+        db.rollback()
+        _linked_expense_conflict(db, expense_id, book.id)
+        if getattr(getattr(exc.orig, "diag", None), "constraint_name", None) == "uq_voucher_book_period_no":
+            _error(409, "F-DUP-VOUCHER-NO", "凭证号在当前期间已存在")
+        raise
+    except HTTPException:
+        db.rollback()
+        raise
+    except Exception:
+        db.rollback()
+        raise
 
 
 def _release_arap_allocations(
