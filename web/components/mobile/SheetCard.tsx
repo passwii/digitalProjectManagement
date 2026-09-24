@@ -22,6 +22,8 @@ export interface SheetCardProps {
     variant?: SheetCardVariant;
     /** 落点：模块或详情页 */
     href: string;
+    /** 可选浏览上下文名称；相同名称的入口会复用同一个标签页 */
+    target?: React.HTMLAttributeAnchorTarget;
     /** 主文案（模块名 / 记录标题） */
     title: string;
     /** 第二行说明（列表卡的元信息：编号 / 负责人 / 口径） */
@@ -46,6 +48,7 @@ export interface SheetCardProps {
 export default function SheetCard({
     variant = "preview",
     href,
+    target,
     title,
     note,
     value,
@@ -56,6 +59,7 @@ export default function SheetCard({
     return (
         <Link
             href={href}
+            target={target}
             className={s.card}
             data-sheet-card={variant}
             data-tone={tone}

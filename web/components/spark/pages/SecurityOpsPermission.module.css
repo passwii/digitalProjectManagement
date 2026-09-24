@@ -1,0 +1,100 @@
+.policyGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.policyCard { min-width: 0; padding: 14px; border: 1px solid rgba(194,211,239,.1); border-radius: 9px; background: linear-gradient(145deg, rgba(20,26,40,.76), rgba(15,20,31,.86)); }
+.policyHeader { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.policyTitle { margin: 0; color: #dce6f4; font-size: 11px; font-weight: 550; }
+.policyText { margin: 7px 0 5px; color: #8996aa; font-size: 9px; line-height: 1.55; }
+.policyDetail { margin: 0; color: #69c9d4; font-size: 8px; }
+.cryptoGrid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; }
+.cryptoCard { padding: 11px; border: 1px solid rgba(194,211,239,.085); border-radius: 7px; background: rgba(255,255,255,.02); }
+.cryptoCard span { display: block; color: #77859a; font-size: 8px; }
+.cryptoCard strong { display: block; margin-top: 7px; color: #cbd8e9; font-size: 9px; font-weight: 520; line-height: 1.45; }
+.recoveryGrid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.recoveryCard { padding: 11px; border-left: 2px solid rgba(34,211,238,.42); background: rgba(255,255,255,.022); }
+.recoveryCard span { display: block; color: #77859a; font-size: 8px; }
+.recoveryCard strong { display: block; margin-top: 6px; color: #d1deed; font-size: 10px; font-weight: 520; }
+.recoveryNote { margin: 11px 0 0; color: #707e93; font-size: 9px; }
+.regulatorGrid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.regulatorCard { padding: 12px; border: 1px solid rgba(194,211,239,.085); border-radius: 8px; background: rgba(255,255,255,.02); }
+.regulatorCard h3 { margin: 0; color: #cbd7e7; font-size: 9px; font-weight: 540; }
+.regulatorCard p { min-height: 28px; margin: 6px 0; color: #78869b; font-size: 8px; line-height: 1.5; }
+.regulatorCard small { color: #5ec7ac; font-size: 8px; }
+.inlineNotice { padding: 8px 10px; border: 1px solid rgba(52,211,153,.2); border-radius: 6px; color: #74d7b4; background: rgba(52,211,153,.06); font-size: 9px; }
+
+.subsystemGrid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.subsystemCard { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 5px 10px; padding: 11px; border: 1px solid rgba(194,211,239,.085); border-radius: 7px; background: rgba(255,255,255,.02); }
+.subsystemCard span { color: #9aa8bb; font-size: 9px; }
+.subsystemCard strong { color: #6ddcb4; font: 12px "JetBrains Mono", monospace; }
+.subsystemCard small { grid-column: 1 / -1; color: #6e7c91; font-size: 8px; }
+.ticketGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.ticketCard { position: relative; min-width: 0; padding: 14px; border: 1px solid rgba(194,211,239,.1); border-radius: 9px; background: linear-gradient(145deg, rgba(20,26,40,.76), rgba(15,20,31,.86)); }
+.ticketHead { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.ticketTitle { display: flex; min-width: 0; align-items: flex-start; gap: 8px; }
+.ticketTitle h3 { margin: 1px 0 0; color: #d9e4f2; font-size: 10px; font-weight: 560; line-height: 1.45; }
+.priority { display: inline-grid; width: 23px; height: 19px; flex: none; place-items: center; border: 1px solid rgba(251,113,133,.25); border-radius: 5px; color: #f98ea1; background: rgba(251,113,133,.08); font: 8px "JetBrains Mono", monospace; }
+.priorityP1 { border-color: rgba(251,191,36,.25); color: #f6c761; background: rgba(251,191,36,.07); }
+.priorityP2 { border-color: rgba(34,211,238,.19); color: #6bd6e4; background: rgba(34,211,238,.055); }
+.priorityP3 { border-color: rgba(148,163,184,.17); color: #a8b3c5; background: rgba(148,163,184,.04); }
+.ticketDescription { margin: 9px 0 11px; color: #8290a4; font-size: 9px; line-height: 1.55; }
+.ticketMeta { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 10px; padding-top: 10px; border-top: 1px solid rgba(194,211,239,.07); }
+.ticketMeta span { overflow: hidden; color: #77859a; font-size: 8px; text-overflow: ellipsis; white-space: nowrap; }
+.ticketMeta strong { color: #aebbd0; font-weight: 500; }
+.ticketFoot { display: flex; align-items: center; justify-content: space-between; gap: 9px; margin-top: 10px; }
+.ticketSla { color: #d2b875; font-size: 8px; }
+.ticketActions { display: flex; gap: 6px; }
+.ticketDetail { margin-top: 9px; padding: 9px; border-radius: 6px; color: #91a0b5; background: rgba(255,255,255,.035); font-size: 9px; line-height: 1.55; }
+.slaGrid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.slaCard { padding: 12px; border: 1px solid rgba(194,211,239,.085); border-radius: 7px; background: rgba(255,255,255,.02); }
+.slaCard span, .slaCard small { display: block; color: #77859a; font-size: 8px; }
+.slaCard strong { display: block; margin: 7px 0 5px; color: #83dce6; font: 12px "JetBrains Mono", monospace; }
+
+.roleGrid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.roleCard { min-height: 91px; padding: 11px; border: 1px solid rgba(194,211,239,.09); border-radius: 8px; color: #aebbd0; background: rgba(255,255,255,.02); text-align: left; cursor: pointer; transition: border-color 130ms ease, background 130ms ease; }
+.roleCard:hover { border-color: rgba(34,211,238,.25); }
+.roleCardActive { border-color: rgba(34,211,238,.4); background: rgba(34,211,238,.065); }
+.roleCard strong { display: block; color: #d6e2f0; font-size: 9px; font-weight: 540; }
+.roleCard p { min-height: 27px; margin: 6px 0; color: #77859a; font-size: 8px; line-height: 1.45; }
+.roleCard small { color: #62cfda; font-size: 8px; }
+.matrix { overflow: hidden; border: 1px solid rgba(194,211,239,.1); border-radius: 8px; }
+.matrixRow { display: grid; grid-template-columns: minmax(110px, 1.2fr) repeat(3, minmax(62px, .7fr)); min-height: 33px; border-bottom: 1px solid rgba(194,211,239,.065); }
+.matrixRow:last-child { border-bottom: 0; }
+.matrixRow > span { display: flex; align-items: center; padding: 7px 10px; color: #aebbd0; font-size: 8px; }
+.matrixHeader { background: rgba(255,255,255,.025); }
+.matrixHeader > span { color: #6f7e93; }
+.matrixRow > span:not(:first-child) { justify-content: center; }
+.matrixValue { color: #71d7df !important; }
+.matrixNone { color: #59677c !important; }
+.memberTools { display: grid; gap: 9px; }
+.permissionLogs { display: grid; }
+.permissionLog { display: grid; grid-template-columns: 61px minmax(0, .7fr) minmax(0, 1.3fr) minmax(0, 1.1fr) auto; align-items: center; gap: 9px; padding: 10px 2px; border-bottom: 1px solid rgba(194,211,239,.07); }
+.permissionLog:last-child { border-bottom: 0; }
+.permissionLog time { color: #6d7b90; font: 8px "JetBrains Mono", monospace; }
+.permissionLog strong { color: #bfccdd; font-size: 9px; font-weight: 520; }
+.permissionLog span { color: #8694a9; font-size: 8px; }
+.permissionLog small { color: #68768b; font-size: 8px; }
+.modalBackdrop { position: fixed; inset: 0; z-index: 80; display: grid; place-items: center; padding: 18px; background: rgba(0,0,0,.62); backdrop-filter: blur(5px); }
+.modal { width: min(440px, 100%); padding: 17px; border: 1px solid rgba(194,211,239,.16); border-radius: 10px; background: #111722; box-shadow: 0 20px 80px rgba(0,0,0,.4); }
+.modal h2 { margin: 0 0 13px; color: #dce6f4; font-size: 13px; font-weight: 560; }
+.modalForm { display: grid; gap: 10px; }
+.modalForm label { display: grid; gap: 5px; color: #8e9bb0; font-size: 9px; }
+.modalForm input, .modalForm select { width: 100%; height: 33px; padding: 0 9px; border: 1px solid rgba(194,211,239,.15); border-radius: 6px; outline: none; color: #d4deec; background: #0a101a; font-size: 10px; }
+.modalActions { display: flex; justify-content: flex-end; gap: 7px; margin-top: 5px; }
+
+@media (max-width: 1100px) {
+  .roleGrid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .cryptoGrid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (max-width: 767px) {
+  .policyGrid, .ticketGrid { grid-template-columns: minmax(0, 1fr); }
+  .subsystemGrid, .slaGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .regulatorGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .roleGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .cryptoGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .recoveryGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .permissionLog { grid-template-columns: 53px 1fr auto; }
+  .permissionLog span:nth-of-type(2), .permissionLog small { display: none; }
+}
+@media (max-width: 420px) {
+  .matrixRow { grid-template-columns: minmax(92px, 1.2fr) repeat(3, minmax(46px, .7fr)); }
+  .matrixRow > span { padding-right: 5px; padding-left: 5px; }
+  .regulatorGrid { grid-template-columns: minmax(0, 1fr); }
+}
