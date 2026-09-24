@@ -108,4 +108,4 @@ interface BookMembersDialogProps {
 - [x] 执行 `./node_modules/.bin/tsc --noEmit --target es2018 --incremental false`，确认退出码为 0。
 - [x] 执行 `npm run build`，确认生产构建成功并记录已有非本功能警告。
 - [x] 执行 `git diff --check`，审阅权限判断、分页搜索、状态重置和 API 载荷。
-- [ ] 用中文 commit 标题提交实现与设计文档；创建中文 PR，正文使用中文分节标题。
+- [x] 用中文 commit 标题提交实现与设计文档；创建中文 PR，正文使用中文分节标题。
