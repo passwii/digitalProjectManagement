@@ -52,6 +52,8 @@ class AccountBook(Base):
   status = Column(String(16), nullable=False, default="active", server_default="active")
   created_by = Column(Integer, ForeignKey("users.id"), nullable=True)
   created_at = Column(DateTime, default=_now, nullable=False)
+  deleted_at = Column(DateTime, nullable=True, index=True)
+  deleted_by = Column(Integer, ForeignKey("users.id"), nullable=True)
   __table_args__ = (
     CheckConstraint("status IN ('active','archived')", name="ck_book_status"),
     CheckConstraint("base_currency ~ '^[A-Z]{3}$'", name="ck_book_currency"),
@@ -501,6 +503,10 @@ class ARAPAllocation(Base):
   amount = Column(Numeric(18, 2), nullable=False)
   created_by = Column(Integer, ForeignKey("users.id"), nullable=True)
   created_at = Column(DateTime, default=_now, nullable=False)
+  released_at = Column(DateTime, nullable=True, index=True)
+  released_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+  release_reason = Column(Text, nullable=False, default="", server_default="")
+  release_voucher_id = Column(Integer, ForeignKey("vouchers.id"), nullable=True)
   __table_args__ = (
     UniqueConstraint("account_book_id", "source_id", "target_id", name="uq_arap_allocation_pair"),
     CheckConstraint("amount > 0", name="ck_arap_allocation_amount"),

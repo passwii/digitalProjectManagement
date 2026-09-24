@@ -340,6 +340,10 @@ export const apiPatchScoped = <T>(path: string, body: unknown, headers: Record<s
   );
 export const apiDeleteScoped = <T>(path: string, headers: Record<string, string>) =>
   trackedMutation("删除中", () => requestOnce<T>(path, { method: "DELETE", headers }));
+export const apiDeleteWithBody = <T>(path: string, body: unknown) =>
+  trackedMutation("移入回收站", () =>
+    requestOnce<T>(path, { method: "DELETE", body: JSON.stringify(body) }),
+  );
 export const apiDelete = <T>(path: string) =>
   trackedMutation("删除中", () => requestOnce<T>(path, { method: "DELETE" }));
 
@@ -500,6 +504,10 @@ export interface FinanceBook {
   base_currency: string;
   currencies: string[];
   status: string;
+}
+export interface FinanceDeletedBook extends FinanceBook {
+  deleted_at: string;
+  deleted_by: number | null;
 }
 export interface FinancePeriod {
   id: number;
@@ -698,6 +706,14 @@ export const financeApi = {
     list: (signal?: AbortSignal) => apiGet<FinanceBook[]>("/finance/books", signal),
     create: (body: { code: string; name: string; base_currency?: string }) =>
       apiPost<FinanceBook>("/finance/books", body),
+    moveToRecycleBin: (id: number, confirmationCode: string) =>
+      apiDeleteWithBody<{ ok: boolean; id: number; deleted_at: string }>(
+        `/finance/books/${id}`,
+        { confirmation_code: confirmationCode, acknowledged_retention: true },
+      ),
+    recycleBin: (signal?: AbortSignal) =>
+      apiGet<FinanceDeletedBook[]>("/finance/books/recycle-bin/list", signal),
+    restore: (id: number) => apiPost<FinanceBook>(`/finance/books/${id}/restore`, {}),
   },
   periods: (book: string, year?: number, signal?: AbortSignal) =>
     apiGetScoped<FinancePeriod[]>(`/finance/periods${buildQuery({ year })}`, financeHeaders(book), signal),
@@ -752,6 +768,10 @@ export const financeApi = {
     apiPostScoped<FinanceVoucher>(`/finance/vouchers/${id}/approve`, {}, financeHeaders(book)),
   postVoucher: (book: string, id: number) =>
     apiPostScoped<FinanceVoucher>(`/finance/vouchers/${id}/post`, {}, financeHeaders(book)),
+  deleteVoucher: (book: string, id: number) =>
+    apiDeleteScoped<{ deleted: boolean; id: number }>(`/finance/vouchers/${id}`, financeHeaders(book)),
+  voidVoucher: (book: string, id: number, reason: string) =>
+    apiPostScoped<FinanceVoucher>(`/finance/vouchers/${id}/void`, { reason }, financeHeaders(book)),
   rejectVoucher: (book: string, id: number, reason: string) =>
     apiPostScoped<FinanceVoucher>(`/finance/vouchers/${id}/reject`, { reason }, financeHeaders(book)),
   reverseVoucher: (book: string, id: number) =>
