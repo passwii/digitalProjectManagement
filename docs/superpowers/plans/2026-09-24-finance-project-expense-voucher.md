@@ -33,12 +33,12 @@
 - Voucher.source_expense_id: int | None，外键到 expenses.id，ondelete="RESTRICT" 且唯一；普通凭证保持 NULL。
 - 迁移 revision="0026_finance_project_expense_voucher"，down_revision="0025_finance_lifecycle"；增加显式命名的唯一约束 uq_vouchers_source_expense_id 和外键 fk_vouchers_source_expense_id_expenses；降级先移除两项约束再删除列。
 
-- [ ] **步骤 1：先增加来源约束的模型回归用例。** 在 tests/test_finance_project_expense_voucher.py 增加 test_voucher_source_expense_id_is_unique_fk_in_metadata，断言 Voucher 元数据含 source_expense_id 外键并带唯一约束。
-- [ ] **步骤 2：运行新用例确认失败原因。** 运行 pytest tests/test_finance_project_expense_voucher.py::test_voucher_source_expense_id_is_unique_fk_in_metadata -q；预期断言因来源列/约束尚不存在而失败。
-- [ ] **步骤 3：实现模型与迁移。** 模型新增唯一外键；迁移检查 vouchers 是否存在、列是否已存在，幂等增加/删除 source_expense_id，为已有普通凭证保留 NULL。
-- [ ] **步骤 4：验证迁移升降级。** 用随机临时 schema 建立最小 expenses/vouchers 表，运行新迁移 upgrade()，检查列、外键、唯一约束；运行 downgrade() 后确认列不存在，再删除 schema。不得对共享 TEST_DATABASE_URL 直接运行 alembic upgrade head。
-- [ ] **步骤 5：运行回归用例确认模型约束生效。** 再运行同一 pytest 用例，预期列外键目标与唯一约束名称均匹配迁移契约。
-- [ ] **步骤 6：提交持久化改动。** 使用中文提交标题：财务：为凭证添加项目支出来源关联。
+- [x] **步骤 1：先增加来源约束的模型回归用例。** 在 tests/test_finance_project_expense_voucher.py 增加 test_voucher_source_expense_id_is_unique_fk_in_metadata，断言 Voucher 元数据含 source_expense_id 外键并带唯一约束。
+- [x] **步骤 2：运行新用例确认失败原因。** 运行 pytest tests/test_finance_project_expense_voucher.py::test_voucher_source_expense_id_is_unique_fk_in_metadata -q；预期断言因来源列/约束尚不存在而失败。
+- [x] **步骤 3：实现模型与迁移。** 模型新增唯一外键；迁移检查 vouchers 是否存在、列是否已存在，幂等增加/删除 source_expense_id，为已有普通凭证保留 NULL。
+- [x] **步骤 4：验证迁移升降级。** 用随机临时 schema 建立最小 expenses/vouchers 表，运行新迁移 upgrade()，检查列、外键、唯一约束；运行 downgrade() 后确认列不存在，再删除 schema。不得对共享 TEST_DATABASE_URL 直接运行 alembic upgrade head。
+- [x] **步骤 5：运行回归用例确认模型约束生效。** 再运行同一 pytest 用例，预期列外键目标与唯一约束名称均匹配迁移契约。
+- [x] **步骤 6：提交持久化改动。** 使用中文提交标题：财务：为凭证添加项目支出来源关联。
 
 ### Task 2：受权限保护的项目支出查询与凭证生成 API
 
