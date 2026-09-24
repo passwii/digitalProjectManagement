@@ -611,6 +611,84 @@ export interface FixedAsset {
   status: string;
 }
 
+export type FinanceAuxiliaryKind = "customer" | "vendor" | "cashflow";
+
+export interface FinanceAuxiliaryItem {
+  id: number;
+  kind: FinanceAuxiliaryKind;
+  code: string;
+  name: string;
+  metadata: Record<string, unknown>;
+  is_active?: boolean;
+}
+
+export interface FinanceARAPItem {
+  id: number;
+  period_id: number;
+  transaction_date: string;
+  party_id: number;
+  account_id: number;
+  amount: string;
+  applied_amount: string;
+  outstanding: string;
+  summary: string;
+  voucher_id: number | null;
+  voucher_no: string | null;
+}
+
+export interface FinanceARAPAging {
+  as_of: string;
+  total_outstanding: string;
+  buckets: {
+    "0_30": string;
+    "31_60": string;
+    "61_90": string;
+    "90_plus": string;
+  };
+}
+
+export interface FinanceARAPDocumentInput {
+  period_id: number;
+  transaction_date: string;
+  amount: string;
+  summary: string;
+  customer_id?: number;
+  vendor_id?: number;
+  receivable_account_id?: number;
+  payable_account_id?: number;
+  revenue_account_id?: number;
+  expense_account_id?: number;
+}
+
+export interface FinanceARAPPaymentInput {
+  period_id: number;
+  transaction_date: string;
+  amount: string;
+  cash_account_id: number;
+  account_id: number;
+  cashflow_item?: string;
+  summary: string;
+  customer_id?: number;
+  vendor_id?: number;
+}
+
+export interface FinanceARAPDocumentResult {
+  id: number;
+  kind: "receivable" | "payable";
+  amount: string;
+  outstanding: string;
+  voucher: FinanceVoucher;
+}
+
+export interface FinanceARAPPaymentResult {
+  allocations: Array<{
+    receivable_id?: number;
+    payable_id?: number;
+    amount: string;
+  }>;
+  voucher: FinanceVoucher;
+}
+
 function financeHeaders(bookCode: string): Record<string, string> {
   return { "X-Account-Book": bookCode };
 }
@@ -758,6 +836,42 @@ export const financeApi = {
       `/finance/fixed-assets/depreciate?period_id=${periodId}`,
       {},
       financeHeaders(book),
+    ),
+  auxiliaryItems: (book: string, kind: FinanceAuxiliaryKind, signal?: AbortSignal) =>
+    apiGetScoped<FinanceAuxiliaryItem[]>(
+      `/finance/auxiliary-items${buildQuery({ kind })}`,
+      financeHeaders(book),
+      signal,
+    ),
+  createAuxiliaryItem: (
+    book: string,
+    body: { kind: FinanceAuxiliaryKind; code: string; name: string; metadata?: Record<string, unknown> },
+  ) => apiPostScoped<FinanceAuxiliaryItem>("/finance/auxiliary-items", body, financeHeaders(book)),
+  receivables: (book: string, signal?: AbortSignal) =>
+    apiGetScoped<{ total: number; items: FinanceARAPItem[] }>(
+      "/finance/receivables",
+      financeHeaders(book),
+      signal,
+    ),
+  createReceivable: (book: string, body: FinanceARAPDocumentInput) =>
+    apiPostScoped<FinanceARAPDocumentResult>("/finance/receivables", body, financeHeaders(book)),
+  payables: (book: string, signal?: AbortSignal) =>
+    apiGetScoped<{ total: number; items: FinanceARAPItem[] }>(
+      "/finance/payables",
+      financeHeaders(book),
+      signal,
+    ),
+  createPayable: (book: string, body: FinanceARAPDocumentInput) =>
+    apiPostScoped<FinanceARAPDocumentResult>("/finance/payables", body, financeHeaders(book)),
+  collectReceivable: (book: string, body: FinanceARAPPaymentInput) =>
+    apiPostScoped<FinanceARAPPaymentResult>("/finance/receivable-collections", body, financeHeaders(book)),
+  payPayable: (book: string, body: FinanceARAPPaymentInput) =>
+    apiPostScoped<FinanceARAPPaymentResult>("/finance/payable-payments", body, financeHeaders(book)),
+  payableAging: (book: string, asOf: string, signal?: AbortSignal) =>
+    apiGetScoped<FinanceARAPAging>(
+      `/finance/payables/aging${buildQuery({ as_of: asOf })}`,
+      financeHeaders(book),
+      signal,
     ),
 };
 export interface Project {

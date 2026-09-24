@@ -15,6 +15,7 @@
 - 往来主体从当前账套 `auxiliary-items` 的 customer/vendor 类型中选择；只显示有效记录。
 - 应收科目要求 customer 辅助核算，应付科目要求 vendor 辅助核算；付款/收款使用启用现金流核算的末级现金科目与现金流项目编码。
 - 收款/付款写入 FIFO 分配并生成草稿凭证；界面说明余额立即被占用、凭证仍待审核/过账。
+- 往来列表返回 `account_id`；收付款可选传入 `account_id` 限定 FIFO 科目范围，旧调用不传时保留原行为。
 - 不提供收付款撤销，不把项目客户或友商实体拼接为财务主体。
 - 不新增或运行测试；完成代码后只做静态检查和差异审阅。
 
@@ -47,11 +48,13 @@ interface FinanceARAPItem {
   period_id: number;
   transaction_date: string;
   party_id: number;
+  account_id: number;
   amount: string;
   applied_amount: string;
   outstanding: string;
   summary: string;
   voucher_id: number | null;
+  voucher_no: string | null;
 }
 
 interface FinanceARAPAging {
@@ -61,10 +64,10 @@ interface FinanceARAPAging {
 }
 ```
 
-- [ ] 增加与后端 JSON 一致的类型，金额均为字符串，主体 ID 与科目 ID 为数字。
-- [ ] 实现辅助资料 list/create，并使用 `{kind}` 查询参数。
-- [ ] 实现应收/应付 list/create、收款/付款及以 `as_of` 为参数的应付账龄读取。
-- [ ] 对照 `api/routers/finance.py` 与 `api/routers/finance_accounting.py` 的字段名审阅每个 payload。
+- [x] 增加与后端 JSON 一致的类型，金额均为字符串，主体 ID 与科目 ID 为数字。
+- [x] 实现辅助资料 list/create，并使用 `{kind}` 查询参数。
+- [x] 实现应收/应付 list/create、收款/付款及以 `as_of` 为参数的应付账龄读取。
+- [x] 对照 `api/routers/finance.py` 与 `api/routers/finance_accounting.py` 的字段名审阅每个 payload。
 
 具体路由和主体字段：
 
@@ -75,8 +78,8 @@ GET  /finance/receivables                              -> { total, items }
 POST /finance/receivables                              { period_id, transaction_date, customer_id, amount, receivable_account_id, revenue_account_id, summary }
 GET  /finance/payables                                 -> { total, items }
 POST /finance/payables                                 { period_id, transaction_date, vendor_id, amount, payable_account_id, expense_account_id, summary }
-POST /finance/receivable-collections                   { period_id, transaction_date, customer_id, amount, cash_account_id, cashflow_item, summary }
-POST /finance/payable-payments                         { period_id, transaction_date, vendor_id, amount, cash_account_id, cashflow_item, summary }
+POST /finance/receivable-collections                   { period_id, transaction_date, customer_id, amount, cash_account_id, account_id?, cashflow_item, summary }
+POST /finance/payable-payments                         { period_id, transaction_date, vendor_id, amount, cash_account_id, account_id?, cashflow_item, summary }
 GET  /finance/payables/aging?as_of=YYYY-MM-DD          -> FinanceARAPAging
 ```
 
@@ -91,14 +94,14 @@ GET  /finance/payables/aging?as_of=YYYY-MM-DD          -> FinanceARAPAging
 
 - 面板接收当前账套编码、当前开放期间、科目树和管理员状态。
 - 面板独立加载两类往来、辅助资料和账龄；完成写入后刷新这些数据。
-- 列表数据的主体字段按辅助资料 ID 映射，金额保持十进制字符串，汇总只用于展示。
+- 列表数据的主体字段按当前类别的辅助资料 ID 映射，显示往来科目和凭证编号；金额保持十进制字符串，汇总只用于展示。
 
-- [ ] 新增“应收应付”页签并把科目树加载条件扩展到该页签。
-- [ ] 挂载 `ArapPanel`，将 `book.code`、`currentPeriod`、账户科目和 `isAdmin` 传入。
-- [ ] 主面板数据加载使用 `useAsyncData` 并绑定账套和页签依赖；禁用状态使用 `enabled: !!book && tab === "应收应付"`。
-- [ ] 实现应收/应付切换、主体名称映射、主体搜索、空状态、重试和财务摘要。
-- [ ] 应付分区显示可改截止日的四档账龄；不为应收伪造账龄数据。
-- [ ] 禁用无开放期间时的新建与收付款操作；切换账套时重置面板数据。
+- [x] 新增“应收应付”页签并把科目树加载条件扩展到该页签。
+- [x] 挂载 `ArapPanel`，传入账套编码、`currentPeriod`、账户科目和 `isAdmin`。
+- [x] 仅在应收应付页签挂载面板；面板数据用 `useAsyncData` 按账套加载，切换账套时重置。
+- [x] 实现应收/应付切换、主体名称映射、主体/科目搜索、空状态、重试和财务摘要。
+- [x] 应付分区显示可改截止日的四档账龄；不为应收伪造账龄数据。
+- [x] 禁用无开放期间时的新建与收付款操作；切换账套时重置面板数据。
 
 ### 任务三：完成应收应付与 FIFO 收付款表单
 
@@ -110,19 +113,19 @@ GET  /finance/payables/aging?as_of=YYYY-MM-DD          -> FinanceARAPAging
 **接口：**
 
 - 往来单创建表单按类型提交正确的主体字段与科目字段。
-- 收付款表单绑定表格所选主体；主体范围内的 FIFO 分配完全由后端完成。
+- 收付款表单绑定表格所选主体与往来科目；该范围内的 FIFO 分配完全由后端完成。
 - 往来单创建载荷分别使用 `customer_id + receivable_account_id + revenue_account_id` 和 `vendor_id + payable_account_id + expense_account_id`。
-- 核销载荷分别使用 `customer_id` 与 `vendor_id`，现金科目通过 `cash_account_id` 提交。
+- 核销载荷分别使用 `customer_id` 与 `vendor_id`，现金科目通过 `cash_account_id` 提交，并传入选中的往来科目 `account_id`。
 
-- [ ] 创建应收、应付 Dialog：选择客户/供应商、往来科目、对方科目、交易日期、正数金额和摘要。
-- [ ] 应收 POST body 形状为 `{ period_id, transaction_date, customer_id, amount, receivable_account_id, revenue_account_id, summary }`；应付将主体与科目字段替换为 `vendor_id`, `payable_account_id`, `expense_account_id`。
-- [ ] 只提供启用末级科目；筛掉会要求表单未提供辅助维度的对方科目。
-- [ ] 创建管理员可用的客户/供应商辅助资料 Dialog；提交后刷新辅助资料列表。
-- [ ] 创建收款、付款 Dialog：列出该主体未核销余额，选择期间日期、现金科目、现金流项目、金额和摘要。
-- [ ] 收款 POST body 形状为 `{ period_id, transaction_date, customer_id, amount, cash_account_id, cashflow_item, summary }`；付款使用 `vendor_id`。
-- [ ] 禁止金额超过该主体的剩余余额；服务端拒绝时保留表单并显示原始业务错误。
-- [ ] 成功后显示关联凭证编号及“待审核/过账，核销额度已占用”提示，并刷新列表和账龄。
-- [ ] 不显示撤销/冲回动作；说明该能力不在当前后端 API 契约中。
+- [x] 创建应收、应付 Dialog：选择客户/供应商、往来科目、对方科目、交易日期、正数金额和摘要。
+- [x] 应收 POST body 形状为 `{ period_id, transaction_date, customer_id, amount, receivable_account_id, revenue_account_id, summary }`；应付将主体与科目字段替换为 `vendor_id`, `payable_account_id`, `expense_account_id`。
+- [x] 只提供启用末级科目；筛掉会要求表单未提供辅助维度的对方科目。
+- [x] 创建管理员可用的客户/供应商/现金流辅助资料 Dialog；提交后刷新辅助资料列表。
+- [x] 创建收款、付款 Dialog：列出该主体与往来科目范围内的未核销余额，选择期间日期、现金科目、现金流项目、金额和摘要。
+- [x] 收款 POST body 形状为 `{ period_id, transaction_date, customer_id, amount, cash_account_id, account_id, cashflow_item, summary }`；付款使用 `vendor_id`。
+- [x] 禁止金额超过该主体与往来科目的剩余余额；服务端拒绝时保留表单并显示原始业务错误。
+- [x] 成功后显示关联凭证编号及“待审核/过账，核销额度已占用”提示，并刷新列表和账龄。
+- [x] 不显示撤销/冲回动作；说明该能力不在当前后端 API 契约中。
 
 ### 任务四：静态审阅与交付
 
@@ -133,7 +136,7 @@ GET  /finance/payables/aging?as_of=YYYY-MM-DD          -> FinanceARAPAging
 - 审阅：`web/app/(dashboard)/finance/ArapPanel.tsx`
 - 审阅：`web/app/(dashboard)/finance/ArapDialogs.tsx`
 
-- [ ] 执行 TypeScript 静态检查与前端生产构建，不运行测试套件。
-- [ ] 检查差异、权限条件、金额字符串、账套隔离头、表单禁用条件与空/失败状态。
-- [ ] 确认用户界面没有把应收账龄、手工核销或收付款撤回描述为已支持。
-- [ ] 用中文提交标题提交设计、计划和实现成果，并向用户汇报生产只读核实结果与尚存后端限制。
+- [x] 执行 TypeScript 静态检查、API Python 语法编译与前端生产构建，不运行测试套件。
+- [x] 检查差异、权限条件、金额字符串、账套隔离头、表单禁用条件与空/失败状态。
+- [x] 确认用户界面没有把应收账龄、手工核销或收付款撤回描述为已支持。
+- [x] 用中文提交标题提交设计、计划和实现成果，并向用户汇报生产只读核实结果与尚存后端限制。

@@ -155,6 +155,7 @@ class ARAPPaymentIn(BaseModel):
     vendor_id: int | None = None
     amount: Decimal
     cash_account_id: int
+    account_id: int | None = None
     cashflow_item: str | None = None
     summary: str = Field(default="", max_length=255)
 
@@ -473,7 +474,15 @@ def _arap_items(db: Session, book_id: int, kind: str, party_id: int | None = Non
     if party_id is not None:
         query = query.filter_by(party_id=party_id)
     rows = query.order_by(ARAPTransaction.transaction_date, ARAPTransaction.id).all()
-    return [{"id": row.id, "period_id": row.period_id, "transaction_date": row.transaction_date.isoformat(), "party_id": row.party_id, "amount": str(row.amount), "applied_amount": str(row.applied_amount), "outstanding": str(row.amount - row.applied_amount), "summary": row.summary, "voucher_id": row.voucher_id} for row in rows]
+    voucher_ids = {row.voucher_id for row in rows if row.voucher_id is not None}
+    vouchers = {
+        voucher.id: voucher.voucher_no
+        for voucher in db.query(Voucher).filter(
+            Voucher.account_book_id == book_id,
+            Voucher.id.in_(voucher_ids or {0}),
+        ).all()
+    }
+    return [{"id": row.id, "period_id": row.period_id, "transaction_date": row.transaction_date.isoformat(), "party_id": row.party_id, "account_id": row.account_id, "amount": str(row.amount), "applied_amount": str(row.applied_amount), "outstanding": str(row.amount - row.applied_amount), "summary": row.summary, "voucher_id": row.voucher_id, "voucher_no": vouchers.get(row.voucher_id)} for row in rows]
 
 
 def _create_arap_transaction(kind: str, body: ARAPIn, book: AccountBook, db: Session, user: User):
@@ -534,7 +543,10 @@ def _apply_arap_payment(kind: str, body: ARAPPaymentIn, book: AccountBook, db: S
     party_id = body.party_id or body.customer_id or body.vendor_id
     if not party_id:
         _error(400, "F-ARAP-INVALID", "往来主体不能为空")
-    candidates = db.query(ARAPTransaction).filter_by(account_book_id=book.id, kind=kind, party_id=party_id).order_by(ARAPTransaction.transaction_date, ARAPTransaction.id).all()
+    candidate_query = db.query(ARAPTransaction).filter_by(account_book_id=book.id, kind=kind, party_id=party_id)
+    if body.account_id is not None:
+        candidate_query = candidate_query.filter_by(account_id=body.account_id)
+    candidates = candidate_query.order_by(ARAPTransaction.transaction_date, ARAPTransaction.id).all()
     remaining = amount
     allocations = []
     for target in candidates:
