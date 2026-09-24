@@ -298,6 +298,15 @@ class Voucher(Base):
   voucher_date = Column(Date, nullable=False)
   status = Column(String(16), nullable=False, default="draft", server_default="draft", index=True)
   source = Column(String(16), nullable=False, default="manual", server_default="manual")
+  source_expense_id = Column(
+    Integer,
+    ForeignKey(
+      "expenses.id",
+      name="fk_vouchers_source_expense_id_expenses",
+      ondelete="RESTRICT",
+    ),
+    nullable=True,
+  )
   summary = Column(String(255), nullable=False, default="", server_default="")
   total_debit = Column(Numeric(18, 2), nullable=False, default=0, server_default="0")
   total_credit = Column(Numeric(18, 2), nullable=False, default=0, server_default="0")
@@ -312,6 +321,7 @@ class Voucher(Base):
   __table_args__ = (
     UniqueConstraint("account_book_id", "period_id", "voucher_no", name="uq_voucher_book_period_no"),
     UniqueConstraint("account_book_id", "id", name="uq_voucher_book_id"),
+    UniqueConstraint("source_expense_id", name="uq_vouchers_source_expense_id"),
     ForeignKeyConstraint(
       ["account_book_id", "period_id"],
       ["accounting_periods.account_book_id", "accounting_periods.id"],
