@@ -20,6 +20,7 @@ import { Confirm, Dialog } from "@/components/ui/Modal";
 import { useToast } from "@/components/ui/Toast";
 import ArapPanel from "./ArapPanel";
 import { AccountBookRecycleBinDialog, MoveBookToRecycleBinDialog } from "./AccountBookLifecycle";
+import BookMembersDialog from "./BookMembersDialog";
 
 const TABS = ["账套概览", "基础设置", "凭证", "应收应付", "出纳与对账", "固定资产", "账簿与报表", "期末结账"] as const;
 type Tab = (typeof TABS)[number];
@@ -38,6 +39,7 @@ function FinanceInner() {
   const [templateOpen, setTemplateOpen] = useState(false);
   const [recycleBinOpen, setRecycleBinOpen] = useState(false);
   const [deleteBookOpen, setDeleteBookOpen] = useState(false);
+  const [bookMembersOpen, setBookMembersOpen] = useState(false);
 
   const books = useAsyncData((signal) => financeApi.books.list(signal), [], { resetOnDepChange: true });
   const book = books.data?.find((item) => item.code === bookCode) ?? books.data?.[0] ?? null;
@@ -114,6 +116,7 @@ function FinanceInner() {
             <button className="btn-ghost" onClick={refreshAll} title="刷新财务工作台">刷新</button>
             {isAdmin && <button className="btn-ghost" onClick={() => setBookOpen(true)}>+ 新建账套</button>}
             {isAdmin && <button className="btn-ghost" onClick={() => setRecycleBinOpen(true)}>账套回收站</button>}
+            {isAdmin && book && <button className="btn-ghost" onClick={() => setBookMembersOpen(true)}>成员与权限</button>}
             {isAdmin && book && <button className="btn-danger-outline" onClick={() => setDeleteBookOpen(true)}>移入回收站</button>}
             {activeBook && currentPeriod && <button className="btn-primary" onClick={() => setVoucherOpen(true)}>+ 凭证</button>}
           </>
@@ -155,6 +158,14 @@ function FinanceInner() {
         </>
       )}
       {isAdmin && <AccountBookRecycleBinDialog open={recycleBinOpen} onClose={() => setRecycleBinOpen(false)} onRestored={() => books.reload()} />}
+      {isAdmin && <BookMembersDialog
+        open={bookMembersOpen}
+        book={book}
+        onClose={() => setBookMembersOpen(false)}
+        onChanged={(change) => toast.ok(
+          change === "granted" ? "账套成员授权已新增" : change === "role_changed" ? "成员财务角色已更新" : "成员财务授权已移除",
+        )}
+      />}
       {isAdmin && <MoveBookToRecycleBinDialog open={deleteBookOpen} book={book} onClose={() => setDeleteBookOpen(false)} onDeleted={() => {
         if (book) books.setData((books.data ?? []).filter((item) => item.id !== book.id));
         setBookCode("");

@@ -29,6 +29,13 @@
 **接口定义：**
 
 ```ts
+export type FinanceRole =
+  | "finance_clerk"
+  | "finance_reviewer"
+  | "cashier"
+  | "finance_manager"
+  | "finance_auditor";
+
 export interface FinanceBookMember {
   id: number;
   user_id: number;
@@ -43,7 +50,7 @@ export interface FinanceBookMember {
 ```ts
 members: (bookId: number, signal?: AbortSignal) =>
   apiGet<FinanceBookMember[]>(`/finance/books/${bookId}/members`, signal),
-saveMember: (bookId: number, userId: number, role: string) =>
+saveMember: (bookId: number, userId: number, role: FinanceRole) =>
   apiPut<FinanceBookMember>(`/finance/books/${bookId}/members/${userId}`, { role }),
 removeMember: (bookId: number, userId: number) =>
   apiDelete<{ deleted: boolean; user_id: number }>(`/finance/books/${bookId}/members/${userId}`),
@@ -58,9 +65,9 @@ searchUsers: (
 ) => apiGet<Paged<UserOption>>(`/meta/users/search${buildQuery(params)}`, signal),
 ```
 
-- [ ] 确认 `apiPut`、`apiDelete`、`Paged<T>` 和 `buildQuery` 的现有签名。
-- [ ] 增加类型和三个账套成员方法，URL/body 与后端接口保持一致。
-- [ ] 增加分页用户搜索方法，不改变 `metaApi.users(signal)` 的既有签名。
+- [x] 确认 `apiPut`、`apiDelete`、`Paged<T>` 和 `buildQuery` 的现有签名。
+- [x] 增加类型和三个账套成员方法，URL/body 与后端接口保持一致。
+- [x] 增加分页用户搜索方法，不改变 `metaApi.users(signal)` 的既有签名。
 
 ## 任务二：实现成员管理弹窗
 
@@ -73,32 +80,32 @@ interface BookMembersDialogProps {
   open: boolean;
   book: FinanceBook | null;
   onClose: () => void;
-  onChanged: () => void;
+  onChanged: (change: "granted" | "role_changed" | "removed") => void;
 }
 ```
 
-- [ ] 用 `useAsyncData` 加载 `financeApi.members(book.id, signal)`，依赖 `open` 和 `book.id`；关闭弹窗或切换账套时禁用旧请求并重置数据。
-- [ ] 用独立 `useAsyncData` 搜索 `metaApi.searchUsers({ keyword: debouncedKeyword, status: "active", page: 1, size: 20 }, signal)`；结果过滤当前账套已有 `user_id`。
-- [ ] 显示姓名、账号、中文角色名称；每行提供角色选择、仅在角色变化时可用的保存按钮和移除按钮。
-- [ ] 新增区从分页搜索结果选择一个用户，并选择五种财务角色之一；重复成员不能再次选择。
-- [ ] 角色名称映射为：`finance_clerk` → 制单会计，`finance_reviewer` → 审核会计，`cashier` → 出纳，`finance_manager` → 财务主管，`finance_auditor` → 审计员。
-- [ ] 用 `Confirm` 询问是否移除该成员在当前账套的财务授权；请求期间锁定确认动作，取消不发请求。
-- [ ] 每次新增、改角色或移除成功后显示 Toast、刷新成员列表并调用 `onChanged`；失败时显示 `errText(error)`，保留当前编辑选择。
-- [ ] 加入首屏加载、重试、空成员、无匹配用户和保存/移除错误反馈；按钮在对应请求进行时禁用。
+- [x] 用 `useAsyncData` 加载 `financeApi.members(book.id, signal)`，依赖 `open` 和 `book.id`；关闭弹窗或切换账套时禁用旧请求并重置数据。
+- [x] 用独立 `useAsyncData` 搜索 `metaApi.searchUsers({ keyword: debouncedKeyword, status: "active", page: userPage, size: 20 }, signal)`；结果过滤当前账套已有 `user_id`，并提供上一页/下一页及总人数提示。
+- [x] 显示姓名、账号、中文角色名称；历史非财务角色显示原值提示，选择合法角色后可保存；每行提供角色选择、仅在角色变化时可用的保存按钮和移除按钮。
+- [x] 新增区从分页搜索结果选择一个用户，并选择五种财务角色之一；重复成员不能再次选择。
+- [x] 角色名称映射为：`finance_clerk` → 制单会计，`finance_reviewer` → 审核会计，`cashier` → 出纳，`finance_manager` → 财务主管，`finance_auditor` → 审计员。
+- [x] 用 `Confirm` 询问是否移除该成员在当前账套的财务授权；请求期间锁定确认动作，取消不发请求。
+- [x] 每次新增、改角色或移除成功后显示 Toast、刷新成员列表并调用 `onChanged`；失败时显示 `errText(error)`，保留当前编辑选择。
+- [x] 加入首屏加载、重试、空成员、无匹配用户和保存/移除错误反馈；按钮在对应请求进行时禁用。
 
 ## 任务三：接入财务工作台
 
 **修改：** `web/app/(dashboard)/finance/page.tsx`
 
-- [ ] 增加成员管理弹窗开关状态并导入 `BookMembersDialog`。
-- [ ] 仅当 `isAdmin && book` 时在 `PageHeader` 显示“成员与权限”按钮。
-- [ ] 以当前 `book` 对象挂载弹窗；账套变化时弹窗的依赖重置保证不串数据。
-- [ ] 新增或调整角色后提示“账套成员授权已更新”；移除成员后提示“成员财务授权已移除”。
-- [ ] 核对管理员是唯一入口，普通成员不会挂载弹窗。
+- [x] 增加成员管理弹窗开关状态并导入 `BookMembersDialog`。
+- [x] 仅当 `isAdmin && book` 时在 `PageHeader` 显示“成员与权限”按钮。
+- [x] 以当前 `book` 对象挂载弹窗；账套变化时弹窗的依赖重置保证不串数据。
+- [x] 新增或调整角色后提示“账套成员授权已更新”；移除成员后提示“成员财务授权已移除”。
+- [x] 核对管理员是唯一入口，普通成员不会挂载弹窗。
 
 ## 任务四：静态核验与交付
 
-- [ ] 执行 `./node_modules/.bin/tsc --noEmit --target es2018 --incremental false`，确认退出码为 0。
-- [ ] 执行 `npm run build`，确认生产构建成功并记录已有非本功能警告。
-- [ ] 执行 `git diff --check`，审阅权限判断、分页搜索、状态重置和 API 载荷。
+- [x] 执行 `./node_modules/.bin/tsc --noEmit --target es2018 --incremental false`，确认退出码为 0。
+- [x] 执行 `npm run build`，确认生产构建成功并记录已有非本功能警告。
+- [x] 执行 `git diff --check`，审阅权限判断、分页搜索、状态重置和 API 载荷。
 - [ ] 用中文 commit 标题提交实现与设计文档；创建中文 PR，正文使用中文分节标题。
