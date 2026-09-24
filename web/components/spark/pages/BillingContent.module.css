@@ -1,0 +1,125 @@
+.tabsRow { display: flex; justify-content: flex-end; }
+.billingOverviewGrid { display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(270px, .82fr); gap: 12px; min-width: 0; }
+.chartScroll { width: 100%; overflow-x: auto; scrollbar-width: thin; scrollbar-color: rgba(155,172,201,.18) transparent; }
+.revenueChart { display: block; width: 100%; min-width: 590px; height: 218px; overflow: visible; }
+.paymentLayout { display: grid; grid-template-columns: minmax(110px, .8fr) minmax(135px, 1fr); align-items: center; gap: 8px; min-height: 218px; }
+.paymentDonut { width: 100%; max-width: 172px; justify-self: center; }
+.channelLegend { display: grid; gap: 13px; margin: 0; padding: 0; list-style: none; }
+.channelLegend li,
+.channelName { display: flex; align-items: center; }
+.channelLegend li { justify-content: space-between; gap: 10px; color: #8490a4; font-size: 10px; }
+.channelName { gap: 8px; }
+.channelName i { width: 7px; height: 7px; flex: none; border-radius: 50%; }
+.channelLegend strong { color: #c5d0df; font: 10px "JetBrains Mono", "SFMono-Regular", Menlo, monospace; }
+.rulesTable { min-width: 610px; }
+.memberPrice { color: #55d3e9 !important; }
+.roomPrice { color: #c593ff !important; }
+.cashierGrid { display: grid; grid-template-columns: minmax(0, 1.08fr) minmax(310px, .92fr); gap: 12px; min-width: 0; }
+.formStack { display: grid; gap: 16px; }
+.fieldLabel { display: grid; gap: 7px; color: #8995a9; font-size: 10px; }
+.select,
+.amountField { min-height: 35px; border: 1px solid rgba(194,211,239,.13); border-radius: 6px; color: #dbe5f2; background: rgba(5,9,17,.42); font-size: 11px; }
+.select { width: 100%; padding: 0 10px; }
+.select option { color: #dbe5f2; background: #111722; }
+.fieldset { display: grid; gap: 7px; margin: 0; padding: 0; border: 0; }
+.fieldset legend { margin-bottom: 7px; color: #8995a9; font-size: 10px; }
+.amountField { display: flex; align-items: center; gap: 8px; padding: 0 10px; color: #5ad6e7; font: 12px "JetBrains Mono", monospace; }
+.amountField input { width: 100%; min-width: 0; border: 0; outline: none; color: #e5edf8; background: transparent; font: inherit; }
+.confirmButton { min-height: 36px; padding: 0 14px; border: 1px solid rgba(34,211,238,.45); border-radius: 6px; color: #071018; background: #22c7df; font-size: 11px; font-weight: 600; cursor: pointer; }
+.confirmButton:hover { background: #55d9eb; }
+.localNotice { margin: -6px 0 0; color: #77dfb6; font-size: 10px; line-height: 1.6; }
+.rechargeAmounts { display: flex; flex-wrap: wrap; gap: 7px; margin-bottom: 17px; }
+.tierOfferList { display: grid; gap: 9px; margin-bottom: 18px; }
+.tierOffer { display: grid; grid-template-columns: 1fr auto; gap: 3px 12px; padding: 10px 11px; border: 1px solid rgba(194,211,239,.09); border-radius: 7px; background: rgba(255,255,255,.018); }
+.tierOffer strong { color: #d5e0ef; font-size: 10px; font-weight: 550; }
+.tierOffer > span { color: #f4c34e; font-size: 10px; }
+.tierOffer small { grid-column: 1 / -1; color: #8490a4; font-size: 9px; }
+.memberTierGrid { margin-bottom: 2px; }
+.membersTable { min-width: 790px; }
+.campaignGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 11px; }
+.campaignCard { min-width: 0; padding: 15px; border: 1px solid rgba(194,211,239,.1); border-radius: 9px; background: linear-gradient(140deg, rgba(255,255,255,.035), rgba(255,255,255,.012)); }
+.campaignTop { display: flex; align-items: center; justify-content: space-between; gap: 8px; color: #758298; font-size: 9px; }
+.campaignCard h3 { margin: 17px 0 11px; color: #dbe5f2; font-size: 13px; font-weight: 560; }
+.campaignCard > strong { color: #63d8e8; font: 16px "JetBrains Mono", "SFMono-Regular", Menlo, monospace; }
+
+.contentToolbar { display: flex; min-width: 0; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 9px; }
+.toolbarHint { color: #748197; font-size: 9px; }
+.gameGrid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 11px; }
+.gameCard { min-width: 0; padding: 14px; border: 1px solid rgba(194,211,239,.1); border-radius: 9px; background: linear-gradient(145deg, rgba(22,29,43,.72), rgba(14,19,30,.82)); }
+.gameCardTop,
+.gameFacts,
+.gameCardFoot { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.gameCardTop small { color: #657188; font: 9px "JetBrains Mono", monospace; }
+.gameCard h2,
+.eventCard h2 { margin: 13px 0 4px; color: #dce6f4; font-size: 13px; font-weight: 570; }
+.gamePublisher { margin: 0 0 13px; color: #7d899e; font-size: 9px; }
+.gameFacts { align-items: center; margin-bottom: 12px; color: #8490a4; font-size: 9px; }
+.gameFacts strong { margin-left: 4px; color: #f4c34e; font: 10px "JetBrains Mono", monospace; }
+.popularityRow { display: grid; grid-template-columns: 58px minmax(0, 1fr); align-items: center; gap: 7px; color: #758298; font-size: 9px; }
+.gameCardFoot { margin-top: 12px; padding-top: 10px; border-top: 1px solid rgba(194,211,239,.07); color: #8995a9; font-size: 9px; }
+.eventGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 11px; }
+.eventCard { min-width: 0; padding: 15px; border: 1px solid rgba(194,211,239,.1); border-radius: 9px; background: linear-gradient(145deg, rgba(22,29,43,.75), rgba(14,19,30,.86)); }
+.eventCardTop,
+.eventFooter { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.eventCardTop > span { color: #6e7b90; font-size: 9px; }
+.eventCard h2 { min-height: 40px; margin-top: 15px; line-height: 1.5; }
+.eventMeta { display: grid; gap: 7px; margin: 12px 0 15px; color: #8793a7; font-size: 9px; }
+.eventFooter { padding-top: 12px; border-top: 1px solid rgba(194,211,239,.08); }
+.eventFooter > span { display: grid; gap: 3px; }
+.eventFooter small { color: #718096; font-size: 8px; }
+.eventFooter strong { color: #d6e2f1; font: 11px "JetBrains Mono", monospace; }
+.leaderboardTable { min-width: 540px; }
+.teamName { margin-left: 9px; color: #c7d3e2; }
+.addonGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 11px; }
+.addonCard { display: flex; min-width: 0; align-items: center; gap: 14px; padding: 17px; border: 1px solid rgba(194,211,239,.1); border-radius: 9px; background: linear-gradient(145deg, rgba(22,29,43,.72), rgba(14,19,30,.82)); }
+.addonIcon { display: grid; width: 46px; height: 46px; flex: none; place-items: center; border: 1px solid rgba(34,211,238,.2); border-radius: 12px; color: #62d7e8; background: rgba(34,211,238,.08); font-size: 20px; }
+.addonIcon2 { border-color: rgba(168,85,247,.25); color: #c593ff; background: rgba(168,85,247,.09); }
+.addonIcon3 { border-color: rgba(251,113,133,.24); color: #fb91a3; background: rgba(251,113,133,.08); }
+.addonIcon4 { border-color: rgba(251,191,36,.23); color: #f4c34e; background: rgba(251,191,36,.08); }
+.addonCard p { margin: 8px 0 5px; color: #8793a7; font-size: 9px; }
+.addonCard strong { color: #64d8e8; font: 10px "JetBrains Mono", monospace; }
+.reviewList { display: grid; gap: 8px; margin-top: 13px; }
+.reviewItem { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 14px; padding: 12px; border: 1px solid rgba(194,211,239,.08); border-radius: 7px; background: rgba(255,255,255,.018); }
+.reviewCopy { min-width: 0; }
+.reviewCopy h2 { overflow: hidden; margin: 0; color: #d6e1ef; font-size: 11px; font-weight: 540; text-overflow: ellipsis; white-space: nowrap; }
+.reviewCopy p { margin: 5px 0 0; color: #7d899e; font-size: 9px; }
+.reviewCopy p span { color: #5e6a7e; }
+.reviewActions { display: flex; gap: 6px; }
+.reviewActions button { min-height: 27px; padding: 0 9px; border: 1px solid transparent; border-radius: 5px; color: #aab6c8; background: rgba(255,255,255,.04); font-size: 9px; cursor: pointer; }
+.reviewActions button:hover { color: #e4edf8; background: rgba(255,255,255,.08); }
+.reviewActions .approveButton { border-color: rgba(52,211,153,.18); color: #65d5a6; background: rgba(52,211,153,.06); }
+.reviewActions .rejectButton { border-color: rgba(251,113,133,.18); color: #f58a9b; background: rgba(251,113,133,.06); }
+.emptyPanel { min-height: 145px; }
+.emptyPanel > div { grid-auto-flow: row; gap: 11px; }
+.emptyPanel button,
+.inlineEmpty button { border: 0; color: #78dcea; background: transparent; font-size: 10px; cursor: pointer; }
+.inlineEmpty { display: flex; min-height: 100px; align-items: center; justify-content: center; gap: 12px; color: #748197; font-size: 10px; }
+
+@media (max-width: 1050px) {
+  .billingOverviewGrid { grid-template-columns: minmax(0, 1fr); }
+  .paymentLayout { grid-template-columns: 140px minmax(160px, 1fr); justify-content: center; }
+  .gameGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 767px) {
+  .tabsRow { justify-content: flex-start; max-width: 100%; overflow-x: auto; }
+  .billingOverviewGrid,
+  .cashierGrid { grid-template-columns: minmax(0, 1fr); }
+  .paymentLayout { grid-template-columns: minmax(110px, .8fr) minmax(135px, 1fr); }
+  .campaignGrid,
+  .eventGrid,
+  .addonGrid { grid-template-columns: minmax(0, 1fr); }
+  .gameGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .reviewItem { grid-template-columns: minmax(0, 1fr) auto; }
+  .reviewActions { grid-column: 1 / -1; justify-content: flex-end; }
+  .eventCard h2 { min-height: 0; }
+}
+@media (max-width: 460px) {
+  .paymentLayout { grid-template-columns: 105px minmax(0, 1fr); gap: 4px; }
+  .channelLegend { gap: 10px; }
+  .gameGrid { grid-template-columns: minmax(0, 1fr); }
+  .gameFacts { flex-wrap: wrap; }
+  .reviewItem { grid-template-columns: minmax(0, 1fr); }
+  .reviewItem > :nth-child(2) { justify-self: start; }
+  .reviewActions { grid-column: auto; justify-content: flex-start; }
+  .reviewCopy h2 { white-space: normal; }
+}

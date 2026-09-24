@@ -16,6 +16,7 @@ import { useRouter } from "next/navigation";
 import { approvalsApi, authApi, clearSession } from "@/lib/api";
 import { useAsyncData } from "@/lib/useAsyncData";
 import { clearMetaCache, useMe, useMeta } from "@/lib/useMeta";
+import { SPARK_WINDOW_TARGET } from "@/lib/spark/navigation";
 import Avatar from "@/components/ui/Avatar";
 import SheetCard from "../SheetCard";
 import type { SheetContentProps } from "./index";
@@ -124,6 +125,7 @@ export default function MineSheet({
       <SheetCard
         variant={variant}
         href="/spark"
+        target={SPARK_WINDOW_TARGET}
         title="Spark 演示站"
         note="NebulaCloud 演示站"
         onSelect={onSelect}

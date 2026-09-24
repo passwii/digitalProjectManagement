@@ -7,6 +7,7 @@ import { m, useReducedMotion } from "framer-motion";
 import { authApi, clearSession } from "@/lib/api";
 import { clearMetaCache, loadMe, useMe, useMenus } from "@/lib/useMeta";
 import { identityViewOf } from "@/lib/identityCore";
+import { SPARK_WINDOW_TARGET } from "@/lib/spark/navigation";
 import Avatar from "@/components/ui/Avatar";
 import Bell from "@/components/ui/Bell";
 import { ToastProvider } from "@/components/ui/Toast";
@@ -469,6 +470,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
                 )}
                 <Link
                   href={n.href}
+                  target={n.href === "/spark" ? SPARK_WINDOW_TARGET : undefined}
                   className={`${s.navLink} ${active ? s.active : ""}`}
                   title={n.label}
                   aria-current={active ? "page" : undefined}

@@ -37,14 +37,14 @@
 
 ## 实施任务
 
-### 任务 1：公共路由与主项目入口
+### Task 1: 公共路由与主项目入口
 
 **文件：** `web/middleware.ts`、`web/app/(dashboard)/layout.tsx`、`web/components/mobile/sheets/MineSheet.tsx`
 
-- [ ] 在 `PUBLIC_PATHS` 中增加 `/spark`。middleware 的现有前缀匹配应同时放行 `/spark/dashboard` 等子路由。
-- [ ] 在主项目侧栏中增加 `Spark` 分组，子项命名为 `NebulaCloud 演示站`、链接 `/spark`。它是本地静态菜单项，不写入 `useMenus()` 返回的后端菜单，也不参与管理员分组。
-- [ ] 在 `MineSheet` 的通用入口区增加 `Spark 演示站` `SheetCard`，链接 `/spark`，点击后由现有 `onSelect` 收起抽屉。
-- [ ] 确认五位 `DOCK_SLOTS` 与管理/审批菜单过滤逻辑无修改。
+- [x] 在 `PUBLIC_PATHS` 中增加 `/spark`。middleware 的现有前缀匹配应同时放行 `/spark/dashboard` 等子路由。
+- [x] 在主项目侧栏中增加 `Spark` 分组，子项命名为 `NebulaCloud 演示站`、链接 `/spark`。它是本地静态菜单项，不写入 `useMenus()` 返回的后端菜单，也不参与管理员分组；使用固定浏览上下文名称 `spark-demo`，重复点击复用同一 Spark 标签页。
+- [x] 在 `MineSheet` 的通用入口区增加 `Spark 演示站` `SheetCard`，链接 `/spark`，使用相同 `spark-demo` 浏览上下文名称，点击后由现有 `onSelect` 收起抽屉。
+- [x] 确认五位 `DOCK_SLOTS` 与管理/审批菜单过滤逻辑无修改。
 
 桌面 nav 项可按现有结构增加到 `navItems` 的最终列表：
 
@@ -60,64 +60,64 @@ out.push({
 
 **验收：** middleware 对 `/spark` 和 `/spark/permission` 返回 `NextResponse.next()`；无 session 打开 `/dashboard` 仍跳登录；已有会话下桌面与手机「我的」入口均能打开 `/spark`。
 
-### 任务 2：Spark 路由壳与响应式导航
+### Task 2: Spark 路由壳与响应式导航
 
 **文件：** `web/app/spark/layout.tsx`、`web/app/spark/page.tsx`、`web/app/spark/[section]/page.tsx`、`web/components/spark/SparkShell.tsx`、`web/components/spark/SparkShell.module.css`
 
-- [ ] 创建独立的 Spark layout，metadata 标题为 `NebulaCloud 苏州 · 云电竞管理平台`，不包进 `(dashboard)` 用户身份/API 壳。
-- [ ] `/spark` 服务端重定向至 `/spark/dashboard`。
-- [ ] 建立固定 route 表：`dashboard`、`stores`、`compute`、`billing`、`content`、`security`、`ops`、`permission`；无效 section 调用 `notFound()`。
-- [ ] 壳内导航使用 `<Link>` 指向 `/spark/<section>`，按 `usePathname()` 设置 `aria-current="page"`；顶栏提供返回数科云办公 `/dashboard` 的链接。
-- [ ] 桌面侧栏可折叠；窄屏以可访问按钮打开模块抽屉，选中导航后关闭；根容器使用 `min-height: 100dvh` 并处理安全区。
-- [ ] 在 CSS Module 内定义 Spark 深色 token 和 `prefers-reduced-motion` 处理；不要在 `globals.css` 设全局 dark overrides。
+- [x] 创建独立的 Spark layout，metadata 标题为 `NebulaCloud 苏州 · 云电竞管理平台`，不包进 `(dashboard)` 用户身份/API 壳。
+- [x] `/spark` 服务端重定向至 `/spark/dashboard`。
+- [x] 建立固定 route 表：`dashboard`、`stores`、`compute`、`billing`、`content`、`security`、`ops`、`permission`；无效 section 调用 `notFound()`。
+- [x] 壳内导航使用 `<Link>` 指向 `/spark/<section>`，按 `usePathname()` 设置 `aria-current="page"`；顶栏提供返回数科云办公 `/dashboard` 的链接。
+- [x] 桌面侧栏可折叠；窄屏以可访问按钮打开模块抽屉，选中导航后关闭；根容器使用 `min-height: 100dvh` 并处理安全区。
+- [x] 在 CSS Module 内定义 Spark 深色 token 和 `prefers-reduced-motion` 处理；不要在 `globals.css` 设全局 dark overrides。
 
 **验收：** 直接打开八个 URL 和刷新子路由都保留 Spark 壳；未登录时 `/spark` 不跳 `/login`；未知路径返回 404。
 
-### 任务 3：共享 UI 与总览、门店、算力
+### Task 3: 共享 UI 与总览、门店、算力
 
 **文件：** `web/components/spark/SparkUI.tsx`、`web/components/spark/SparkPages.module.css`、`web/components/spark/pages/DashboardPage.tsx`、`StoresPage.tsx`、`ComputePage.tsx`、`web/lib/spark/types.ts`、`dashboard.ts`、`stores.ts`、`compute.ts`
 
-- [ ] 建立本地数据类型：`Metric`、`Store`、`GpuNode`、`Alert`、`RevenuePoint` 和各自的状态联合类型。
-- [ ] 以学习档案的 route 文案与 mock 记录创建本地 fixtures；总览、门店和算力页面只从 fixtures 读取数据。
-- [ ] 建立共用 `SparkCard`、`MetricCard`、`StatusBadge`、`SectionHeading`、`DataTable` 和筛选 chip，统一暗色边框、圆角、表格数值与状态色。
-- [ ] 总览绘制 24 小时营收趋势、平台健康度、GPU 资源、区县营收、事件告警和营收 Top 6。
-- [ ] 门店页渲染统计和门店卡片，区县与负载/营业状态筛选可用；保留 `stores-high-load` 对应状态。
-- [ ] 算力页渲染负载、GPU 节点表、套餐、策略选项及弹性伸缩开关/滑块；策略切换可见地更新选择态。
+- [x] 建立本地数据类型：`Metric`、`Store`、`GpuNode`、`Alert`、`RevenuePoint` 和各自的状态联合类型。
+- [x] 以学习档案的 route 文案与 mock 记录创建本地 fixtures；总览、门店和算力页面只从 fixtures 读取数据。
+- [x] 建立共用 `SparkCard`、`MetricCard`、`StatusBadge`、`SectionHeading`、`DataTable` 和筛选 chip，统一暗色边框、圆角、表格数值与状态色。
+- [x] 总览绘制 24 小时营收趋势、平台健康度、GPU 资源、区县营收、事件告警和营收 Top 6。
+- [x] 门店页渲染统计和门店卡片，区县与负载/营业状态筛选可用；保留 `stores-high-load` 对应状态。
+- [x] 算力页渲染负载、GPU 节点表、套餐、策略选项及弹性伸缩开关/滑块；策略切换可见地更新选择态。
 
 **验收：** 三个模块字段与文案对照 `ui-study/raw/*.json` 和 `ui-study/mock-content/mock-copy.json`；筛选、策略、开关、滑块不会触发网络请求。
 
-### 任务 4：计费与内容模块
+### Task 4: 计费与内容模块
 
 **文件：** `web/components/spark/pages/BillingPage.tsx`、`ContentPage.tsx`、`web/lib/spark/billing.ts`、`content.ts`、`web/components/spark/SparkPages.module.css`
 
-- [ ] 计费 fixtures 覆盖收入 KPI、7 日营收构成、支付渠道和计费规则。
-- [ ] 计费的「收银台」「会员中心」页签切换表格/列表内容，对应 `billing-cashier` 和 `billing-members`。
-- [ ] 内容 fixtures 覆盖游戏内容库、分类、赛事、增值内容和合规审核页签。
-- [ ] 分类筛选和关键词搜索作用于本地内容列表；「电竞赛事」「增值内容」「合规审核」页签可切换。
-- [ ] 为移动端表格提供横向滚动容器，并保证空结果有说明文字。
+- [x] 计费 fixtures 覆盖收入 KPI、7 日营收构成、支付渠道和计费规则。
+- [x] 计费的「收银台」「会员中心」页签切换表格/列表内容，对应 `billing-cashier` 和 `billing-members`。
+- [x] 内容 fixtures 覆盖游戏内容库、分类、赛事、增值内容和合规审核页签。
+- [x] 分类筛选和关键词搜索作用于本地内容列表；「电竞赛事」「增值内容」「合规审核」页签可切换。
+- [x] 为移动端表格提供横向滚动容器，并保证空结果有说明文字。
 
 **验收：** `billing`、`content` 两路由可直接加载，页签/筛选/搜索状态独立、可重复切换。
 
-### 任务 5：安全、运维与权限模块
+### Task 5: 安全、运维与权限模块
 
 **文件：** `web/components/spark/pages/SecurityPage.tsx`、`OpsPage.tsx`、`PermissionPage.tsx`、`web/lib/spark/security.ts`、`ops.ts`、`permission.ts`
 
-- [ ] 安全页展示合规 KPI、安全策略、审计日志、加密/容灾和监管对接信息；策略按钮带 `role="switch"`、`aria-checked` 并本地切换。
-- [ ] 运维页展示工单 KPI、六类子系统状态、SLA 和状态筛选；筛选能改变表格行集合。
-- [ ] 权限页展示成员表、角色筛选、角色权限面板、操作日志；角色切换更新当前权限矩阵。
-- [ ] 所有 mock 状态以组件 state 管理，不发写请求、不写 localStorage、不改变主项目登录状态。
+- [x] 安全页展示合规 KPI、安全策略、审计日志、加密/容灾和监管对接信息；策略按钮带 `role="switch"`、`aria-checked` 并本地切换。
+- [x] 运维页展示工单 KPI、六类子系统状态、SLA 和状态筛选；筛选能改变表格行集合。
+- [x] 权限页展示成员表、角色筛选、角色权限面板、操作日志；角色切换更新当前权限矩阵。
+- [x] 所有 mock 状态以组件 state 管理，不发写请求、不写 localStorage、不改变主项目登录状态。
 
 **验收：** `security-toggle`、`ops-pending`、`permissions-roles`、`permissions-logs`、`permissions-manager-filter` 对应状态可重现；表格窄屏下可读。
 
-### 任务 6：接线、构建与手动走查
+### Task 6: 接线、构建与手动走查
 
 **文件：** `web/app/spark/[section]/page.tsx`、`web/components/spark/SparkShell.tsx`、`ui-study/README.md`
 
-- [ ] 将八个 section 映射到独立页面组件，侧栏标签与标题一致。
-- [ ] 在 `ui-study/README.md` 增加「Spark 内置演示站」入口说明与运行路径，不复制凭据。
-- [ ] 从 `web/` 执行 `npm run build`；本计划不添加或运行测试套件。
-- [ ] 本地手动打开 `/spark`、每个 section、主项目桌面侧栏入口与手机「我的」入口，检查控制台错误、页面溢出、点击反馈和直达刷新。
-- [ ] 检查浏览器 Network：Spark 路由无原 Coze 域名和主项目业务 API 请求。
+- [x] 将八个 section 映射到独立页面组件，侧栏标签与标题一致。
+- [x] 在 `ui-study/README.md` 增加「Spark 内置演示站」入口说明与运行路径，不复制凭据。
+- [x] 从 `web/` 执行 `npm run build`；本计划不添加或运行测试套件。
+- [x] 本地浏览器已手动打开 `/spark` 和每个 section，并检查 Spark 桌面/窄屏布局、交互反馈、直达刷新和溢出。主项目桌面侧栏与手机「我的」入口完成源码核对；因当前没有主项目有效登录态，未做登录态内点击验收。
+- [x] 检查浏览器 Network：Spark 路由无原 Coze 域名和主项目业务 API 请求。
 
 **验收：** production build 返回 0；八页均可直达；桌面宽屏、窄屏各走查一次；主项目登录门禁及 Dock 行为保持原状。
 

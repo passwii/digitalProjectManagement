@@ -1,0 +1,97 @@
+.dashboardMainGrid { display: grid; grid-template-columns: minmax(0, 1.65fr) minmax(265px, .8fr); gap: 12px; }
+.dashboardLowerGrid { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(280px, .85fr); gap: 12px; }
+.healthSummary { display: grid; grid-template-columns: 104px 1fr; align-items: center; gap: 14px; }
+.healthGauge { display: grid; width: 100px; aspect-ratio: 1; place-items: center; border-radius: 50%; background: conic-gradient(#36d3e6 0 96%, rgba(194,211,239,.09) 96% 100%); }
+.healthGauge::before { width: 78px; aspect-ratio: 1; border-radius: 50%; background: #111722; content: ""; grid-area: 1 / 1; }
+.healthGauge strong { z-index: 1; grid-area: 1 / 1; color: #e7f8fb; font: 600 27px "JetBrains Mono", monospace; letter-spacing: -.05em; }
+.healthGauge strong small { color: #7c8ba0; font-size: 11px; font-weight: 450; }
+.healthCopy { display: grid; gap: 7px; }
+.healthCopy b { color: #75e2c0; font-size: 12px; font-weight: 550; }
+.healthCopy span { color: #79869b; font-size: 10px; }
+.healthCopy small { color: #5d6a7e; font-size: 9px; }
+.poolList { display: grid; gap: 12px; }
+.poolItem { display: grid; gap: 6px; }
+.poolHead { display: flex; align-items: center; justify-content: space-between; gap: 8px; color: #abb7c9; font-size: 10px; }
+.poolHead strong { color: #d5e0ef; font: 10px "JetBrains Mono", monospace; }
+.poolFoot { display: flex; justify-content: space-between; color: #66748a; font: 9px "JetBrains Mono", monospace; }
+.districtBars { display: grid; gap: 9px; }
+.districtItem { display: grid; grid-template-columns: 64px 1fr 36px; align-items: center; gap: 8px; color: #8f9caf; font-size: 9px; }
+.districtTrack { height: 6px; overflow: hidden; border-radius: 99px; background: rgba(194,211,239,.08); }
+.districtFill { height: 100%; border-radius: inherit; background: linear-gradient(90deg, #4272df, #35cddd); }
+.districtItem strong { color: #cbd7e6; font: 9px "JetBrains Mono", monospace; text-align: right; }
+.alertList { display: grid; gap: 0; }
+.alertItem { display: grid; grid-template-columns: 42px 1fr; gap: 9px; padding: 9px 0; border-bottom: 1px solid rgba(194,211,239,.07); }
+.alertItem:last-child { padding-bottom: 0; border-bottom: 0; }
+.alertTime { padding-top: 2px; color: #66748a; font: 9px "JetBrains Mono", monospace; }
+.alertBody { min-width: 0; }
+.alertBody strong { display: block; overflow: hidden; color: #cbd6e5; font-size: 10px; font-weight: 520; text-overflow: ellipsis; white-space: nowrap; }
+.alertBody p { margin: 3px 0 0; color: #748196; font-size: 9px; line-height: 1.5; }
+.rankList { display: grid; gap: 0; }
+.rankItem { display: grid; grid-template-columns: 24px minmax(0, 1fr) auto; align-items: center; gap: 8px; padding: 9px 0; border-bottom: 1px solid rgba(194,211,239,.07); }
+.rankItem:last-child { border-bottom: 0; }
+.rankNumber { display: grid; width: 20px; height: 20px; place-items: center; border: 1px solid rgba(194,211,239,.1); border-radius: 6px; color: #94a0b3; font: 9px "JetBrains Mono", monospace; }
+.rankItem:nth-child(-n+3) .rankNumber { border-color: rgba(34,211,238,.22); color: #70dcea; background: rgba(34,211,238,.07); }
+.rankName { overflow: hidden; color: #cbd6e5; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+.rankDistrict { margin-top: 2px; color: #66748a; font-size: 8px; }
+.rankRevenue { color: #78dce8; font: 10px "JetBrains Mono", monospace; white-space: nowrap; }
+
+.storeToolbar { display: grid; gap: 10px; }
+.storeCards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 11px; }
+.storeCard { min-width: 0; padding: 15px; border: 1px solid rgba(194,211,239,.1); border-radius: 9px; background: linear-gradient(145deg, rgba(20,26,40,.76), rgba(15,20,31,.86)); transition: border-color 140ms ease, transform 140ms ease, background 140ms ease; }
+.storeCard:hover { transform: translateY(-1px); border-color: rgba(34,211,238,.25); background: linear-gradient(145deg, rgba(23,33,47,.9), rgba(15,20,31,.92)); }
+.storeCardHeader { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.storeTitle { min-width: 0; }
+.storeTitle h2 { overflow: hidden; margin: 0; color: #dce6f4; font-size: 13px; font-weight: 560; text-overflow: ellipsis; white-space: nowrap; }
+.storeTitle p { margin: 4px 0 0; color: #6e7b91; font: 9px "JetBrains Mono", monospace; }
+.storeKind { display: block; margin-bottom: 5px; color: #7d8a9e; font-size: 9px; }
+.storeAddress { display: flex; align-items: flex-start; gap: 6px; margin: 12px 0 10px; color: #8996a9; font-size: 9px; line-height: 1.5; }
+.storeAddress svg { flex: none; margin-top: 1px; color: #5f94a4; }
+.storeLoad { display: grid; grid-template-columns: 62px minmax(0, 1fr) auto; align-items: center; gap: 8px; margin-top: 11px; }
+.storeLoad > span { color: #8090a6; font-size: 9px; }
+.storeLoad strong { color: #cbd7e7; font: 10px "JetBrains Mono", monospace; }
+.storeFacts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 7px; padding-top: 11px; border-top: 1px solid rgba(194,211,239,.08); }
+.storeFact { display: grid; gap: 4px; min-width: 0; }
+.storeFact span { color: #6d7a8e; font-size: 8px; }
+.storeFact strong { overflow: hidden; color: #cad6e6; font: 10px "JetBrains Mono", monospace; text-overflow: ellipsis; white-space: nowrap; }
+.storeFact:last-child strong { color: #77dce7; }
+.storeMetrics { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+
+.computeMetrics { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.strategyGrid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 9px; }
+.strategyButton { display: flex; min-height: 75px; align-items: flex-start; gap: 10px; padding: 11px; border: 1px solid rgba(194,211,239,.1); border-radius: 8px; color: #a9b6c8; background: rgba(255,255,255,.02); text-align: left; cursor: pointer; transition: border-color 130ms ease, background 130ms ease, color 130ms ease; }
+.strategyButton:hover { border-color: rgba(34,211,238,.25); color: #e0ebf8; }
+.strategySelected { border-color: rgba(34,211,238,.45); color: #dffaff; background: linear-gradient(135deg, rgba(34,211,238,.11), rgba(168,85,247,.055)); box-shadow: inset 0 1px rgba(255,255,255,.03); }
+.strategyIcon { display: grid; width: 27px; height: 27px; flex: none; place-items: center; border: 1px solid rgba(34,211,238,.15); border-radius: 7px; color: #5bd5e5; background: rgba(34,211,238,.06); font-size: 15px; }
+.strategyButton strong { display: block; color: inherit; font-size: 10px; font-weight: 550; }
+.strategyButton small { display: block; margin-top: 4px; color: #758398; font-size: 8px; line-height: 1.45; }
+.elasticList { display: grid; gap: 0; }
+.elasticRow { display: grid; grid-template-columns: minmax(125px, 1fr) minmax(110px, 2fr) 46px; align-items: center; gap: 12px; min-height: 43px; border-bottom: 1px solid rgba(194,211,239,.065); }
+.elasticRow:last-child { border-bottom: 0; }
+.elasticLabel { color: #9aa8bb; font-size: 9px; }
+.elasticValue { color: #c7d3e3; font: 10px "JetBrains Mono", monospace; text-align: right; }
+.rangeInput { width: 100%; height: 4px; accent-color: #22d3ee; cursor: pointer; }
+.packageGrid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 9px; }
+.packageCard { position: relative; padding: 13px; border: 1px solid rgba(194,211,239,.1); border-radius: 8px; background: linear-gradient(145deg, rgba(255,255,255,.035), rgba(255,255,255,.012)); }
+.packageCard strong { display: block; margin-top: 9px; color: #dce6f4; font-size: 12px; font-weight: 560; }
+.packageCard p { margin: 5px 0; color: #8794a8; font-size: 9px; }
+.packageCard small { color: #718095; font-size: 8px; }
+.packagePrice { display: block; margin-top: 11px; color: #75dce9; font: 12px "JetBrains Mono", monospace; }
+
+@media (max-width: 1100px) {
+  .storeMetrics { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .strategyGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .packageGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 767px) {
+  .dashboardMainGrid, .dashboardLowerGrid { grid-template-columns: minmax(0, 1fr); }
+  .healthSummary { grid-template-columns: 90px 1fr; }
+  .healthGauge { width: 86px; }
+  .healthGauge::before { width: 67px; }
+  .storeCards { grid-template-columns: minmax(0, 1fr); }
+  .storeMetrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .computeMetrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 430px) {
+  .strategyGrid, .packageGrid { grid-template-columns: minmax(0, 1fr); }
+  .elasticRow { grid-template-columns: 110px 1fr 38px; gap: 8px; }
+}
