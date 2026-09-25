@@ -525,6 +525,30 @@
   box-shadow: 0 0 22px rgba(198, 255, 114, 0.12);
 }
 
+.submit[data-phase="success"] {
+  cursor: default;
+  background: #d8ffa1;
+  border-color: #c6ff72;
+  box-shadow: 0 0 30px rgba(198, 255, 114, 0.24);
+  transition-duration: 120ms;
+}
+
+.submit:disabled::before { opacity: 0; }
+
+.submitLabel {
+  display: block;
+  max-width: calc(100% - 42px);
+  overflow: hidden;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.submit[data-phase="loading"] .submitLabel,
+.submit[data-phase="success"] .submitLabel {
+  animation: submitLabelIn 130ms var(--ease-console) both;
+}
+
 .submitArrow {
   position: absolute;
   top: 50%;
@@ -553,6 +577,22 @@
   border-top-color: transparent;
   border-radius: 50%;
   animation: submitSpin 720ms linear infinite;
+}
+
+.submitCheck {
+  width: 16px;
+  height: 16px;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  animation: submitCheckIn 120ms var(--ease-console) both;
+}
+
+.submitCheck path {
+  stroke-dasharray: 18;
+  stroke-dashoffset: 18;
+  animation: submitCheckDraw 100ms 20ms ease-out forwards;
 }
 
 .cardMeta {
@@ -597,6 +637,20 @@
 
 @keyframes submitSpin {
   to { transform: rotate(360deg); }
+}
+
+@keyframes submitLabelIn {
+  from { opacity: 0.45; transform: translateY(2px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes submitCheckIn {
+  from { opacity: 0; transform: scale(0.72); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes submitCheckDraw {
+  to { stroke-dashoffset: 0; }
 }
 
 @media (prefers-reduced-motion: reduce) {
