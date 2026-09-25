@@ -443,7 +443,7 @@ def _linked_expense_conflict(db: Session, expense_id: int, book_id: int) -> None
         })
 
 
-def _validate_project_expense_line(db: Session, book_id: int, line: ProjectExpenseLineIn, field: str) -> None:
+def _validate_project_expense_line(db: Session, book_id: int, line: ProjectExpenseLineIn, field: str) -> dict[str, int]:
     account = db.query(Account).filter_by(id=line.account_id, account_book_id=book_id, is_active=True, is_leaf=True).first()
     if not account:
         _error(400, "F-INVALID-VOUCHER", "凭证分录校验失败", [{"field": f"{field}.account_id", "reason": "只能使用当前账套启用的末级科目"}])
@@ -451,18 +451,23 @@ def _validate_project_expense_line(db: Session, book_id: int, line: ProjectExpen
     aux = line.aux_detail or {}
     kinds = {"customer": "customer", "vendor": "vendor", "dept": "department", "employee": "employee", "project": "project"}
     errors = []
+    normalized_aux = {}
     for key, kind in kinds.items():
         value = aux.get(key)
         if flags.get(key) and value in (None, ""):
             errors.append({"field": f"{field}.aux_detail.{key}", "reason": "缺少科目要求的辅助核算"})
         if value not in (None, ""):
-            try:
+            if type(value) is int:
+                item_id = value
+            elif isinstance(value, str) and re.fullmatch(r"[0-9]+", value):
                 item_id = int(value)
-            except (ValueError, TypeError):
+            else:
                 item_id = -1
-            item = db.query(AuxiliaryItem).filter_by(id=item_id, account_book_id=book_id, kind=kind, is_active=True).first()
+            item = db.query(AuxiliaryItem).filter_by(id=item_id, account_book_id=book_id, kind=kind, is_active=True).first() if item_id > 0 else None
             if not item:
                 errors.append({"field": f"{field}.aux_detail.{key}", "reason": "辅助资料不存在、类型不符或不属于当前账套"})
+            else:
+                normalized_aux[key] = item_id
     for key in aux.keys() - kinds.keys():
         errors.append({"field": f"{field}.aux_detail.{key}", "reason": "不支持的辅助核算类型"})
     if flags.get("cashflow") and not line.cashflow_item:
@@ -473,6 +478,7 @@ def _validate_project_expense_line(db: Session, book_id: int, line: ProjectExpen
             errors.append({"field": f"{field}.cashflow_item", "reason": "现金流项目不属于当前账套"})
     if errors:
         _error(400, "F-INVALID-VOUCHER", "凭证分录校验失败", errors)
+    return normalized_aux
 
 
 @router.get("/project-expenses")
@@ -544,16 +550,16 @@ def create_project_expense_voucher(
         amount = Decimal(str(expense.amount)).quantize(Decimal("0.01"))
         if not amount.is_finite() or amount <= 0:
             _error(400, "F-INVALID-AMOUNT", "项目支出金额必须大于零")
-        _validate_project_expense_line(db, book.id, body.debit, "debit")
-        _validate_project_expense_line(db, book.id, body.credit, "credit")
+        debit_aux = _validate_project_expense_line(db, book.id, body.debit, "debit")
+        credit_aux = _validate_project_expense_line(db, book.id, body.credit, "credit")
         numbers = db.query(Voucher.voucher_no).filter_by(account_book_id=book.id, period_id=period.id).all()
         next_number = max((int(match.group(1)) for (number,) in numbers if (match := re.fullmatch(r"记-(\d+)", number))), default=0) + 1
         payload = VoucherIn(
             period_id=period.id, voucher_no=f"记-{next_number:04d}", voucher_date=body.voucher_date,
             summary=body.summary, source="project-expense",
             lines=[
-                EntryIn(account_id=body.debit.account_id, summary=body.summary, debit=amount, aux_detail=body.debit.aux_detail, cashflow_item=body.debit.cashflow_item),
-                EntryIn(account_id=body.credit.account_id, summary=body.summary, credit=amount, aux_detail=body.credit.aux_detail, cashflow_item=body.credit.cashflow_item),
+                EntryIn(account_id=body.debit.account_id, summary=body.summary, debit=amount, aux_detail=debit_aux, cashflow_item=body.debit.cashflow_item),
+                EntryIn(account_id=body.credit.account_id, summary=body.summary, credit=amount, aux_detail=credit_aux, cashflow_item=body.credit.cashflow_item),
             ],
         )
         voucher = _build_draft_voucher(db, book, payload, user, source_expense_id=expense.id)

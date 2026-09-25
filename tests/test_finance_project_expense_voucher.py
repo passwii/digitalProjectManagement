@@ -4,7 +4,7 @@ from datetime import date, datetime
 
 from sqlalchemy import UniqueConstraint
 
-from api.models import Account, AccountBookMember, AccountingPeriod, AuditLog, AuxiliaryItem, Expense, Project, User, Voucher
+from api.models import Account, AccountBookMember, AccountingPeriod, AuditLog, AuxiliaryItem, Expense, Project, User, Voucher, VoucherEntry
 
 
 def _auth(client, username="admin", password="admin123456"):
@@ -134,6 +134,35 @@ def test_auxiliary_must_be_in_current_book_and_match_kind(client, db):
         valid_id = valid.id
     wrong["debit"]["aux_detail"] = {"project": valid_id}
     assert client.post(f"/api/v1/finance/project-expenses/{ids[0]}/voucher", headers=headers, json=wrong).status_code == 200
+
+
+def test_project_expense_auxiliary_ids_are_strict_and_saved_as_integers(client, db):
+    headers, period, accounts, ids, _, book = _setup(client, db)
+    with db() as session:
+        session.query(Account).filter_by(id=accounts["1405"]["id"]).one().aux_flags = {"project": True}
+        item = AuxiliaryItem(account_book_id=book["id"], kind="project", code="P-ID", name="项目辅助资料")
+        session.add(item)
+        session.commit()
+        item_id = item.id
+
+    url = f"/api/v1/finance/project-expenses/{ids[0]}/voucher"
+    for invalid_id in (item_id + 0.5, True):
+        payload = _payload(period, accounts)
+        payload["debit"]["aux_detail"] = {"project": invalid_id}
+        response = client.post(url, headers=headers, json=payload)
+        assert response.status_code == 400
+        assert response.json()["detail"]["code"] == "F-INVALID-VOUCHER"
+        assert client.get("/api/v1/finance/vouchers", headers=headers).json()["total"] == 0
+
+    for expense_id, valid_id in ((ids[0], item_id), (ids[1], str(item_id))):
+        payload = _payload(period, accounts)
+        payload["debit"]["aux_detail"] = {"project": valid_id}
+        response = client.post(f"/api/v1/finance/project-expenses/{expense_id}/voucher", headers=headers, json=payload)
+        assert response.status_code == 200
+        assert response.json()["lines"][0]["aux_detail"] == {"project": item_id}
+        with db() as session:
+            entry = session.query(VoucherEntry).filter_by(voucher_id=response.json()["id"], line_no=1).one()
+            assert entry.aux_detail == {"project": item_id}
 
 
 def test_role_and_project_visibility_are_both_required(client, db):
