@@ -19,10 +19,11 @@ import MotionTabs from "@/components/motion/MotionTabs";
 import { Confirm, Dialog } from "@/components/ui/Modal";
 import { useToast } from "@/components/ui/Toast";
 import ArapPanel from "./ArapPanel";
+import ProjectExpensePanel from "./ProjectExpensePanel";
 import { AccountBookRecycleBinDialog, MoveBookToRecycleBinDialog } from "./AccountBookLifecycle";
 import BookMembersDialog from "./BookMembersDialog";
 
-const TABS = ["账套概览", "基础设置", "凭证", "应收应付", "出纳与对账", "固定资产", "账簿与报表", "期末结账"] as const;
+const TABS = ["账套概览", "基础设置", "凭证", "项目支出入账", "应收应付", "出纳与对账", "固定资产", "账簿与报表", "期末结账"] as const;
 type Tab = (typeof TABS)[number];
 
 function money(value: string | number) {
@@ -45,7 +46,7 @@ function FinanceInner() {
   const book = books.data?.find((item) => item.code === bookCode) ?? books.data?.[0] ?? null;
   const activeBook = book?.code ?? "";
   const periods = useAsyncData((signal) => financeApi.periods(activeBook, undefined, signal), [activeBook], { enabled: !!activeBook, resetOnDepChange: true });
-  const accounts = useAsyncData((signal) => financeApi.accounts(activeBook, signal), [activeBook], { enabled: !!activeBook && (tab === "基础设置" || tab === "应收应付" || voucherOpen), resetOnDepChange: true });
+  const accounts = useAsyncData((signal) => financeApi.accounts(activeBook, signal), [activeBook], { enabled: !!activeBook && (tab === "基础设置" || tab === "应收应付" || tab === "项目支出入账" || voucherOpen), resetOnDepChange: true });
   const opening = useAsyncData((signal) => financeApi.openingCheck(activeBook, signal), [activeBook], { enabled: !!activeBook, resetOnDepChange: true });
   const currentPeriod = periods.data?.find((period) => period.status === "open") ?? periods.data?.[0] ?? null;
   const vouchers = useAsyncData(
@@ -108,7 +109,7 @@ function FinanceInner() {
                 {books.data?.map((item) => <option key={item.code} value={item.code}>{item.name} · {item.code}</option>)}
               </select>
             </label>
-            <span className="tiny muted">项目成本与财务账独立，项目支出不会自动生成会计凭证。</span>
+            <span className="tiny muted">项目成本与财务账独立；已审批支出可在“项目支出入账”逐笔生成草稿凭证。</span>
           </>
         }
         actions={
@@ -147,6 +148,7 @@ function FinanceInner() {
               } catch (error) { toast.err(errText(error)); return false; }
             }} />}
             {tab === "应收应付" && <ArapPanel book={activeBook} period={currentPeriod} accounts={accounts.data ?? []} accountsLoading={accounts.loading} accountsError={accounts.error} reloadAccounts={accounts.reload} isAdmin={isAdmin} />}
+            {tab === "项目支出入账" && (accounts.error ? <LoadFailed message={accounts.error} onRetry={accounts.reload} /> : <ProjectExpensePanel key={book.id} book={book} periods={periods.data ?? []} accounts={accounts.data ?? []} onVoucherCreated={vouchers.reload} />)}
             {tab === "出纳与对账" && <CashierList book={activeBook} period={currentPeriod} statements={bankStatements.data?.items ?? []} summary={reconciliation.data ?? undefined} loading={bankStatements.loading || reconciliation.loading} error={bankStatements.error || reconciliation.error} onRetry={() => { bankStatements.reload(); reconciliation.reload(); }} onChanged={() => { bankStatements.reload(); reconciliation.reload(); }} />}
             {tab === "固定资产" && <FixedAssetList book={activeBook} period={currentPeriod} items={fixedAssets.data?.items ?? []} loading={fixedAssets.loading} error={fixedAssets.error} onRetry={fixedAssets.reload} onChanged={fixedAssets.reload} />}
             {tab === "账簿与报表" && <BalanceList period={currentPeriod} items={balances.data?.items ?? []} reports={reports.data ?? undefined} loading={balances.loading || reports.loading} error={balances.error || reports.error} onRetry={() => { balances.reload(); reports.reload(); }} />}

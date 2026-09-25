@@ -632,7 +632,7 @@ export interface FixedAsset {
   status: string;
 }
 
-export type FinanceAuxiliaryKind = "customer" | "vendor" | "cashflow";
+export type FinanceAuxiliaryKind = "customer" | "vendor" | "department" | "employee" | "project" | "cashflow";
 
 export interface FinanceAuxiliaryItem {
   id: number;
@@ -641,6 +641,36 @@ export interface FinanceAuxiliaryItem {
   name: string;
   metadata: Record<string, unknown>;
   is_active?: boolean;
+}
+
+export interface FinanceProjectExpense {
+  id: number;
+  project_id: number;
+  subject: string;
+  amount: string | number;
+  exp_date: string | null;
+  note: string | null;
+  status: "approved" | "exception";
+  by_id: number;
+  approved_by: number | null;
+  project: { id: number; code: string; name: string };
+  source_voucher_summary: null | {
+    converted?: boolean;
+    message?: string;
+    id?: number;
+    voucher_no?: string;
+    voucher_date?: string;
+    status?: FinanceVoucher["status"];
+    summary?: string;
+  };
+}
+
+export interface FinanceProjectExpenseVoucherInput {
+  period_id: number;
+  voucher_date: string;
+  summary: string;
+  debit: { account_id: number; aux_detail: Record<string, number>; cashflow_item?: string };
+  credit: { account_id: number; aux_detail: Record<string, number>; cashflow_item?: string };
 }
 
 export interface FinanceARAPItem {
@@ -762,6 +792,14 @@ export const financeApi = {
       financeHeaders(book),
       signal,
     ),
+  projectExpenses: (book: string, query: { project_id?: number; status?: string; date_from?: string; date_to?: string; page?: number; size?: number } = {}, signal?: AbortSignal) =>
+    apiGetScoped<Paged<FinanceProjectExpense>>(
+      `/finance/project-expenses${buildQuery(query)}`,
+      financeHeaders(book),
+      signal,
+    ),
+  createExpenseVoucher: (book: string, expenseId: number, body: FinanceProjectExpenseVoucherInput) =>
+    apiPostScoped<FinanceVoucher>(`/finance/project-expenses/${expenseId}/voucher`, body, financeHeaders(book)),
   templates: (book: string, signal?: AbortSignal) =>
     apiGetScoped<FinanceVoucherTemplate[]>("/finance/voucher-templates", financeHeaders(book), signal),
   createTemplate: (book: string, body: { code: string; name: string; lines: FinanceEntry[] }) =>
