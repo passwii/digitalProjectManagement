@@ -162,23 +162,31 @@ export default function ProjectExpensePanel({ book, periods, accounts, onVoucher
 }) {
   const toast = useToast();
   const [projectId, setProjectId] = useState("");
+  const [projectSearch, setProjectSearch] = useState("");
+  const [projectPage, setProjectPage] = useState(1);
+  const [chosenProject, setChosenProject] = useState<{ id: number; code: string; name: string } | null>(null);
   const [status, setStatus] = useState("");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [page, setPage] = useState(1);
   const [selected, setSelected] = useState<FinanceProjectExpense | null>(null);
   const [notice, setNotice] = useState("");
-  const projects = useAsyncData((signal) => projectsApi.options({ size: 100 }, signal), [], { resetOnDepChange: true });
+  const projects = useAsyncData(
+    (signal) => projectsApi.options({ keyword: projectSearch, page: projectPage, size: PAGE_SIZE }, signal),
+    [projectSearch, projectPage], { resetOnDepChange: true },
+  );
   const expenses = useAsyncData(
     (signal) => financeApi.projectExpenses(book.code, { project_id: projectId ? Number(projectId) : undefined, status: status || undefined, date_from: dateFrom, date_to: dateTo, page, size: PAGE_SIZE }, signal),
     [book.id, projectId, status, dateFrom, dateTo, page], { resetOnDepChange: true },
   );
   const projectOptions = useMemo(() => {
     const byId = new Map<number, { id: number; code: string; name: string }>();
+    if (chosenProject) byId.set(chosenProject.id, chosenProject);
     for (const project of projects.data?.items ?? []) byId.set(project.id, project);
     for (const item of expenses.data?.items ?? []) byId.set(item.project.id, item.project);
     return Array.from(byId.values());
-  }, [projects.data, expenses.data]);
+  }, [chosenProject, projects.data, expenses.data]);
+  const projectTotalPages = Math.max(1, Math.ceil((projects.data?.total ?? 0) / PAGE_SIZE));
   const totalPages = Math.max(1, Math.ceil((expenses.data?.total ?? 0) / PAGE_SIZE));
   const openPeriods = periods.some((period) => period.status === "open");
 
@@ -194,7 +202,10 @@ export default function ProjectExpensePanel({ book, periods, accounts, onVoucher
     <div className="section-head"><div><h2>项目支出入账</h2><p>选择已审批项目支出，逐笔生成当前账套的草稿凭证。</p></div><button className="btn-ghost" onClick={expenses.reload}>刷新</button></div>
     {notice && <div className="card" role="status">{notice}</div>}
     <div className="filter-row">
-      <label className="toolbar-field"><span>项目</span><select value={projectId} onChange={(event) => { setProjectId(event.target.value); setPage(1); }}><option value="">全部项目</option>{projectOptions.map((project) => <option key={project.id} value={project.id}>{project.code} · {project.name}</option>)}</select></label>
+      <label className="toolbar-field"><span>搜索项目</span><input value={projectSearch} onChange={(event) => { setProjectSearch(event.target.value); setProjectPage(1); }} placeholder="项目名称或编号" /></label>
+      <label className="toolbar-field"><span>项目</span><select value={projectId} onChange={(event) => { setProjectId(event.target.value); setChosenProject(projectOptions.find((item) => String(item.id) === event.target.value) ?? null); setPage(1); }}><option value="">全部项目</option>{projectOptions.map((project) => <option key={project.id} value={project.id}>{project.code} · {project.name}</option>)}</select></label>
+      <div className="row-actions"><span className="tiny muted">项目 {projectPage}/{projectTotalPages} 页</span><button className="btn-ghost" disabled={projectPage <= 1 || projects.loading} onClick={() => setProjectPage((current) => current - 1)}>上一页项目</button><button className="btn-ghost" disabled={projectPage >= projectTotalPages || projects.loading} onClick={() => setProjectPage((current) => current + 1)}>下一页项目</button></div>
+      {projects.error && <LoadFailed message={projects.error} onRetry={projects.reload} />}
       <label className="toolbar-field"><span>审批状态</span><select value={status} onChange={(event) => { setStatus(event.target.value); setPage(1); }}><option value="">全部状态</option><option value="approved">已审批</option><option value="exception">异常审批</option></select></label>
       <label className="toolbar-field"><span>开始日期</span><input type="date" value={dateFrom} max={dateTo || undefined} onChange={(event) => { setDateFrom(event.target.value); setPage(1); }} /></label>
       <label className="toolbar-field"><span>结束日期</span><input type="date" value={dateTo} min={dateFrom || undefined} onChange={(event) => { setDateTo(event.target.value); setPage(1); }} /></label>
