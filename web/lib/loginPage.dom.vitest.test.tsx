@@ -14,7 +14,7 @@ vi.mock("next/navigation", () => ({
 
 vi.mock("@/lib/api", () => ({
   authApi: { login: (...args: unknown[]) => mocks.login(...args) },
-  errText: (error: unknown) => String(error),
+  errText: (error: unknown) => error instanceof Error ? error.message : String(error),
   saveSession: (...args: unknown[]) => mocks.saveSession(...args),
   UnauthorizedError: class UnauthorizedError extends Error {},
 }));
@@ -158,7 +158,7 @@ describe("LoginPage CTA", () => {
     });
 
     expect(await screen.findByRole("alert")).toBeTruthy();
-    expect(screen.getByRole("alert").textContent).toContain("Error: network unavailable");
+    expect(screen.getByRole("alert").textContent).toContain("network unavailable");
     const button = screen.getByRole("button", { name: "进入管理平台" });
     expect(button.hasAttribute("disabled")).toBe(false);
     expect(button.getAttribute("aria-busy")).toBe("false");
