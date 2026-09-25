@@ -545,7 +545,7 @@
 
 .submit[data-phase="loading"] .submitLabel,
 .submit[data-phase="success"] .submitLabel {
-  animation: submitLabelIn 180ms var(--ease-console) both;
+  animation: submitLabelIn 130ms var(--ease-console) both;
 }
 
 .submitArrow {
@@ -585,13 +585,13 @@
   stroke-width: 1.8;
   stroke-linecap: round;
   stroke-linejoin: round;
-  animation: submitCheckIn 180ms var(--ease-console) both;
+  animation: submitCheckIn 120ms var(--ease-console) both;
 }
 
 .submitCheck path {
   stroke-dasharray: 18;
   stroke-dashoffset: 18;
-  animation: submitCheckDraw 140ms 30ms ease-out forwards;
+  animation: submitCheckDraw 100ms 20ms ease-out forwards;
 }
 
 .cardMeta {

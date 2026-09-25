@@ -60,6 +60,12 @@ export default function LoginPage() {
         : hasError
           ? "本地节点 / 待检查"
           : "本地节点 / 就绪";
+  const submitLabel =
+    submitPhase === "loading"
+      ? "正在验证身份…"
+      : submitPhase === "success"
+        ? "登录成功，正在跳转…"
+        : "进入管理平台";
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -177,20 +183,10 @@ export default function LoginPage() {
                 className={st.submit}
                 type="submit"
                 disabled={busy}
-                aria-busy={busy}
+                aria-busy={submitPhase === "loading"}
                 data-phase={submitPhase}
               >
-                <span
-                  className={st.submitLabel}
-                  role={busy ? "status" : undefined}
-                  aria-live={busy ? "polite" : undefined}
-                >
-                  {submitPhase === "loading"
-                    ? "正在验证身份…"
-                    : submitPhase === "success"
-                      ? "登录成功，正在跳转…"
-                      : "进入管理平台"}
-                </span>
+                <span className={st.submitLabel}>{submitLabel}</span>
                 <span className={st.submitArrow} aria-hidden="true">
                   {submitPhase === "loading" ? (
                     <span className={st.submitSpinner} />
@@ -205,6 +201,9 @@ export default function LoginPage() {
                   )}
                 </span>
               </button>
+              <span className="sr-only" role="status" aria-live="polite" aria-atomic="true">
+                {busy ? submitLabel : ""}
+              </span>
             </form>
             <div className={st.cardMeta} aria-hidden="true">
               <span>认证入口 / 01</span>

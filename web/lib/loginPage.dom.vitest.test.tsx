@@ -61,6 +61,9 @@ describe("LoginPage CTA", () => {
     const button = await screen.findByRole("button", { name: "正在验证身份…" });
     expect(button.hasAttribute("disabled")).toBe(true);
     expect(button.getAttribute("aria-busy")).toBe("true");
+    const loadingStatus = screen.getByRole("status");
+    expect(loadingStatus.textContent).toBe("正在验证身份…");
+    expect(loadingStatus.closest("button")).toBeNull();
 
     resolveLogin({ access_token: "access", refresh_token: "refresh", must_change_pwd: false });
     await waitFor(() => expect(mocks.push).toHaveBeenCalledWith("/dashboard"));
@@ -93,7 +96,10 @@ describe("LoginPage CTA", () => {
       await vi.advanceTimersByTimeAsync(1);
     });
     const successButton = screen.getByRole("button", { name: "登录成功，正在跳转…" });
-    expect(successButton.getAttribute("aria-busy")).toBe("true");
+    expect(successButton.getAttribute("aria-busy")).toBe("false");
+    const successStatus = screen.getByRole("status");
+    expect(successStatus.textContent).toBe("登录成功，正在跳转…");
+    expect(successStatus.closest("button")).toBeNull();
     expect(mocks.push).not.toHaveBeenCalled();
 
     await act(async () => {
@@ -152,6 +158,7 @@ describe("LoginPage CTA", () => {
     });
 
     expect(await screen.findByRole("alert")).toBeTruthy();
+    expect(screen.getByRole("alert").textContent).toContain("Error: network unavailable");
     const button = screen.getByRole("button", { name: "进入管理平台" });
     expect(button.hasAttribute("disabled")).toBe(false);
     expect(button.getAttribute("aria-busy")).toBe("false");
