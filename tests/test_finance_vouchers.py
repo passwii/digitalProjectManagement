@@ -757,6 +757,57 @@ def test_legacy_request_without_account_filter_exposes_fifo_ignoring_allocations
     assert response.json()["allocations"] == [{"receivable_id": second["id"], "amount": "25.00"}]
 
 
+def test_manual_allocation_rejects_empty_details_without_side_effects(client):
+    headers = _auth(client, "admin", "admin123456")
+    book = _book(client, headers, "AR-MANUAL-EMPTY")
+    scoped = _scoped(headers, book)
+    accounts = _accounts(client, scoped)
+    period = client.get("/api/v1/finance/periods", headers=scoped).json()[0]
+    customer = client.post("/api/v1/finance/auxiliary-items", headers=scoped, json={"kind": "customer", "code": "EMPTY-C01", "name": "空明细客户"}).json()
+    target = _create_arap_document(client, scoped, period, customer["id"], accounts["11220101"]["id"], accounts["6001"]["id"], "10.00", "receivable")
+    _post_arap_voucher(client, scoped, target["voucher"]["id"])
+    before_vouchers = client.get("/api/v1/finance/vouchers", headers=scoped).json()["total"]
+
+    response = client.post("/api/v1/finance/receivable-collections", headers=scoped, json={
+        "period_id": period["id"], "transaction_date": period["start_date"],
+        "customer_id": customer["id"], "amount": "1.00",
+        "cash_account_id": accounts["10020101"]["id"],
+        "cashflow_item": "C01", "allocations": [],
+    })
+    assert response.status_code == 400, response.text
+    assert response.json()["detail"]["code"] == "F-ARAP-INVALID"
+    assert client.get("/api/v1/finance/vouchers", headers=scoped).json()["total"] == before_vouchers
+    item = next(item for item in client.get("/api/v1/finance/receivables", headers=scoped).json()["items"] if item["id"] == target["id"])
+    assert item["applied_amount"] == "0.00"
+
+
+def test_manual_allocation_normalizes_to_cents_and_rejects_zero_cents(client):
+    headers = _auth(client, "admin", "admin123456")
+    book = _book(client, headers, "AR-MANUAL-CENTS")
+    scoped = _scoped(headers, book)
+    accounts = _accounts(client, scoped)
+    period = client.get("/api/v1/finance/periods", headers=scoped).json()[0]
+    customer = client.post("/api/v1/finance/auxiliary-items", headers=scoped, json={"kind": "customer", "code": "CENTS-C01", "name": "分币客户"}).json()
+    target = _create_arap_document(client, scoped, period, customer["id"], accounts["11220101"]["id"], accounts["6001"]["id"], "1.00", "receivable")
+    _post_arap_voucher(client, scoped, target["voucher"]["id"])
+    base = {
+        "period_id": period["id"], "transaction_date": period["start_date"],
+        "customer_id": customer["id"], "amount": "0.01",
+        "cash_account_id": accounts["10020101"]["id"],
+        "cashflow_item": "C01",
+    }
+    rejected = client.post("/api/v1/finance/receivable-collections", headers=scoped, json={
+        **base, "allocations": [{"target_id": target["id"], "amount": "0.004"}],
+    })
+    assert rejected.status_code == 400, rejected.text
+    assert rejected.json()["detail"]["code"] == "F-ARAP-INVALID"
+    accepted = client.post("/api/v1/finance/receivable-collections", headers=scoped, json={
+        **base, "allocations": [{"target_id": target["id"], "amount": "0.006"}],
+    })
+    assert accepted.status_code == 200, accepted.text
+    assert accepted.json()["allocations"] == [{"receivable_id": target["id"], "amount": "0.01"}]
+
+
 def test_manual_receivable_allocation_validation_is_atomic(client):
     headers = _auth(client, "admin", "admin123456")
     book = _book(client, headers, "AR-MANUAL-INVALID")
@@ -914,6 +965,36 @@ def test_receivable_creation_and_fifo_collection_application(client):
 
     outstanding = client.get("/api/v1/finance/receivables", headers=scoped).json()["items"]
     assert outstanding[0]["outstanding"] == "60.00"
+
+
+def test_fifo_collection_advances_past_fully_settled_document(client):
+    headers = _auth(client, "admin", "admin123456")
+    book = _book(client, headers, "AR-FIFO-ADVANCE")
+    scoped = _scoped(headers, book)
+    accounts = _accounts(client, scoped)
+    period = client.get("/api/v1/finance/periods", headers=scoped).json()[0]
+    customer = client.post("/api/v1/finance/auxiliary-items", headers=scoped, json={"kind": "customer", "code": "FIFO-C01", "name": "顺序客户"}).json()
+    other_account = client.post("/api/v1/finance/accounts", headers=scoped, json={
+        "code": "11220102", "name": "应收账款-国内客户-二类", "direction": "D", "category": "资产",
+        "parent_id": accounts["112201"]["id"], "aux_flags": {"customer": True},
+    })
+    assert other_account.status_code == 200, other_account.text
+    first = _create_arap_document(client, scoped, period, customer["id"], accounts["11220101"]["id"], accounts["6001"]["id"], "10.00", "receivable")
+    second = _create_arap_document(client, scoped, period, customer["id"], other_account.json()["id"], accounts["6001"]["id"], "10.00", "receivable")
+    _post_arap_voucher(client, scoped, first["voucher"]["id"])
+    _post_arap_voucher(client, scoped, second["voucher"]["id"])
+    payload = {
+        "period_id": period["id"], "transaction_date": period["start_date"],
+        "customer_id": customer["id"], "amount": "10.00",
+        "cash_account_id": accounts["10020101"]["id"], "cashflow_item": "C01",
+    }
+    initial = client.post("/api/v1/finance/receivable-collections", headers=scoped, json=payload)
+    assert initial.status_code == 200, initial.text
+    assert initial.json()["allocations"] == [{"receivable_id": first["id"], "amount": "10.00"}]
+    time.sleep(0.02)
+    later = client.post("/api/v1/finance/receivable-collections", headers=scoped, json=payload)
+    assert later.status_code == 200, later.text
+    assert later.json()["allocations"] == [{"receivable_id": second["id"], "amount": "10.00"}]
 
 
 def test_payable_aging_buckets_and_over_collection_are_blocked(client):

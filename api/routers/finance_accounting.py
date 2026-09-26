@@ -167,6 +167,11 @@ class ARAPIn(BaseModel):
     summary: str = Field(default="", max_length=255)
 
 
+class ARAPAllocationIn(BaseModel):
+    target_id: int = Field(gt=0)
+    amount: Decimal
+
+
 class ARAPPaymentIn(BaseModel):
     period_id: int
     transaction_date: date
@@ -178,6 +183,7 @@ class ARAPPaymentIn(BaseModel):
     account_id: int | None = None
     cashflow_item: str | None = None
     summary: str = Field(default="", max_length=255)
+    allocations: list[ARAPAllocationIn] | None = None
 
 
 def _period(db: Session, book_id: int, period_id: int) -> AccountingPeriod:
@@ -803,9 +809,18 @@ def list_payables(party_id: int | None = None, x_account_book: str | None = Head
 def _apply_arap_payment(kind: str, body: ARAPPaymentIn, book: AccountBook, db: Session, user: User):
     _role(db, user, book.id, {ROLE_CASHIER, ROLE_FINANCE_MANAGER})
     amount = _money(body.amount)
+    if amount <= 0:
+        _error(400, "F-ARAP-INVALID", "收付款金额必须大于零")
     party_id = body.party_id or body.customer_id or body.vendor_id
     if not party_id:
         _error(400, "F-ARAP-INVALID", "往来主体不能为空")
+    manual = body.allocations is not None
+    if manual:
+        if not body.allocations:
+            _error(400, "F-ARAP-INVALID", "核销明细不能为空")
+        target_ids = [item.target_id for item in body.allocations]
+        if len(set(target_ids)) != len(target_ids):
+            _error(400, "F-ARAP-INVALID", "核销目标不能重复")
     candidate_query = (
         db.query(ARAPTransaction)
         .join(Voucher, Voucher.id == ARAPTransaction.voucher_id)
@@ -828,7 +843,9 @@ def _apply_arap_payment(kind: str, body: ARAPPaymentIn, book: AccountBook, db: S
     )
     candidate_query = candidate_query.filter(~ARAPTransaction.voucher_id.in_(active_reversal_source_ids))
     if body.account_id is not None:
-        candidate_query = candidate_query.filter_by(account_id=body.account_id)
+        candidate_query = candidate_query.filter(ARAPTransaction.account_id == body.account_id)
+    if manual:
+        candidate_query = candidate_query.filter(ARAPTransaction.id.in_(target_ids))
     candidates = candidate_query.order_by(ARAPTransaction.transaction_date, ARAPTransaction.id).with_for_update(of=ARAPTransaction).all()
     # Recheck after taking the target-row locks. A reversal draft can be created
     # while this request waits for one of those locks, after the SQL predicate ran.
@@ -844,17 +861,46 @@ def _apply_arap_payment(kind: str, body: ARAPPaymentIn, book: AccountBook, db: S
         if row[0] is not None
     }
     candidates = [target for target in candidates if target.voucher_id not in active_reversal_source_ids]
-    remaining = amount
-    allocations = []
-    for target in candidates:
-        outstanding = Decimal(target.amount) - Decimal(target.applied_amount)
-        if outstanding <= 0: continue
-        applied = min(remaining, outstanding)
-        allocations.append((target, applied))
-        remaining -= applied
-        if remaining <= 0: break
-    if remaining > 0:
-        _error(400, "F-ARAP-OVER-APPLY", "收付款金额超过未核销余额")
+    allocations: list[tuple[ARAPTransaction, Decimal]] = []
+    if manual:
+        targets = {target.id: target for target in candidates}
+        if len(targets) != len(target_ids):
+            _error(400, "F-ARAP-INVALID", "目标单据不符合当前核销条件")
+        if len({target.account_id for target in candidates}) != 1:
+            _error(400, "F-ARAP-INVALID", "目标单据不符合当前核销条件")
+        total = Decimal("0.00")
+        for item in body.allocations:
+            target = targets[item.target_id]
+            applied = _money(item.amount, "核销明细金额")
+            if applied <= 0:
+                _error(400, "F-ARAP-INVALID", "核销明细金额必须大于零")
+            outstanding = Decimal(target.amount) - Decimal(target.applied_amount)
+            if applied > outstanding:
+                _error(400, "F-ARAP-OVER-APPLY", "核销金额超过目标单据未核销余额")
+            allocations.append((target, applied))
+            total += applied
+        if total != amount:
+            _error(400, "F-ARAP-INVALID", "核销明细合计必须等于收付款金额")
+    else:
+        remaining = amount
+        # A single cash voucher has one counterparty account. Keep FIFO within it.
+        selected_account_id = next(
+            (target.account_id for target in candidates if Decimal(target.amount) > Decimal(target.applied_amount)),
+            None,
+        )
+        for target in candidates:
+            if target.account_id != selected_account_id:
+                continue
+            outstanding = Decimal(target.amount) - Decimal(target.applied_amount)
+            if outstanding <= 0:
+                continue
+            applied = min(remaining, outstanding)
+            allocations.append((target, applied))
+            remaining -= applied
+            if remaining <= 0:
+                break
+        if remaining > 0:
+            _error(400, "F-ARAP-OVER-APPLY", "收付款金额超过未核销余额")
     first = allocations[0][0]
     account = db.query(Account).filter_by(id=body.cash_account_id, account_book_id=book.id, is_active=True, is_leaf=True).first()
     if not account:
