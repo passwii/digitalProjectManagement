@@ -7,6 +7,7 @@ import {
   financeApi,
   type FinanceAccount,
   type FinanceARAPDocumentResult,
+  type FinanceARAPItem,
   type FinanceARAPPaymentResult,
   type FinanceARAPPaymentInput,
   type FinanceAuxiliaryItem,
@@ -47,6 +48,12 @@ function money(value: string | number): string {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   });
+}
+
+function formatCents(value: bigint): string {
+  const absolute = value < BigInt(0) ? -value : value;
+  const whole = (absolute / BigInt(100)).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  return `${value < BigInt(0) ? "-" : ""}${whole}.${(absolute % BigInt(100)).toString().padStart(2, "0")}`;
 }
 
 function accountLabel(account: FinanceAccount): string {
@@ -239,6 +246,7 @@ export function ArapSettlementDialog({
   party,
   account,
   outstanding,
+  documents,
   accounts,
   cashflows,
   onClose,
@@ -251,6 +259,7 @@ export function ArapSettlementDialog({
   party: FinanceAuxiliaryItem | null;
   account: FinanceAccount | null;
   outstanding: string;
+  documents: FinanceARAPItem[];
   accounts: FinanceAccount[];
   cashflows: FinanceAuxiliaryItem[];
   onClose: () => void;
@@ -263,6 +272,8 @@ export function ArapSettlementDialog({
   const [summary, setSummary] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [allocationMode, setAllocationMode] = useState<"fifo" | "manual">("fifo");
+  const [allocationAmounts, setAllocationAmounts] = useState<Record<number, string>>({});
   const isReceipt = kind === "receivable";
   const cashAccounts = useMemo(
     () => accounts.filter((account) =>
@@ -275,6 +286,27 @@ export function ArapSettlementDialog({
   const requiresCashflow = Boolean(selectedCashAccount?.aux_flags?.cashflow);
   const availableCents = toCents(outstanding) ?? BigInt(0);
   const enteredCents = toCents(amount);
+  const eligibleDocuments = useMemo(() => documents.filter((item) =>
+    item.party_id === party?.id && item.account_id === account?.id &&
+    item.voucher_status === "posted" && !item.is_reversing && !item.is_reversed &&
+    item.transaction_date <= date && (toCents(item.outstanding) ?? BigInt(0)) > BigInt(0),
+  ).sort((a, b) => a.transaction_date.localeCompare(b.transaction_date) || a.id - b.id), [documents, party?.id, account?.id, date]);
+  const allocationTotal = eligibleDocuments.reduce(
+    (sum, item) => sum + (toCents(allocationAmounts[item.id] ?? "") ?? BigInt(0)), BigInt(0),
+  );
+  const invalidAllocation = eligibleDocuments.find((item) => {
+    const raw = allocationAmounts[item.id] ?? "";
+    if (!raw.trim()) return false;
+    const value = toCents(raw);
+    return value === null || value > (toCents(item.outstanding) ?? BigInt(0));
+  });
+  const manualReason = allocationMode === "manual"
+    ? availableCents <= BigInt(0) ? "没有剩余可核销额度。"
+      : !eligibleDocuments.length ? "没有可核销单据，请调整交易日期或核对已过账单据。"
+        : enteredCents === null || enteredCents <= BigInt(0) ? `请先填写${isReceipt ? "收款" : "付款"}金额。`
+          : invalidAllocation ? `单据 ${invalidAllocation.voucher_no ?? invalidAllocation.id} 的本次核销额无效或超过可核销余额。`
+            : allocationTotal !== enteredCents ? `核销合计必须等于${isReceipt ? "收款" : "付款"}金额。` : null
+    : null;
 
   useEffect(() => {
     if (!open) return;
@@ -284,6 +316,8 @@ export function ArapSettlementDialog({
     setAmount("");
     setSummary("");
     setError("");
+    setAllocationMode("fifo");
+    setAllocationAmounts({});
   }, [open, book, period?.id, period?.start_date, period?.end_date, party?.id]);
 
   async function save() {
@@ -319,6 +353,10 @@ export function ArapSettlementDialog({
       setError(`金额不能超过此主体的可核销余额 ${money(outstanding)} 元。`);
       return;
     }
+    if (manualReason) {
+      setError(manualReason);
+      return;
+    }
 
     const base: FinanceARAPPaymentInput = {
       period_id: period.id,
@@ -328,6 +366,14 @@ export function ArapSettlementDialog({
       account_id: account.id,
       cashflow_item: cashflowCode || undefined,
       summary: summary.trim(),
+      ...(allocationMode === "manual" ? {
+        allocations: eligibleDocuments.flatMap((item) => {
+          const value = toCents(allocationAmounts[item.id] ?? "");
+          return value !== null && value > BigInt(0)
+            ? [{ target_id: item.id, amount: (allocationAmounts[item.id] ?? "").trim() }]
+            : [];
+        }),
+      } : {}),
     };
     setSaving(true);
     setError("");
@@ -355,7 +401,7 @@ export function ArapSettlementDialog({
       footer={
         <>
           <button className="btn-ghost" onClick={onClose}>取消</button>
-          <button className="btn-primary" disabled={saving || period?.status !== "open" || !party || !account || availableCents <= BigInt(0)} onClick={save}>
+          <button className="btn-primary" disabled={saving || period?.status !== "open" || !party || !account || availableCents <= BigInt(0) || Boolean(manualReason)} onClick={save}>
             {saving ? "提交中…" : label}
           </button>
         </>
@@ -375,7 +421,7 @@ export function ArapSettlementDialog({
             min={period?.start_date}
             max={period?.end_date}
             value={date}
-            onChange={(event) => setDate(event.target.value)}
+            onChange={(event) => { setDate(event.target.value); setAllocationAmounts({}); }}
           />
         </label>
         <label className="field">
@@ -403,13 +449,37 @@ export function ArapSettlementDialog({
           <input value={summary} onChange={(event) => setSummary(event.target.value)} placeholder={isReceipt ? "例如：收到阶段款" : "例如：支付采购款"} />
         </label>
       </div>
+      <fieldset style={{ marginTop: 16 }}>
+        <legend className="field-label">核销方式</legend>
+        <label><input type="radio" name="allocation-mode" checked={allocationMode === "fifo"} onChange={() => setAllocationMode("fifo")} /> 按单据日期先进先出</label>
+        <label style={{ marginLeft: 16 }}><input type="radio" name="allocation-mode" checked={allocationMode === "manual"} onChange={() => setAllocationMode("manual")} /> 指定单据</label>
+      </fieldset>
+      {allocationMode === "manual" && (
+        <div className="card" style={{ marginTop: 16 }}>
+          {eligibleDocuments.map((item) => (
+            <div key={item.id} className="status-row" style={{ marginBottom: 10 }}>
+              <span className="mono">{item.voucher_no ?? `凭证 #${item.voucher_id ?? item.id}`}</span>
+              <span>{item.transaction_date}</span>
+              <span>{item.summary || "-"}</span>
+              <span>剩余额 {formatCents(toCents(item.outstanding) ?? BigInt(0))} 元</span>
+              <label className="field">
+                <span className="field-label">本次核销额 · {item.voucher_no ?? item.id}</span>
+                <input inputMode="decimal" placeholder="0.00" value={allocationAmounts[item.id] ?? ""}
+                  onChange={(event) => setAllocationAmounts((current) => ({ ...current, [item.id]: event.target.value }))} />
+              </label>
+            </div>
+          ))}
+          <p className="tiny">核销合计 {formatCents(allocationTotal)} 元；差额 {formatCents((enteredCents ?? BigInt(0)) - allocationTotal)} 元</p>
+          {manualReason && <p className="field-err" role="status">{manualReason}</p>}
+        </div>
+      )}
       {error && <div className="field-err" role="alert">{error}</div>}
       {!cashAccounts.length && <p className="tiny muted">当前账套没有启用的现金或银行末级科目。</p>}
       {requiresCashflow && !cashflows.length && <p className="tiny muted">当前账套没有可选现金流项目，请联系系统管理员维护。</p>}
       <div className="card" style={{ marginTop: 16 }}>
         <p className="tiny"><b>核销与凭证说明</b></p>
         <p className="tiny muted" style={{ marginBottom: 0 }}>
-          保存时系统会按此主体与往来科目下的单据日期 FIFO 分配并立即占用可核销余额，同时生成待审核草稿凭证。过账后才会进入正式账簿；目前作废或删除该草稿不会自动释放核销额度，请提交前核对主体、科目、期间和金额。
+          保存时系统会按所选方式分配并立即占用可核销余额，同时生成待审核草稿凭证。过账后才会进入正式账簿；目前作废或删除该草稿不会自动释放核销额度，请提交前核对主体、科目、期间和金额。
         </p>
       </div>
     </Dialog>

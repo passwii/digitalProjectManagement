@@ -753,6 +753,7 @@ export interface FinanceARAPPaymentInput {
   summary: string;
   customer_id?: number;
   vendor_id?: number;
+  allocations?: Array<{ target_id: number; amount: string }>;
 }
 
 export interface FinanceARAPDocumentResult {
