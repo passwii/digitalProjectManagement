@@ -31,12 +31,8 @@ const BODY_MARK = { [MODAL_BODY_ATTR]: "true" };
 /**
  * 弹层的共享行为：初始聚焦、Esc、body 滚动锁定、Tab 循环、关闭后归还焦点。
  *
- * `modal=false` 是手机端底部抽屉（`components/mobile/BottomSheet.tsx`，BLF-1127/S3）
- * 的 peek 档要的「非模态」语义：不锁 body 滚动、不锁 Tab（焦点可以离开面板），
- * 但初始聚焦与「关闭后归还焦点」照旧 —— 它仍然是弹层，只是不独占页面。
- * 不加遮罩却锁 Tab，会把键盘用户关在一个看不出来是弹层的东西里。
- *
- * Esc **不受**本开关影响：抽屉三档都要能 Esc 降档 / 收起。
+ * `modal=false` 供需要非模态行为的弹层使用：不锁 body 滚动或 Tab，
+ * 初始聚焦与关闭后的焦点归还仍然保留。Esc 始终由调用方决定关闭动作。
  *
  * 导出它是为了不让第二个弹层组件再实现一遍这套行为（Dialog / Drawer / Confirm
  * 用的是同一份；抽屉也必须是同一份）。
@@ -154,7 +150,7 @@ export function useModalBehavior({
       return;
     }
     if (!modal) {
-      // 由模态档降回非模态档（抽屉 full/half → peek）：立刻解锁滚动。
+      // 从模态切为非模态时立刻解锁滚动。
       // 关闭路径不在这里处理 —— 仍旧由 handleExitComplete 在退场动画结束后解锁，
       // Dialog / Drawer / Confirm 的行为因此完全不变。
       if (overflowRef.current !== null) {
@@ -173,7 +169,7 @@ export function useModalBehavior({
         return;
       }
       if (e.key !== "Tab") return;
-      // 非模态档不锁 Tab：面板没有遮罩、不占有页面，焦点本来就该能走到别处
+      // 非模态弹层不锁 Tab，焦点可以离开面板。
       if (!modal) return;
       const panel = panelRef.current;
       if (!panel) return;

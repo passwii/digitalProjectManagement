@@ -10,6 +10,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { errText } from "./api";
 import { useActivity } from "./useActivity";
+import { linkAbortSignal, refreshAbortMessage, useRegisterPageRefresh } from "./pageRefresh";
 
 export function isAbortError(e: unknown): boolean {
   if (e instanceof DOMException) return e.name === "AbortError";
@@ -42,78 +43,102 @@ export function useAsyncData<T>(
   const [data, setData] = useState<T | null>(null);
   const [loading, setLoading] = useState(enabled);
   const [error, setError] = useState("");
-  const [tick, setTick] = useState(0);
 
   const seqRef = useRef(0);
   const lastDepRef = useRef<string | null>(null);
-  const resetRef = useRef(resetOnDepChange);
   const controllerRef = useRef<AbortController | null>(null);
-  resetRef.current = resetOnDepChange;
+  const finishRef = useRef<(() => void) | null>(null);
 
   const depKey = JSON.stringify(deps);
 
-  useEffect(() => {
-    if (!enabled) {
-      // 让禁用前启动的请求响应失效；cleanup/abort 仍负责结束它自己的 activity。
-      ++seqRef.current;
-      controllerRef.current?.abort();
-      controllerRef.current = null;
-      setLoading(false);
-      setError("");
-      lastDepRef.current = depKey;
-      return;
-    }
-    // 依赖变化（非手动 reload）时清空旧数据，骨架期间不展示上一份筛选结果
-    if (resetRef.current && lastDepRef.current !== depKey) {
-      lastDepRef.current = depKey;
-      setData(null);
-    }
+  const cancelCurrent = useCallback(() => {
+    ++seqRef.current;
+    controllerRef.current?.abort();
+    controllerRef.current = null;
+    finishRef.current?.();
+    finishRef.current = null;
+  }, []);
+
+  /** 同一条请求通道供依赖变化、手动重试和页面下拉刷新使用。 */
+  const run = useCallback(async (externalSignal?: AbortSignal): Promise<void> => {
+    if (!enabled) return;
+    controllerRef.current?.abort();
+    finishRef.current?.();
     const id = ++seqRef.current;
     const finishActivity = beginActivity({
       label: "更新中",
       scope: "content",
     });
-    let active = true;
     let finishedActivity = false;
     const finishOnce = () => {
       if (finishedActivity) return;
       finishedActivity = true;
       finishActivity();
     };
+    finishRef.current = finishOnce;
     setLoading(true);
     setError("");
 
     const controller = new AbortController();
     controllerRef.current = controller;
-    loaderRef.current(controller.signal)
-      .then((value) => {
-        if (!active || seqRef.current !== id) return; // 过期响应：丢弃
-        setData(value);
-        setError("");
-        setLoading(false);
-        finishOnce();
-      })
-      .catch((e) => {
-        if (!active || seqRef.current !== id || isAbortError(e)) return; // 主动取消 / 过期：静默
-        setError(errText(e));
-        setData(null);
-        setLoading(false);
-        finishOnce();
-      })
-      .finally(() => {
-        if (controllerRef.current === controller) controllerRef.current = null;
+    const detach = linkAbortSignal(externalSignal, controller);
+    let detachControllerAbort = () => {};
+    try {
+      if (controller.signal.aborted) throw new DOMException("请求已取消", "AbortError");
+      const request = loaderRef.current(controller.signal);
+      const cancelled = new Promise<never>((_, reject) => {
+        const onAbort = () => reject(new DOMException("请求已取消", "AbortError"));
+        controller.signal.addEventListener("abort", onAbort, { once: true });
+        detachControllerAbort = () => controller.signal.removeEventListener("abort", onAbort);
+        if (controller.signal.aborted) onAbort();
       });
-
-    return () => {
-      active = false;
-      ++seqRef.current;
-      controller.abort();
-      if (controllerRef.current === controller) controllerRef.current = null;
+      const value = await Promise.race([request, cancelled]);
+      if (controller.signal.aborted || seqRef.current !== id) return;
+      setData(value);
+      setError("");
+      setLoading(false);
+    } catch (e) {
+      if (seqRef.current !== id) return;
+      if (controller.signal.aborted || isAbortError(e)) {
+        const aborted = refreshAbortMessage(externalSignal);
+        if (aborted) setError(aborted);
+        setLoading(false);
+        return;
+      }
+      const message = errText(e);
+      setError(message);
+      setData(null);
+      setLoading(false);
+      throw new Error(message);
+    } finally {
+      detach();
+      detachControllerAbort();
       finishOnce();
-    };
-  }, [beginActivity, enabled, tick, depKey]);
+      if (finishRef.current === finishOnce) finishRef.current = null;
+      if (controllerRef.current === controller) controllerRef.current = null;
+    }
+  }, [beginActivity, enabled]);
 
-  const reload = useCallback(() => setTick((t) => t + 1), []);
+  useEffect(() => {
+    if (!enabled) {
+      cancelCurrent();
+      setLoading(false);
+      setError("");
+      lastDepRef.current = depKey;
+      return;
+    }
+    // 只有依赖切换清空旧数据；手动刷新保留页面筛选和当前视图。
+    if (resetOnDepChange && lastDepRef.current !== depKey) setData(null);
+    lastDepRef.current = depKey;
+    void run().catch(() => {});
+    return cancelCurrent;
+  }, [enabled, depKey, resetOnDepChange, run, cancelCurrent]);
+
+  useRegisterPageRefresh(run, enabled);
+
+  const reload = useCallback(() => {
+    void run().catch(() => {});
+  }, [run]);
   const setDataDirect = useCallback((next: T | null) => setData(next), []);
 
   return { data, loading, firstLoad: loading && data === null, error, reload, setData: setDataDirect };

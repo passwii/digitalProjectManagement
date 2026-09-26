@@ -388,6 +388,7 @@
 
 .cardBadge i:nth-child(2) { height: 27px; }
 
+.card h1,
 .card h2 {
   margin: 0;
   color: var(--login-ink);
@@ -396,6 +397,8 @@
   line-height: 1.25;
   letter-spacing: -0.02em;
 }
+
+.compactTitle { display: none; }
 
 .cardIntro {
   margin: 8px 0 0;
@@ -715,6 +718,28 @@
   }
 
   .auth::before { display: none; }
+
+  .wrap[data-login-page] .story {
+    margin-top: auto;
+    padding-bottom: 12px;
+  }
+
+  .wrap[data-login-page] .storyMain,
+  .wrap[data-login-page] .storyFoot,
+  .wrap[data-login-page] .consoleTop,
+  .wrap[data-login-page] .cardBadge,
+  .wrap[data-login-page] .cardIntro,
+  .wrap[data-login-page] .cardMeta,
+  .wrap[data-login-page] .copyright,
+  .wrap[data-login-page] .desktopTitle,
+  .wrap[data-login-page] .editionNode { display: none; }
+
+  .wrap[data-login-page] .compactTitle { display: block; }
+  .wrap[data-login-page] .auth {
+    margin-bottom: auto;
+    padding-top: 12px;
+  }
+  .wrap[data-login-page] .card form { margin-top: 24px; }
 }
 
 @media (max-width: 767px) {
@@ -730,7 +755,7 @@
       var(--login-bg);
   }
 
-  .story {
+  .wrap[data-login-page] .story {
     min-height: auto;
     margin: auto 0 24px;
     padding: 0;
@@ -747,32 +772,14 @@
     mask-image: linear-gradient(180deg, #000, transparent 76%);
   }
 
-  .storyTop { justify-content: center; }
+  .storyTop { flex-direction: column; justify-content: center; gap: 8px; }
   .brandLockup { gap: 10px; }
   .brandGlyph { width: 28px; height: 28px; }
   .mark { font-size: 20px; letter-spacing: 0.13em; }
-  .edition { display: none; }
+  .edition { display: inline-flex; font-size: 11px; }
+  .editionDot { display: none; }
 
-  .storyMain {
-    flex: none;
-    gap: 22px;
-    padding: 20px 0 0;
-  }
-
-  .storyCopy { max-width: none; }
-  .storyMain h1 { font-size: clamp(31px, 9.5vw, 42px); letter-spacing: -0.02em; }
-
-  .storyText {
-    max-width: 300px;
-    margin: 10px auto 0;
-    color: rgba(201, 227, 235, 0.58);
-    font-size: 12px;
-    line-height: 1.65;
-  }
-
-  .storyFoot { display: none; }
-
-  .auth {
+  .wrap[data-login-page] .auth {
     min-height: auto;
     margin-bottom: auto;
     padding: 0;
@@ -789,9 +796,11 @@
   }
 
   .cardBadge { width: 42px; height: 42px; }
+  .card h1,
   .card h2 { font-size: 19px; }
   .cardIntro { margin-top: 6px; font-size: 13px; }
   .card form { margin-top: 21px; }
+  .wrap[data-login-page] .card form { margin-top: 20px; }
   .field { gap: 7px; margin-bottom: 12px; }
   .field label { font-size: 10px; }
   .field input { height: 46px; min-height: 46px; font-size: 16px; }
@@ -821,6 +830,7 @@
 @media (max-width: 400px) {
   .cardHead { gap: 11px; }
   .cardBadge { width: 38px; height: 38px; }
+  .card h1,
   .card h2 { font-size: 18px; }
   .cardIntro { font-size: 12px; }
   .cardMeta span:last-child { display: none; }

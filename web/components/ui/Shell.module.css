@@ -469,6 +469,7 @@
 
   /* 手机没有 hover：chip 整块可点，菜单项放大到触控尺寸 */
   .userMenuItem { min-height: var(--m-tap); }
+  .userChip { min-height: var(--m-tap); }
 
   /* 底部给 Dock 让位：Dock 是 fixed 定位、不占文档流，不留白就会盖住最后一屏内容
      （58 + 安全区 + 18 的呼吸位，与 MobileDock.module.css 的高度口径一致） */

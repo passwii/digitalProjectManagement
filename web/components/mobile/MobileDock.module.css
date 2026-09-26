@@ -72,6 +72,9 @@
   .tabActive,
   .tabActive:hover { color: var(--brand); }
   .tabActive .label { font-weight: 700; }
+  .tabOpen,
+  .tabOpen:hover { color: var(--brand); }
+  .tabOpen .label { font-weight: 700; }
 
   .pill {
     position: absolute;
@@ -83,7 +86,8 @@
     transform: scale(.9);
     transition: opacity 180ms var(--ease-console), transform 180ms var(--ease-console);
   }
-  .tabActive .pill { opacity: 1; transform: none; }
+  .tabActive .pill,
+  .tabOpen .pill { opacity: 1; transform: none; }
 
   /* 待办红点（D3）：挂在「我的」位上。数字徽标最多两位（>99 收敛成 99+） */
   .dot,

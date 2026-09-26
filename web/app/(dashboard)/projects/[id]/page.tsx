@@ -41,6 +41,7 @@ import { useToast } from "@/components/ui/Toast";
 import MotionTabs from "@/components/motion/MotionTabs";
 import { useActivity } from "@/lib/useActivity";
 import { isAbortError } from "@/lib/useAsyncData";
+import { linkAbortSignal, refreshAbortMessage, useRegisterPageRefresh } from "@/lib/pageRefresh";
 import { useUploadQueue } from "@/lib/useUploadQueue";
 import ProjectFormDialog from "../ProjectFormDialog";
 import AttachmentPreviewDialog from "@/components/ui/AttachmentPreviewDialog";
@@ -136,12 +137,21 @@ function ProjectDetail({ pid }: { pid: number }) {
     [attachments],
   );
 
-  const loadAll = useCallback(async ({ trackActivity = true }: { trackActivity?: boolean } = {}) => {
+  const loadAll = useCallback(async ({
+    trackActivity = true,
+    signal: externalSignal,
+  }: { trackActivity?: boolean; signal?: AbortSignal } = {}): Promise<string | null> => {
     loadControllerRef.current?.abort();
     auxiliaryControllerRef.current?.abort();
     auxiliaryControllerRef.current = null;
     const controller = new AbortController();
+    const detach = linkAbortSignal(externalSignal, controller);
     const loadId = ++loadSeqRef.current;
+    const reportAbort = () => {
+      const message = refreshAbortMessage(externalSignal);
+      if (message && loadSeqRef.current === loadId) setErr(message);
+      return message;
+    };
     loadControllerRef.current = controller;
     const finish = trackActivity
       ? beginActivity({ label: "加载项目档案", scope: "content" })
@@ -149,6 +159,7 @@ function ProjectDetail({ pid }: { pid: number }) {
     setLoading(true);
     setErr("");
     try {
+      if (controller.signal.aborted) return reportAbort();
       const [p, assetRows, contractRows, changeRows, taskRows, expenseRows] = await Promise.all([
         projectsApi.get(pid, controller.signal),
         projectsApi.attachments(pid, "", controller.signal),
@@ -157,7 +168,8 @@ function ProjectDetail({ pid }: { pid: number }) {
         tasksApi.list(`?project_id=${pid}&page=1&size=100&sort=-plan_end`, controller.signal),
         expensesApi.list(`?project_id=${pid}&page=1&size=100&sort=-exp_date`, controller.signal),
       ]);
-      if (controller.signal.aborted || loadSeqRef.current !== loadId) return;
+      if (loadSeqRef.current !== loadId) return null;
+      if (controller.signal.aborted) return reportAbort();
       const pagedTasks = unwrapPaged<Task>(taskRows);
       const pagedExpenses = unwrapPaged<Expense>(expenseRows);
       setProject(p);
@@ -183,7 +195,8 @@ function ProjectDetail({ pid }: { pid: number }) {
           }
         }),
       );
-      if (controller.signal.aborted || loadSeqRef.current !== loadId) return;
+      if (loadSeqRef.current !== loadId) return null;
+      if (controller.signal.aborted) return reportAbort();
       const next: Record<number, string> = {};
       const nextFailures: Record<number, TransferFailure> = {};
       for (const { id, url, failure } of outcomes) {
@@ -196,15 +209,33 @@ function ProjectDetail({ pid }: { pid: number }) {
       }
       setPreviews(next);
       setPreviewFailures(nextFailures);
+      return null;
     } catch (e) {
-      if (controller.signal.aborted || loadSeqRef.current !== loadId || isAbortError(e)) return;
-      setErr(errText(e));
+      if (loadSeqRef.current !== loadId) return null;
+      if (controller.signal.aborted) return reportAbort();
+      if (isAbortError(e)) return null;
+      const message = errText(e);
+      setErr(message);
+      return message;
     } finally {
+      detach();
       if (loadSeqRef.current === loadId) setLoading(false);
       finish();
       if (loadControllerRef.current === controller) loadControllerRef.current = null;
     }
   }, [beginActivity, fetchPreviewUrl, pid]);
+
+  useRegisterPageRefresh(async (signal) => {
+    const editing = project !== null && content !== (project.description || "");
+    if (
+      editing || saveState === "saving" || busy || imageUploads.uploading ||
+      documentUploads.uploading || contractUploads.uploading
+    ) {
+      throw new Error("有未保存的内容，请保存后再刷新");
+    }
+    const message = await loadAll({ signal });
+    if (message) throw new Error(message);
+  });
 
   useEffect(() => {
     loadAll();

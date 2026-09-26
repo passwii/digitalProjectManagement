@@ -100,7 +100,7 @@ export default function LoginPage() {
   }
 
   return (
-    <main className={st.wrap}>
+    <main className={st.wrap} data-login-page>
       <section className={st.story} data-login="brand">
         <div className={st.storyGrid} aria-hidden />
         <div className={st.storyTop}>
@@ -114,7 +114,7 @@ export default function LoginPage() {
           </div>
           <span className={st.edition}>
             <span className={st.editionDot} />
-            项目协同 · 交付管理 / 节点 07
+            项目协同 · 交付管理<span className={st.editionNode}> / 节点 07</span>
           </span>
         </div>
         <div className={st.storyMain}>
@@ -151,7 +151,8 @@ export default function LoginPage() {
                 <i />
               </span>
               <div>
-                <h2>登录管理工作台</h2>
+                <h2 className={st.desktopTitle}>登录管理工作台</h2>
+                <h1 className={st.compactTitle}>账号登录</h1>
                 <p className={st.cardIntro}>建立身份链路，进入项目运营空间</p>
               </div>
             </div>

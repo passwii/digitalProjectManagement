@@ -1,9 +1,4 @@
-/*
- * 抽屉卡片（BLF-1127 §4.1 / §4.2）。一张卡两个形态，见 SheetCard.tsx 顶部注释。
- *
- * 触控目标一律 ≥ --m-tap(44px)：卡片是手机端最高频的点击面，
- * 行高不足会让「点卡片进模块」变成误点。
- */
+/* Dock 面板统一使用整宽导航卡，触控目标至少 44px。 */
 
 .card {
  display: flex;
@@ -11,7 +6,7 @@
  gap: 10px;
  width: 100%;
  min-height: var(--m-tap);
- padding: 12px;
+ padding: 11px 12px;
  border: 1px solid var(--line);
  border-radius: 0;
  background: var(--card);
@@ -45,11 +40,13 @@
  white-space: nowrap;
 }
 .note {
+ display: -webkit-box;
  overflow: hidden;
  color: var(--ink-3);
  font-size: 11.5px;
- text-overflow: ellipsis;
- white-space: nowrap;
+ line-height: 1.4;
+ -webkit-box-orient: vertical;
+ -webkit-line-clamp: 2;
 }
 
 .icon {
@@ -82,48 +79,4 @@
 }
 .card[data-tone="danger"] .value {
  color: var(--danger);
-}
-
-/* ---------- preview：peek 档的平铺预览卡 ---------- */
-/* peek 是 2 列网格（见 BottomSheet.module.css）：竖排、按内容高度走，
-   箭头在这一档是噪音（整块都可点），隐掉。 */
-.card[data-sheet-card="preview"] {
- flex-direction: column;
- align-items: flex-start;
- gap: 6px;
- padding: 12px;
-}
-.card[data-sheet-card="preview"] .chev {
- display: none;
-}
-.card[data-sheet-card="preview"] .text {
- flex: none;
- gap: 3px;
-}
-.card[data-sheet-card="preview"] .value {
- font-size: 19px;
-}
-
-/* 品牌底：模块卡在 peek 里区分「业务模块」与未来 S4 的指标卡 */
-.card[data-sheet-card="preview"][data-tone="brand"] {
- background: var(--brand-soft);
- border-color: var(--line-blue);
-}
-
-/* ---------- list：half / full 档的整宽行 ---------- */
-.card[data-sheet-card="list"] {
- padding: 11px 12px;
-}
-.card[data-sheet-card="list"] .text {
- flex-direction: row;
- align-items: baseline;
- gap: 8px;
-}
-.card[data-sheet-card="list"] .title {
- flex: none;
- max-width: 60%;
-}
-.card[data-sheet-card="list"] .note {
- flex: 1;
- min-width: 0;
 }

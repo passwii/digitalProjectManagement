@@ -1,19 +1,14 @@
-/*
- * S4 抽屉内容的共用样式（BLF-1127 §3 / §4.1 + D1/D3）。
- *
- * 布局约束来自 `BottomSheet.module.css` 的 `.body`：peek 档是 2 列网格
- * （直接子元素自动平铺，SheetCard 即预览卡），half / full 是单列可滚列表。
- * 所以「整宽行」（分组标题、口径提示、筛选 chips、账号卡、重试行）一律
- * `grid-column: 1 / -1`；单列档下这条声明无影响。
- *
- * 卡片本身不另起样式 —— 预览 / 列表两个形态都由 `SheetCard` 承担
- * （S3 交付物表：「单选组件（S4 复用同一份）」）。
- */
+/* 五个 Dock 入口共用的分组、筛选、提示与账号样式；面板正文为单列滚动。 */
 
-/** 占满整宽（peek 网格里跨两列，half / full 里就是普通一行） */
+/** 占满整宽 */
 .full {
  grid-column: 1 / -1;
  min-width: 0;
+}
+.metricState {
+ padding: 10px 2px;
+ color: var(--ink-3);
+ font-size: 12px;
 }
 
 /** 分组小标题（管理与审批 / 账号 / 待处理条目……） */

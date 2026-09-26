@@ -100,6 +100,22 @@
   }
 }
 
+@media (max-width: 767px) {
+  .install {
+    min-height: var(--m-tap);
+  }
+  .close {
+    flex: 0 0 var(--m-tap);
+    width: var(--m-tap);
+    height: var(--m-tap);
+  }
+  /* 已登录工作台的 Dock 固定在底部，安装提示抬到 Dock 上方；登录页没有 Dock，
+     保持原来的底部留白，避免提示挤压表单。 */
+  body:has(nav[data-shell="dock"]) .prompt {
+    bottom: calc(var(--m-dock-h) + var(--m-safe-b) + 16px);
+  }
+}
+
 @media (prefers-reduced-motion: no-preference) {
   .prompt {
     animation: prompt-in 360ms cubic-bezier(0.2, 0.8, 0.2, 1) both;

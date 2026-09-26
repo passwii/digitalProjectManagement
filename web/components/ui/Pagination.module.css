@@ -59,4 +59,12 @@
 .btn:hover:not(:disabled) { border-color: var(--brand); color: var(--brand); }
 .btn:disabled { color: var(--ink-3); background: var(--th-bg); cursor: not-allowed; }
 
+@media (max-width: 767px) {
+  .btn {
+    min-width: var(--m-tap);
+    height: var(--m-tap);
+  }
+  .size { min-height: var(--m-tap); }
+}
+
 .page { min-width: 52px; margin: 0 4px; color: var(--ink-2); text-align: center; }

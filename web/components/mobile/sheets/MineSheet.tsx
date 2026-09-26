@@ -10,7 +10,7 @@
 //     绝不猜测管理员身份（§3.2）；
 //   · 权限同步失败走降级：账号卡与账号操作照常渲染（参与性入口保留），
 //     管理区换成可重试提示，不出现空白抽屉。
-// 默认档位 half（§3 表格）：由 `SHEET_DEFAULT_STOP` 控制，本文件不管档位。
+// 面板只有一个固定档位；本文件只管理账号内容与权限入口。
 
 import { useRouter } from "next/navigation";
 import { approvalsApi, authApi, clearSession } from "@/lib/api";
@@ -23,7 +23,6 @@ import type { SheetContentProps } from "./index";
 import s from "./sheets.module.css";
 
 export default function MineSheet({
-  variant,
   onSelect,
   item,
   ready,
@@ -96,7 +95,6 @@ export default function MineSheet({
           {item.visible.map((m) => (
             <SheetCard
               key={m.href}
-              variant={variant}
               href={m.href}
               title={m.label}
               note={
@@ -123,7 +121,6 @@ export default function MineSheet({
 
       <div className={s.sec}>通用入口</div>
       <SheetCard
-        variant={variant}
         href="/spark"
         target={SPARK_WINDOW_TARGET}
         title="Spark 演示站"
@@ -133,7 +130,6 @@ export default function MineSheet({
 
       <div className={s.sec}>账号</div>
       <SheetCard
-        variant={variant}
         href="/change-password"
         title="修改密码"
         note="更新登录密码"
