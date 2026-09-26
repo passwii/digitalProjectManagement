@@ -677,6 +677,7 @@ export interface FinanceARAPItem {
   id: number;
   period_id: number;
   transaction_date: string;
+  voucher_date: string | null;
   party_id: number;
   account_id: number;
   amount: string;
@@ -753,6 +754,7 @@ export interface FinanceARAPPaymentInput {
   summary: string;
   customer_id?: number;
   vendor_id?: number;
+  allocations?: Array<{ target_id: number; amount: string }>;
 }
 
 export interface FinanceARAPDocumentResult {
