@@ -60,6 +60,10 @@ def _money(value: Any, field: str = "金额") -> Decimal:
     return result
 
 
+def _money_text(value: Decimal) -> str:
+    return str(value.quantize(Decimal("0.01")))
+
+
 class EntryIn(BaseModel):
     account_id: int
     summary: str = Field(default="", max_length=255)
@@ -698,13 +702,26 @@ def _arap_items(db: Session, book_id: int, kind: str, party_id: int | None = Non
     rows = query.order_by(ARAPTransaction.transaction_date, ARAPTransaction.id).all()
     voucher_ids = {row.voucher_id for row in rows if row.voucher_id is not None}
     vouchers = {
-        voucher.id: voucher.voucher_no
+        voucher.id: voucher
         for voucher in db.query(Voucher).filter(
             Voucher.account_book_id == book_id,
             Voucher.id.in_(voucher_ids or {0}),
         ).all()
     }
-    return [{"id": row.id, "period_id": row.period_id, "transaction_date": row.transaction_date.isoformat(), "party_id": row.party_id, "account_id": row.account_id, "amount": str(row.amount), "applied_amount": str(row.applied_amount), "outstanding": str(row.amount - row.applied_amount), "summary": row.summary, "voucher_id": row.voucher_id, "voucher_no": vouchers.get(row.voucher_id)} for row in rows]
+    return [{
+        "id": row.id,
+        "period_id": row.period_id,
+        "transaction_date": row.transaction_date.isoformat(),
+        "party_id": row.party_id,
+        "account_id": row.account_id,
+        "amount": str(row.amount),
+        "applied_amount": str(row.applied_amount),
+        "outstanding": str(row.amount - row.applied_amount),
+        "summary": row.summary,
+        "voucher_id": row.voucher_id,
+        "voucher_no": vouchers[row.voucher_id].voucher_no if row.voucher_id in vouchers else None,
+        "voucher_status": vouchers[row.voucher_id].status if row.voucher_id in vouchers else None,
+    } for row in rows]
 
 
 def _create_arap_transaction(kind: str, body: ARAPIn, book: AccountBook, db: Session, user: User):
@@ -765,7 +782,18 @@ def _apply_arap_payment(kind: str, body: ARAPPaymentIn, book: AccountBook, db: S
     party_id = body.party_id or body.customer_id or body.vendor_id
     if not party_id:
         _error(400, "F-ARAP-INVALID", "往来主体不能为空")
-    candidate_query = db.query(ARAPTransaction).filter_by(account_book_id=book.id, kind=kind, party_id=party_id)
+    candidate_query = (
+        db.query(ARAPTransaction)
+        .join(Voucher, Voucher.id == ARAPTransaction.voucher_id)
+        .filter(
+            ARAPTransaction.account_book_id == book.id,
+            ARAPTransaction.kind == kind,
+            ARAPTransaction.party_id == party_id,
+            Voucher.account_book_id == book.id,
+            Voucher.status == "posted",
+            Voucher.voucher_date <= body.transaction_date,
+        )
+    )
     if body.account_id is not None:
         candidate_query = candidate_query.filter_by(account_id=body.account_id)
     candidates = candidate_query.order_by(ARAPTransaction.transaction_date, ARAPTransaction.id).with_for_update().all()
@@ -809,16 +837,214 @@ def pay_arap(body: ARAPPaymentIn, x_account_book: str | None = Header(default=No
     return _apply_arap_payment("payable", body, _book_header(db, user, x_account_book), db, user)
 
 
-@router.get("/payables/aging")
-def payable_aging(as_of: date, x_account_book: str | None = Header(default=None), db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    book = _book_header(db, user, x_account_book)
-    items = _arap_items(db, book.id, "payable")
+def _posted_arap_events(db: Session, book_id: int, kind: str) -> list[dict[str, Any]]:
+    transaction_rows = (
+        db.query(ARAPTransaction, Voucher)
+        .join(Voucher, Voucher.id == ARAPTransaction.voucher_id)
+        .filter(
+            ARAPTransaction.account_book_id == book_id,
+            ARAPTransaction.kind == kind,
+            Voucher.account_book_id == book_id,
+        )
+        .all()
+    )
+    posted_transactions: dict[int, ARAPTransaction] = {}
+    source_voucher_transactions: dict[int, list[ARAPTransaction]] = {}
+    events: list[dict[str, Any]] = []
+
+    def add_event(
+        transaction: ARAPTransaction,
+        voucher: Voucher,
+        event_type: str,
+        signed_amount: Decimal,
+        priority: int,
+    ) -> None:
+        events.append({
+            "transaction_id": transaction.id,
+            "party_id": transaction.party_id,
+            "account_id": transaction.account_id,
+            "transaction_date": voucher.voucher_date,
+            "voucher_id": voucher.id,
+            "voucher_no": voucher.voucher_no,
+            "event_type": event_type,
+            "summary": voucher.summary or transaction.summary,
+            "signed_amount": signed_amount,
+            "priority": priority,
+        })
+
+    for transaction, voucher in transaction_rows:
+        if voucher.status != "posted":
+            continue
+        posted_transactions[transaction.id] = transaction
+        source_voucher_transactions.setdefault(voucher.id, []).append(transaction)
+        add_event(transaction, voucher, "单据", Decimal(transaction.amount), 10)
+
+    source_voucher_ids = set(source_voucher_transactions)
+    if not source_voucher_ids:
+        return events
+
+    source_reversals = (
+        db.query(Voucher)
+        .filter(
+            Voucher.account_book_id == book_id,
+            Voucher.status == "posted",
+            Voucher.reversal_of.in_(source_voucher_ids),
+        )
+        .all()
+    )
+    for reversal in source_reversals:
+        for transaction in source_voucher_transactions.get(reversal.reversal_of, []):
+            add_event(transaction, reversal, "单据冲销", -Decimal(transaction.amount), 40)
+
+    allocation_rows = (
+        db.query(ARAPAllocation, Voucher)
+        .join(Voucher, Voucher.id == ARAPAllocation.source_id)
+        .filter(
+            ARAPAllocation.account_book_id == book_id,
+            ARAPAllocation.target_id.in_(set(posted_transactions) or {-1}),
+            Voucher.account_book_id == book_id,
+            Voucher.status == "posted",
+        )
+        .all()
+    )
+    release_voucher_ids = {
+        allocation.release_voucher_id
+        for allocation, _payment_voucher in allocation_rows
+        if allocation.release_voucher_id is not None
+    }
+    release_vouchers = {
+        voucher.id: voucher
+        for voucher in db.query(Voucher)
+        .filter(
+            Voucher.account_book_id == book_id,
+            Voucher.status == "posted",
+            Voucher.id.in_(release_voucher_ids or {-1}),
+        )
+        .all()
+    }
+    for allocation, payment_voucher in allocation_rows:
+        transaction = posted_transactions.get(allocation.target_id)
+        if transaction is None:
+            continue
+        add_event(transaction, payment_voucher, "收付款", -Decimal(allocation.amount), 20)
+        release_voucher = release_vouchers.get(allocation.release_voucher_id)
+        if release_voucher:
+            add_event(transaction, release_voucher, "收付款冲销恢复", Decimal(allocation.amount), 30)
+
+    events.sort(key=lambda item: (
+        item["transaction_date"], item["priority"], item["voucher_no"], item["voucher_id"], item["transaction_id"],
+    ))
+    return events
+
+
+def _arap_aging(kind: str, as_of: date, book: AccountBook, db: Session, party_id: int | None, account_id: int | None):
+    events = _posted_arap_events(db, book.id, kind)
+    source_dates = {
+        event["transaction_id"]: event["transaction_date"]
+        for event in events
+        if event["event_type"] == "单据"
+    }
+    transaction_balances: dict[int, Decimal] = {}
+    for event in events:
+        if event["transaction_date"] > as_of:
+            continue
+        if party_id is not None and event["party_id"] != party_id:
+            continue
+        if account_id is not None and event["account_id"] != account_id:
+            continue
+        transaction_id = event["transaction_id"]
+        transaction_balances[transaction_id] = transaction_balances.get(transaction_id, Decimal("0")) + event["signed_amount"]
+
     buckets = {"0_30": Decimal("0"), "31_60": Decimal("0"), "61_90": Decimal("0"), "90_plus": Decimal("0")}
-    for item in items:
-        age = max(0, (as_of - date.fromisoformat(item["transaction_date"])).days)
+    for transaction_id, balance in transaction_balances.items():
+        if balance <= 0:
+            continue
+        source_date = source_dates.get(transaction_id)
+        if source_date is None or source_date > as_of:
+            continue
+        age = (as_of - source_date).days
         key = "0_30" if age <= 30 else "31_60" if age <= 60 else "61_90" if age <= 90 else "90_plus"
-        buckets[key] += Decimal(item["outstanding"])
-    return {"as_of": as_of.isoformat(), "total_outstanding": str(sum(buckets.values(), Decimal("0"))), "buckets": {key: str(value) for key, value in buckets.items()}}
+        buckets[key] += balance
+    return {
+        "as_of": as_of.isoformat(),
+        "age_basis": "voucher_date",
+        "total_outstanding": _money_text(sum(buckets.values(), Decimal("0"))),
+        "buckets": {key: _money_text(value) for key, value in buckets.items()},
+    }
+
+
+@router.get("/receivables/aging")
+def receivable_aging(as_of: date, party_id: int | None = None, account_id: int | None = None, x_account_book: str | None = Header(default=None), db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    book = _book_header(db, user, x_account_book)
+    return _arap_aging("receivable", as_of, book, db, party_id, account_id)
+
+
+@router.get("/payables/aging")
+def payable_aging(as_of: date, party_id: int | None = None, account_id: int | None = None, x_account_book: str | None = Header(default=None), db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    book = _book_header(db, user, x_account_book)
+    return _arap_aging("payable", as_of, book, db, party_id, account_id)
+
+
+def _arap_statement(kind: str, party_id: int, account_id: int | None, from_date: date, to_date: date, page: int, page_size: int, book: AccountBook, db: Session):
+    if from_date > to_date:
+        _error(400, "F-ARAP-DATE-RANGE", "开始日期不能晚于结束日期")
+    all_events = _posted_arap_events(db, book.id, kind)
+    events = [
+        event for event in all_events
+        if event["party_id"] == party_id and (account_id is None or event["account_id"] == account_id)
+    ]
+    opening_balance = sum(
+        (event["signed_amount"] for event in events if event["transaction_date"] < from_date),
+        Decimal("0"),
+    )
+    period_events = [event for event in events if from_date <= event["transaction_date"] <= to_date]
+    period_increase = sum((event["signed_amount"] for event in period_events if event["signed_amount"] > 0), Decimal("0"))
+    period_decrease = sum((-event["signed_amount"] for event in period_events if event["signed_amount"] < 0), Decimal("0"))
+    running_balance = opening_balance
+    serialized_events = []
+    for event in period_events:
+        signed_amount = event["signed_amount"]
+        running_balance += signed_amount
+        serialized_events.append({
+            "transaction_id": event["transaction_id"],
+            "transaction_date": event["transaction_date"].isoformat(),
+            "voucher_id": event["voucher_id"],
+            "voucher_no": event["voucher_no"],
+            "event_type": event["event_type"],
+            "summary": event["summary"],
+            "direction": "increase" if signed_amount > 0 else "decrease",
+            "amount": _money_text(abs(signed_amount)),
+            "balance_after": _money_text(running_balance),
+        })
+    total_lines = len(serialized_events)
+    start = (page - 1) * page_size
+    return {
+        "kind": kind,
+        "party_id": party_id,
+        "account_id": account_id,
+        "from_date": from_date.isoformat(),
+        "to_date": to_date.isoformat(),
+        "opening_balance": _money_text(opening_balance),
+        "period_increase": _money_text(period_increase),
+        "period_decrease": _money_text(period_decrease),
+        "closing_balance": _money_text(opening_balance + period_increase - period_decrease),
+        "total_lines": total_lines,
+        "page": page,
+        "page_size": page_size,
+        "items": serialized_events[start:start + page_size],
+    }
+
+
+@router.get("/receivables/statement")
+def receivable_statement(party_id: int, from_date: date, to_date: date, account_id: int | None = None, page: int = Query(1, ge=1), page_size: int = Query(50, ge=1, le=200), x_account_book: str | None = Header(default=None), db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    book = _book_header(db, user, x_account_book)
+    return _arap_statement("receivable", party_id, account_id, from_date, to_date, page, page_size, book, db)
+
+
+@router.get("/payables/statement")
+def payable_statement(party_id: int, from_date: date, to_date: date, account_id: int | None = None, page: int = Query(1, ge=1), page_size: int = Query(50, ge=1, le=200), x_account_book: str | None = Header(default=None), db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    book = _book_header(db, user, x_account_book)
+    return _arap_statement("payable", party_id, account_id, from_date, to_date, page, page_size, book, db)
 
 
 @router.get("/fixed-assets")
@@ -1278,6 +1504,19 @@ def reverse_voucher(voucher_id: int, x_account_book: str | None = Header(default
     if original.status != "posted": _error(400, "F-VOUCHER-STATE", "只有已过账凭证可以红字冲销")
     if original.reversal_of is not None:
         _error(400, "F-VOUCHER-STATE", "冲销凭证不能再次冲销")
+    open_arap_allocation = (
+        db.query(ARAPAllocation.id)
+        .join(ARAPTransaction, ARAPTransaction.id == ARAPAllocation.target_id)
+        .filter(
+            ARAPAllocation.account_book_id == book.id,
+            ARAPAllocation.released_at.is_(None),
+            ARAPTransaction.account_book_id == book.id,
+            ARAPTransaction.voucher_id == original.id,
+        )
+        .first()
+    )
+    if open_arap_allocation:
+        _error(409, "F-ARAP-OPEN-ALLOCATIONS", "该往来单据仍有收付款核销；请先冲销收付款凭证并过账，再冲销往来单据")
     active_reversal = (
         db.query(Voucher.id)
         .filter_by(account_book_id=book.id, reversal_of=original.id)

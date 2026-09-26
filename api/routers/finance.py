@@ -249,8 +249,8 @@ def create_book(
         raise HTTPException(403, "仅管理员可创建账套")
     code = body.code.strip()
     currency = body.base_currency.upper()
-    if not currency.isalpha():
-        raise HTTPException(400, "本位币必须为 3 位字母代码")
+    if currency != "CNY":
+        _finance_error(400, "F-BOOK-CURRENCY", "财务账套仅支持人民币（CNY）")
     if db.query(AccountBook).filter_by(code=code).first():
         raise HTTPException(409, "账套 code 已存在")
     book = AccountBook(
