@@ -2303,10 +2303,8 @@ th.num {
 }
 
 /*
- * standalone 下整页橡皮筋会把页面拽离窗口、松手还弹回去 —— 先用 contain 关掉
- * 链式滚动与橡皮筋，下拉刷新走自建的 PullToRefresh（mobile/PullToRefresh.tsx）。
- * 写在 html 与 body 两处：html 管视口级，body 管页面级（桌面 Chrome 取计算样式
- * 时只看命中元素，两处都写 S6 走查的断言才稳定）。
+ * 统一拦截视口级橡皮筋，避免和应用内刷新反馈重复触发。刷新手势由根布局的
+ * PullToRefresh 在所有路由上捕获；嵌套滚动容器只有滚到顶部时才允许下拉刷新。
  */
 html,
 body {
@@ -2333,51 +2331,88 @@ summary,
  touch-action: manipulation;
 }
 
-/* 下拉指示器在内容流中展开：顶栏和第一张业务卡不会被它盖住。 */
+/* 全站共用的系统式下拉刷新指示器：不占内容流，静止时停在手机顶栏下方。 */
 .ptr {
- height: 0;
- overflow: hidden;
+ --ptr-distance: 0px;
+ position: fixed;
+ z-index: 1000;
+ top: calc(var(--m-safe-t) + var(--m-appbar-h) + 8px);
+ left: 50%;
+ width: 40px;
+ height: 40px;
+ padding: 0;
  display: flex;
  align-items: center;
  justify-content: center;
- gap: 8px;
- padding: 0 10px;
- color: var(--brand);
- background: var(--brand-soft);
- font-size: 12px;
- font-weight: 650;
- line-height: 1.4;
+ color: var(--ink-3);
+ opacity: 0;
+ pointer-events: none;
+ transform: translate(-50%, calc(-48px + min(var(--ptr-distance), 56px)));
+ transition: opacity 120ms ease, transform 140ms ease-out;
 }
 .ptr-ring {
  flex: none;
- width: 18px;
- height: 18px;
+ width: 21px;
+ height: 21px;
  border-radius: 50%;
- border: 2px solid var(--line-blue);
- border-top-color: var(--brand);
- animation: ptr-spin 720ms linear infinite;
+ border: 2px solid var(--line);
+ border-top-color: currentColor;
+ animation: ptr-spin 800ms linear infinite;
+}
+.ptr[data-ptr-state="pulling"] {
+ opacity: .96;
 }
 .ptr[data-ptr-state="refreshing"] {
- height: 44px;
+ opacity: 1;
+ transform: translate(-50%, 0);
 }
 .ptr[data-ptr-state="error"] {
- height: auto;
- min-height: 52px;
- padding-block: 4px;
+ width: max-content;
+ max-width: calc(100vw - 24px);
+ height: 44px;
+ gap: 8px;
+ padding: 0 12px;
+ border: 1px solid var(--line);
+ border-radius: 22px;
  color: var(--danger);
- background: var(--th-bg);
+ background: var(--card);
+ box-shadow: 0 2px 8px rgba(0, 0, 0, .12);
+ opacity: 1;
+ pointer-events: auto;
+ transform: translate(-50%, 0);
 }
-.ptr-label { min-width: 0; }
+.ptr[data-ptr-state="error"] .ptr-ring { display: none; }
+.ptr-label {
+ position: absolute;
+ width: 1px;
+ height: 1px;
+ padding: 0;
+ overflow: hidden;
+ clip: rect(0, 0, 0, 0);
+ white-space: nowrap;
+ clip-path: inset(50%);
+}
+.ptr[data-ptr-state="error"] .ptr-label {
+ position: static;
+ width: auto;
+ height: auto;
+ overflow: visible;
+ clip: auto;
+ clip-path: none;
+ font-size: 12px;
+}
 .ptr-retry {
  flex: none;
- min-width: 44px;
- min-height: 44px;
- padding: 0 10px;
- border: 1px solid var(--line);
+ min-width: 36px;
+ min-height: 32px;
+ padding: 0 4px;
+ border: 0;
+ border-left: 1px solid var(--line);
  border-radius: 0;
- background: var(--card);
- color: var(--brand);
+ background: transparent;
+ color: var(--danger);
  font: inherit;
+ font-size: 12px;
 }
 .ptr-retry:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
 @keyframes ptr-spin {

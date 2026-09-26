@@ -16,8 +16,6 @@ import { ToastProvider } from "@/components/ui/Toast";
 import ActivityBar from "@/components/motion/ActivityBar";
 import MotionProvider from "@/components/motion/MotionProvider";
 import MobileDock from "@/components/mobile/MobileDock";
-import PullToRefresh from "@/components/mobile/PullToRefresh";
-import { PageRefreshProvider, usePageRefresh } from "@/lib/pageRefresh";
 import s from "@/components/ui/Shell.module.css";
 
 /**
@@ -373,7 +371,6 @@ function UserMenu({ name, onLogout }: { name: string | null; onLogout: () => voi
 function DashboardShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const refreshPage = usePageRefresh();
   const [collapsed, setCollapsed] = useState(false);
   const { me, error: meError } = useMe();
   const { menus, isAdmin, ready: permsReady, loading: permsLoading, error: permsError, reload: reloadMenus, canApprove } = useMenus();
@@ -535,7 +532,6 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
           <ActivityBar />
         </header>
         <main className={s.content} id="main-content" tabIndex={-1}>
-          <PullToRefresh onRefresh={refreshPage}>
           <div className={s.contentInner}>
             <m.div
               key={pathname}
@@ -547,7 +543,6 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
               {children}
             </m.div>
           </div>
-          </PullToRefresh>
         </main>
       </div>
 
@@ -574,12 +569,10 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   return (
-    <PageRefreshProvider>
-      <ToastProvider>
-        <MotionProvider>
-          <DashboardShell>{children}</DashboardShell>
-        </MotionProvider>
-      </ToastProvider>
-    </PageRefreshProvider>
+    <ToastProvider>
+      <MotionProvider>
+        <DashboardShell>{children}</DashboardShell>
+      </MotionProvider>
+    </ToastProvider>
   );
 }
