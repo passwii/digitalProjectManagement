@@ -146,7 +146,7 @@ def test_project_expense_auxiliary_ids_are_strict_and_saved_as_integers(client, 
         item_id = item.id
 
     url = f"/api/v1/finance/project-expenses/{ids[0]}/voucher"
-    for invalid_id in (item_id + 0.5, True):
+    for invalid_id in (item_id + 0.5, True, "9" * 5000, "2147483648", 2147483648):
         payload = _payload(period, accounts)
         payload["debit"]["aux_detail"] = {"project": invalid_id}
         response = client.post(url, headers=headers, json=payload)

@@ -459,11 +459,11 @@ def _validate_project_expense_line(db: Session, book_id: int, line: ProjectExpen
         if value not in (None, ""):
             if type(value) is int:
                 item_id = value
-            elif isinstance(value, str) and re.fullmatch(r"[0-9]+", value):
+            elif isinstance(value, str) and len(value) <= 10 and re.fullmatch(r"[0-9]+", value):
                 item_id = int(value)
             else:
                 item_id = -1
-            item = db.query(AuxiliaryItem).filter_by(id=item_id, account_book_id=book_id, kind=kind, is_active=True).first() if item_id > 0 else None
+            item = db.query(AuxiliaryItem).filter_by(id=item_id, account_book_id=book_id, kind=kind, is_active=True).first() if 0 < item_id <= 2_147_483_647 else None
             if not item:
                 errors.append({"field": f"{field}.aux_detail.{key}", "reason": "辅助资料不存在、类型不符或不属于当前账套"})
             else:
