@@ -56,6 +56,10 @@ function formatCents(value: bigint): string {
   return `${value < BigInt(0) ? "-" : ""}${whole}.${(absolute % BigInt(100)).toString().padStart(2, "0")}`;
 }
 
+function apiAmount(value: bigint): string {
+  return `${value / BigInt(100)}.${(value % BigInt(100)).toString().padStart(2, "0")}`;
+}
+
 function accountLabel(account: FinanceAccount): string {
   return `${account.code} · ${account.name}`;
 }
@@ -361,7 +365,7 @@ export function ArapSettlementDialog({
     const base: FinanceARAPPaymentInput = {
       period_id: period.id,
       transaction_date: date,
-      amount: amount.trim(),
+      amount: apiAmount(enteredCents),
       cash_account_id: Number(cashAccountId),
       account_id: account.id,
       cashflow_item: cashflowCode || undefined,
@@ -370,7 +374,7 @@ export function ArapSettlementDialog({
         allocations: eligibleDocuments.flatMap((item) => {
           const value = toCents(allocationAmounts[item.id] ?? "");
           return value !== null && value > BigInt(0)
-            ? [{ target_id: item.id, amount: (allocationAmounts[item.id] ?? "").trim() }]
+            ? [{ target_id: item.id, amount: apiAmount(value) }]
             : [];
         }),
       } : {}),

@@ -77,7 +77,7 @@ describe("往来指定单据核销", () => {
   it("默认 FIFO 提交不带 allocations", async () => {
     const { payment } = renderSettlement();
     expect(screen.getByText("按单据日期先进先出")).toBeTruthy();
-    fillPayment("50.00");
+    fillPayment("50");
     fireEvent.click(screen.getByRole("button", { name: "登记收款" }));
     await waitFor(() => expect(payment).toHaveBeenCalledOnce());
     expect(payment.mock.calls[0][1]).toMatchObject({ account_id: 20, customer_id: 5, amount: "50.00" });
@@ -113,6 +113,23 @@ describe("往来指定单据核销", () => {
     expect(payment.mock.calls[0][1].allocations).toEqual([
       { target_id: 8, amount: "50.00" }, { target_id: 9, amount: "25.00" },
     ]);
+  });
+
+  it("指定模式将整数和一位小数输入规范为两位小数的 API 金额", async () => {
+    const { payment } = renderSettlement();
+    fillPayment("75");
+    fireEvent.click(screen.getByLabelText("指定单据"));
+    fireEvent.change(screen.getByLabelText("本次核销额 · 记-0001"), { target: { value: "50.0" } });
+    fireEvent.change(screen.getByLabelText("本次核销额 · 记-0002"), { target: { value: "25" } });
+    fireEvent.click(screen.getByRole("button", { name: "登记收款" }));
+    await waitFor(() => expect(payment).toHaveBeenCalledOnce());
+    expect(payment.mock.calls[0][1]).toMatchObject({
+      amount: "75.00",
+      allocations: [
+        { target_id: 8, amount: "50.00" },
+        { target_id: 9, amount: "25.00" },
+      ],
+    });
   });
 
   it("合计不等和超余额时禁用提交并显示原因", () => {
