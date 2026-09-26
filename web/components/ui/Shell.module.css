@@ -1,4 +1,5 @@
 .shell {
+  --sidebar-width: 252px;
   width: 100%;
   min-width: 0;
   max-width: 100%;
@@ -7,20 +8,22 @@
   background: var(--bg);
 }
 
+.collapsed { --sidebar-width: 76px; }
+
 .sidebar {
-  position: sticky;
+  position: fixed;
   top: 0;
+  bottom: 0;
   z-index: 30;
-  width: 252px;
-  height: 100vh;
-  flex: 0 0 252px;
+  width: var(--sidebar-width);
+  flex: 0 0 var(--sidebar-width);
   display: flex;
   flex-direction: column;
   color: var(--nav-ink);
   background: var(--nav-bg);
   border-right: 1px solid var(--nav-border);
 }
-.collapsed .sidebar { width: 76px; flex-basis: 76px; }
+.collapsed .sidebar { width: var(--sidebar-width); flex-basis: var(--sidebar-width); }
 
 .ws {
   flex: none;
@@ -164,6 +167,7 @@
 .main {
   min-width: 0;
   flex: 1;
+  margin-left: var(--sidebar-width);
   display: flex;
   flex-direction: column;
 }
@@ -388,10 +392,12 @@
   .sidebar,
   .collapsed .sidebar {
     position: static;
+    inset: auto;
     width: 100%;
     height: auto;
     flex-basis: auto;
   }
+  .main { margin-left: 0; }
   .ws {
     display: flex;
     align-items: center;
@@ -430,8 +436,9 @@
 }
 
 @media (min-width: 901px) and (max-width: 1180px) {
+  .shell { --sidebar-width: 220px; }
   .sidebar,
-  .collapsed .sidebar { width: 220px; flex-basis: 220px; }
+  .collapsed .sidebar { width: var(--sidebar-width); flex-basis: var(--sidebar-width); }
   .ws { padding: 18px 14px 12px; }
   .nav { padding: 12px 8px; }
   .navLink { padding: 0 10px; gap: 9px; }
