@@ -683,7 +683,8 @@ def test_receivable_collection_can_split_manual_allocations(client):
     response = client.post("/api/v1/finance/receivable-collections", headers=scoped, json={
         "period_id": period["id"], "transaction_date": period["start_date"],
         "customer_id": customer["id"], "amount": "50.00",
-        "cash_account_id": accounts["10020101"]["id"], "cashflow_item": "C01",
+        "cash_account_id": accounts["10020101"]["id"], "account_id": accounts["11220101"]["id"],
+        "cashflow_item": "C01",
         "summary": "按单据指定收款",
         "allocations": [
             {"target_id": first["id"], "amount": "20.00"},
@@ -717,7 +718,8 @@ def test_payable_payment_can_target_second_document_only(client):
     response = client.post("/api/v1/finance/payable-payments", headers=scoped, json={
         "period_id": period["id"], "transaction_date": period["start_date"],
         "vendor_id": vendor["id"], "amount": "25.00",
-        "cash_account_id": accounts["10020101"]["id"], "cashflow_item": "C02", "summary": "指定第二张付款",
+        "cash_account_id": accounts["10020101"]["id"], "account_id": accounts["22020101"]["id"],
+        "cashflow_item": "C02", "summary": "指定第二张付款",
         "allocations": [{"target_id": second["id"], "amount": "25.00"}],
     })
 
@@ -728,6 +730,33 @@ def test_payable_payment_can_target_second_document_only(client):
     assert items[second["id"]]["outstanding"] == "15.00"
 
 
+def test_legacy_request_without_account_filter_exposes_fifo_ignoring_allocations(client):
+    """Isolate allocation handling from the legacy account_id query bug."""
+    headers = _auth(client, "admin", "admin123456")
+    book = _book(client, headers, "AR-MANUAL-LEGACY-PROBE")
+    scoped = _scoped(headers, book)
+    accounts = _accounts(client, scoped)
+    period = client.get("/api/v1/finance/periods", headers=scoped).json()[0]
+    customer = client.post("/api/v1/finance/auxiliary-items", headers=scoped, json={"kind": "customer", "code": "LEGACY-C01", "name": "旧逻辑探针客户"}).json()
+    first = _create_arap_document(client, scoped, period, customer["id"], accounts["11220101"]["id"], accounts["6001"]["id"], "60.00", "receivable")
+    second = _create_arap_document(client, scoped, period, customer["id"], accounts["11220101"]["id"], accounts["6001"]["id"], "40.00", "receivable")
+    _post_arap_voucher(client, scoped, first["voucher"]["id"])
+    _post_arap_voucher(client, scoped, second["voucher"]["id"])
+
+    # account_id is optional in the existing request model. Omitting it here
+    # lets the legacy FIFO path run so this probe isolates ignored allocations.
+    response = client.post("/api/v1/finance/receivable-collections", headers=scoped, json={
+        "period_id": period["id"], "transaction_date": period["start_date"],
+        "customer_id": customer["id"], "amount": "25.00",
+        "cash_account_id": accounts["10020101"]["id"], "cashflow_item": "C01",
+        "summary": "旧逻辑手工分配探针",
+        "allocations": [{"target_id": second["id"], "amount": "25.00"}],
+    })
+
+    assert response.status_code == 200, response.text
+    assert response.json()["allocations"] == [{"receivable_id": second["id"], "amount": "25.00"}]
+
+
 def test_manual_receivable_allocation_validation_is_atomic(client):
     headers = _auth(client, "admin", "admin123456")
     book = _book(client, headers, "AR-MANUAL-INVALID")
@@ -736,31 +765,39 @@ def test_manual_receivable_allocation_validation_is_atomic(client):
     period = client.get("/api/v1/finance/periods", headers=scoped).json()[0]
     customer = client.post("/api/v1/finance/auxiliary-items", headers=scoped, json={"kind": "customer", "code": "INVALID-C01", "name": "核销校验客户"}).json()
     other = client.post("/api/v1/finance/auxiliary-items", headers=scoped, json={"kind": "customer", "code": "INVALID-C02", "name": "其他主体"}).json()
+    other_account = client.post("/api/v1/finance/accounts", headers=scoped, json={
+        "code": "11220102", "name": "应收账款-国内客户-二类", "direction": "D", "category": "资产",
+        "parent_id": accounts["112201"]["id"], "aux_flags": {"customer": True},
+    })
+    assert other_account.status_code == 200, other_account.text
     first = _create_arap_document(client, scoped, period, customer["id"], accounts["11220101"]["id"], accounts["6001"]["id"], "60.00", "receivable")
     second = _create_arap_document(client, scoped, period, customer["id"], accounts["11220101"]["id"], accounts["6001"]["id"], "40.00", "receivable")
     foreign = _create_arap_document(client, scoped, period, other["id"], accounts["11220101"]["id"], accounts["6001"]["id"], "100.00", "receivable")
-    for item in (first, second, foreign):
+    wrong_account = _create_arap_document(client, scoped, period, customer["id"], other_account.json()["id"], accounts["6001"]["id"], "100.00", "receivable")
+    for item in (first, second, foreign, wrong_account):
         _post_arap_voucher(client, scoped, item["voucher"]["id"])
 
     base = {
         "period_id": period["id"], "transaction_date": period["start_date"],
         "customer_id": customer["id"], "amount": "50.00",
-        "cash_account_id": accounts["10020101"]["id"], "cashflow_item": "C01",
+        "cash_account_id": accounts["10020101"]["id"], "account_id": accounts["11220101"]["id"],
+        "cashflow_item": "C01",
         "summary": "非法手工核销",
     }
     invalid = [
-        {"allocations": [{"target_id": first["id"], "amount": "25.00"}, {"target_id": first["id"], "amount": "25.00"}]},
-        {"allocations": [{"target_id": first["id"], "amount": "20.00"}]},
-        {"allocations": [{"target_id": first["id"], "amount": "70.00"}]},
-        {"allocations": [{"target_id": foreign["id"], "amount": "50.00"}]},
+        ("F-ARAP-INVALID", {"allocations": [{"target_id": first["id"], "amount": "25.00"}, {"target_id": first["id"], "amount": "25.00"}]}),
+        ("F-ARAP-INVALID", {"allocations": [{"target_id": first["id"], "amount": "20.00"}]}),
+        ("F-ARAP-OVER-APPLY", {"amount": "70.00", "allocations": [{"target_id": first["id"], "amount": "65.00"}, {"target_id": second["id"], "amount": "5.00"}]}),
+        ("F-ARAP-INVALID", {"allocations": [{"target_id": foreign["id"], "amount": "50.00"}]}),
+        ("F-ARAP-INVALID", {"allocations": [{"target_id": wrong_account["id"], "amount": "50.00"}]}),
     ]
-    for patch in invalid:
+    for expected_code, patch in invalid:
         before_vouchers = client.get("/api/v1/finance/vouchers", headers=scoped).json()["total"]
         before_items = {item["id"]: item["applied_amount"] for item in client.get("/api/v1/finance/receivables", headers=scoped).json()["items"]}
         response = client.post("/api/v1/finance/receivable-collections", headers=scoped, json={**base, **patch})
         assert response.status_code == 400, response.text
         assert isinstance(response.json().get("detail"), dict)
-        assert response.json()["detail"].get("code")
+        assert response.json()["detail"]["code"] == expected_code
         assert client.get("/api/v1/finance/vouchers", headers=scoped).json()["total"] == before_vouchers
         after_items = {item["id"]: item["applied_amount"] for item in client.get("/api/v1/finance/receivables", headers=scoped).json()["items"]}
         assert after_items == before_items
@@ -775,6 +812,11 @@ def test_manual_receivable_allocation_rejects_ineligible_document_states_and_dat
     period = periods[0]
     customer = client.post("/api/v1/finance/auxiliary-items", headers=scoped, json={"kind": "customer", "code": "BOUNDARY-C01", "name": "边界客户"}).json()
     draft = _create_arap_document(client, scoped, period, customer["id"], accounts["11220101"]["id"], accounts["6001"]["id"], "20.00", "receivable", summary="草稿目标")
+    controls = []
+    for index in range(4):
+        controls.append(_create_arap_document(client, scoped, period, customer["id"], accounts["11220101"]["id"], accounts["6001"]["id"], "20.00", "receivable", summary=f"合格控制目标-{index}"))
+    for control in controls:
+        _post_arap_voucher(client, scoped, control["voucher"]["id"])
     future_date = period["end_date"]
     future = _create_arap_document(client, scoped, period, customer["id"], accounts["11220101"]["id"], accounts["6001"]["id"], "20.00", "receivable", transaction_date=future_date, summary="晚于收款日")
     _post_arap_voucher(client, scoped, future["voucher"]["id"])
@@ -788,17 +830,23 @@ def test_manual_receivable_allocation_rejects_ineligible_document_states_and_dat
     assert reversed_response.status_code == 200, reversed_response.text
     _post_arap_voucher(client, scoped, reversed_response.json()["id"])
 
-    for target, date in ((draft, period["start_date"]), (future, period["start_date"]), (reversing, period["start_date"]), (reversed_item, period["start_date"])):
+    for target, date, control in (
+        (draft, period["start_date"], controls[0]),
+        (future, period["start_date"], controls[1]),
+        (reversing, period["start_date"], controls[2]),
+        (reversed_item, period["start_date"], controls[3]),
+    ):
         before_vouchers = client.get("/api/v1/finance/vouchers", headers=scoped).json()["total"]
         before_items = {item["id"]: item["applied_amount"] for item in client.get("/api/v1/finance/receivables", headers=scoped).json()["items"]}
         response = client.post("/api/v1/finance/receivable-collections", headers=scoped, json={
             "period_id": period["id"], "transaction_date": date, "customer_id": customer["id"],
-            "amount": "5.00", "cash_account_id": accounts["10020101"]["id"], "cashflow_item": "C01",
+            "amount": "5.00", "cash_account_id": accounts["10020101"]["id"],
+            "account_id": accounts["11220101"]["id"], "cashflow_item": "C01",
             "summary": "目标资格边界", "allocations": [{"target_id": target["id"], "amount": "5.00"}],
         })
         assert response.status_code == 400, response.text
         assert isinstance(response.json().get("detail"), dict)
-        assert response.json()["detail"].get("code")
+        assert response.json()["detail"]["code"] == "F-ARAP-INVALID"
         assert client.get("/api/v1/finance/vouchers", headers=scoped).json()["total"] == before_vouchers
         after_items = {item["id"]: item["applied_amount"] for item in client.get("/api/v1/finance/receivables", headers=scoped).json()["items"]}
         assert after_items == before_items
