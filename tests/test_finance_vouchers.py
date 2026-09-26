@@ -860,6 +860,136 @@ def test_arap_document_with_active_settlement_cannot_be_reversed(client):
     assert len(statement.json()["items"]) == 4
 
 
+def test_arap_document_cannot_be_settled_while_reversing_or_after_reversal(client):
+    headers = _auth(client, "admin", "admin123456")
+    book = _book(client, headers, "AR-AP-REVERSED-SETTLEMENT")
+    scoped = _scoped(headers, book)
+    accounts = _accounts(client, scoped)
+    period = client.get("/api/v1/finance/periods", headers=scoped).json()[0]
+    customer = client.post(
+        "/api/v1/finance/auxiliary-items",
+        headers=scoped,
+        json={"kind": "customer", "code": "REVERSED-C01", "name": "冲销后客户"},
+    ).json()
+    receivable = client.post(
+        "/api/v1/finance/receivables",
+        headers=scoped,
+        json={
+            "period_id": period["id"], "transaction_date": period["start_date"],
+            "customer_id": customer["id"], "amount": "100.00",
+            "receivable_account_id": accounts["11220101"]["id"],
+            "revenue_account_id": accounts["6001"]["id"], "summary": "准备冲销的应收",
+        },
+    ).json()
+    invoice_id = receivable["voucher"]["id"]
+    for action in ("submit", "approve", "post"):
+        assert client.post(f"/api/v1/finance/vouchers/{invoice_id}/{action}", headers=scoped).status_code == 200
+
+    reversal = client.post(f"/api/v1/finance/vouchers/{invoice_id}/reverse", headers=scoped)
+    assert reversal.status_code == 200
+    reversing_item = client.get("/api/v1/finance/receivables", headers=scoped).json()["items"][0]
+    assert reversing_item["is_reversing"] is True
+    payment_body = {
+        "period_id": period["id"], "transaction_date": period["start_date"],
+        "customer_id": customer["id"], "amount": "40.00",
+        "cash_account_id": accounts["10020101"]["id"], "cashflow_item": "C01",
+        "summary": "冲销期间不能收款",
+    }
+    while_reversing = client.post("/api/v1/finance/receivable-collections", headers=scoped, json=payment_body)
+    assert while_reversing.status_code == 400
+    assert while_reversing.json()["detail"]["code"] == "F-ARAP-OVER-APPLY"
+
+    reversal_id = reversal.json()["id"]
+    for action in ("submit", "approve", "post"):
+        assert client.post(f"/api/v1/finance/vouchers/{reversal_id}/{action}", headers=scoped).status_code == 200
+    after_reversal = client.post("/api/v1/finance/receivable-collections", headers=scoped, json=payment_body)
+    assert after_reversal.status_code == 400
+    assert after_reversal.json()["detail"]["code"] == "F-ARAP-OVER-APPLY"
+
+    item = client.get("/api/v1/finance/receivables", headers=scoped).json()["items"][0]
+    assert item["is_reversed"] is True
+    assert item["is_reversing"] is False
+    assert item["outstanding"] == "0.00"
+
+
+def test_posting_arap_reversal_rechecks_active_allocations(client, db):
+    from api.models import ARAPAllocation, ARAPTransaction
+
+    headers = _auth(client, "admin", "admin123456")
+    book = _book(client, headers, "AR-AP-REVERSE-POST-GUARD")
+    scoped = _scoped(headers, book)
+    accounts = _accounts(client, scoped)
+    period = client.get("/api/v1/finance/periods", headers=scoped).json()[0]
+    customer = client.post(
+        "/api/v1/finance/auxiliary-items",
+        headers=scoped,
+        json={"kind": "customer", "code": "POST-GUARD-C01", "name": "过账保护客户"},
+    ).json()
+    receivable = client.post(
+        "/api/v1/finance/receivables",
+        headers=scoped,
+        json={
+            "period_id": period["id"], "transaction_date": period["start_date"],
+            "customer_id": customer["id"], "amount": "100.00",
+            "receivable_account_id": accounts["11220101"]["id"],
+            "revenue_account_id": accounts["6001"]["id"], "summary": "并发保护应收",
+        },
+    ).json()
+    invoice_id = receivable["voucher"]["id"]
+    for action in ("submit", "approve", "post"):
+        assert client.post(f"/api/v1/finance/vouchers/{invoice_id}/{action}", headers=scoped).status_code == 200
+    payment_response = client.post(
+        "/api/v1/finance/receivable-collections",
+        headers=scoped,
+        json={
+            "period_id": period["id"], "transaction_date": period["start_date"],
+            "customer_id": customer["id"], "amount": "10.00",
+            "cash_account_id": accounts["10020101"]["id"], "summary": "并发保护收款",
+            "cashflow_item": "C01",
+        },
+    )
+    assert payment_response.status_code == 200, payment_response.text
+    payment = payment_response.json()
+    payment_id = payment["voucher"]["id"]
+    for action in ("submit", "approve", "post"):
+        assert client.post(f"/api/v1/finance/vouchers/{payment_id}/{action}", headers=scoped).status_code == 200
+    with db() as session:
+        session.query(ARAPAllocation).filter_by(
+            account_book_id=book["id"], source_id=payment_id, target_id=receivable["id"],
+        ).delete()
+        target = session.query(ARAPTransaction).filter_by(id=receivable["id"]).one()
+        target.applied_amount = Decimal("0.00")
+        session.commit()
+
+    reversal = client.post(f"/api/v1/finance/vouchers/{invoice_id}/reverse", headers=scoped)
+    assert reversal.status_code == 200
+    with db() as session:
+        target = session.query(ARAPTransaction).filter_by(id=receivable["id"]).one()
+        target.applied_amount = Decimal("10.00")
+        session.add(ARAPAllocation(
+            account_book_id=book["id"],
+            source_id=payment_id,
+            target_id=receivable["id"],
+            amount=Decimal("10.00"),
+        ))
+        session.commit()
+
+    reversal_id = reversal.json()["id"]
+    for action in ("submit", "approve"):
+        assert client.post(f"/api/v1/finance/vouchers/{reversal_id}/{action}", headers=scoped).status_code == 200
+    blocked = client.post(f"/api/v1/finance/vouchers/{reversal_id}/post", headers=scoped)
+    assert blocked.status_code == 409
+    assert blocked.json()["detail"]["code"] == "F-ARAP-OPEN-ALLOCATIONS"
+
+    with db() as session:
+        session.query(ARAPAllocation).filter_by(account_book_id=book["id"], target_id=receivable["id"]).delete()
+        target = session.query(ARAPTransaction).filter_by(id=receivable["id"]).one()
+        target.applied_amount = Decimal("0.00")
+        session.commit()
+    posted = client.post(f"/api/v1/finance/vouchers/{reversal_id}/post", headers=scoped)
+    assert posted.status_code == 200
+
+
 def test_receivable_reports_use_posted_vouchers_and_statement_opening_balance(client):
     headers = _auth(client, "admin", "admin123456")
     book = _book(client, headers, "AR-AP-REPORTS")

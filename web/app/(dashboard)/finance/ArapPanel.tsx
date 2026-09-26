@@ -185,12 +185,12 @@ export default function ArapPanel({
 
   function settlementAction(item: FinanceARAPItem, party?: FinanceAuxiliaryItem, account?: FinanceAccount) {
     if (cents(item.outstanding) <= BigInt(0)) return null;
-    const canSettle = Boolean(party && account && cents(outstandingFor(item.party_id, item.account_id)) > BigInt(0) && canWrite && paymentSetupReady);
+    const canSettle = Boolean(!item.is_reversed && !item.is_reversing && party && account && cents(outstandingFor(item.party_id, item.account_id)) > BigInt(0) && canWrite && paymentSetupReady);
     return (
       <button
         className="btn-xs btn-ghost"
         disabled={!canSettle}
-        title={!canWrite ? "需要开放会计期间" : !paymentSetupReady ? "需要维护现金/银行科目和现金流项目" : !party ? "缺少有效往来主体资料" : !account ? "缺少有效往来科目资料" : undefined}
+        title={item.is_reversed ? "原单已冲销" : item.is_reversing ? "原单冲销处理中，暂不能登记收付款" : !canWrite ? "需要开放会计期间" : !paymentSetupReady ? "需要维护现金/银行科目和现金流项目" : !party ? "缺少有效往来主体资料" : !account ? "缺少有效往来科目资料" : undefined}
         onClick={() => openSettlement(item)}
       >
         {view === "receivable" ? "登记收款" : "登记付款"}
@@ -209,7 +209,10 @@ export default function ArapPanel({
     );
   }
 
-  function voucherStatusLabel(status: FinanceARAPItem["voucher_status"]): string {
+  function voucherStatusLabel(item: FinanceARAPItem): string {
+    if (item.is_reversed) return "已冲销";
+    if (item.is_reversing) return "冲销处理中";
+    const status = item.voucher_status;
     return status === "posted" ? "已过账" : status === "pending" ? "待审核" : status === "draft" ? "草稿" : status === "void" ? "已作废" : "无关联凭证";
   }
 
@@ -312,7 +315,7 @@ export default function ArapPanel({
 
       <section className="card" aria-label={`${viewLabel}账龄`}>
           <div className="section-head">
-            <div><h2>{viewLabel}账龄</h2><p>按已过账凭证日期统计；不等同于合同逾期天数，也不直接用于计提坏账准备。</p></div>
+            <div><h2>{viewLabel}账龄</h2><p>按已过账工作台关联凭证日期统计；暂不含普通凭证和期初辅助余额。不等同于合同逾期天数，也不直接用于计提坏账准备。</p></div>
             <label className="toolbar-field">
               <span>截止日期</span>
               <input type="date" value={asOf} onChange={(event) => { if (event.target.value) setAsOf(event.target.value); }} />
@@ -332,7 +335,7 @@ export default function ArapPanel({
       <div className="section-head">
         <div>
           <h2>{viewLabel}明细</h2>
-          <p>此列表包含草稿和待审核单据，供业务跟踪；正式账龄和对账单只统计已过账凭证。收付款按主体、科目和日期 FIFO 占用待核销额。</p>
+          <p>此列表包含草稿和待审核单据，供业务跟踪；账龄和对账单只统计本工作台登记并已过账的往来单据与收付款核销，暂不含普通手工、模板、导入凭证及期初辅助余额。收付款按主体、科目和日期先进先出占用待核销额。</p>
         </div>
         <label className="toolbar-field">
           <span>搜索主体、科目或摘要</span>
@@ -365,7 +368,7 @@ export default function ArapPanel({
                   { label: "已分配", value: formatCents(cents(item.applied_amount)), mono: true },
                   { label: "可核销余额", value: formatCents(cents(item.outstanding)), mono: true },
                   { label: "关联凭证", value: item.voucher_no || (item.voucher_id ? `凭证 #${item.voucher_id}` : "-"), mono: true },
-                  { label: "凭证状态", value: voucherStatusLabel(item.voucher_status) },
+                  { label: "凭证状态", value: voucherStatusLabel(item) },
                 ]}
                 actions={<div className="row-actions">{settlementAction(item, party, account)}{statementAction(item)}</div>}
               />
@@ -402,7 +405,7 @@ export default function ArapPanel({
                     <td className="num">{formatCents(cents(item.applied_amount))}</td>
                     <td className="num"><b>{formatCents(cents(item.outstanding))}</b></td>
                     <td>{item.voucher_no ? <span className="mono">{item.voucher_no}</span> : item.voucher_id ? <span className="mono">凭证 #{item.voucher_id}</span> : "-"}</td>
-                    <td><span className={`badge ${item.voucher_status === "posted" ? "done" : item.voucher_status === "void" ? "muted" : "doing"}`}>{voucherStatusLabel(item.voucher_status)}</span></td>
+                    <td><span className={`badge ${item.is_reversed || item.voucher_status === "void" ? "muted" : item.is_reversing ? "doing" : item.voucher_status === "posted" ? "done" : "doing"}`}>{voucherStatusLabel(item)}</span></td>
                     <td className="no-print"><div className="row-actions">{settlementAction(item, party, account)}{statementAction(item)}</div></td>
                   </tr>
                 );

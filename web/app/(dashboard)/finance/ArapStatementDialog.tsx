@@ -71,6 +71,7 @@ export default function ArapStatementDialog({
   useEffect(() => {
     if (!open || !query || !party) return;
     const controller = new AbortController();
+    setStatement(null);
     setLoading(true);
     setError("");
     financeApi.arapStatement(book, kind, {
@@ -94,12 +95,34 @@ export default function ArapStatementDialog({
   function runQuery() {
     if (invalidRange) return;
     setError("");
+    setStatement(null);
     setQuery({
       accountId: accountId ? Number(accountId) : null,
       fromDate,
       toDate,
       page: 1,
     });
+  }
+
+  function changeAccount(value: string) {
+    setAccountId(value);
+    setQuery(null);
+    setStatement(null);
+    setLoading(false);
+    setError("");
+  }
+
+  function changeDate(setter: (value: string) => void, value: string) {
+    setter(value);
+    setQuery(null);
+    setStatement(null);
+    setLoading(false);
+    setError("");
+  }
+
+  function changePage(offset: number) {
+    setStatement(null);
+    setQuery((current) => current ? { ...current, page: current.page + offset } : current);
   }
 
   const pageCount = statement ? Math.max(1, Math.ceil(statement.total_lines / statement.page_size)) : 1;
@@ -123,7 +146,7 @@ export default function ArapStatementDialog({
       <div className="form-grid">
         <label className="field span-2">
           <span className="field-label">往来科目</span>
-          <select value={accountId} onChange={(event) => setAccountId(event.target.value)}>
+          <select value={accountId} onChange={(event) => changeAccount(event.target.value)}>
             <option value="">全部往来科目</option>
             {accountsForKind.map((account) => (
               <option key={account.id} value={account.id}>{account.code} · {account.name}</option>
@@ -132,19 +155,20 @@ export default function ArapStatementDialog({
         </label>
         <label className="field">
           <span className="field-label">开始日期</span>
-          <input type="date" value={fromDate} onChange={(event) => setFromDate(event.target.value)} />
+          <input type="date" value={fromDate} onChange={(event) => changeDate(setFromDate, event.target.value)} />
         </label>
         <label className="field">
           <span className="field-label">结束日期</span>
-          <input type="date" value={toDate} onChange={(event) => setToDate(event.target.value)} />
+          <input type="date" value={toDate} onChange={(event) => changeDate(setToDate, event.target.value)} />
         </label>
       </div>
 
       {error && <div className="field-err" role="alert">{error}</div>}
       {invalidRange && <div className="field-err" role="alert">开始日期不能晚于结束日期。</div>}
-      <p className="tiny muted">本对账单只包括已过账凭证，按凭证日期列示；结果用于往来核对，不是纳税申报表。</p>
+      <p className="tiny muted">本对账单只包括本工作台登记并已过账的往来单据与收付款核销，暂不含普通手工、模板、导入凭证及期初辅助余额。按凭证日期列示，用于往来核对，不是纳税申报表。</p>
+      {loading && <p className="tiny muted" role="status">正在查询对账单…</p>}
 
-      {statement && (
+      {statement && !loading && (
         <>
           <div className="kpi-row">
             <div className="kpi"><div className="k">期初余额</div><div className="v">{money(statement.opening_balance)}</div></div>
@@ -152,7 +176,7 @@ export default function ArapStatementDialog({
             <div className="kpi"><div className="k">本期减少</div><div className="v">{money(statement.period_decrease)}</div></div>
             <div className="kpi"><div className="k">期末余额</div><div className="v">{money(statement.closing_balance)}</div></div>
           </div>
-          {loading ? <p className="tiny muted" role="status">正在载入明细…</p> : !statement.items.length ? (
+          {!statement.items.length ? (
             <div className="card"><p className="tiny muted">所选日期范围内没有已过账往来流水。</p></div>
           ) : (
             <div className="table-scroll">
@@ -178,8 +202,8 @@ export default function ArapStatementDialog({
           <div className="row-actions" style={{ justifyContent: "space-between", marginTop: 12 }}>
             <span className="tiny muted">共 {statement.total_lines} 笔 · 第 {statement.page} / {pageCount} 页</span>
             <div className="row-actions">
-              <button className="btn-xs btn-ghost" disabled={loading || statement.page <= 1} onClick={() => setQuery((current) => current ? { ...current, page: current.page - 1 } : current)}>上一页</button>
-              <button className="btn-xs btn-ghost" disabled={loading || statement.page >= pageCount} onClick={() => setQuery((current) => current ? { ...current, page: current.page + 1 } : current)}>下一页</button>
+              <button className="btn-xs btn-ghost" disabled={loading || statement.page <= 1} onClick={() => changePage(-1)}>上一页</button>
+              <button className="btn-xs btn-ghost" disabled={loading || statement.page >= pageCount} onClick={() => changePage(1)}>下一页</button>
             </div>
           </div>
         </>

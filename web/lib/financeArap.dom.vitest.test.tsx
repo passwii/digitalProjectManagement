@@ -33,6 +33,8 @@ const receivable = {
   voucher_id: 15,
   voucher_no: "记-0001",
   voucher_status: "posted" as const,
+  is_reversed: false,
+  is_reversing: true,
 };
 
 afterEach(() => {
@@ -89,12 +91,15 @@ describe("应收应付账龄与对账单", () => {
 
     expect((await screen.findAllByText("客户甲")).length).toBeGreaterThan(0);
     expect(await screen.findByText("已过账未结余额")).toBeTruthy();
+    expect(screen.getAllByText("冲销处理中").length).toBeGreaterThan(0);
+    expect(screen.getAllByRole("button", { name: "登记收款" }).every((button) => (button as HTMLButtonElement).disabled)).toBe(true);
     expect(seen.some(({ url, init }) => url.pathname.endsWith("/receivables/aging") && url.searchParams.get("as_of") && (init.headers as Record<string, string>)["X-Account-Book"] === "BOOK-A")).toBe(true);
 
     fireEvent.click(screen.getAllByRole("button", { name: "对账单" })[0]);
     expect(await screen.findByRole("dialog")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "查询对账单" }));
     expect(await screen.findByText("收到阶段款")).toBeTruthy();
+    expect(screen.getAllByText(/暂不含普通手工、模板、导入凭证及期初辅助余额/).length).toBeGreaterThan(0);
     expect(screen.getAllByText("60.00").length).toBeGreaterThan(0);
 
     await waitFor(() => expect(seen.some(({ url, init }) =>

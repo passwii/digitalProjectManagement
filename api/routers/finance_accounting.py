@@ -701,6 +701,28 @@ def _arap_items(db: Session, book_id: int, kind: str, party_id: int | None = Non
         query = query.filter_by(party_id=party_id)
     rows = query.order_by(ARAPTransaction.transaction_date, ARAPTransaction.id).all()
     voucher_ids = {row.voucher_id for row in rows if row.voucher_id is not None}
+    reversed_voucher_ids = {
+        row[0]
+        for row in db.query(Voucher.reversal_of)
+        .filter(
+            Voucher.account_book_id == book_id,
+            Voucher.status == "posted",
+            Voucher.reversal_of.in_(voucher_ids or {0}),
+        )
+        .all()
+        if row[0] is not None
+    }
+    reversing_voucher_ids = {
+        row[0]
+        for row in db.query(Voucher.reversal_of)
+        .filter(
+            Voucher.account_book_id == book_id,
+            Voucher.status.in_(("draft", "pending")),
+            Voucher.reversal_of.in_(voucher_ids or {0}),
+        )
+        .all()
+        if row[0] is not None
+    }
     vouchers = {
         voucher.id: voucher
         for voucher in db.query(Voucher).filter(
@@ -716,11 +738,13 @@ def _arap_items(db: Session, book_id: int, kind: str, party_id: int | None = Non
         "account_id": row.account_id,
         "amount": str(row.amount),
         "applied_amount": str(row.applied_amount),
-        "outstanding": str(row.amount - row.applied_amount),
+        "outstanding": str(Decimal("0.00") if row.voucher_id in reversed_voucher_ids else row.amount - row.applied_amount),
         "summary": row.summary,
         "voucher_id": row.voucher_id,
         "voucher_no": vouchers[row.voucher_id].voucher_no if row.voucher_id in vouchers else None,
         "voucher_status": vouchers[row.voucher_id].status if row.voucher_id in vouchers else None,
+        "is_reversed": row.voucher_id in reversed_voucher_ids,
+        "is_reversing": row.voucher_id in reversing_voucher_ids,
     } for row in rows]
 
 
@@ -794,9 +818,32 @@ def _apply_arap_payment(kind: str, body: ARAPPaymentIn, book: AccountBook, db: S
             Voucher.voucher_date <= body.transaction_date,
         )
     )
+    active_reversal_source_ids = (
+        db.query(Voucher.reversal_of)
+        .filter(
+            Voucher.account_book_id == book.id,
+            Voucher.reversal_of.is_not(None),
+            Voucher.status != "void",
+        )
+    )
+    candidate_query = candidate_query.filter(~ARAPTransaction.voucher_id.in_(active_reversal_source_ids))
     if body.account_id is not None:
         candidate_query = candidate_query.filter_by(account_id=body.account_id)
-    candidates = candidate_query.order_by(ARAPTransaction.transaction_date, ARAPTransaction.id).with_for_update().all()
+    candidates = candidate_query.order_by(ARAPTransaction.transaction_date, ARAPTransaction.id).with_for_update(of=ARAPTransaction).all()
+    # Recheck after taking the target-row locks. A reversal draft can be created
+    # while this request waits for one of those locks, after the SQL predicate ran.
+    active_reversal_source_ids = {
+        row[0]
+        for row in db.query(Voucher.reversal_of)
+        .filter(
+            Voucher.account_book_id == book.id,
+            Voucher.reversal_of.is_not(None),
+            Voucher.status != "void",
+        )
+        .all()
+        if row[0] is not None
+    }
+    candidates = [target for target in candidates if target.voucher_id not in active_reversal_source_ids]
     remaining = amount
     allocations = []
     for target in candidates:
@@ -1460,6 +1507,26 @@ def post_voucher(voucher_id: int, x_account_book: str | None = Header(default=No
     book = _book_header(db, user, x_account_book); _role(db, user, book.id, {ROLE_FINANCE_REVIEWER, ROLE_FINANCE_MANAGER}); voucher = db.query(Voucher).filter_by(id=voucher_id, account_book_id=book.id).with_for_update().first()
     if not voucher: _error(404, "F-VOUCHER-NOT-FOUND", "凭证不存在")
     voucher = cast(Voucher, voucher)
+    if voucher.source == "reversal" and voucher.reversal_of is not None:
+        arap_targets = (
+            db.query(ARAPTransaction)
+            .filter_by(account_book_id=book.id, voucher_id=voucher.reversal_of)
+            .order_by(ARAPTransaction.id)
+            .with_for_update()
+            .all()
+        )
+        target_ids = {target.id for target in arap_targets}
+        active_allocation = (
+            db.query(ARAPAllocation.id)
+            .filter(
+                ARAPAllocation.account_book_id == book.id,
+                ARAPAllocation.target_id.in_(target_ids or {-1}),
+                ARAPAllocation.released_at.is_(None),
+            )
+            .first()
+        )
+        if active_allocation:
+            _error(409, "F-ARAP-OPEN-ALLOCATIONS", "该往来单据出现新的收付款核销；请先处理收付款核销，再冲销往来单据")
     _transition(voucher, {"pending"}, "posted")
     period = _period(db, book.id, voucher.period_id)
     if period.status != "open": _error(400, "F-PERIOD-CLOSED", "当前期间不可过账")
@@ -1504,19 +1571,25 @@ def reverse_voucher(voucher_id: int, x_account_book: str | None = Header(default
     if original.status != "posted": _error(400, "F-VOUCHER-STATE", "只有已过账凭证可以红字冲销")
     if original.reversal_of is not None:
         _error(400, "F-VOUCHER-STATE", "冲销凭证不能再次冲销")
+    arap_targets = (
+        db.query(ARAPTransaction)
+        .filter_by(account_book_id=book.id, voucher_id=original.id)
+        .order_by(ARAPTransaction.id)
+        .with_for_update()
+        .all()
+    )
+    target_ids = {target.id for target in arap_targets}
     open_arap_allocation = (
         db.query(ARAPAllocation.id)
-        .join(ARAPTransaction, ARAPTransaction.id == ARAPAllocation.target_id)
         .filter(
             ARAPAllocation.account_book_id == book.id,
+            ARAPAllocation.target_id.in_(target_ids or {-1}),
             ARAPAllocation.released_at.is_(None),
-            ARAPTransaction.account_book_id == book.id,
-            ARAPTransaction.voucher_id == original.id,
         )
         .first()
     )
     if open_arap_allocation:
-        _error(409, "F-ARAP-OPEN-ALLOCATIONS", "该往来单据仍有收付款核销；请先冲销收付款凭证并过账，再冲销往来单据")
+        _error(409, "F-ARAP-OPEN-ALLOCATIONS", "该往来单据仍有收付款核销；请先作废未过账收付款，或冲销并过账已过账收付款，再冲销往来单据")
     active_reversal = (
         db.query(Voucher.id)
         .filter_by(account_book_id=book.id, reversal_of=original.id)

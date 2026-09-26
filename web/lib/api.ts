@@ -686,6 +686,8 @@ export interface FinanceARAPItem {
   voucher_id: number | null;
   voucher_no: string | null;
   voucher_status: FinanceVoucher["status"] | null;
+  is_reversed: boolean;
+  is_reversing: boolean;
 }
 
 export interface FinanceARAPAging {
