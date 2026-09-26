@@ -877,7 +877,7 @@ def _apply_arap_payment(kind: str, body: ARAPPaymentIn, book: AccountBook, db: S
         if len(targets) != len(target_ids):
             _error(400, "F-ARAP-INVALID", "目标单据不符合当前核销条件")
         if len({target.account_id for target in candidates}) != 1:
-            _error(400, "F-ARAP-INVALID", "目标单据不符合当前核销条件")
+            _error(400, "F-ARAP-INVALID", "一笔收付款只能核销同一往来科目")
         total = Decimal("0.00")
         for item in body.allocations:
             target = targets[item.target_id]
@@ -910,6 +910,12 @@ def _apply_arap_payment(kind: str, body: ARAPPaymentIn, book: AccountBook, db: S
             if remaining <= 0:
                 break
         if remaining > 0:
+            total_outstanding = sum(
+                max(Decimal(target.amount) - Decimal(target.applied_amount), Decimal("0.00"))
+                for target in candidates
+            )
+            if total_outstanding >= amount:
+                _error(400, "F-ARAP-OVER-APPLY", "单笔收付款不能跨往来科目核销，请按科目分别登记")
             _error(400, "F-ARAP-OVER-APPLY", "收付款金额超过未核销余额")
     first = allocations[0][0]
     account = db.query(Account).filter_by(id=body.cash_account_id, account_book_id=book.id, is_active=True, is_leaf=True).first()

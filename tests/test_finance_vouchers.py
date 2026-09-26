@@ -1047,6 +1047,54 @@ def test_fifo_collection_advances_past_fully_settled_document(client):
     assert later.json()["allocations"] == [{"receivable_id": second["id"], "amount": "10.00"}]
 
 
+def test_fifo_collection_cannot_cross_receivable_accounts_in_one_voucher(client, db):
+    headers = _auth(client, "admin", "admin123456")
+    book = _book(client, headers, "AR-FIFO-SINGLE-ACCOUNT")
+    scoped = _scoped(headers, book)
+    accounts = _accounts(client, scoped)
+    period = client.get("/api/v1/finance/periods", headers=scoped).json()[0]
+    customer = client.post("/api/v1/finance/auxiliary-items", headers=scoped, json={
+        "kind": "customer", "code": "FIFO-ACCOUNTS-C01", "name": "多科目客户",
+    }).json()
+    other_account = client.post("/api/v1/finance/accounts", headers=scoped, json={
+        "code": "11220102", "name": "应收账款-国内客户-二类", "direction": "D", "category": "资产",
+        "parent_id": accounts["112201"]["id"], "aux_flags": {"customer": True},
+    })
+    assert other_account.status_code == 200, other_account.text
+    first = _create_arap_document(
+        client, scoped, period, customer["id"], accounts["11220101"]["id"],
+        accounts["6001"]["id"], "10.00", "receivable",
+    )
+    second = _create_arap_document(
+        client, scoped, period, customer["id"], other_account.json()["id"],
+        accounts["6001"]["id"], "20.00", "receivable",
+    )
+    _post_arap_voucher(client, scoped, first["voucher"]["id"])
+    _post_arap_voucher(client, scoped, second["voucher"]["id"])
+    before_vouchers = client.get("/api/v1/finance/vouchers", headers=scoped).json()["total"]
+
+    response = client.post("/api/v1/finance/receivable-collections", headers=scoped, json={
+        "period_id": period["id"], "transaction_date": period["start_date"],
+        "customer_id": customer["id"], "amount": "15.00",
+        "cash_account_id": accounts["10020101"]["id"], "cashflow_item": "C01",
+        "summary": "不得跨科目自动核销",
+    })
+
+    assert response.status_code == 400
+    assert response.json()["detail"]["code"] == "F-ARAP-OVER-APPLY"
+    assert response.json()["detail"]["message"] == "单笔收付款不能跨往来科目核销，请按科目分别登记"
+    items = {item["id"]: item for item in client.get("/api/v1/finance/receivables", headers=scoped).json()["items"]}
+    assert items[first["id"]]["applied_amount"] == "0.00"
+    assert items[second["id"]]["applied_amount"] == "0.00"
+    assert client.get("/api/v1/finance/vouchers", headers=scoped).json()["total"] == before_vouchers
+    with db() as session:
+        from api.models import ARAPAllocation
+        assert session.query(ARAPAllocation).filter(
+            ARAPAllocation.account_book_id == book["id"],
+            ARAPAllocation.target_id.in_([first["id"], second["id"]]),
+        ).count() == 0
+
+
 def test_payable_aging_buckets_and_over_collection_are_blocked(client):
     headers = _auth(client, "admin", "admin123456")
     book = _book(client, headers, "AR-AP-AGING")
