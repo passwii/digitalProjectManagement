@@ -68,3 +68,11 @@
   .stack { left: 12px; right: 12px; top: 52px; }
   .toast { max-width: none; }
 }
+
+@media (max-width: 767px) {
+  .dismiss {
+    width: var(--m-tap);
+    height: var(--m-tap);
+    margin: -10px -10px 0 0;
+  }
+}

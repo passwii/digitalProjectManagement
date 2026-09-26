@@ -19,26 +19,53 @@ const STORY_STEPS = [
   { no: "03", label: "支出归集" },
 ] as const;
 
+const MIN_LOADING_MS = 220;
+const SUCCESS_FEEDBACK_MS = 150;
+
+function wait(ms: number) {
+  return new Promise<void>((resolve) => window.setTimeout(resolve, ms));
+}
+
 export default function LoginPage() {
   const router = useRouter();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [fieldErr, setFieldErr] = useState("");
   const [apiErr, setApiErr] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [submitPhase, setSubmitPhase] = useState<"idle" | "loading" | "success">("idle");
 
   const hasError = Boolean(fieldErr || apiErr);
-  const authState = loading ? "loading" : hasError ? "error" : "ready";
-  const sessionLabel = loading
-    ? "会话 / 握手中"
-    : hasError
-      ? "会话 / 请重试"
-      : "会话 / 待命";
-  const nodeLabel = loading
-    ? "本地节点 / 同步中"
-    : hasError
-      ? "本地节点 / 待检查"
-      : "本地节点 / 就绪";
+  const busy = submitPhase !== "idle";
+  const authState =
+    submitPhase === "loading"
+      ? "loading"
+      : submitPhase === "success"
+        ? "redirecting"
+        : hasError
+          ? "error"
+          : "ready";
+  const sessionLabel =
+    submitPhase === "loading"
+      ? "会话 / 握手中"
+      : submitPhase === "success"
+        ? "会话 / 已验证"
+        : hasError
+          ? "会话 / 请重试"
+          : "会话 / 待命";
+  const nodeLabel =
+    submitPhase === "loading"
+      ? "本地节点 / 同步中"
+      : submitPhase === "success"
+        ? "本地节点 / 跳转中"
+        : hasError
+          ? "本地节点 / 待检查"
+          : "本地节点 / 就绪";
+  const submitLabel =
+    submitPhase === "loading"
+      ? "正在验证身份…"
+      : submitPhase === "success"
+        ? "登录成功，正在跳转…"
+        : "进入管理平台";
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -52,24 +79,28 @@ export default function LoginPage() {
       return;
     }
     setFieldErr("");
-    setLoading(true);
+    const submittedAt = Date.now();
+    setSubmitPhase("loading");
     try {
       const data = await authApi.login(username.trim(), password);
       saveSession(data.access_token, data.refresh_token);
+      const loadingRemaining = MIN_LOADING_MS - (Date.now() - submittedAt);
+      if (loadingRemaining > 0) await wait(loadingRemaining);
+      setSubmitPhase("success");
+      await wait(SUCCESS_FEEDBACK_MS);
       router.push(data.must_change_pwd ? "/change-password" : "/dashboard");
     } catch (err: unknown) {
+      setSubmitPhase("idle");
       setApiErr(
         err instanceof UnauthorizedError
           ? "手机号或密码错误"
           : errText(err),
       );
-    } finally {
-      setLoading(false);
     }
   }
 
   return (
-    <main className={st.wrap}>
+    <main className={st.wrap} data-login-page>
       <section className={st.story} data-login="brand">
         <div className={st.storyGrid} aria-hidden />
         <div className={st.storyTop}>
@@ -83,7 +114,7 @@ export default function LoginPage() {
           </div>
           <span className={st.edition}>
             <span className={st.editionDot} />
-            项目协同 · 交付管理 / 节点 07
+            项目协同 · 交付管理<span className={st.editionNode}> / 节点 07</span>
           </span>
         </div>
         <div className={st.storyMain}>
@@ -120,7 +151,8 @@ export default function LoginPage() {
                 <i />
               </span>
               <div>
-                <h2>登录管理工作台</h2>
+                <h2 className={st.desktopTitle}>登录管理工作台</h2>
+                <h1 className={st.compactTitle}>账号登录</h1>
                 <p className={st.cardIntro}>建立身份链路，进入项目运营空间</p>
               </div>
             </div>
@@ -148,11 +180,21 @@ export default function LoginPage() {
               </div>
               {fieldErr && <div className={`${st.alert} ${st.alertErr}`} role="alert">{fieldErr}</div>}
               {apiErr && <div className={`${st.alert} ${st.alertErr}`} role="alert">{apiErr}</div>}
-              <button className={st.submit} type="submit" disabled={loading} aria-busy={loading}>
-                <span>{loading ? "正在验证身份…" : "进入管理平台"}</span>
+              <button
+                className={st.submit}
+                type="submit"
+                disabled={busy}
+                aria-busy={submitPhase === "loading"}
+                data-phase={submitPhase}
+              >
+                <span className={st.submitLabel}>{submitLabel}</span>
                 <span className={st.submitArrow} aria-hidden="true">
-                  {loading ? (
+                  {submitPhase === "loading" ? (
                     <span className={st.submitSpinner} />
+                  ) : submitPhase === "success" ? (
+                    <svg className={st.submitCheck} viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                      <path d="m3.5 8.5 3 3 6-7" />
+                    </svg>
                   ) : (
                     <svg viewBox="0 0 16 16" fill="none" aria-hidden="true">
                       <path d="M3 13 13 3M6 3h7v7" />
@@ -160,6 +202,9 @@ export default function LoginPage() {
                   )}
                 </span>
               </button>
+              <span className="sr-only" role="status" aria-live="polite" aria-atomic="true">
+                {busy ? submitLabel : ""}
+              </span>
             </form>
             <div className={st.cardMeta} aria-hidden="true">
               <span>认证入口 / 01</span>

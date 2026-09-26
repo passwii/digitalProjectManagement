@@ -57,7 +57,7 @@ export const DOCK_SLOTS: readonly DockSlot[] = [
   {
     id: "mine",
     label: "我的",
-    // 桌面没有独立的「我的」页面：这一位在 S3 由抽屉（half 档）接管。
+    // 桌面没有独立的「我的」页面：手机端由 Dock 的账号面板承接。
     // S1 先落到唯一存在的账号页，保证这一位不是死键。
     href: "/change-password",
     keys: ["contacts", "partners", "approvals", "finance", "admin"],

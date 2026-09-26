@@ -306,7 +306,7 @@ input[type="checkbox"] {
 }
 input::placeholder,
 textarea::placeholder {
- color: var(--ink-3);
+ color: var(--ink-2);
 }
 input:focus,
 select:focus,
@@ -2303,10 +2303,8 @@ th.num {
 }
 
 /*
- * standalone 下整页橡皮筋会把页面拽离窗口、松手还弹回去 —— 先用 contain 关掉
- * 链式滚动与橡皮筋，下拉刷新走自建的 PullToRefresh（mobile/PullToRefresh.tsx）。
- * 写在 html 与 body 两处：html 管视口级，body 管页面级（桌面 Chrome 取计算样式
- * 时只看命中元素，两处都写 S6 走查的断言才稳定）。
+ * 统一拦截视口级橡皮筋，避免和应用内刷新反馈重复触发。刷新手势由根布局的
+ * PullToRefresh 在所有路由上捕获；嵌套滚动容器只有滚到顶部时才允许下拉刷新。
  */
 html,
 body {
@@ -2333,42 +2331,98 @@ summary,
  touch-action: manipulation;
 }
 
-/*
- * 自建下拉刷新（standalone 下浏览器原生刷新不可用，必须自建；原型 §6 已验证交互）。
- * 状态机由 PullToRefresh.tsx 驱动，样式只认 `data-ptr-state`，不读 React 内部 state：
- *   idle → pulling（跟手，高度 = 手指位移）→ refreshing（44px 转环）→ idle。
- * 全局的 prefers-reduced-motion 段已经把 transition / animation 全关掉，
- * 这里不再重复写（转环在减弱动效下静止显示，由 aria-live 读出「正在刷新」）。
- */
+/* 全站共用的系统式下拉刷新指示器：不占内容流，静止时停在手机顶栏下方。 */
 .ptr {
- position: absolute;
- left: 0;
- right: 0;
- top: 0;
- z-index: 4;
- height: 0;
- overflow: hidden;
- display: grid;
- place-items: center;
- color: var(--brand);
- transition: opacity 200ms var(--ease-console);
+ --ptr-distance: 0px;
+ position: fixed;
+ z-index: 1000;
+ top: calc(var(--m-safe-t) + var(--m-appbar-h) + 8px);
+ left: 50%;
+ width: 40px;
+ height: 40px;
+ padding: 0;
+ display: flex;
+ align-items: center;
+ justify-content: center;
+ color: var(--ink-3);
+ opacity: 0;
+ pointer-events: none;
+ transform: translate(-50%, calc(-48px + min(var(--ptr-distance), 56px)));
+ transition: opacity 120ms ease, transform 140ms ease-out;
 }
 .ptr-ring {
- width: 18px;
- height: 18px;
+ flex: none;
+ width: 21px;
+ height: 21px;
  border-radius: 50%;
- border: 2px solid var(--line-blue);
- border-top-color: var(--brand);
- animation: ptr-spin 720ms linear infinite;
+ border: 2px solid var(--line);
+ border-top-color: currentColor;
+ animation: ptr-spin 800ms linear infinite;
 }
-/* pulling 时跟手：高度由组件写在行内（手指位移），refreshing 时定到 44px。 */
+.ptr[data-ptr-state="pulling"] {
+ opacity: .96;
+}
 .ptr[data-ptr-state="refreshing"] {
- height: 44px;
+ opacity: 1;
+ transform: translate(-50%, 0);
 }
+.ptr[data-ptr-state="error"] {
+ width: max-content;
+ max-width: calc(100vw - 24px);
+ height: 44px;
+ gap: 8px;
+ padding: 0 12px;
+ border: 1px solid var(--line);
+ border-radius: 22px;
+ color: var(--danger);
+ background: var(--card);
+ box-shadow: 0 2px 8px rgba(0, 0, 0, .12);
+ opacity: 1;
+ pointer-events: auto;
+ transform: translate(-50%, 0);
+}
+.ptr[data-ptr-state="error"] .ptr-ring { display: none; }
+.ptr-label {
+ position: absolute;
+ width: 1px;
+ height: 1px;
+ padding: 0;
+ overflow: hidden;
+ clip: rect(0, 0, 0, 0);
+ white-space: nowrap;
+ clip-path: inset(50%);
+}
+.ptr[data-ptr-state="error"] .ptr-label {
+ position: static;
+ width: auto;
+ height: auto;
+ overflow: visible;
+ clip: auto;
+ clip-path: none;
+ font-size: 12px;
+}
+.ptr-retry {
+ flex: none;
+ min-width: 36px;
+ min-height: 32px;
+ padding: 0 4px;
+ border: 0;
+ border-left: 1px solid var(--line);
+ border-radius: 0;
+ background: transparent;
+ color: var(--danger);
+ font: inherit;
+ font-size: 12px;
+}
+.ptr-retry:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
 @keyframes ptr-spin {
  to {
   transform: rotate(360deg);
  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+ .ptr, .ptr-ring { transition: none; animation: none; }
 }
 
 @media (max-width: 767px) {
@@ -2419,5 +2473,26 @@ summary,
 
  .pdf-preview-toolbar {
   flex-wrap: wrap;
+ }
+
+ /* 手机表单在 iOS 上以 16px 排版，避免聚焦时 Safari 自动放大页面；
+    44px 高度与 --m-tap 同步，复用同一套 PWA 触控尺度。 */
+ input:not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not([type="hidden"]),
+ select,
+ textarea {
+  min-height: var(--m-tap);
+  font-size: 16px;
+ }
+
+ /* 表格仍按业务需要横向滚动；只放大行内动作，避免窄屏上误触。 */
+ table.grid td.no-print button,
+ .row-actions button,
+ .table-actions button {
+  min-width: var(--m-tap);
+  min-height: var(--m-tap);
+ }
+
+ .detail-tabs button {
+  min-height: var(--m-tap);
  }
 }

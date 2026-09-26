@@ -19,7 +19,6 @@ import type { SheetContentProps } from "./index";
 import s from "./sheets.module.css";
 
 export default function ProgressSheet({
-  variant,
   onSelect,
 }: SheetContentProps) {
   const { data, firstLoad, error, reload } = useAsyncData(async (signal) => {
@@ -50,7 +49,6 @@ export default function ProgressSheet({
   return (
     <>
       <SheetCard
-        variant={variant}
         href="/progress"
         title="待填报"
         note="7 天内到期的任务"
@@ -58,7 +56,6 @@ export default function ProgressSheet({
         onSelect={onSelect}
       />
       <SheetCard
-        variant={variant}
         href="/progress"
         title="逾期"
         note={
@@ -71,7 +68,6 @@ export default function ProgressSheet({
         onSelect={onSelect}
       />
       <SheetCard
-        variant={variant}
         href="/progress"
         title="临近里程碑"
         note={
@@ -94,7 +90,6 @@ export default function ProgressSheet({
         rows.map((t) => (
           <SheetCard
             key={`${t.project_id}-${t.id}`}
-            variant={variant}
             href={`/progress?project_id=${t.project_id}`}
             title={t.name}
             note={`${projName.get(t.project_id) ?? `项目#${t.project_id}`} · 截止 ${fmtDate(t.plan_end)}`}

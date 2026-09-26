@@ -21,7 +21,7 @@ import {
 } from "@/lib/api";
 import { fmtMoney } from "@/lib/labels";
 import { useAsyncData } from "@/lib/useAsyncData";
-import { LoadFailed, LoadingBlock } from "@/components/ui/PageState";
+import { LoadFailed } from "@/components/ui/PageState";
 import SheetCard from "../SheetCard";
 import type { SheetContentProps } from "./index";
 import s from "./sheets.module.css";
@@ -31,7 +31,6 @@ export const COST_CALIBER =
   "已支出只统计「已通过 / 特批通过」，与财务账存在差异。";
 
 export default function ExpensesSheet({
-  variant,
   onSelect,
 }: SheetContentProps) {
   const { data, firstLoad, error, reload } = useAsyncData(async (signal) => {
@@ -49,29 +48,7 @@ export default function ExpensesSheet({
 
   return (
     <>
-      {k == null ? (
-        <div className={s.full}>
-          {error ? (
-            <LoadFailed message={error} onRetry={reload} />
-          ) : (
-            firstLoad && (
-              <LoadingBlock title={false} kpis={2} label="加载支出…" />
-            )
-          )}
-        </div>
-      ) : (
-        <SheetCard
-          variant={variant}
-          href="/reports"
-          title={`${k.month}支出`}
-          note="按已通过支出统计"
-          value={`¥${fmtMoney(k.month_spent)}`}
-          tone="brand"
-          onSelect={onSelect}
-        />
-      )}
       <SheetCard
-        variant={variant}
         href="/costs"
         title="支出记录"
         note={
@@ -82,12 +59,29 @@ export default function ExpensesSheet({
         onSelect={onSelect}
       />
       <SheetCard
-        variant={variant}
         href="/reports"
         title="支出报表"
         note="科目 / 人员 / 项目维度"
         onSelect={onSelect}
       />
+      {k == null ? (
+        <div className={s.full}>
+          {error ? (
+            <LoadFailed message={error} onRetry={reload} />
+          ) : (
+            firstLoad && <div className={s.metricState} role="status">本月支出加载中…</div>
+          )}
+        </div>
+      ) : (
+        <SheetCard
+          href="/reports"
+          title={`${k.month}支出`}
+          note="按已通过支出统计"
+          value={`¥${fmtMoney(k.month_spent)}`}
+          tone="brand"
+          onSelect={onSelect}
+        />
+      )}
       <div className={s.note} data-sheet-note="caliber">
         <span>
           <b>口径提示：</b>

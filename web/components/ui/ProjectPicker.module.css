@@ -141,3 +141,17 @@
     width: auto;
   }
 }
+
+@media (max-width: 767px) {
+  .trigger,
+  .row,
+  .retry,
+  .page {
+    min-height: var(--m-tap);
+  }
+  .search input {
+    height: var(--m-tap);
+    font-size: 16px;
+  }
+  .row { padding-top: 9px; padding-bottom: 9px; }
+}

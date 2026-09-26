@@ -13,6 +13,7 @@ import Empty from "@/components/ui/Empty";
 import Pagination from "@/components/ui/Pagination";
 import ProjectPicker from "@/components/ui/ProjectPicker";
 import PageHeader from "@/components/ui/PageHeader";
+import { CardItem, CardList, DesktopTable } from "@/components/ui/CardList";
 import { LoadingBlock, LoadFailed } from "@/components/ui/PageState";
 import ProgressBar from "@/components/ui/ProgressBar";
 import CountUp from "@/components/motion/CountUp";
@@ -241,7 +242,21 @@ function ReportsInner() {
             </div>
           ) : (
             <>
-              <div className="table-scroll">
+              <CardList label="支出报表明细">
+                {pageRows.map((r, i) => (
+                  <CardItem
+                    key={`${r.project_id}-${r.subject}-${(safePage - 1) * size + i}`}
+                    title={r.project_name}
+                    code={r.project_code}
+                    fields={[
+                      { label: "人员", value: r.subject || "未填写人员" },
+                      { label: "支出金额", value: fmtMoney(r.spent), mono: true },
+                      { label: "占比", value: <ProgressBar value={totalSpent ? r.spent / totalSpent * 100 : 0} /> },
+                    ]}
+                  />
+                ))}
+              </CardList>
+              <DesktopTable>
                 <table className="grid" aria-busy={loading}>
                   <thead><tr><th>项目编号</th><th>项目名称</th><th>人员</th><th className="num">支出金额</th><th>占比</th></tr></thead>
                   <tbody>
@@ -256,7 +271,7 @@ function ReportsInner() {
                     ))}
                   </tbody>
                 </table>
-              </div>
+              </DesktopTable>
               <Pagination
                 page={safePage}
                 size={size}
@@ -278,7 +293,16 @@ function ReportsInner() {
             ) : byPersonRows.length === 0 ? (
               <div className="card"><Empty title="暂无人员支出" hint="登记支出后按人员汇总。" /></div>
             ) : (
-              <div className="table-scroll">
+              <>
+              <CardList label="按人员汇总">
+                {byPersonRows.map((r) => (
+                  <CardItem key={r.subject} title={r.subject} fields={[
+                    { label: "支出金额", value: fmtMoney(r.spent), mono: true },
+                    { label: "占比", value: <ProgressBar value={r.share * 100} /> },
+                  ]} />
+                ))}
+              </CardList>
+              <DesktopTable>
                 <table className="grid">
                   <thead><tr><th>人员</th><th className="num">支出金额</th><th>占比</th></tr></thead>
                   <tbody>
@@ -291,7 +315,8 @@ function ReportsInner() {
                     ))}
                   </tbody>
                 </table>
-              </div>
+              </DesktopTable>
+              </>
             )}
           </div>
           <div>
@@ -301,7 +326,16 @@ function ReportsInner() {
             ) : byDeptRows.length === 0 ? (
               <div className="card"><Empty title="暂无部门数据" hint="项目归属部门后按部门汇总。" /></div>
             ) : (
-              <div className="table-scroll">
+              <>
+              <CardList label="按部门汇总">
+                {byDeptRows.map((r) => (
+                  <CardItem key={r.dept} title={r.dept} fields={[
+                    { label: "支出金额", value: fmtMoney(r.spent), mono: true },
+                    { label: "占比", value: <ProgressBar value={r.share * 100} /> },
+                  ]} />
+                ))}
+              </CardList>
+              <DesktopTable>
                 <table className="grid">
                   <thead><tr><th>部门</th><th className="num">支出金额</th><th>占比</th></tr></thead>
                   <tbody>
@@ -314,7 +348,8 @@ function ReportsInner() {
                     ))}
                   </tbody>
                 </table>
-              </div>
+              </DesktopTable>
+              </>
             )}
           </div>
         </MotionReveal>

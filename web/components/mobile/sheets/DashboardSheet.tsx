@@ -20,7 +20,6 @@ import SheetCard from "../SheetCard";
 import type { SheetContentProps } from "./index";
 
 export default function DashboardSheet({
-  variant,
   onSelect,
   canApprove,
 }: SheetContentProps) {
@@ -47,7 +46,6 @@ export default function DashboardSheet({
     <>
       {canApprove ? (
         <SheetCard
-          variant={variant}
           href="/approvals"
           title="待我审批"
           note={`未读通知 ${k.unread_notifications}`}
@@ -57,7 +55,6 @@ export default function DashboardSheet({
         />
       ) : (
         <SheetCard
-          variant={variant}
           href="/dashboard"
           title="未读通知"
           note="审批结果会通过通知告知您"
@@ -66,7 +63,6 @@ export default function DashboardSheet({
         />
       )}
       <SheetCard
-        variant={variant}
         href="/progress"
         title="待填报"
         note={
@@ -76,7 +72,6 @@ export default function DashboardSheet({
         onSelect={onSelect}
       />
       <SheetCard
-        variant={variant}
         href="/progress"
         title="逾期任务"
         note={`我负责 ${k.my_overdue_tasks}`}
@@ -85,7 +80,6 @@ export default function DashboardSheet({
         onSelect={onSelect}
       />
       <SheetCard
-        variant={variant}
         href="/progress"
         title="临近里程碑"
         note="近期到期"
@@ -94,7 +88,6 @@ export default function DashboardSheet({
         onSelect={onSelect}
       />
       <SheetCard
-        variant={variant}
         href="/reports"
         title={`${k.month}支出`}
         note="按已通过支出统计"

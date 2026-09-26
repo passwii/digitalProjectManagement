@@ -20,6 +20,7 @@ import MotionReveal from "@/components/motion/MotionReveal";
 import MotionStagger from "@/components/motion/MotionStagger";
 import { useActivity } from "@/lib/useActivity";
 import { isAbortError } from "@/lib/useAsyncData";
+import { linkAbortSignal, refreshAbortMessage, useRegisterPageRefresh } from "@/lib/pageRefresh";
 import { CardItem, CardList, DesktopTable, useVisibleTargetScroll } from "@/components/ui/CardList";
 
 type Decision = {
@@ -82,22 +83,36 @@ function ApprovalsInner() {
   const hasLoadedRef = useRef(false);
   const controllerRef = useRef<AbortController | null>(null);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (externalSignal?: AbortSignal): Promise<string | null> => {
     controllerRef.current?.abort();
     const controller = new AbortController();
+    const detach = linkAbortSignal(externalSignal, controller);
     const finish = beginActivity({ label: "刷新审批待办", scope: "content" });
     const id = ++loadSeq.current;
+    const reportAbort = () => {
+      const message = refreshAbortMessage(externalSignal);
+      if (message && loadSeq.current === id) setErr(message);
+      return message;
+    };
     controllerRef.current = controller;
     setLoading(true);
     setErr("");
     try {
+      if (controller.signal.aborted) return reportAbort();
       const r = await approvalsApi.pending(controller.signal);
-      if (controller.signal.aborted || loadSeq.current !== id) return;
+      if (loadSeq.current !== id) return null;
+      if (controller.signal.aborted) return reportAbort();
       setData(r);
+      return null;
     } catch (e) {
-      if (controller.signal.aborted || loadSeq.current !== id || isAbortError(e)) return;
-      setErr(errText(e));
+      if (loadSeq.current !== id) return null;
+      if (controller.signal.aborted) return reportAbort();
+      if (isAbortError(e)) return null;
+      const message = errText(e);
+      setErr(message);
+      return message;
     } finally {
+      detach();
       if (loadSeq.current === id) {
         hasLoadedRef.current = true;
         setLoading(false);
@@ -106,6 +121,11 @@ function ApprovalsInner() {
       if (controllerRef.current === controller) controllerRef.current = null;
     }
   }, [beginActivity]);
+
+  useRegisterPageRefresh(async (signal) => {
+    const message = await load(signal);
+    if (message) throw new Error(message);
+  });
 
   useEffect(() => {
     load();
@@ -166,7 +186,7 @@ function ApprovalsInner() {
       <PageHeader
         title="审批中心"
         actions={
-          <button className="btn-ghost" onClick={load} disabled={loading} aria-busy={loading}>
+          <button className="btn-ghost" onClick={() => void load()} disabled={loading} aria-busy={loading}>
             {loading ? "刷新中…" : "刷新"}
           </button>
         }

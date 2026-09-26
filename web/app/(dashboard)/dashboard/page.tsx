@@ -27,6 +27,7 @@ import MotionStagger from "@/components/motion/MotionStagger";
 import { useActivity } from "@/lib/useActivity";
 import s from "./dashboard.module.css";
 import { isAbortError } from "@/lib/useAsyncData";
+import { linkAbortSignal, refreshAbortMessage, useRegisterPageRefresh } from "@/lib/pageRefresh";
 
 const SUBJECT_SIGNALS = ["cyan", "lime", "amber", "violet", "muted"] as const;
 
@@ -92,31 +93,50 @@ export default function DashboardPage() {
   const loadSeq = useRef(0);
   const controllerRef = useRef<AbortController | null>(null);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (externalSignal?: AbortSignal): Promise<string | null> => {
     controllerRef.current?.abort();
     const controller = new AbortController();
     controllerRef.current = controller;
+    const detach = linkAbortSignal(externalSignal, controller);
     const id = ++loadSeq.current;
+    const reportAbort = () => {
+      const message = refreshAbortMessage(externalSignal);
+      if (message && loadSeq.current === id) setErr(message);
+      return message;
+    };
     const finish = beginActivity({ label: "刷新工作台", scope: "content" });
     setLoading(true);
     setErr("");
     try {
+      if (controller.signal.aborted) return reportAbort();
       const [s, w] = await Promise.all([
         dashboardApi.summary(controller.signal),
         dashboardApi.weekly(0, controller.signal).catch(() => null),
       ]);
-      if (controller.signal.aborted || loadSeq.current !== id) return;
+      if (loadSeq.current !== id) return null;
+      if (controller.signal.aborted) return reportAbort();
       setData(s);
       setWeekly(w);
+      return null;
     } catch (e) {
-      if (controller.signal.aborted || loadSeq.current !== id || isAbortError(e)) return;
-      setErr(errText(e));
+      if (loadSeq.current !== id) return null;
+      if (controller.signal.aborted) return reportAbort();
+      if (isAbortError(e)) return null;
+      const message = errText(e);
+      setErr(message);
+      return message;
     } finally {
+      detach();
       if (loadSeq.current === id) setLoading(false);
       finish();
       if (controllerRef.current === controller) controllerRef.current = null;
     }
   }, [beginActivity]);
+
+  useRegisterPageRefresh(async (signal) => {
+    const message = await load(signal);
+    if (message) throw new Error(message);
+  });
 
   useEffect(() => {
     load();
@@ -139,7 +159,7 @@ export default function DashboardPage() {
         <span className={s.errorSignal} aria-hidden="true" />
         <strong>交付坐标盘暂时无法接入</strong>
         <span>{err || "暂时无法获取工作台数据。"}</span>
-        <button className={s.headerButton} type="button" onClick={load}>重新接入</button>
+        <button className={s.headerButton} type="button" onClick={() => void load()}>重新接入</button>
       </div>
     );
   }
@@ -164,7 +184,7 @@ export default function DashboardPage() {
             <button
               className={s.headerButton}
               type="button"
-              onClick={load}
+              onClick={() => void load()}
               disabled={loading}
               aria-busy={loading}
             >
@@ -181,7 +201,7 @@ export default function DashboardPage() {
       {err && (
         <div className={s.staleBanner} role="alert">
           <span><b>链路未完成校准。</b> 以下为上次成功数据。{err}</span>
-          <button className={s.headerButton} type="button" onClick={load} disabled={loading}>重试</button>
+          <button className={s.headerButton} type="button" onClick={() => void load()} disabled={loading}>重试</button>
         </div>
       )}
 

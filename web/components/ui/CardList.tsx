@@ -3,9 +3,8 @@
 /**
  * 手机端卡片流（BLF-1127 §4.2 / 决策 D4）。
  *
- * 项目台账与审批中心的表格在手机端改为卡片流：一屏 2–3 条可读结论
- * （名称 / 编号 / 状态 / 进度条 / 负责人 / 预算或执行率）。两页共用同一套
- * 容器 + 卡片，不各复制一份。
+ * 需要在手机上快速查阅和操作的表格改为卡片流：一屏 2–3 条可读结论。
+ * 各业务页面共用同一套容器和卡片，按字段配置保留完整信息。
  *
  * 视图切换是**纯 CSS**（与 `(dashboard)/layout.tsx` 双外壳同一手法）：
  * 同一份数据同时渲染表格与卡片流，767px 断点决定谁在场 —— SSR 首帧不依赖
@@ -82,7 +81,18 @@ export function CardItem({
    onClick={onSelect}
   >
    <div className={s.head}>
-    <span className={s.title}>{title}</span>
+    {onSelect ? (
+     <button
+      type="button"
+      className={`${s.title} ${s.titleButton}`}
+      onClick={(event) => {
+       event.stopPropagation();
+       onSelect();
+      }}
+     >
+      {title}
+     </button>
+    ) : <span className={s.title}>{title}</span>}
     {badges && <span className={s.badges}>{badges}</span>}
    </div>
    {code != null && code !== "" && (

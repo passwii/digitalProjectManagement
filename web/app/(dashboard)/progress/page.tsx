@@ -19,6 +19,7 @@ import { LoadingBlock, LoadFailed } from "@/components/ui/PageState";
 import { Confirm } from "@/components/ui/Modal";
 import { useToast } from "@/components/ui/Toast";
 import PageHeader from "@/components/ui/PageHeader";
+import { CardItem, CardList, DesktopTable, useVisibleTargetScroll } from "@/components/ui/CardList";
 import MotionReveal from "@/components/motion/MotionReveal";
 import { useActivity } from "@/lib/useActivity";
 import ProgressNodeDialog from "./ProgressNodeDialog";
@@ -62,6 +63,7 @@ function ProgressInner() {
   const tasks = paged.items;
   const total = paged.total;
   useTargetScroll(target, !firstLoad && tasks.some((t) => t.id === target));
+  useVisibleTargetScroll(target, !firstLoad && tasks.some((t) => t.id === target));
 
   async function remove() {
     if (!removeTarget) return;
@@ -117,10 +119,31 @@ function ProgressInner() {
       ) : firstLoad ? (
         <LoadingBlock kpis={0} label="加载进度记录…" />
       ) : tasks.length === 0 ? (
-        <div className="card"><Empty title="暂无进度" hint="点击右上角「添加进度」，记录节点时间和关键内容。" /></div>
+        <div className="card"><Empty title="暂无进度" hint="点击「添加进度」，记录节点时间和关键内容。" /></div>
       ) : (
         <MotionReveal delay={0.08}>
-          <div className="table-scroll">
+          <CardList label="进度记录">
+            {tasks.map((t) => (
+              <CardItem
+                key={t.id}
+                title={t.name}
+                code={fmtDate(t.plan_end || t.plan_start)}
+                fields={[
+                  { label: "添加人", value: userName(t.owner_id) },
+                  { label: "记录时间", value: fmtDateTime(t.created_at), mono: true },
+                ]}
+                targetId={t.id}
+                hit={t.id === target}
+                actions={
+                  <>
+                    <button className="btn-ghost btn-xs" onClick={() => { setEditing(t); setNodeOpen(true); }}>编辑</button>
+                    <button className="btn-ghost btn-xs btn-danger-outline" onClick={() => setRemoveTarget(t)}>删除</button>
+                  </>
+                }
+              />
+            ))}
+          </CardList>
+          <DesktopTable>
             <table className="grid" aria-busy={loading}>
               <thead>
                 <tr>
@@ -157,7 +180,7 @@ function ProgressInner() {
                 ))}
               </tbody>
             </table>
-          </div>
+          </DesktopTable>
           <Pagination
             page={page}
             size={size}

@@ -1,7 +1,9 @@
 import type { Metadata, Viewport } from "next";
 import Script from "next/script";
 import InstallPrompt from "@/components/pwa/InstallPrompt";
+import PullToRefresh from "@/components/mobile/PullToRefresh";
 import ThemeProvider, { themeBootstrapScript } from "@/components/theme/ThemeProvider";
+import { PageRefreshProvider } from "@/lib/pageRefresh";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -45,7 +47,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           {themeBootstrapScript}
         </Script>
         <ThemeProvider>
-          {children}
+          <PageRefreshProvider>
+            {children}
+            <PullToRefresh />
+          </PageRefreshProvider>
           <InstallPrompt />
         </ThemeProvider>
       </body>

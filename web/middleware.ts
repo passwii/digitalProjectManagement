@@ -22,6 +22,12 @@ export function middleware(req: NextRequest) {
     return NextResponse.redirect(url);
   }
 
+  if (pathname === "/spark") {
+    const url = req.nextUrl.clone();
+    url.pathname = "/spark/dashboard";
+    return NextResponse.redirect(url);
+  }
+
   const isPublic = PUBLIC_PATHS.some(
     (p) => pathname === p || pathname.startsWith(`${p}/`),
   ) || pathname.startsWith("/_next");

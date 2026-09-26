@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import { DOCK_SLOTS } from "./mobileNav";
 import {
   SHEET_CONTENT,
-  SHEET_DEFAULT_STOP,
   SHEET_META,
 } from "@/components/mobile/sheets";
 import DashboardSheet from "@/components/mobile/sheets/DashboardSheet";
@@ -16,7 +15,7 @@ import ProjectsSheet from "@/components/mobile/sheets/ProjectsSheet";
  *
  * 与 `mobileNav.vitest.test.ts` 同一个理由：Dock 位 → 抽屉的对应关系是契约，
  * 靠截图验不出来（开错抽屉在截图上只是一组不同的卡片，很容易看走眼）。
- * 所以映射完整性、默认档位、D1 的 costs 归属都钉在纯数据上。
+ * 所以映射完整性与 D1 的 costs 归属都钉在纯数据上。
  */
 describe("SHEET_CONTENT（§3：5 个位各一份抽屉内容）", () => {
   it("5 个 Dock 位全有映射，不多不少", () => {
@@ -38,18 +37,6 @@ describe("SHEET_CONTENT（§3：5 个位各一份抽屉内容）", () => {
   });
 });
 
-describe("SHEET_DEFAULT_STOP（§3 表格的默认档位）", () => {
-  it("工作台 / 项目 / 进度 / 支出 = peek，我的 = half", () => {
-    expect(SHEET_DEFAULT_STOP).toEqual({
-      dashboard: "peek",
-      projects: "peek",
-      progress: "peek",
-      costs: "peek",
-      mine: "half",
-    });
-  });
-});
-
 describe("SHEET_META（抽屉头）", () => {
   it("5 个位都有副标题，动作为真实站内路由", () => {
     for (const slot of DOCK_SLOTS) {
@@ -59,6 +46,12 @@ describe("SHEET_META（抽屉头）", () => {
         expect(meta.action.label.length).toBeGreaterThan(0);
         expect(meta.action.href.startsWith("/")).toBe(true);
       }
+    }
+  });
+
+  it("工作台与三个业务分组提供数据失败时仍可用的直达入口", () => {
+    for (const id of ["dashboard", "projects", "progress", "costs"] as const) {
+      expect(SHEET_META[id].action?.href.startsWith("/")).toBe(true);
     }
   });
 });

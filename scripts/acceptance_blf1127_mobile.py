@@ -1,10 +1,10 @@
 """BLF-1127 验收走查：S1 手机壳基座（5 位底部 Dock + 767px 双外壳 CSS 切换）
-+ S3 三态抽屉（peek / half / full + 手势，D2）
++ S3 单档 Dock 入口面板（一次点按可操作，2026-09-26 新规格）
 + S4 五个抽屉的内容与权限入口（D1/D3）
 + S5 项目台账 / 审批中心手机端卡片流（§4.2/D4）
 + S6 PWA 外壳收口（manifest + safe-area + viewport-fit + overscroll + 自建下拉刷新）。
 
-契约：docs/superpowers/specs/2026-09-18-mobile-pwa-navigation-design.md §3 / §4 / §7 + 决策 D1–D3。
+契约：2026-09-18 导航规格的 D1/D3，加上 2026-09-26 刷新与 Dock 单档面板规格。
 和 `acceptance_blf1093.py` 一样是**真浏览器 + 真后端**：不 mock 菜单接口，登录后
 直接读 `/meta/me/menus` 真实返回，验的是「权限唯一入口 + 5 位 Dock」这一对约束。
 
@@ -15,9 +15,8 @@
   · 壳切换：≥768px 显示侧栏隐藏 Dock，≤767px 反之
   · 「纯 CSS 切换、无首帧错误外壳」：**关掉 JS** 再断言一次（此时只有 CSS 能决定可见性）
   · 不回归：桌面 1440px 下 table.grid 仍在、Dock 不在场
-  · S3/D2：点 5 个 Dock 位都开到默认档（我的 = half，其余 = peek）且不跳页；
-  · S3/§4 三档几何：peek ≤236px 无遮罩 / half 56% 有遮罩 / full 留白 ≥40px 且贴底
-  · S3 手势：上拖升档、下甩 ≥96px 降档 / 关闭、点遮罩关闭、列表滚动优先（不抢手势）
+  · S3：点 5 个 Dock 位均打开单档入口面板，一次点按卡片即可导航；
+    再点当前位、关闭按钮、遮罩和 Esc 均可收起；内容由浏览器自然滚动。
   · S6/PWA：manifest.webmanifest 可访问且字段齐全（standalone / theme_color /
     192+512+maskable / shortcuts 工作台+待审批）、link[rel=manifest] 在场、
     viewport-fit=cover + theme-color、overscroll-y contain、按钮 touch-action
@@ -84,14 +83,8 @@ DOCK_IDS = ["dashboard", "projects", "progress", "costs", "mine"]
 DOCK_LABELS = ["工作台", "项目", "进度", "支出", "我的"]
 ADMIN_ONLY_LABELS = ["审批中心", "系统管理", "通讯录"]
 
-# S3 契约常量（§4）：三档几何与手势阈值写死在走查里，改契约必须先改这里
-PEEK_MAX = 236  # peek 高度上限（px）
-PEEK_RADIUS = 18  # 顶部圆角 --m-sheet-r
-HALF_RATIO = 0.56  # half = 56% 视口高
-FULL_TOP_MIN = 40  # full 顶部留白下限（不遮状态栏）
-SWIPE_DOWN = 96  # 下甩阈值：降档 / 关闭
-SWIPE_UP = 56  # 上拖阈值：升档
-SHEET_TOPMOST_HIT = "dock"  # 关闭后命中链应落在 Dock 上（而不是残留的抽屉）
+# S3 单档面板最高约占可视高度的 78%，顶部仍须保留安全区。
+SHEET_MAX_RATIO = 0.78
 
 # S6 契约常量（§6）：PWA 外壳 6 件事的判定线，改契约必须先改这里
 PWA_THEME = "#0F2742"  # theme_color / theme-color / 图标底色，三处同值
@@ -299,9 +292,9 @@ def shell_state(page) -> dict:
 
 
 def sheet_state(page) -> dict | None:
-    """抽屉的当前档位与几何（S3）。
+    """入口面板的当前状态与几何（S3）。
 
-    全部走 data-* 契约表面：`data-sheet` 的值就是当前档位（peek / half / full），
+    全部走 data-* 契约表面：`data-sheet` 的值是单档 panel，
     `data-sheet-scrim` / `data-sheet-card` 同理 —— CSS Modules 的类名是哈希的，
     不能拿来当断言接口。面板不在 DOM 时返回 None（关闭后应如此）。
     """
@@ -364,39 +357,6 @@ def sheet_present(page) -> dict:
     if st is None:
         raise AssertionError("抽屉不在场：上一步的交互没有把它打开")
     return st
-
-
-def sheet_drag(page, dy: int, target: str = "grip", steps: int = 8) -> None:
-    """在抽屉上做一次纵向拖拽（S3 手势）。
-
-    `target="grip"` 从把手起手（用户手势的标准抓握区，也是 half / full 档下
-    唯一该接手势的地方）；`target="body"` 从列表面板起手 —— 用来验
-    「列表滚到顶部才允许整体拖拽」那道门。
-
-    走 Pointer Events（抽屉的手势实现）：Playwright 的 mouse 会派发
-    pointerdown / pointermove / pointerup，面板用 setPointerCapture 收后续事件。
-    """
-    selector = (
-        "[data-sheet] [data-sheet-grip]"
-        if target == "grip"
-        else "[data-sheet] [data-sheet-body]"
-    )
-    box = page.locator(selector).bounding_box()
-    assert box is not None, (
-        f"抽屉的 {selector} 不在场，无法拖拽（上一步没把面板打开？）"
-    )
-    # body 从左侧 8px 起手：那是面板的内边距带，不属于任何卡片 ——
-    # 免得拖拽结束时在卡片上补一发 click 把页面导航走
-    x = box["x"] + (box["width"] / 2 if target == "grip" else 8)
-    y = box["y"] + min(40.0, box["height"] / 2)
-    page.mouse.move(x, y)
-    page.mouse.down()
-    page.wait_for_timeout(60)
-    page.mouse.move(x, y + dy, steps=steps)
-    page.wait_for_timeout(60)
-    page.mouse.up()
-    # 换档动画 260ms + 余量：几何断言不能掉在动画中间
-    page.wait_for_timeout(420)
 
 
 def main() -> int:
@@ -649,386 +609,129 @@ def main() -> int:
         page.keyboard.press("Escape")
         page.wait_for_timeout(400)
 
-        # ============ S3：三态抽屉（peek / half / full + 手势，D2） ============
-        # 契约：§4（三档几何 + 手势语义）+ D2（点 Dock 不跳页、再点当前位降档、不做长按）。
-        # 定位一律走 data-* 契约表面（data-sheet / data-sheet-scrim / data-sheet-card…），
-        # 不读 CSS Modules 的哈希类名。
+        # ============ S3：单档 Dock 入口面板（2026-09-26 新规格） ============
         page.set_viewport_size({"width": 390, "height": 844})
         page.goto(f"{BASE}/projects", wait_until="networkidle")
-        page.wait_for_timeout(1500)
+        page.wait_for_timeout(1200)
 
-        # ---- D2：点 5 个 Dock 位都开到默认档，且都不跳页 ----
-        # S4 默认档位（§3 表格）：工作台 / 项目 / 进度 / 支出 = peek，我的 = half
-        DEFAULT_STOP = {"mine": "half"}
         opened_ids: list[str] = []
         for dock_id in DOCK_IDS:
-            expected = DEFAULT_STOP.get(dock_id, "peek")
             url_before = page.url
             page.click(f'[data-shell="dock"] [data-dock="{dock_id}"]')
             page.wait_for_timeout(450)
             st = sheet_present(page)
             ok = (
-                st is not None
-                and st["open"] == "true"
-                and st["stop"] == expected
+                st["open"] == "true"
+                and st["stop"] == "panel"
+                and st["ariaModal"] == "true"
                 and page.url == url_before
             )
             record(
-                f"S3/D2+S4：点「{dock_id}」位开 {expected} 且不跳页",
+                f"S3：点「{dock_id}」一次打开完整面板且不跳页",
                 ok,
-                f"档位={st['stop'] if st else '无面板'} URL={'未变' if page.url == url_before else page.url}",
+                f"面板={st['stop']} URL={'未变' if page.url == url_before else page.url}",
             )
             if ok:
                 opened_ids.append(dock_id)
-            # 再点当前位 → peek 收起 / half 降回 peek（D2：不存在点了没反应的死键）
             page.click(f'[data-shell="dock"] [data-dock="{dock_id}"]')
             page.wait_for_timeout(450)
+            record(
+                f"S3：再点「{dock_id}」直接关闭",
+                sheet_state(page) is None,
+            )
         record(
-            "S3/D2+S4：5 个 Dock 位都能开到默认档",
+            "S3：5 个 Dock 位均能一次打开完整面板",
             len(opened_ids) == 5,
-            " / ".join(opened_ids) or "一个都没开",
-        )
-        # 循环最后一个是「我的」：half 经一次再点只降到 peek，再点一次才收起
-        page.click('[data-shell="dock"] [data-dock="mine"]')
-        page.wait_for_timeout(450)
-
-        # 关闭后：面板已退场，且不在命中链上（残留元素不得拦截点击）
-        closed_state = sheet_state(page)
-        closed_hit = page.evaluate(
-            """() => {const el = document.querySelector('[data-shell="dock"] [data-dock="projects"]');
-                      const r = el.getBoundingClientRect();
-                      const top = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2);
-                      return { onDock: !!top?.closest('[data-shell="dock"]'), inSheet: !!top?.closest('[data-sheet]') };}"""
-        )
-        record(
-            "再点当前位：peek 收起（面板已退场且不在命中链上）",
-            closed_state is None and closed_hit["onDock"] and not closed_hit["inSheet"],
-            f"面板={'已退场' if closed_state is None else closed_state['open']} / 命中={'Dock' if closed_hit['onDock'] else '非 Dock'}",
+            " / ".join(opened_ids),
         )
 
-        # ---- peek 几何（§4 表）+ 非模态语义 ----
         page.click('[data-shell="dock"] [data-dock="projects"]')
         page.wait_for_timeout(500)
-        peek = sheet_present(page)
+        panel = sheet_present(page)
         dock_z = page.evaluate(
             "() => Number(getComputedStyle(document.querySelector('[data-shell=\"dock\"]')).zIndex) || 0"
         )
-        body_overflow = page.evaluate("() => document.body.style.overflow")
+        record(
+            "S3：面板贴底满宽、高度不超过可视区的 78%",
+            abs(panel["bottom"] - panel["vh"]) <= 1
+            and abs(panel["w"] - panel["vw"]) <= 1
+            and panel["h"] <= panel["vh"] * SHEET_MAX_RATIO + 2,
+            f"高={round(panel['h'], 1)}px / 视口={panel['vh']}px",
+        )
+        record(
+            "S3：遮罩与焦点锁定已启用，Dock 仍可切换",
+            panel["scrimOn"] == "true"
+            and panel["scrimOpacity"] >= 0.9
+            and panel["scrimPE"] == "auto"
+            and panel["rootZ"] < dock_z
+            and panel["focusInSheet"],
+            f"遮罩={panel['scrimOn']} z={panel['rootZ']}/{dock_z} 焦点={panel['focused']}",
+        )
+        record(
+            "S3：卡片均为单列列表，正文由浏览器自然滚动",
+            all(card["variant"] == "list" for card in panel["cards"])
+            and page.evaluate(
+                "() => getComputedStyle(document.querySelector('[data-sheet-body]')).overflowY"
+            ) == "auto",
+            f"卡片={len(panel['cards'])} 张",
+        )
+        record(
+            "S3：项目直达入口与明确关闭按钮在场",
+            page.locator('[data-sheet] a[href="/projects"]').count() >= 1
+            and page.locator('[data-sheet] button[aria-label="关闭项目面板"]').count() == 1,
+        )
+        page.screenshot(path=f"{SHOT}/06-sheet-panel.png")
 
+        page.click('[data-shell="dock"] [data-dock="progress"]')
+        page.wait_for_timeout(450)
+        switched = sheet_present(page)
         record(
-            f"peek 高度 ≤{PEEK_MAX}px（契约上限）",
-            peek["h"] <= PEEK_MAX,
-            f"实测 {round(peek['h'], 1)}px",
+            "S3：点另一 Dock 位直接切换面板内容",
+            switched["stop"] == "panel"
+            and page.locator('[data-sheet-body]').inner_text().find("待填报") >= 0
+            and "/projects" in page.url,
         )
-        record(
-            "peek 无遮罩（opacity=0 且不放行命中，页面照常可点）",
-            peek["scrimOn"] == "false"
-            and peek["scrimOpacity"] == 0
-            and peek["scrimPE"] == "none",
-            f"data-on={peek['scrimOn']} opacity={peek['scrimOpacity']} pointer-events={peek['scrimPE']}",
-        )
-        record(
-            "peek 贴底、满宽、顶部圆角 = --m-sheet-r(18px)",
-            abs(peek["bottom"] - peek["vh"]) <= 1
-            and abs(peek["w"] - peek["vw"]) <= 1
-            and abs(peek["radius"] - PEEK_RADIUS) <= 1,
-            f"底={round(peek['bottom'], 1)}/{peek['vh']} 宽={peek['w']}/{peek['vw']} 圆角={peek['radius']}",
-        )
-        first_card = peek["cards"][0] if peek["cards"] else None
-        record(
-            "peek 首张卡片完整可见，且不落在「Dock 带」里（内容不被 Dock 盖住）",
-            first_card is not None
-            and first_card["bottom"] <= peek["bottom"] - peek["dockH"] + 1
-            and first_card["h"] >= 44,
-            f"卡底={round(first_card['bottom'], 1) if first_card else None} "
-            f"面板底={round(peek['bottom'], 1)} Dock 带={round(peek['dockH'])}px",
-        )
-        record(
-            "peek 是非模态档（aria-modal=false 且不锁页面滚动）",
-            peek["ariaModal"] == "false"
-            and peek["role"] == "dialog"
-            and body_overflow != "hidden",
-            f"aria-modal={peek['ariaModal']} body.overflow={body_overflow or '(空)'}",
-        )
-        record(
-            "打开抽屉时焦点落在面板内（焦点陷阱 / 归还的前提）",
-            peek["focusInSheet"],
-            f"activeElement={peek['focused']}",
-        )
-        record(
-            f"抽屉层级低于 Dock（{peek['rootZ']} < {dock_z}）：遮罩不盖 Dock",
-            peek["rootZ"] < dock_z,
-            f"sheet z={peek['rootZ']} dock z={dock_z}（再点当前位降档就靠这条）",
-        )
-        page.screenshot(path=f"{SHOT}/06-sheet-peek.png")
-
-        # ---- aa11y：Esc 收起 + 焦点回到触发的 Dock 位 ----
         page.keyboard.press("Escape")
-        page.wait_for_timeout(600)
-        focused_after = page.evaluate(
-            "() => document.activeElement?.dataset?.dock || document.activeElement?.tagName || null"
-        )
+        page.wait_for_timeout(450)
+        record("S3：Escape 直接关闭面板", sheet_state(page) is None)
+
+        page.click('[data-shell="dock"] [data-dock="projects"]')
+        page.wait_for_timeout(450)
+        page.click('[data-sheet] button[aria-label="关闭项目面板"]')
+        page.wait_for_timeout(450)
+        focused_after = page.evaluate("() => document.activeElement?.dataset?.dock ?? null")
         record(
-            "Esc：peek 收起，且焦点回到触发的 Dock 位（projects）",
+            "S3：关闭按钮关闭面板并把焦点归还 Dock",
             sheet_state(page) is None and focused_after == "projects",
-            f"面板={'已退场' if sheet_state(page) is None else '仍在场'} activeElement={focused_after}",
+            f"焦点={focused_after}",
         )
 
-        # ---- 手势：上拖 peek → half → full ----
-        page.click('[data-shell="dock"] [data-dock="projects"]')
-        page.wait_for_timeout(500)
-        peek_state = sheet_present(page)
-        peek_titles = [c["title"] for c in peek_state["cards"]]
-        sheet_drag(page, -(SWIPE_UP + 80))  # 上拖 136px：越过 56px 阈值
-        half = sheet_present(page)
-        record(
-            "上拖 >56px：peek → half", half["stop"] == "half", f"档位={half['stop']}"
-        )
-        record(
-            "half 高度 = 56% 视口（±2px）",
-            abs(half["h"] - half["vh"] * HALF_RATIO) <= 2,
-            f"实测 {round(half['h'], 1)}px / 期望 {round(half['vh'] * HALF_RATIO, 1)}px",
-        )
-        record(
-            "half 有遮罩，且遮罩可接收点击（pointer-events 已恢复）",
-            half["scrimOn"] == "true" and half["scrimPE"] == "auto",
-            f"data-on={half['scrimOn']} pointer-events={half['scrimPE']}",
-        )
-        record(
-            "half 比 peek 高（确实升了一档）",
-            half["y"] < peek_state["y"],
-            f"面板顶 {round(peek_state['y'], 1)} → {round(half['y'], 1)}",
-        )
-        record(
-            "换档不换内容：peek 与 half 是同一批卡片、只换形态（preview → list）",
-            [c["title"] for c in half["cards"]] == peek_titles
-            and {c["variant"] for c in half["cards"]} == {"list"},
-            f"卡片 {peek_titles} / 形态 {[c['variant'] for c in half['cards']]}",
-        )
-        record(
-            "half 是模态档（aria-modal=true）",
-            half["ariaModal"] == "true",
-            f"aria-modal={half['ariaModal']}",
-        )
-        page.screenshot(path=f"{SHOT}/07-sheet-half.png")
-
-        # ---- aa11y：half（模态）焦点陷阱生效 ----
-        trapped = True
-        for _ in range(8):
-            page.keyboard.press("Tab")
-            if not page.evaluate(
-                "() => !!document.querySelector('[data-sheet]')?.contains(document.activeElement)"
-            ):
-                trapped = False
-                break
-        record("half（模态档）焦点陷阱生效：Tab 循环不逃出面板", trapped)
-
-        sheet_drag(page, -(SWIPE_UP + 80))
-        full = sheet_present(page)
-        record(
-            "上拖 >56px：half → full", full["stop"] == "full", f"档位={full['stop']}"
-        )
-        record(
-            f"full 不遮状态栏（顶部留白 ≥{FULL_TOP_MIN}px）",
-            full["y"] >= FULL_TOP_MIN,
-            f"顶部留白 {round(full['y'], 1)}px",
-        )
-        record(
-            "full 贴底且整屏（高度 ≥ 视口 - 60px）",
-            abs(full["bottom"] - full["vh"]) <= 1 and full["h"] >= full["vh"] - 60,
-            f"底={round(full['bottom'], 1)}/{full['vh']} 高={round(full['h'], 1)}",
-        )
-        page.screenshot(path=f"{SHOT}/08-sheet-full.png")
-
-        # ---- 手势：下甩 ≥96px 逐档降 ----
-        sheet_drag(page, SWIPE_DOWN + 44)
-        record(
-            "下甩 >96px：full → half",
-            sheet_present(page)["stop"] == "half",
-            f"档位={sheet_present(page)['stop']}",
-        )
-        sheet_drag(page, SWIPE_DOWN + 44)
-        record(
-            "下甩 >96px：half → peek",
-            sheet_present(page)["stop"] == "peek",
-            f"档位={sheet_present(page)['stop']}",
-        )
-        sheet_drag(page, SWIPE_DOWN + 44)
-        st = sheet_state(page)
-        record(
-            "下甩 >96px：peek → 关闭（面板退场）",
-            st is None or st["open"] == "false",
-            f"面板={'已退场' if st is None else st['open']}",
-        )
-
-        # ---- 点遮罩关闭（§4） ----
-        page.click('[data-shell="dock"] [data-dock="projects"]')
-        page.wait_for_timeout(500)
-        sheet_drag(page, -(SWIPE_UP + 80))  # 升到 half（有遮罩）
-        page.mouse.click(peek_state["vw"] / 2, 120)  # 屏幕上部 = 遮罩
-        page.wait_for_timeout(600)
-        st = sheet_state(page)
-        record(
-            "点遮罩关闭抽屉",
-            st is None or st["open"] == "false",
-            f"面板={'已退场' if st is None else st['open']}",
-        )
-
-        # ---- D2：再点当前位，half 降回 peek（不是收起） ----
-        page.click('[data-shell="dock"] [data-dock="projects"]')
-        page.wait_for_timeout(500)
-        sheet_drag(page, -(SWIPE_UP + 80))
-        record(
-            "前置：先升到 half",
-            sheet_present(page)["stop"] == "half",
-            f"档位={sheet_present(page)['stop']}",
-        )
-        page.click('[data-shell="dock"] [data-dock="projects"]')
-        page.wait_for_timeout(500)
-        st = sheet_present(page)
-        record(
-            "D2：再点当前位（half）→ 降回 peek 而不是关闭（无死键）",
-            st is not None and st["open"] == "true" and st["stop"] == "peek",
-            f"档位={st['stop'] if st else '已退场'} open={st['open'] if st else None}",
-        )
-        record(
-            "降回 peek 后遮罩关闭",
-            st is not None and st["scrimOn"] == "false" and st["scrimPE"] == "none",
-            f"data-on={st['scrimOn'] if st else None} pointer-events={st['scrimPE'] if st else None}",
-        )
-
-        # ---- aa11y：Esc 降档（half → peek，而不是关闭）+ peek 不锁 Tab ----
-        sheet_drag(page, -(SWIPE_UP + 80))  # peek → half
-        page.keyboard.press("Escape")
-        page.wait_for_timeout(500)
-        st = sheet_present(page)
-        record(
-            "Esc：half → peek（降一档，不是关闭）",
-            st is not None and st["open"] == "true" and st["stop"] == "peek",
-            f"档位={st['stop'] if st else '已退场'}",
-        )
-        page.keyboard.press("Shift+Tab")
-        page.wait_for_timeout(250)
-        left_panel = page.evaluate(
-            "() => !document.querySelector('[data-sheet]')?.contains(document.activeElement)"
-        )
-        record(
-            "peek 非模态：Shift+Tab 能离开面板（不把键盘用户关在无遮罩面板里）",
-            bool(left_panel),
-            f"activeElement={page.evaluate('() => document.activeElement?.dataset?.dock || document.activeElement?.tagName')}",
-        )
-        page.keyboard.press("Escape")
-        page.wait_for_timeout(500)
-
-        # ---- D2：不做长按手势（按住 700ms 松手仍停在 peek） ----
-        long_box = page.locator(
-            '[data-shell="dock"] [data-dock="costs"]'
-        ).bounding_box()
-        assert long_box is not None, "Dock 的「支出」位取不到几何，长按断言无法进行"
-        page.mouse.move(
-            long_box["x"] + long_box["width"] / 2,
-            long_box["y"] + long_box["height"] / 2,
-        )
-        page.mouse.down()
-        page.wait_for_timeout(700)
-        page.mouse.up()
-        page.wait_for_timeout(500)
-        st = sheet_present(page)
-        record(
-            "D2：不做长按手势（按住 700ms 松手仍停在 peek，不进 half/full）",
-            st is not None and st["stop"] == "peek",
-            f"档位={st['stop'] if st else '已退场'}",
-        )
-        page.keyboard.press("Escape")
-        page.wait_for_timeout(500)
-
-        # ---- §4「抽屉内列表滚到顶部时才允许整体拖拽」 ----
-        # 用短屏（390×420）与内容最多的「我的」位：half 档下列表必定高于容器，
-        # 才能真的验「列表滚过了就先滚列表」；正向 + 反向各一条，证明门不是堵死的墙。
-        # S4 起「我的」位默认就是 half，不用再拖一档。
         page.set_viewport_size({"width": 390, "height": 420})
-        page.wait_for_timeout(400)
         page.click('[data-shell="dock"] [data-dock="mine"]')
         page.wait_for_timeout(500)
-        st = sheet_present(page)
-        record(
-            "前置：half 档下列表可滚动（内容高于容器）",
-            st["stop"] == "half" and st["bodyScrollable"],
-            f"档位={st['stop']} scrollHeight={st['bodyScrollH']} > clientHeight={st['bodyClientH']}:"
-            f" {st['bodyScrollable']}",
-        )
+        short = sheet_present(page)
         page.evaluate(
-            "() => { document.querySelector('[data-sheet-body]').scrollTop = 60; }"
+            "() => { const body = document.querySelector('[data-sheet-body]'); body.scrollTop = 100; }"
         )
-        page.wait_for_timeout(200)
-        sheet_drag(page, -150, target="body")
-        st = sheet_present(page)
-        # 判定只看「整体拖拽有没有被启动」：档位没变 + 面板没位移。
-        # （拖拽过程中列表自身会不会被浏览器带着滚（命中测试 / 选择自动滚）与门无关，
-        #   所以 scrollTop 只写进 detail，不当断言条件。）
+        scrolled = sheet_present(page)
         record(
-            "列表已滚过顶部：从列表上拖不动抽屉（滚动优先，不抢手势）",
-            st["stop"] == "half" and st["transformY"] == 0,
-            f"档位={st['stop']} 面板位移={st['transformY']}px scrollTop 60 → {st['bodyScrollTop']}",
+            "S3：短屏内容由面板正文自然滚动，面板位置不变",
+            short["bodyScrollable"]
+            and scrolled["bodyScrollTop"] > 0
+            and scrolled["transformY"] == 0,
+            f"scrollTop={scrolled['bodyScrollTop']}px",
         )
-        page.evaluate(
-            "() => { document.querySelector('[data-sheet-body]').scrollTop = 0; }"
-        )
-        page.wait_for_timeout(200)
-        sheet_drag(page, -150, target="body")
-        st = sheet_present(page)
         record(
-            "反向对照：列表回到顶部后，同一手势能升档（half → full）",
-            st["stop"] == "full",
-            f"档位={st['stop']}",
+            "S3：面板打开时不造成横向溢出",
+            page.evaluate(
+                "() => document.documentElement.scrollWidth - document.documentElement.clientWidth"
+            ) <= 2,
         )
-
-        # 收尾：降回 peek 再关闭（后续 section 依赖「抽屉不在场」）
         page.keyboard.press("Escape")
-        page.wait_for_timeout(400)
-        page.keyboard.press("Escape")
-        page.wait_for_timeout(500)
+        page.wait_for_timeout(450)
         page.set_viewport_size({"width": 390, "height": 844})
-        page.wait_for_timeout(400)
-
-        # ---- 不回归：桌面端不渲染该组件；抽屉对横向溢出零贡献 ----
-        page.set_viewport_size({"width": 1440, "height": 900})
         page.goto(f"{BASE}/projects", wait_until="networkidle")
-        page.wait_for_timeout(1500)
-        desk = page.evaluate(
-            """() => ({ root: document.querySelectorAll('[data-sheet-root]').length,
-                        panel: document.querySelectorAll('[data-sheet]').length,
-                        dock: getComputedStyle(document.querySelector('[data-shell="dock"]')).display })"""
-        )
-        record(
-            "1440px：抽屉组件不渲染（root / panel 都不在 DOM 里）",
-            desk["root"] == 0 and desk["panel"] == 0 and desk["dock"] == "none",
-            f"root={desk['root']} panel={desk['panel']} dock.display={desk['dock']}",
-        )
-
-        page.set_viewport_size({"width": 390, "height": 844})
-        page.goto(f"{BASE}/costs", wait_until="networkidle")
-        page.wait_for_timeout(1500)
-        ov_closed = page.evaluate(
-            "() => document.documentElement.scrollWidth - document.documentElement.clientWidth"
-        )
-        page.click('[data-shell="dock"] [data-dock="costs"]')
-        page.wait_for_timeout(500)
-        sheet_drag(page, -(SWIPE_UP + 80))  # half
-        sheet_drag(page, -(SWIPE_UP + 80))  # full
-        st = sheet_present(page)
-        ov_open = page.evaluate(
-            "() => document.documentElement.scrollWidth - document.documentElement.clientWidth"
-        )
-        record(
-            "抽屉开到 full：整页仍无横向溢出（对溢出零贡献）",
-            st["stop"] == "full" and ov_open <= 2 and ov_open == ov_closed,
-            f"关闭时={ov_closed}px 打开时={ov_open}px",
-        )
-        page.keyboard.press("Escape")
-        page.wait_for_timeout(400)
-        page.keyboard.press("Escape")
-        page.wait_for_timeout(600)
+        page.wait_for_timeout(800)
 
         # ============ S4：5 个抽屉的内容与权限入口（D1/D3） ============
         # 契约：方案文档 §3（IA 与各 Dock 位对应）+ §4.1。断言只走 data-* 契约表面与
@@ -1044,10 +747,6 @@ def main() -> int:
         def close_sheet() -> None:
             page.keyboard.press("Escape")
             page.wait_for_timeout(400)
-            if sheet_state(page) is not None:
-                # half / full 经一次 Esc 只降到 peek，再来一次才收起
-                page.keyboard.press("Escape")
-                page.wait_for_timeout(500)
 
         # 工作台：5 张快捷跳转卡（待办 / 待填报 / 逾期 / 里程碑 / 本月支出）
         open_dock("dashboard")
@@ -1127,13 +826,13 @@ def main() -> int:
         page.goto(f"{BASE}/projects", wait_until="networkidle")
         page.wait_for_timeout(800)
 
-        # 我的（D3）：默认 half + 账号卡 + 管理入口（仅管理员）+ 账号操作
+        # 我的（D3）：同一档面板 + 账号卡 + 管理入口（仅管理员）+ 账号操作
         mine_st = open_dock("mine")
         mine_txt = sheet_text()
         record(
-            "S4：我的抽屉默认 half 档（§3 表格）",
-            mine_st["stop"] == "half",
-            f"档位={mine_st['stop']}",
+            "S4：我的入口同样以单档面板打开",
+            mine_st["stop"] == "panel",
+            f"面板={mine_st['stop']}",
         )
         record(
             "S4/D3：管理员「我的」抽屉出现审批中心 / 系统管理 / 通讯录",
@@ -1426,7 +1125,7 @@ def main() -> int:
                 all(x not in side2 for x in ADMIN_ONLY_LABELS),
                 side2[:90],
             )
-            # S4/D3：非管理员的「我的」抽屉 —— 默认 half、有账号卡与账号操作，
+            # S4/D3：非管理员的「我的」面板有账号卡与账号操作，
             # 但三个管理入口一个都不出现（不展示必然 403 的入口）
             page2.click('[data-shell="dock"] [data-dock="mine"]')
             page2.wait_for_timeout(1500)
@@ -1438,9 +1137,9 @@ def main() -> int:
                 page2.locator("[data-sheet-body]").inner_text().split()
             )
             record(
-                "S4：非管理员「我的」抽屉同样默认 half",
-                mine2 == "half",
-                f"档位={mine2}",
+                "S4：非管理员「我的」同样打开单档面板",
+                mine2 == "panel",
+                f"面板={mine2}",
             )
             record(
                 "S4/D3：非管理员「我的」抽屉里没有审批中心 / 系统管理 / 通讯录",
@@ -1452,8 +1151,6 @@ def main() -> int:
                 "修改密码" in mine2_txt and "退出登录" in mine2_txt,
                 mine2_txt[-60:],
             )
-            page2.keyboard.press("Escape")
-            page2.wait_for_timeout(500)
             page2.keyboard.press("Escape")
             page2.wait_for_timeout(500)
             page2.click('[data-shell="dock"] [data-dock="dashboard"]')

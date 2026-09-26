@@ -34,7 +34,6 @@ function toneFor(status: string): "default" | "brand" | "warn" | "danger" {
 }
 
 export default function ProjectsSheet({
-    variant,
     onSelect,
 }: SheetContentProps) {
     const { me } = useMe();
@@ -96,7 +95,6 @@ export default function ProjectsSheet({
                 paged.items.map((p) => (
                     <SheetCard
                         key={p.id}
-                        variant={variant}
                         href={`/projects/${p.id}`}
                         title={p.name}
                         note={`${p.code} · ${projectStatusLabel(p.status)} · ${p.owner_name || userName(p.owner_id)}`}

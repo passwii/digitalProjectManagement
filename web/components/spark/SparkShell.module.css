@@ -272,7 +272,7 @@
     visibility: hidden;
     box-shadow: 22px 0 48px rgba(0, 0, 0, .36);
     transform: translateX(-105%);
-    transition: width 190ms ease, flex-basis 190ms ease, transform 190ms ease, visibility 190ms;
+    transition: transform 190ms ease, visibility 190ms;
   }
   .mobileOpen .sidebar { visibility: visible; transform: translateX(0); transition-delay: 0ms; }
   .collapsed .sidebar { width: min(286px, 84vw); flex-basis: min(286px, 84vw); }
@@ -287,6 +287,10 @@
   .collapsed .navLink { justify-content: flex-start; padding: 0 11px; }
   .collapsed .collapseButton { min-height: 33px; }
   .collapsed .collapseButton svg { transform: none; }
+  .brand { padding-top: env(safe-area-inset-top, 0px); }
+  .navLink,
+  .collapseButton { min-height: 44px; }
+  .sidebarFoot { padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px)); }
   .backdrop {
     position: fixed;
     inset: 0;
@@ -296,11 +300,11 @@
     background: rgba(1, 4, 10, .65);
     backdrop-filter: blur(2px);
   }
-  .topbar { min-height: 54px; gap: 10px; padding: 0 13px; }
+  .topbar { min-height: calc(54px + env(safe-area-inset-top, 0px)); gap: 10px; padding: env(safe-area-inset-top, 0px) 13px 0; }
   .mobileMenuButton {
     display: grid;
-    width: 36px;
-    height: 36px;
+    width: 44px;
+    height: 44px;
     flex: none;
     place-items: center;
     border: 1px solid var(--spark-line);
@@ -320,7 +324,7 @@
   .returnLink span { display: none; }
   .regionStatus strong { font-size: 9px; }
   .locationPin { font-size: 13px; }
-  .returnLink { width: 29px; min-height: 29px; justify-content: center; padding: 0; border-left: 0; }
+  .returnLink { width: 44px; min-height: 44px; justify-content: center; padding: 0; border-left: 0; }
   .content { padding: 16px 13px calc(24px + env(safe-area-inset-bottom, 0px)); }
 }
 

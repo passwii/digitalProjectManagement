@@ -35,12 +35,14 @@ import {
 import { PROJECT_TABS, parseProjectTab, type ProjectTab } from "@/lib/projectTabs";
 import Badge from "@/components/ui/Badge";
 import Empty from "@/components/ui/Empty";
+import { CardItem, CardList, DesktopTable } from "@/components/ui/CardList";
 import { LoadingBlock } from "@/components/ui/PageState";
 import FileDropZone from "@/components/ui/FileDropZone";
 import { useToast } from "@/components/ui/Toast";
 import MotionTabs from "@/components/motion/MotionTabs";
 import { useActivity } from "@/lib/useActivity";
 import { isAbortError } from "@/lib/useAsyncData";
+import { linkAbortSignal, refreshAbortMessage, useRegisterPageRefresh } from "@/lib/pageRefresh";
 import { useUploadQueue } from "@/lib/useUploadQueue";
 import ProjectFormDialog from "../ProjectFormDialog";
 import AttachmentPreviewDialog from "@/components/ui/AttachmentPreviewDialog";
@@ -136,12 +138,21 @@ function ProjectDetail({ pid }: { pid: number }) {
     [attachments],
   );
 
-  const loadAll = useCallback(async ({ trackActivity = true }: { trackActivity?: boolean } = {}) => {
+  const loadAll = useCallback(async ({
+    trackActivity = true,
+    signal: externalSignal,
+  }: { trackActivity?: boolean; signal?: AbortSignal } = {}): Promise<string | null> => {
     loadControllerRef.current?.abort();
     auxiliaryControllerRef.current?.abort();
     auxiliaryControllerRef.current = null;
     const controller = new AbortController();
+    const detach = linkAbortSignal(externalSignal, controller);
     const loadId = ++loadSeqRef.current;
+    const reportAbort = () => {
+      const message = refreshAbortMessage(externalSignal);
+      if (message && loadSeqRef.current === loadId) setErr(message);
+      return message;
+    };
     loadControllerRef.current = controller;
     const finish = trackActivity
       ? beginActivity({ label: "加载项目档案", scope: "content" })
@@ -149,6 +160,7 @@ function ProjectDetail({ pid }: { pid: number }) {
     setLoading(true);
     setErr("");
     try {
+      if (controller.signal.aborted) return reportAbort();
       const [p, assetRows, contractRows, changeRows, taskRows, expenseRows] = await Promise.all([
         projectsApi.get(pid, controller.signal),
         projectsApi.attachments(pid, "", controller.signal),
@@ -157,7 +169,8 @@ function ProjectDetail({ pid }: { pid: number }) {
         tasksApi.list(`?project_id=${pid}&page=1&size=100&sort=-plan_end`, controller.signal),
         expensesApi.list(`?project_id=${pid}&page=1&size=100&sort=-exp_date`, controller.signal),
       ]);
-      if (controller.signal.aborted || loadSeqRef.current !== loadId) return;
+      if (loadSeqRef.current !== loadId) return null;
+      if (controller.signal.aborted) return reportAbort();
       const pagedTasks = unwrapPaged<Task>(taskRows);
       const pagedExpenses = unwrapPaged<Expense>(expenseRows);
       setProject(p);
@@ -183,7 +196,8 @@ function ProjectDetail({ pid }: { pid: number }) {
           }
         }),
       );
-      if (controller.signal.aborted || loadSeqRef.current !== loadId) return;
+      if (loadSeqRef.current !== loadId) return null;
+      if (controller.signal.aborted) return reportAbort();
       const next: Record<number, string> = {};
       const nextFailures: Record<number, TransferFailure> = {};
       for (const { id, url, failure } of outcomes) {
@@ -196,15 +210,33 @@ function ProjectDetail({ pid }: { pid: number }) {
       }
       setPreviews(next);
       setPreviewFailures(nextFailures);
+      return null;
     } catch (e) {
-      if (controller.signal.aborted || loadSeqRef.current !== loadId || isAbortError(e)) return;
-      setErr(errText(e));
+      if (loadSeqRef.current !== loadId) return null;
+      if (controller.signal.aborted) return reportAbort();
+      if (isAbortError(e)) return null;
+      const message = errText(e);
+      setErr(message);
+      return message;
     } finally {
+      detach();
       if (loadSeqRef.current === loadId) setLoading(false);
       finish();
       if (loadControllerRef.current === controller) loadControllerRef.current = null;
     }
   }, [beginActivity, fetchPreviewUrl, pid]);
+
+  useRegisterPageRefresh(async (signal) => {
+    const editing = project !== null && content !== (project.description || "");
+    if (
+      editing || saveState === "saving" || busy || imageUploads.uploading ||
+      documentUploads.uploading || contractUploads.uploading
+    ) {
+      throw new Error("有未保存的内容，请保存后再刷新");
+    }
+    const message = await loadAll({ signal });
+    if (message) throw new Error(message);
+  });
 
   useEffect(() => {
     loadAll();
@@ -650,7 +682,19 @@ function ProjectDetail({ pid }: { pid: number }) {
           {tasks.length === 0 ? (
             <Empty title="暂无进度" hint="点击「添加进度」记录第一条项目进展。" />
           ) : (
-            <div className="table-scroll">
+            <>
+            <CardList label="项目进度记录">
+              {tasks.map((t) => (
+                <CardItem
+                  key={t.id}
+                  title={t.name}
+                  code={fmtDate(t.plan_end || t.plan_start)}
+                  fields={[{ label: "记录人", value: userName(t.owner_id) }]}
+                  actions={<button className="btn-ghost btn-xs" onClick={() => { setEditingTask(t); setNodeOpen(true); }}>编辑</button>}
+                />
+              ))}
+            </CardList>
+            <DesktopTable>
               <table className="grid">
                 <thead><tr><th>进度节点时间</th><th>进度关键内容</th><th>记录人</th><th className="no-print" /></tr></thead>
                 <tbody>
@@ -666,7 +710,8 @@ function ProjectDetail({ pid }: { pid: number }) {
                   ))}
                 </tbody>
               </table>
-            </div>
+            </DesktopTable>
+            </>
           )}
         </section>
       )}
@@ -683,7 +728,22 @@ function ProjectDetail({ pid }: { pid: number }) {
           {expenses.length === 0 ? (
             <Empty title="暂无支出" hint="点击「+ 支出」登记项目关联费用。" />
           ) : (
-            <div className="table-scroll">
+            <>
+            <CardList label="项目支出">
+              {expenses.map((x) => (
+                <CardItem
+                  key={x.id}
+                  title={`${fmtMoney(x.amount)} 元`}
+                  code={fmtDate(x.exp_date)}
+                  badges={<Badge status={expenseStatusLabel(x.status)} tone={expenseTone(x.status)} />}
+                  fields={[
+                    { label: "人员", value: x.subject },
+                    { label: "费用说明", value: x.note || "-" },
+                  ]}
+                />
+              ))}
+            </CardList>
+            <DesktopTable>
               <table className="grid">
                 <thead><tr><th>日期</th><th>人员</th><th className="num">金额</th><th>费用说明</th><th>状态</th></tr></thead>
                 <tbody>
@@ -698,7 +758,8 @@ function ProjectDetail({ pid }: { pid: number }) {
                   ))}
                 </tbody>
               </table>
-            </div>
+            </DesktopTable>
+            </>
           )}
         </section>
       )}

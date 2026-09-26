@@ -16,7 +16,6 @@ import { ToastProvider } from "@/components/ui/Toast";
 import ActivityBar from "@/components/motion/ActivityBar";
 import MotionProvider from "@/components/motion/MotionProvider";
 import MobileDock from "@/components/mobile/MobileDock";
-import PullToRefresh from "@/components/mobile/PullToRefresh";
 import s from "@/components/ui/Shell.module.css";
 
 /**
@@ -533,13 +532,6 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
           <ActivityBar />
         </header>
         <main className={s.content} id="main-content" tabIndex={-1}>
-          {/*
-            自建下拉刷新（BLF-1127/S6 §6）：standalone 下没有浏览器原生刷新。
-            只在页面到顶时接管下拉手势，其它情况放行 —— 抽屉手势是 portal 到
-            body 的，不在这个子树里，不受影响。onRefresh 用 router.refresh()
-            重跑 RSC（不断网写缓存：失败时指示器收起，口径仍归各页面的 LoadFailed）。
-          */}
-          <PullToRefresh onRefresh={async () => { router.refresh(); }}>
           <div className={s.contentInner}>
             <m.div
               key={pathname}
@@ -551,7 +543,6 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
               {children}
             </m.div>
           </div>
-          </PullToRefresh>
         </main>
       </div>
 

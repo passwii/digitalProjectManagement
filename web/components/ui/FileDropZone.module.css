@@ -148,6 +148,13 @@
 }
 .row_error, .row_rejected { background: var(--danger-bg); }
 
+@media (max-width: 767px) {
+  .button,
+  .retry {
+    min-height: var(--m-tap);
+  }
+}
+
 /* ---- 失败原因的分层标记（502 可重试 / 404 已丢失 / 400 不合规） ---- */
 .failRow {
   flex: 1;

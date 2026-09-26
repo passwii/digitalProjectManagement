@@ -391,13 +391,18 @@
   .subjectList { grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 22px; }
 }
 
-@media (max-width: 640px) {
+@media (max-width: 767px) {
   .commandHeader[data-page-header="true"] { display: block; min-height: 0; padding-bottom: 16px; }
   .commandHeader :global([data-page-header-actions="true"]) { margin-top: 16px; padding: 14px 0 0; border-top: 1px solid var(--dash-line-soft); border-left: 0; }
+  .headerButton,
+  .approvalButton { min-height: 44px; }
   .headerState { margin-right: auto; }
   .pageIntro { margin-left: 24px; font-size: 12px; }
-  .readoutRail { display: flex; overflow-x: auto; padding: 0 14px; scrollbar-width: thin; }
-  .readoutRail > * { min-width: 158px; flex: 0 0 158px; padding-right: 14px !important; border-right: 1px solid var(--dash-line-soft) !important; border-top: 0 !important; }
+  .readoutRail { padding: 0 14px; }
+  .readoutRail > * { min-width: 0; padding: 12px 10px 12px 0 !important; border-right: 0 !important; }
+  .readoutRail > *:nth-child(odd) { border-right: 1px solid var(--dash-line-soft) !important; }
+  .readoutRail > *:nth-child(even) { padding-left: 12px !important; }
+  .readoutRail > *:nth-child(n + 3) { border-top: 1px solid var(--dash-line-soft) !important; }
   .zoneHeader { padding: 15px 14px 13px; }
   .zoneHeader h2 { font-size: 16px; }
   .zoneCode { font-size: 9px; }

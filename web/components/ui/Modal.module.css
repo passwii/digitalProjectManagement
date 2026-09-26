@@ -132,6 +132,13 @@
   .head { padding-top: calc(12px + env(safe-area-inset-top, 0px)); }
 }
 
+@media (max-width: 767px) {
+  .close {
+    width: var(--m-tap);
+    height: var(--m-tap);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .overlay,
   .panel,
