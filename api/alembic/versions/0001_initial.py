@@ -1,7 +1,7 @@
-"""首个 revision：只建立最早版本的 20 张表。"""
+"""首个 revision：按冻结的历史结构建立最早版本的 20 张表。"""
 from alembic import op
 
-from api.core.database import Base
+from api.alembic.initial_schema import Base as InitialBase
 
 revision = "0001_initial"
 down_revision = None
@@ -38,12 +38,15 @@ def initial_tables():
 
 
 def _metadata_tables():
-    return [Base.metadata.tables[name] for name in initial_tables()]
+    return [initial_metadata.tables[name] for name in initial_tables()]
+
+
+initial_metadata = InitialBase.metadata
 
 
 def upgrade():
-    Base.metadata.create_all(bind=op.get_bind(), tables=_metadata_tables())
+    initial_metadata.create_all(bind=op.get_bind(), tables=_metadata_tables())
 
 
 def downgrade():
-    Base.metadata.drop_all(bind=op.get_bind(), tables=_metadata_tables())
+    initial_metadata.drop_all(bind=op.get_bind(), tables=_metadata_tables())

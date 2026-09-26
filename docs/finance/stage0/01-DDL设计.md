@@ -11,8 +11,8 @@ CREATE TABLE account_books (
   id            SERIAL PRIMARY KEY,
   code          VARCHAR(32)  NOT NULL UNIQUE,          -- 如 AB-2026-001
   name          VARCHAR(128) NOT NULL,
-  base_currency CHAR(3)      NOT NULL DEFAULT 'CNY',  -- 单币种优先
-  currencies    JSONB        NOT NULL DEFAULT '["CNY"]', -- 多币种预留（P2-D 启用）
+  base_currency CHAR(3)      NOT NULL DEFAULT 'CNY',  -- 产品范围仅人民币 CNY
+  currencies    JSONB        NOT NULL DEFAULT '["CNY"]', -- 既有字段保留兼容，不启用多币种
   fiscal_year_start CHAR(5)  NOT NULL DEFAULT '01-01', -- 会计年度起始（月-日）
   status        VARCHAR(16)  NOT NULL DEFAULT 'active', -- active/archived
   created_by    INTEGER      REFERENCES users(id),
