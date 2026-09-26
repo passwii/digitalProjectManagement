@@ -1,5 +1,6 @@
 """P0-B regression tests for the finance voucher engine."""
 
+from datetime import date, timedelta
 from decimal import Decimal
 import io
 import time
@@ -1093,6 +1094,54 @@ def test_fifo_collection_cannot_cross_receivable_accounts_in_one_voucher(client,
             ARAPAllocation.account_book_id == book["id"],
             ARAPAllocation.target_id.in_([first["id"], second["id"]]),
         ).count() == 0
+
+
+def test_fifo_collection_selects_account_by_posted_voucher_date(client):
+    headers = _auth(client, "admin", "admin123456")
+    book = _book(client, headers, "AR-FIFO-VOUCHER-DATE")
+    scoped = _scoped(headers, book)
+    accounts = _accounts(client, scoped)
+    period = client.get("/api/v1/finance/periods", headers=scoped).json()[0]
+    start_date = date.fromisoformat(period["start_date"])
+    customer = client.post("/api/v1/finance/auxiliary-items", headers=scoped, json={
+        "kind": "customer", "code": "FIFO-VOUCHER-DATE-C01", "name": "凭证日期客户",
+    }).json()
+    other_account = client.post("/api/v1/finance/accounts", headers=scoped, json={
+        "code": "11220102", "name": "应收账款-国内客户-二类", "direction": "D", "category": "资产",
+        "parent_id": accounts["112201"]["id"], "aux_flags": {"customer": True},
+    })
+    assert other_account.status_code == 200, other_account.text
+    first = _create_arap_document(
+        client, scoped, period, customer["id"], accounts["11220101"]["id"],
+        accounts["6001"]["id"], "10.00", "receivable", (start_date + timedelta(days=1)).isoformat(),
+    )
+    second = _create_arap_document(
+        client, scoped, period, customer["id"], other_account.json()["id"],
+        accounts["6001"]["id"], "20.00", "receivable", (start_date + timedelta(days=2)).isoformat(),
+    )
+    first_date = (start_date + timedelta(days=20)).isoformat()
+    second_date = (start_date + timedelta(days=10)).isoformat()
+    for item, voucher_date in ((first, first_date), (second, second_date)):
+        edited = client.patch(
+            f"/api/v1/finance/vouchers/{item['voucher']['id']}",
+            headers=scoped,
+            json={"voucher_date": voucher_date},
+        )
+        assert edited.status_code == 200, edited.text
+        _post_arap_voucher(client, scoped, item["voucher"]["id"])
+
+    response = client.post("/api/v1/finance/receivable-collections", headers=scoped, json={
+        "period_id": period["id"], "transaction_date": period["end_date"],
+        "customer_id": customer["id"], "amount": "15.00",
+        "cash_account_id": accounts["10020101"]["id"], "cashflow_item": "C01",
+        "summary": "按实际凭证日期先进先出",
+    })
+
+    assert response.status_code == 200, response.text
+    assert response.json()["allocations"] == [{"receivable_id": second["id"], "amount": "15.00"}]
+    items = {item["id"]: item for item in client.get("/api/v1/finance/receivables", headers=scoped).json()["items"]}
+    assert items[first["id"]]["applied_amount"] == "0.00"
+    assert items[second["id"]]["applied_amount"] == "15.00"
 
 
 def test_payable_aging_buckets_and_over_collection_are_blocked(client):

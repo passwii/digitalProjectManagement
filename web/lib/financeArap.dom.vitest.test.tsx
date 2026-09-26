@@ -60,14 +60,14 @@ function renderSettlement(items: FinanceARAPItem[] = settlementItems) {
   const payment = vi.spyOn(financeApi, "collectReceivable").mockResolvedValue({
     allocations: [], voucher: { voucher_no: "收-0001" } as never,
   });
-  render(<ArapSettlementDialog
+  const view = render(<ArapSettlementDialog
     open kind="receivable" book="BOOK-A" period={period}
     party={settlementParty} account={accounts[0]} outstanding="100.00"
     documents={items} accounts={[accounts[0], settlementAccount]} cashflows={[]}
     onClose={() => {}} onSaved={onSaved}
   />);
   fireEvent.change(screen.getByLabelText("交易日期"), { target: { value: "2026-09-26" } });
-  return { payment, onSaved };
+  return { payment, onSaved, ...view };
 }
 
 function fillPayment(amount: string) {
@@ -78,7 +78,7 @@ function fillPayment(amount: string) {
 describe("往来指定单据核销", () => {
   it("默认 FIFO 提交不带 allocations", async () => {
     const { payment } = renderSettlement();
-    expect(screen.getByText("按单据日期先进先出")).toBeTruthy();
+    expect(screen.getByText("按凭证日期先进先出")).toBeTruthy();
     fillPayment("50");
     fireEvent.click(screen.getByRole("button", { name: "登记收款" }));
     await waitFor(() => expect(payment).toHaveBeenCalledOnce());
@@ -115,6 +115,17 @@ describe("往来指定单据核销", () => {
     expect(screen.getByText("2026-09-20")).toBeTruthy();
     expect(screen.queryByText("记-凭证未来")).toBeNull();
     expect(screen.queryByText("记-凭证缺失")).toBeNull();
+  });
+
+  it("按实际凭证日期排序指定单据候选", () => {
+    const items: FinanceARAPItem[] = [
+      { ...settlementItems[0], id: 43, transaction_date: "2026-09-28", voucher_date: "2026-09-20", voucher_no: "记-凭证早" },
+      { ...settlementItems[0], id: 44, transaction_date: "2026-09-03", voucher_date: "2026-09-22", voucher_no: "记-凭证晚" },
+    ];
+    renderSettlement(items);
+    fireEvent.click(screen.getByLabelText("指定单据"));
+    const labels = screen.getAllByLabelText(/本次核销额/).map((input) => input.closest("label")?.textContent?.trim());
+    expect(labels).toEqual(["本次核销额 · 记-凭证早", "本次核销额 · 记-凭证晚"]);
   });
 
   it("拆分金额合计等于收款额时发送正金额目标明细", async () => {

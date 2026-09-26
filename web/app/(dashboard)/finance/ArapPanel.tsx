@@ -255,7 +255,7 @@ export default function ArapPanel({
       <div className="section-head">
         <div>
           <h2>往来台账</h2>
-          <p>按当前账套查看所有期间的应收应付；收付款可按单据日期先进先出，或指定同主体、同科目的单据核销。</p>
+          <p>按当前账套查看所有期间的应收应付；收付款可按凭证日期先进先出，或指定同主体、同科目的单据核销。</p>
         </div>
         <div className="row-actions">
           <button className="btn-ghost" onClick={reload}>刷新</button>

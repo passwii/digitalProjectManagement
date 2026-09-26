@@ -832,7 +832,7 @@ def _apply_arap_payment(kind: str, body: ARAPPaymentIn, book: AccountBook, db: S
         if len(set(target_ids)) != len(target_ids):
             _error(400, "F-ARAP-INVALID", "核销目标不能重复")
     candidate_query = (
-        db.query(ARAPTransaction)
+        db.query(ARAPTransaction, Voucher.voucher_date)
         .join(Voucher, Voucher.id == ARAPTransaction.voucher_id)
         .filter(
             ARAPTransaction.account_book_id == book.id,
@@ -856,7 +856,9 @@ def _apply_arap_payment(kind: str, body: ARAPPaymentIn, book: AccountBook, db: S
         candidate_query = candidate_query.filter(ARAPTransaction.account_id == body.account_id)
     if manual:
         candidate_query = candidate_query.filter(ARAPTransaction.id.in_(target_ids))
-    candidates = candidate_query.order_by(ARAPTransaction.transaction_date, ARAPTransaction.id).with_for_update(of=ARAPTransaction).all()
+    candidate_rows = candidate_query.order_by(ARAPTransaction.transaction_date, ARAPTransaction.id).with_for_update(of=ARAPTransaction).all()
+    candidates = [transaction for transaction, _voucher_date in candidate_rows]
+    voucher_dates = {transaction.id: voucher_date for transaction, voucher_date in candidate_rows}
     # Recheck after taking the target-row locks. A reversal draft can be created
     # while this request waits for one of those locks, after the SQL predicate ran.
     active_reversal_source_ids = {
@@ -892,8 +894,10 @@ def _apply_arap_payment(kind: str, body: ARAPPaymentIn, book: AccountBook, db: S
         if total != amount:
             _error(400, "F-ARAP-INVALID", "核销明细合计必须等于收付款金额")
     else:
+        candidates.sort(key=lambda target: (voucher_dates[target.id], target.id))
         remaining = amount
-        # A single cash voucher has one counterparty account. Keep FIFO within it.
+        # A single cash voucher has one counterparty account. Keep FIFO within it,
+        # using the posted voucher date rather than the original ARAP input date.
         selected_account_id = next(
             (target.account_id for target in candidates if Decimal(target.amount) > Decimal(target.applied_amount)),
             None,

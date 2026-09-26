@@ -294,7 +294,7 @@ export function ArapSettlementDialog({
     item.party_id === party?.id && item.account_id === account?.id &&
     item.voucher_status === "posted" && !item.is_reversing && !item.is_reversed &&
     item.voucher_date !== null && item.voucher_date <= date && (toCents(item.outstanding) ?? BigInt(0)) > BigInt(0),
-  ).sort((a, b) => a.transaction_date.localeCompare(b.transaction_date) || a.id - b.id), [documents, party?.id, account?.id, date]);
+  ).sort((a, b) => (a.voucher_date ?? "").localeCompare(b.voucher_date ?? "") || a.id - b.id), [documents, party?.id, account?.id, date]);
   const allocationTotal = eligibleDocuments.reduce(
     (sum, item) => sum + (toCents(allocationAmounts[item.id] ?? "") ?? BigInt(0)), BigInt(0),
   );
@@ -455,7 +455,7 @@ export function ArapSettlementDialog({
       </div>
       <fieldset style={{ marginTop: 16 }}>
         <legend className="field-label">核销方式</legend>
-        <label><input type="radio" name="allocation-mode" checked={allocationMode === "fifo"} onChange={() => setAllocationMode("fifo")} /> 按单据日期先进先出</label>
+        <label><input type="radio" name="allocation-mode" checked={allocationMode === "fifo"} onChange={() => setAllocationMode("fifo")} /> 按凭证日期先进先出</label>
         <label style={{ marginLeft: 16 }}><input type="radio" name="allocation-mode" checked={allocationMode === "manual"} onChange={() => setAllocationMode("manual")} /> 指定单据</label>
       </fieldset>
       {allocationMode === "manual" && (

@@ -76,13 +76,11 @@ class ARAPPaymentIn(BaseModel):
     allocations: list[ARAPAllocationIn] | None = None
 ```
 
-- [x] 在 `_apply_arap_payment` 中先拒绝空明细和重复 ID；候选查询按现有账套、类别、主体、科目、已过账和凭证日期条件筛选，手工模式再限定目标 ID，并以 `(transaction_date, id)` 顺序只锁定 `ARAPTransaction` 行。
+- [x] 在 `_apply_arap_payment` 中先拒绝空明细和重复 ID；候选查询按现有账套、类别、主体、科目、已过账和实际凭证日期条件筛选，按 `(transaction_date, id)` 顺序只锁定 `ARAPTransaction` 行。锁定后，FIFO 按 `(voucher_date, id)` 顺序分配。
 - [x] 锁定后复查非作废冲销凭证；手工目标必须全部存在于当前合格候选集合。每笔金额用 `_money` 归一并要求大于零；每笔不超过当前未核销额；明细和必须等于收付款金额。
-- [x] FIFO 模式继续执行原日期顺序分配。手工模式将校验后的目标/金额转换为现有 `(target, amount)` 列表，再复用凭证创建、`applied_amount` 更新、`ARAPAllocation` 写入和审计路径。
+- [x] FIFO 模式按实际凭证日期、ID 顺序在单一科目内分配。手工模式将校验后的目标/金额转换为现有 `(target, amount)` 列表，再复用凭证创建、`applied_amount` 更新、`ARAPAllocation` 写入和审计路径。
 - [x] 所有业务拒绝发生在创建凭证或修改目标余额之前，并使用结构化错误码；无效目标统一提示“目标单据不符合当前核销条件”，不泄露其他账套或主体数据。
 - [x] 在隔离 PostgreSQL 上重跑任务一新增测试，确认全部通过；重跑既有 FIFO、冲销释放、并发锁、账龄和对账用例。
-
-- [ ] 等待确认旧 API 在未传 `account_id` 时是否仍允许跨科目 FIFO；按确认结果更新契约、实现和回归。
 
 ### Task 3：增加 FIFO/指定单据前端操作
 
@@ -106,8 +104,9 @@ export interface FinanceARAPPaymentInput {
 ```
 
 - [x] 从 `ArapPanel` 将当前应收或应付明细传给 `ArapSettlementDialog`；对话框按主体、往来科目、凭证日期、`voucher_status === "posted"`、`is_reversing === false`、`is_reversed === false` 和正余额筛选目标。
-- [x] 对话框默认“按单据日期先进先出”；切换到“指定单据”后显示凭证号、日期、摘要、剩余额、本次核销额输入和合计/差额。
+- [x] 对话框默认“按凭证日期先进先出”；切换到“指定单据”后显示凭证号、日期、摘要、剩余额、本次核销额输入和合计/差额。
 - [x] 指定模式只提交正金额行；总额不等、超单据余额、无目标或无剩余额度时禁用提交并给出中文原因。交易日期变化时重新过滤候选并清除已输入的目标金额。
+- [x] 指定模式候选按实际凭证日期排序，并以“按凭证日期先进先出”明确默认 FIFO 日期口径。
 - [x] 成功时沿用现有成功提示和刷新流程；错误时保留用户输入并展示后端错误。FIFO 模式不发送 `allocations` 字段。
 - [x] 在 DOM 测试中覆盖默认 FIFO、手工候选过滤、拆分合计和 API payload；运行新增 DOM 测试确认 RED，再实现并确认 GREEN。
 
