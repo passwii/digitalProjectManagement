@@ -13,6 +13,26 @@ const expense = { id: 42, project_id: 7, subject: "材料采购", amount: "1234.
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 
 describe("项目支出入账", () => {
+  it("来源日期所属开放期间优先选中，改日时提醒会计判断", async () => {
+    vi.stubGlobal("localStorage", { getItem: () => null });
+    vi.stubGlobal("fetch", vi.fn(async (input: string) => {
+      const path = new URL(input).pathname;
+      return new Response(JSON.stringify(path.endsWith("/project-expenses")
+        ? { total: 1, page: 1, size: 20, items: [expense] }
+        : { total: 0, page: 1, size: 20, items: [] }), { status: 200 });
+    }));
+    const august: FinancePeriod = { id: 2, year: 2026, month: 8, period: "2026-08", status: "open", start_date: "2026-08-01", end_date: "2026-08-31", version: 1 };
+    render(<ProjectExpensePanel book={book} periods={[august, ...periods]} accounts={accounts} onVoucherCreated={() => {}} />);
+    fireEvent.click(await screen.findByRole("button", { name: "生成凭证" }));
+
+    expect((screen.getByLabelText("会计期间") as HTMLSelectElement).value).toBe("3");
+    const date = screen.getByLabelText("凭证日期") as HTMLInputElement;
+    expect(date.value).toBe("2026-09-12");
+    expect(screen.queryByText(/凭证日期与原支出日期不一致/)).toBeNull();
+    fireEvent.change(date, { target: { value: "2026-09-13" } });
+    expect(screen.getByText(/凭证日期与原支出日期不一致.*会计判断确认/)).toBeTruthy();
+  });
+
   it("可搜索项目选项并翻页选择第 21 项筛选来源支出", async () => {
     vi.stubGlobal("localStorage", { getItem: () => null });
     const seen: URL[] = [];
@@ -59,12 +79,16 @@ describe("项目支出入账", () => {
     expect(generate.closest("tr")?.textContent).toContain("火星项目");
     expect(generate.closest("tr")?.textContent).toContain("材料采购");
     expect(generate.closest("tr")?.textContent).toContain("1,234.50");
+    expect(generate.closest("tr")?.textContent).toContain("来源记录 #42");
     fireEvent.click(generate);
     expect(screen.getByText("研发账套")).toBeTruthy();
     expect(screen.getByText("设备耗材")).toBeTruthy();
+    expect(screen.getByText("来源记录 #42")).toBeTruthy();
     const amount = screen.getByLabelText("来源金额") as HTMLInputElement;
     expect(amount.readOnly).toBe(true);
     expect(amount.value).toBe("1,234.50");
+    expect((screen.getByLabelText("凭证日期") as HTMLInputElement).value).toBe("2026-09-12");
+    expect((screen.getByLabelText("摘要") as HTMLInputElement).value).toBe("P-007 · 来源记录 #42 · 材料采购");
     fireEvent.change(screen.getByLabelText("借方科目"), { target: { value: "10" } });
     fireEvent.change(screen.getByLabelText("贷方科目"), { target: { value: "11" } });
     const confirm = screen.getByRole("button", { name: "确认生成草稿凭证" }) as HTMLButtonElement;
@@ -75,9 +99,9 @@ describe("项目支出入账", () => {
     const submitted = requests.find((request) => request.path.endsWith("/project-expenses/42/voucher"));
     expect(submitted).toBeTruthy();
     expect(submitted?.init.headers).toMatchObject({ "X-Account-Book": "BOOK-A" });
-    expect(JSON.parse(String(submitted?.init.body))).toEqual({ period_id: 3, voucher_date: expect.any(String), summary: "材料采购", debit: { account_id: 10, aux_detail: {} }, credit: { account_id: 11, aux_detail: {} } });
+    expect(JSON.parse(String(submitted?.init.body))).toEqual({ period_id: 3, voucher_date: "2026-09-12", summary: "P-007 · 来源记录 #42 · 材料采购", debit: { account_id: 10, aux_detail: {} }, credit: { account_id: 11, aux_detail: {} } });
     expect(JSON.parse(String(submitted?.init.body))).not.toHaveProperty("amount");
     expect(JSON.parse(String(submitted?.init.body))).not.toHaveProperty("account_book_id");
-    expect(await screen.findByText(/草稿凭证已生成，需继续审核和过账/)).toBeTruthy();
+    expect(await screen.findByText(/记-0001.*草稿凭证已生成，需继续审核和过账/)).toBeTruthy();
   });
 });

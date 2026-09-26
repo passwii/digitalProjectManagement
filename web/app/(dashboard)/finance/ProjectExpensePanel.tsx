@@ -46,21 +46,20 @@ function conflictText(error: unknown): string {
   return errText(error);
 }
 
-function defaultDate(period: FinancePeriod): string {
-  const now = new Date();
-  const today = new Date(now.getTime() - now.getTimezoneOffset() * 60_000).toISOString().slice(0, 10);
-  return today >= period.start_date && today <= period.end_date ? today : period.start_date;
+function sourceDateInPeriod(expense: FinanceProjectExpense, period: FinancePeriod): boolean {
+  return !!expense.exp_date && expense.exp_date >= period.start_date && expense.exp_date <= period.end_date;
 }
 
 function ConversionDialog({ expense, book, periods, accounts, onClose, onSaved }: {
   expense: FinanceProjectExpense; book: FinanceBook; periods: FinancePeriod[]; accounts: FinanceAccount[];
-  onClose: () => void; onSaved: () => void;
+  onClose: () => void; onSaved: (voucherNo: string) => void;
 }) {
   const openPeriods = periods.filter((period) => period.status === "open");
-  const [periodId, setPeriodId] = useState(String(openPeriods[0]?.id ?? ""));
+  const matchingPeriod = openPeriods.find((period) => sourceDateInPeriod(expense, period));
+  const [periodId, setPeriodId] = useState(String(matchingPeriod?.id ?? ""));
   const period = openPeriods.find((item) => String(item.id) === periodId);
-  const [date, setDate] = useState(period ? defaultDate(period) : "");
-  const [summary, setSummary] = useState(expense.subject);
+  const [date, setDate] = useState(matchingPeriod ? expense.exp_date ?? "" : "");
+  const [summary, setSummary] = useState(`${expense.project.code} · 来源记录 #${expense.id} · ${expense.subject}`.slice(0, 255));
   const [debitId, setDebitId] = useState("");
   const [creditId, setCreditId] = useState("");
   const [auxValues, setAuxValues] = useState<Record<string, string>>({});
@@ -101,8 +100,8 @@ function ConversionDialog({ expense, book, periods, accounts, onClose, onSaved }
     setSaving(true);
     setError("");
     try {
-      await financeApi.createExpenseVoucher(book.code, expense.id, body);
-      onSaved();
+      const voucher = await financeApi.createExpenseVoucher(book.code, expense.id, body);
+      onSaved(voucher.voucher_no);
     } catch (cause) {
       setError(conflictText(cause));
     } finally {
@@ -139,12 +138,14 @@ function ConversionDialog({ expense, book, periods, accounts, onClose, onSaved }
     <div className="form-grid">
       <div className="field"><span className="field-label">当前账套</span><strong>{book.name}</strong><span className="tiny muted">{book.code}</span></div>
       <div className="field"><span className="field-label">来源项目</span><strong>{expense.project.name}</strong><span className="tiny muted">{expense.project.code}</span></div>
+      <div className="field"><span className="field-label">来源记录编号</span><strong>来源记录 #{expense.id}</strong></div>
       <div className="field"><span className="field-label">支出日期</span><span>{expense.exp_date || "-"}</span></div>
       <div className="field"><span className="field-label">审批状态</span><span>{expense.status === "approved" ? "已审批" : "异常审批"}</span></div>
       <div className="field span-2"><span className="field-label">支出说明</span><span>{expense.note || "-"}</span></div>
       <label className="field"><span className="field-label">来源金额</span><input value={money(expense.amount)} readOnly /></label>
-      <label className="field"><span className="field-label">会计期间</span><select value={periodId} onChange={(event) => { const next = openPeriods.find((item) => String(item.id) === event.target.value); setPeriodId(event.target.value); setDate(next ? defaultDate(next) : ""); }}><option value="">请选择开放期间</option>{openPeriods.map((item) => <option key={item.id} value={item.id}>{item.period}</option>)}</select></label>
+      <label className="field"><span className="field-label">会计期间</span><select value={periodId} onChange={(event) => { const next = openPeriods.find((item) => String(item.id) === event.target.value); setPeriodId(event.target.value); setDate(next && sourceDateInPeriod(expense, next) ? expense.exp_date ?? "" : ""); }}><option value="">请选择开放期间</option>{openPeriods.map((item) => <option key={item.id} value={item.id}>{item.period}</option>)}</select></label>
       <label className="field"><span className="field-label">凭证日期</span><input type="date" min={period?.start_date} max={period?.end_date} value={date} onChange={(event) => setDate(event.target.value)} /></label>
+      {date && expense.exp_date && date !== expense.exp_date && <p className="tiny muted span-2" role="status">凭证日期与原支出日期不一致，请按会计判断确认。</p>}
       <label className="field span-2"><span className="field-label">摘要</span><input value={summary} maxLength={255} onChange={(event) => setSummary(event.target.value)} /></label>
       {(["debit", "credit"] as const).map((side) => <div className="span-2 form-grid" key={side}>
         <label className="field span-2"><span className="field-label">{side === "debit" ? "借方科目" : "贷方科目"}</span><select value={side === "debit" ? debitId : creditId} onChange={(event) => { (side === "debit" ? setDebitId : setCreditId)(event.target.value); setAuxValues((values) => Object.fromEntries(Object.entries(values).filter(([key]) => !key.startsWith(`${side}.`)))); }}><option value="">请选择启用末级科目</option>{leaves.map((item) => <option key={item.id} value={item.id}>{item.code} · {item.name}</option>)}</select></label>
@@ -190,10 +191,11 @@ export default function ProjectExpensePanel({ book, periods, accounts, onVoucher
   const totalPages = Math.max(1, Math.ceil((expenses.data?.total ?? 0) / PAGE_SIZE));
   const openPeriods = periods.some((period) => period.status === "open");
 
-  function saved() {
+  function saved(voucherNo: string) {
     setSelected(null);
-    setNotice("草稿凭证已生成，需继续审核和过账");
-    toast.ok("草稿凭证已生成，需继续审核和过账");
+    const message = `${voucherNo}：草稿凭证已生成，需继续审核和过账`;
+    setNotice(message);
+    toast.ok(message);
     expenses.reload();
     onVoucherCreated();
   }
@@ -211,7 +213,7 @@ export default function ProjectExpensePanel({ book, periods, accounts, onVoucher
       <label className="toolbar-field"><span>结束日期</span><input type="date" value={dateTo} min={dateFrom || undefined} onChange={(event) => { setDateTo(event.target.value); setPage(1); }} /></label>
     </div>
     {expenses.firstLoad ? <LoadingBlock kpis={0} label="加载项目支出…" /> : expenses.error ? <LoadFailed message={expenses.error} onRetry={expenses.reload} /> : !expenses.data?.items.length ? <div className="card"><Empty title="没有匹配的项目支出" hint="调整项目、状态或日期筛选条件。" /></div> : <>
-      <div className="table-scroll"><table className="grid"><thead><tr><th>项目</th><th>支出</th><th>日期</th><th className="num">来源金额</th><th>审批状态</th><th>关联凭证</th><th>操作</th></tr></thead><tbody>{expenses.data.items.map((item) => <tr key={item.id}><td>{item.project.name}<span className="tiny muted"> · {item.project.code}</span></td><td>{item.subject}<span className="tiny muted">{item.note ? ` · ${item.note}` : ""}</span></td><td>{item.exp_date || "-"}</td><td className="num">{money(item.amount)}</td><td>{item.status === "approved" ? "已审批" : "异常审批"}</td><td>{voucherSummary(item.source_voucher_summary)}</td><td><button className="btn-xs btn-primary" disabled={!!item.source_voucher_summary || !openPeriods} title={!openPeriods ? "需要开放会计期间" : item.source_voucher_summary ? "此支出已经转换" : undefined} onClick={() => setSelected(item)}>生成凭证</button></td></tr>)}</tbody></table></div>
+      <div className="table-scroll"><table className="grid"><thead><tr><th>项目</th><th>支出</th><th>日期</th><th className="num">来源金额</th><th>审批状态</th><th>关联凭证</th><th>操作</th></tr></thead><tbody>{expenses.data.items.map((item) => <tr key={item.id}><td>{item.project.name}<span className="tiny muted"> · {item.project.code}</span></td><td>{item.subject}<span className="tiny muted"> · 来源记录 #{item.id}{item.note ? ` · ${item.note}` : ""}</span></td><td>{item.exp_date || "-"}</td><td className="num">{money(item.amount)}</td><td>{item.status === "approved" ? "已审批" : "异常审批"}</td><td>{voucherSummary(item.source_voucher_summary)}</td><td><button className="btn-xs btn-primary" disabled={!!item.source_voucher_summary || !openPeriods} title={!openPeriods ? "需要开放会计期间" : item.source_voucher_summary ? "此支出已经转换" : undefined} onClick={() => setSelected(item)}>生成凭证</button></td></tr>)}</tbody></table></div>
       <div className="row-actions"><span className="tiny muted">共 {expenses.data.total} 条 · 第 {page}/{totalPages} 页</span><button className="btn-ghost" disabled={page <= 1} onClick={() => setPage((current) => current - 1)}>上一页</button><button className="btn-ghost" disabled={page >= totalPages} onClick={() => setPage((current) => current + 1)}>下一页</button></div>
     </>}
     {selected && <ConversionDialog key={selected.id} expense={selected} book={book} periods={periods} accounts={accounts} onClose={() => setSelected(null)} onSaved={saved} />}
