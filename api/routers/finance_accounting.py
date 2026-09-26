@@ -547,9 +547,11 @@ def create_project_expense_voucher(
         _linked_expense_conflict(db, expense_id, book.id)
         if expense.status not in ("approved", "exception"):
             _error(400, "F-PROJECT-EXPENSE-STATUS", "项目支出尚未通过审批")
-        amount = Decimal(str(expense.amount)).quantize(Decimal("0.01"))
-        if not amount.is_finite() or amount <= 0:
+        amount = _money(expense.amount, "项目支出金额")
+        if amount <= 0:
             _error(400, "F-INVALID-AMOUNT", "项目支出金额必须大于零")
+        if amount >= Decimal("10000000000000000"):
+            _error(400, "F-INVALID-AMOUNT", "项目支出金额超出凭证可入账范围")
         debit_aux = _validate_project_expense_line(db, book.id, body.debit, "debit")
         credit_aux = _validate_project_expense_line(db, book.id, body.credit, "credit")
         numbers = db.query(Voucher.voucher_no).filter_by(account_book_id=book.id, period_id=period.id).all()
@@ -991,7 +993,10 @@ def update_voucher(voucher_id: int, body: VoucherPatch, x_account_book: str | No
     if body.summary is not None:
         voucher.summary = body.summary.strip()
     if body.lines is not None:
+        source_amount = voucher.total_debit if voucher.source_expense_id is not None else None
         _rebuild_entries(db, voucher, book.id, period, body.lines)
+        if source_amount is not None and voucher.total_debit != source_amount:
+            _error(400, "F-PROJECT-EXPENSE-AMOUNT-LOCKED", "项目支出来源凭证金额不可修改；如需重做请删除草稿并重新生成")
     voucher.updated_at = app_now()
     commit_audited(db, user.id, "update", "voucher", str(voucher.id), voucher.voucher_no)
     entries, accounts = _entries(db, voucher.id)

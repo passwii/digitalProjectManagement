@@ -136,6 +136,34 @@ def test_auxiliary_must_be_in_current_book_and_match_kind(client, db):
     assert client.post(f"/api/v1/finance/project-expenses/{ids[0]}/voucher", headers=headers, json=wrong).status_code == 200
 
 
+def test_source_amount_outside_voucher_numeric_range_is_rejected(client, db):
+    headers, period, accounts, ids, _, _ = _setup(client, db)
+    with db() as session:
+        session.query(Expense).filter_by(id=ids[0]).one().amount = 1e16
+        session.query(Expense).filter_by(id=ids[1]).one().amount = 1e30
+        session.commit()
+    for expense_id in ids[:2]:
+        response = client.post(f"/api/v1/finance/project-expenses/{expense_id}/voucher", headers=headers, json=_payload(period, accounts))
+        assert response.status_code == 400
+        assert response.json()["detail"]["code"] == "F-INVALID-AMOUNT"
+    assert client.get("/api/v1/finance/vouchers", headers=headers).json()["total"] == 0
+
+
+def test_source_voucher_draft_cannot_change_approved_amount(client, db):
+    headers, period, accounts, ids, _, _ = _setup(client, db)
+    created = client.post(f"/api/v1/finance/project-expenses/{ids[0]}/voucher", headers=headers, json=_payload(period, accounts)).json()
+    lines = [
+        {"account_id": accounts["1405"]["id"], "summary": "改动金额", "debit": "1.00", "credit": "0.00", "aux_detail": {}},
+        {"account_id": accounts["6001"]["id"], "summary": "改动金额", "debit": "0.00", "credit": "1.00", "aux_detail": {}},
+    ]
+    response = client.patch(f"/api/v1/finance/vouchers/{created['id']}", headers=headers, json={"lines": lines})
+    assert response.status_code == 400
+    assert response.json()["detail"]["code"] == "F-PROJECT-EXPENSE-AMOUNT-LOCKED"
+    with db() as session:
+        voucher = session.query(Voucher).filter_by(id=created["id"]).one()
+        assert str(voucher.total_debit) == "123.46"
+
+
 def test_project_expense_auxiliary_ids_are_strict_and_saved_as_integers(client, db):
     headers, period, accounts, ids, _, book = _setup(client, db)
     with db() as session:
