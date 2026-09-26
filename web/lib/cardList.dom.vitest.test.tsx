@@ -5,14 +5,14 @@
  * 测的是两页共用的接线，不测样式（CSS Modules 的类名是哈希的）：
  *   · 同一份数据进表格与卡片流：字段 / 操作一个不少（卡片化不得丢字段丢入口）；
  *   · 定位目标：表格行与卡片带相同的 `data-target-id`，命中卡带 `data-hit`；
- *   · 操作区截断冒泡：点「通过」不能顺带触发整卡 onSelect（进详情）；
+ *   · 操作区截断冒泡：点「编辑」不能顺带触发整卡 onSelect（进详情）；
  *   · `useVisibleTargetScroll`：只滚当前可见的那份（另一视图 `display: none`），
  *     一个都不可见时退回第一份、一个都没有时不崩。
  *
  * 查询一律走 `data-cardlist` / `data-card` 契约表面（与验收脚本同口径）。
  */
 import { describe, expect, it, vi, afterEach } from "vitest";
-import { cleanup, fireEvent, render } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import React from "react";
 
 import {
@@ -83,7 +83,7 @@ describe("CardList / CardItem（D4 卡片流）", () => {
   it("点操作按钮不触发整卡 onSelect（操作区截断冒泡）", () => {
     const onSelect = vi.fn();
     render(<CardList label="项目台账">{projectCard(onSelect)}</CardList>);
-    fireEvent.click(document.querySelector("[data-card] button")!);
+    fireEvent.click(screen.getByRole("button", { name: "编辑" }));
     expect(onSelect).not.toHaveBeenCalled();
   });
 

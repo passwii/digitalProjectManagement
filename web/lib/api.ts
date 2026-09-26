@@ -685,10 +685,14 @@ export interface FinanceARAPItem {
   summary: string;
   voucher_id: number | null;
   voucher_no: string | null;
+  voucher_status: FinanceVoucher["status"] | null;
+  is_reversed: boolean;
+  is_reversing: boolean;
 }
 
 export interface FinanceARAPAging {
   as_of: string;
+  age_basis: "voucher_date";
   total_outstanding: string;
   buckets: {
     "0_30": string;
@@ -696,6 +700,34 @@ export interface FinanceARAPAging {
     "61_90": string;
     "90_plus": string;
   };
+}
+
+export interface FinanceARAPStatementLine {
+  transaction_id: number;
+  transaction_date: string;
+  voucher_id: number;
+  voucher_no: string;
+  event_type: string;
+  summary: string;
+  direction: "increase" | "decrease";
+  amount: string;
+  balance_after: string;
+}
+
+export interface FinanceARAPStatement {
+  kind: "receivable" | "payable";
+  party_id: number;
+  account_id: number | null;
+  from_date: string;
+  to_date: string;
+  opening_balance: string;
+  period_increase: string;
+  period_decrease: string;
+  closing_balance: string;
+  total_lines: number;
+  page: number;
+  page_size: number;
+  items: FinanceARAPStatementLine[];
 }
 
 export interface FinanceARAPDocumentInput {
@@ -944,12 +976,22 @@ export const financeApi = {
     apiPostScoped<FinanceARAPPaymentResult>("/finance/receivable-collections", body, financeHeaders(book)),
   payPayable: (book: string, body: FinanceARAPPaymentInput) =>
     apiPostScoped<FinanceARAPPaymentResult>("/finance/payable-payments", body, financeHeaders(book)),
-  payableAging: (book: string, asOf: string, signal?: AbortSignal) =>
+  arapAging: (book: string, kind: "receivable" | "payable", asOf: string, signal?: AbortSignal) =>
     apiGetScoped<FinanceARAPAging>(
-      `/finance/payables/aging${buildQuery({ as_of: asOf })}`,
+      `/finance/${kind === "receivable" ? "receivables" : "payables"}/aging${buildQuery({ as_of: asOf })}`,
       financeHeaders(book),
       signal,
     ),
+  arapStatement: (
+    book: string,
+    kind: "receivable" | "payable",
+    params: { party_id: number; account_id?: number | null; from_date: string; to_date: string; page?: number; page_size?: number },
+    signal?: AbortSignal,
+  ) => apiGetScoped<FinanceARAPStatement>(
+    `/finance/${kind === "receivable" ? "receivables" : "payables"}/statement${buildQuery(params)}`,
+    financeHeaders(book),
+    signal,
+  ),
 };
 export interface Project {
   id: number;

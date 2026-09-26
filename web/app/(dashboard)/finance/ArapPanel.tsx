@@ -20,11 +20,13 @@ import {
   ArapSettlementDialog,
   type ArapDocumentKind,
 } from "./ArapDialogs";
+import ArapStatementDialog from "./ArapStatementDialog";
 
 type ArapView = "receivable" | "payable";
 type DialogState =
   | { type: "document"; kind: ArapDocumentKind }
   | { type: "settlement"; kind: ArapDocumentKind; partyId: number; accountId: number }
+  | { type: "statement"; kind: ArapDocumentKind; partyId: number; accountId: number }
   | { type: "auxiliary"; kind: FinanceAuxiliaryKind }
   | null;
 
@@ -97,9 +99,9 @@ export default function ArapPanel({
     };
   }, [book], { enabled: !!book, resetOnDepChange: true });
   const aging = useAsyncData(
-    (signal) => financeApi.payableAging(book, asOf, signal),
-    [book, asOf],
-    { enabled: !!book && view === "payable", resetOnDepChange: true },
+    (signal) => financeApi.arapAging(book, view, asOf, signal),
+    [book, view, asOf],
+    { enabled: !!book, resetOnDepChange: true },
   );
 
   const itemList = useMemo(
@@ -143,7 +145,7 @@ export default function ArapPanel({
     receivables.error ||
     payables.error ||
     auxiliaries.error ||
-    (view === "payable" ? aging.error : "");
+    aging.error;
   if (currentError) return <LoadFailed message={currentError} onRetry={reload} />;
 
   const firstLoad =
@@ -151,7 +153,7 @@ export default function ArapPanel({
     receivables.firstLoad ||
     payables.firstLoad ||
     auxiliaries.firstLoad ||
-    (view === "payable" && aging.firstLoad);
+    aging.firstLoad;
   if (firstLoad) return <LoadingBlock kpis={3} label="加载应收应付…" />;
 
   const currentItems = itemList;
@@ -183,17 +185,35 @@ export default function ArapPanel({
 
   function settlementAction(item: FinanceARAPItem, party?: FinanceAuxiliaryItem, account?: FinanceAccount) {
     if (cents(item.outstanding) <= BigInt(0)) return null;
-    const canSettle = Boolean(party && account && cents(outstandingFor(item.party_id, item.account_id)) > BigInt(0) && canWrite && paymentSetupReady);
+    const canSettle = Boolean(!item.is_reversed && !item.is_reversing && party && account && cents(outstandingFor(item.party_id, item.account_id)) > BigInt(0) && canWrite && paymentSetupReady);
     return (
       <button
         className="btn-xs btn-ghost"
         disabled={!canSettle}
-        title={!canWrite ? "需要开放会计期间" : !paymentSetupReady ? "需要维护现金/银行科目和现金流项目" : !party ? "缺少有效往来主体资料" : !account ? "缺少有效往来科目资料" : undefined}
+        title={item.is_reversed ? "原单已冲销" : item.is_reversing ? "原单冲销处理中，暂不能登记收付款" : !canWrite ? "需要开放会计期间" : !paymentSetupReady ? "需要维护现金/银行科目和现金流项目" : !party ? "缺少有效往来主体资料" : !account ? "缺少有效往来科目资料" : undefined}
         onClick={() => openSettlement(item)}
       >
         {view === "receivable" ? "登记收款" : "登记付款"}
       </button>
     );
+  }
+
+  function statementAction(item: FinanceARAPItem) {
+    return (
+      <button
+        className="btn-xs btn-ghost"
+        onClick={() => setDialog({ type: "statement", kind: documentKind, partyId: item.party_id, accountId: item.account_id })}
+      >
+        对账单
+      </button>
+    );
+  }
+
+  function voucherStatusLabel(item: FinanceARAPItem): string {
+    if (item.is_reversed) return "已冲销";
+    if (item.is_reversing) return "冲销处理中";
+    const status = item.voucher_status;
+    return status === "posted" ? "已过账" : status === "pending" ? "待审核" : status === "draft" ? "草稿" : status === "void" ? "已作废" : "无关联凭证";
   }
 
   function onDocumentSaved(result: { voucher: { voucher_no: string } }) {
@@ -218,6 +238,16 @@ export default function ArapPanel({
   }
 
   const dialogParty = dialog?.type === "settlement" ? partyById.get(dialog.partyId) ?? null : null;
+  const statementParty = dialog?.type === "statement"
+    ? partyById.get(dialog.partyId) ?? {
+        id: dialog.partyId,
+        kind: dialog.kind === "receivable" ? "customer" as const : "vendor" as const,
+        code: "",
+        name: `${dialog.kind === "receivable" ? "客户" : "供应商"} #${dialog.partyId}`,
+        metadata: {},
+        is_active: false,
+      }
+    : null;
   const dialogKind = dialog?.type === "settlement" ? dialog.kind : "receivable";
 
   return (
@@ -278,23 +308,22 @@ export default function ArapPanel({
       )}
 
       <div className="kpi-row">
-        <div className="kpi"><div className="k">{viewLabel}单据</div><div className="v">{currentItems.length}</div><div className="kpi-foot">当前账套全部期间</div></div>
+        <div className="kpi"><div className="k">{viewLabel}单据</div><div className="v">{currentItems.length}</div><div className="kpi-foot">当前账套全部期间，含待入账单据</div></div>
         <div className="kpi"><div className="k">累计金额</div><div className="v">{visibleTotal}</div><div className="kpi-foot">{viewLabel}原始单据</div></div>
-        <div className="kpi"><div className="k">可核销余额</div><div className="v">{visibleOutstanding}</div><div className="kpi-foot">已分配 {visibleApplied} 元</div></div>
+        <div className="kpi"><div className="k">业务台账未分配额</div><div className="v">{visibleOutstanding}</div><div className="kpi-foot">登记分配 {visibleApplied} 元；正式余额见账龄/对账单</div></div>
       </div>
 
-      {view === "payable" && (
-        <section className="card" aria-label="应付账龄">
+      <section className="card" aria-label={`${viewLabel}账龄`}>
           <div className="section-head">
-            <div><h2>应付账龄</h2><p>按截止日期统计当前账套所有未核销应付。</p></div>
+            <div><h2>{viewLabel}账龄</h2><p>按已过账工作台关联凭证日期统计；暂不含普通凭证和期初辅助余额。不等同于合同逾期天数，也不直接用于计提坏账准备。</p></div>
             <label className="toolbar-field">
               <span>截止日期</span>
               <input type="date" value={asOf} onChange={(event) => { if (event.target.value) setAsOf(event.target.value); }} />
             </label>
           </div>
-          {aging.loading ? <LoadingBlock title={false} kpis={4} label="计算应付账龄…" /> : aging.data && (
+          {aging.loading ? <LoadingBlock title={false} kpis={4} label={`计算${viewLabel}账龄…`} /> : aging.data && (
             <div className="kpi-row">
-              <div className="kpi"><div className="k">未核销总额</div><div className="v">{formatCents(cents(aging.data.total_outstanding))}</div><div className="kpi-foot">截止 {aging.data.as_of}</div></div>
+              <div className="kpi"><div className="k">已过账未结余额</div><div className="v">{formatCents(cents(aging.data.total_outstanding))}</div><div className="kpi-foot">截止 {aging.data.as_of} · 按凭证日</div></div>
               <div className="kpi"><div className="k">0–30 天</div><div className="v">{formatCents(cents(aging.data.buckets["0_30"]))}</div></div>
               <div className="kpi"><div className="k">31–60 天</div><div className="v">{formatCents(cents(aging.data.buckets["31_60"]))}</div></div>
               <div className="kpi"><div className="k">61–90 天</div><div className="v">{formatCents(cents(aging.data.buckets["61_90"]))}</div></div>
@@ -302,12 +331,11 @@ export default function ArapPanel({
             </div>
           )}
         </section>
-      )}
 
       <div className="section-head">
         <div>
           <h2>{viewLabel}明细</h2>
-          <p>主体与科目余额汇总自每笔单据；收付款登记后按相同主体和科目 FIFO 占用可核销余额。</p>
+          <p>此列表包含草稿和待审核单据，供业务跟踪；账龄和对账单只统计本工作台登记并已过账的往来单据与收付款核销，暂不含普通手工、模板、导入凭证及期初辅助余额。收付款按主体、科目和日期先进先出占用待核销额。</p>
         </div>
         <label className="toolbar-field">
           <span>搜索主体、科目或摘要</span>
@@ -340,8 +368,9 @@ export default function ArapPanel({
                   { label: "已分配", value: formatCents(cents(item.applied_amount)), mono: true },
                   { label: "可核销余额", value: formatCents(cents(item.outstanding)), mono: true },
                   { label: "关联凭证", value: item.voucher_no || (item.voucher_id ? `凭证 #${item.voucher_id}` : "-"), mono: true },
+                  { label: "凭证状态", value: voucherStatusLabel(item) },
                 ]}
-                actions={settlementAction(item, party, account)}
+                actions={<div className="row-actions">{settlementAction(item, party, account)}{statementAction(item)}</div>}
               />
             );
           })}
@@ -358,6 +387,7 @@ export default function ArapPanel({
                 <th className="num">已分配</th>
                 <th className="num">可核销余额</th>
                 <th>关联凭证</th>
+                <th>凭证状态</th>
                 <th className="no-print">操作</th>
               </tr>
             </thead>
@@ -375,7 +405,8 @@ export default function ArapPanel({
                     <td className="num">{formatCents(cents(item.applied_amount))}</td>
                     <td className="num"><b>{formatCents(cents(item.outstanding))}</b></td>
                     <td>{item.voucher_no ? <span className="mono">{item.voucher_no}</span> : item.voucher_id ? <span className="mono">凭证 #{item.voucher_id}</span> : "-"}</td>
-                    <td className="no-print">{settlementAction(item, party, account)}</td>
+                    <td><span className={`badge ${item.is_reversed || item.voucher_status === "void" ? "muted" : item.is_reversing ? "doing" : item.voucher_status === "posted" ? "done" : "doing"}`}>{voucherStatusLabel(item)}</span></td>
+                    <td className="no-print"><div className="row-actions">{settlementAction(item, party, account)}{statementAction(item)}</div></td>
                   </tr>
                 );
               })}
@@ -420,6 +451,19 @@ export default function ArapPanel({
           cashflows={cashflowItems}
           onClose={() => setDialog(null)}
           onSaved={onSettlementSaved}
+        />
+      )}
+      {dialog?.type === "statement" && (
+        <ArapStatementDialog
+          key={`statement-${dialog.kind}-${dialog.partyId}-${dialog.accountId}`}
+          open
+          kind={dialog.kind}
+          book={book}
+          party={statementParty}
+          initialAccountId={dialog.accountId}
+          accounts={accounts}
+          defaultFromDate={period?.start_date ?? today()}
+          onClose={() => setDialog(null)}
         />
       )}
       {dialog?.type === "auxiliary" && (

@@ -46,6 +46,30 @@ def test_admin_menu_exposes_finance_but_member_does_not(client):
     assert forbidden.status_code == 403
 
 
+def test_account_books_are_limited_to_cny(client, db):
+    admin = _auth(client, "admin", "admin123456")
+    accepted = client.post(
+        "/api/v1/finance/books",
+        headers=admin,
+        json={"code": "BOOK-CNY-LOWER", "name": "人民币账套", "base_currency": "cny"},
+    )
+    assert accepted.status_code == 200
+    assert accepted.json()["base_currency"] == "CNY"
+    assert accepted.json()["currencies"] == ["CNY"]
+
+    for code, currency in (("BOOK-USD", "USD"), ("BOOK-JPY", "JPY")):
+        rejected = client.post(
+            "/api/v1/finance/books",
+            headers=admin,
+            json={"code": code, "name": "非人民币账套", "base_currency": currency},
+        )
+        assert rejected.status_code == 400
+        assert rejected.json()["detail"]["code"] == "F-BOOK-CURRENCY"
+    with db() as session:
+        from api.models import AccountBook
+        assert session.query(AccountBook).filter(AccountBook.code.in_(["BOOK-USD", "BOOK-JPY"])).count() == 0
+
+
 def test_voucher_rejects_unbalanced_entries_without_persisting(client):
     headers = _auth(client, "admin", "admin123456")
     book = _book(client, headers, "VOUCHER-UNBALANCED")
@@ -709,3 +733,334 @@ def test_payable_aging_buckets_and_over_collection_are_blocked(client):
     assert aging.status_code == 200
     assert aging.json()["total_outstanding"] == "75.00"
     assert aging.json()["buckets"]["0_30"] == "75.00"
+    statement = client.get(
+        "/api/v1/finance/payables/statement",
+        headers=scoped,
+        params={
+            "party_id": vendor["id"], "account_id": accounts["22020101"]["id"],
+            "from_date": period["start_date"], "to_date": period["end_date"],
+        },
+    )
+    assert statement.status_code == 200
+    assert statement.json()["period_increase"] == "75.00"
+    assert statement.json()["closing_balance"] == "75.00"
+
+
+def test_draft_arap_document_cannot_be_settled_before_posting(client):
+    headers = _auth(client, "admin", "admin123456")
+    book = _book(client, headers, "AR-AP-DRAFT-SETTLEMENT")
+    scoped = _scoped(headers, book)
+    accounts = _accounts(client, scoped)
+    period = client.get("/api/v1/finance/periods", headers=scoped).json()[0]
+    customer = client.post(
+        "/api/v1/finance/auxiliary-items",
+        headers=scoped,
+        json={"kind": "customer", "code": "DRAFT-C01", "name": "草稿客户"},
+    ).json()
+    draft = client.post(
+        "/api/v1/finance/receivables",
+        headers=scoped,
+        json={
+            "period_id": period["id"], "transaction_date": period["start_date"],
+            "customer_id": customer["id"], "amount": "100.00",
+            "receivable_account_id": accounts["11220101"]["id"],
+            "revenue_account_id": accounts["6001"]["id"], "summary": "尚未过账应收",
+        },
+    ).json()
+
+    collection = client.post(
+        "/api/v1/finance/receivable-collections",
+        headers=scoped,
+        json={
+            "period_id": period["id"], "transaction_date": period["start_date"],
+            "customer_id": customer["id"], "amount": "40.00",
+            "cash_account_id": accounts["10020101"]["id"], "cashflow_item": "C01",
+            "summary": "不能核销草稿应收",
+        },
+    )
+
+    assert collection.status_code == 400
+    assert collection.json()["detail"]["code"] == "F-ARAP-OVER-APPLY"
+    listed = client.get("/api/v1/finance/receivables", headers=scoped).json()["items"]
+    assert listed[0]["id"] == draft["id"]
+    assert listed[0]["applied_amount"] == "0.00"
+
+
+def test_arap_document_with_active_settlement_cannot_be_reversed(client):
+    headers = _auth(client, "admin", "admin123456")
+    book = _book(client, headers, "AR-AP-REVERSE-ALLOCATED")
+    scoped = _scoped(headers, book)
+    accounts = _accounts(client, scoped)
+    period = client.get("/api/v1/finance/periods", headers=scoped).json()[0]
+    customer = client.post(
+        "/api/v1/finance/auxiliary-items",
+        headers=scoped,
+        json={"kind": "customer", "code": "REVERSE-C01", "name": "冲销客户"},
+    ).json()
+    receivable = client.post(
+        "/api/v1/finance/receivables",
+        headers=scoped,
+        json={
+            "period_id": period["id"], "transaction_date": period["start_date"],
+            "customer_id": customer["id"], "amount": "100.00",
+            "receivable_account_id": accounts["11220101"]["id"],
+            "revenue_account_id": accounts["6001"]["id"], "summary": "有核销的应收",
+        },
+    ).json()
+    invoice_id = receivable["voucher"]["id"]
+    for action in ("submit", "approve", "post"):
+        assert client.post(f"/api/v1/finance/vouchers/{invoice_id}/{action}", headers=scoped).status_code == 200
+    collection = client.post(
+        "/api/v1/finance/receivable-collections",
+        headers=scoped,
+        json={
+            "period_id": period["id"], "transaction_date": period["start_date"],
+            "customer_id": customer["id"], "amount": "40.00",
+            "cash_account_id": accounts["10020101"]["id"], "cashflow_item": "C01",
+            "summary": "已过账收款",
+        },
+    ).json()
+    payment_id = collection["voucher"]["id"]
+    for action in ("submit", "approve", "post"):
+        assert client.post(f"/api/v1/finance/vouchers/{payment_id}/{action}", headers=scoped).status_code == 200
+
+    reversed_invoice = client.post(f"/api/v1/finance/vouchers/{invoice_id}/reverse", headers=scoped)
+
+    assert reversed_invoice.status_code == 409
+    assert reversed_invoice.json()["detail"]["code"] == "F-ARAP-OPEN-ALLOCATIONS"
+
+    payment_reversal = client.post(f"/api/v1/finance/vouchers/{payment_id}/reverse", headers=scoped)
+    assert payment_reversal.status_code == 200
+    payment_reversal_id = payment_reversal.json()["id"]
+    for action in ("submit", "approve", "post"):
+        assert client.post(f"/api/v1/finance/vouchers/{payment_reversal_id}/{action}", headers=scoped).status_code == 200
+
+    invoice_reversal = client.post(f"/api/v1/finance/vouchers/{invoice_id}/reverse", headers=scoped)
+    assert invoice_reversal.status_code == 200
+    invoice_reversal_id = invoice_reversal.json()["id"]
+    for action in ("submit", "approve", "post"):
+        assert client.post(f"/api/v1/finance/vouchers/{invoice_reversal_id}/{action}", headers=scoped).status_code == 200
+
+    aging = client.get(
+        "/api/v1/finance/receivables/aging",
+        headers=scoped,
+        params={"as_of": period["end_date"], "party_id": customer["id"]},
+    )
+    assert aging.status_code == 200
+    assert aging.json()["total_outstanding"] == "0.00"
+    statement = client.get(
+        "/api/v1/finance/receivables/statement",
+        headers=scoped,
+        params={"party_id": customer["id"], "from_date": period["start_date"], "to_date": period["end_date"]},
+    )
+    assert statement.status_code == 200
+    assert statement.json()["period_increase"] == "140.00"
+    assert statement.json()["period_decrease"] == "140.00"
+    assert statement.json()["closing_balance"] == "0.00"
+    assert len(statement.json()["items"]) == 4
+
+
+def test_arap_document_cannot_be_settled_while_reversing_or_after_reversal(client):
+    headers = _auth(client, "admin", "admin123456")
+    book = _book(client, headers, "AR-AP-REVERSED-SETTLEMENT")
+    scoped = _scoped(headers, book)
+    accounts = _accounts(client, scoped)
+    period = client.get("/api/v1/finance/periods", headers=scoped).json()[0]
+    customer = client.post(
+        "/api/v1/finance/auxiliary-items",
+        headers=scoped,
+        json={"kind": "customer", "code": "REVERSED-C01", "name": "冲销后客户"},
+    ).json()
+    receivable = client.post(
+        "/api/v1/finance/receivables",
+        headers=scoped,
+        json={
+            "period_id": period["id"], "transaction_date": period["start_date"],
+            "customer_id": customer["id"], "amount": "100.00",
+            "receivable_account_id": accounts["11220101"]["id"],
+            "revenue_account_id": accounts["6001"]["id"], "summary": "准备冲销的应收",
+        },
+    ).json()
+    invoice_id = receivable["voucher"]["id"]
+    for action in ("submit", "approve", "post"):
+        assert client.post(f"/api/v1/finance/vouchers/{invoice_id}/{action}", headers=scoped).status_code == 200
+
+    reversal = client.post(f"/api/v1/finance/vouchers/{invoice_id}/reverse", headers=scoped)
+    assert reversal.status_code == 200
+    reversing_item = client.get("/api/v1/finance/receivables", headers=scoped).json()["items"][0]
+    assert reversing_item["is_reversing"] is True
+    payment_body = {
+        "period_id": period["id"], "transaction_date": period["start_date"],
+        "customer_id": customer["id"], "amount": "40.00",
+        "cash_account_id": accounts["10020101"]["id"], "cashflow_item": "C01",
+        "summary": "冲销期间不能收款",
+    }
+    while_reversing = client.post("/api/v1/finance/receivable-collections", headers=scoped, json=payment_body)
+    assert while_reversing.status_code == 400
+    assert while_reversing.json()["detail"]["code"] == "F-ARAP-OVER-APPLY"
+
+    reversal_id = reversal.json()["id"]
+    for action in ("submit", "approve", "post"):
+        assert client.post(f"/api/v1/finance/vouchers/{reversal_id}/{action}", headers=scoped).status_code == 200
+    after_reversal = client.post("/api/v1/finance/receivable-collections", headers=scoped, json=payment_body)
+    assert after_reversal.status_code == 400
+    assert after_reversal.json()["detail"]["code"] == "F-ARAP-OVER-APPLY"
+
+    item = client.get("/api/v1/finance/receivables", headers=scoped).json()["items"][0]
+    assert item["is_reversed"] is True
+    assert item["is_reversing"] is False
+    assert item["outstanding"] == "0.00"
+
+
+def test_posting_arap_reversal_rechecks_active_allocations(client, db):
+    from api.models import ARAPAllocation, ARAPTransaction
+
+    headers = _auth(client, "admin", "admin123456")
+    book = _book(client, headers, "AR-AP-REVERSE-POST-GUARD")
+    scoped = _scoped(headers, book)
+    accounts = _accounts(client, scoped)
+    period = client.get("/api/v1/finance/periods", headers=scoped).json()[0]
+    customer = client.post(
+        "/api/v1/finance/auxiliary-items",
+        headers=scoped,
+        json={"kind": "customer", "code": "POST-GUARD-C01", "name": "过账保护客户"},
+    ).json()
+    receivable = client.post(
+        "/api/v1/finance/receivables",
+        headers=scoped,
+        json={
+            "period_id": period["id"], "transaction_date": period["start_date"],
+            "customer_id": customer["id"], "amount": "100.00",
+            "receivable_account_id": accounts["11220101"]["id"],
+            "revenue_account_id": accounts["6001"]["id"], "summary": "并发保护应收",
+        },
+    ).json()
+    invoice_id = receivable["voucher"]["id"]
+    for action in ("submit", "approve", "post"):
+        assert client.post(f"/api/v1/finance/vouchers/{invoice_id}/{action}", headers=scoped).status_code == 200
+    payment_response = client.post(
+        "/api/v1/finance/receivable-collections",
+        headers=scoped,
+        json={
+            "period_id": period["id"], "transaction_date": period["start_date"],
+            "customer_id": customer["id"], "amount": "10.00",
+            "cash_account_id": accounts["10020101"]["id"], "summary": "并发保护收款",
+            "cashflow_item": "C01",
+        },
+    )
+    assert payment_response.status_code == 200, payment_response.text
+    payment = payment_response.json()
+    payment_id = payment["voucher"]["id"]
+    for action in ("submit", "approve", "post"):
+        assert client.post(f"/api/v1/finance/vouchers/{payment_id}/{action}", headers=scoped).status_code == 200
+    with db() as session:
+        session.query(ARAPAllocation).filter_by(
+            account_book_id=book["id"], source_id=payment_id, target_id=receivable["id"],
+        ).delete()
+        target = session.query(ARAPTransaction).filter_by(id=receivable["id"]).one()
+        target.applied_amount = Decimal("0.00")
+        session.commit()
+
+    reversal = client.post(f"/api/v1/finance/vouchers/{invoice_id}/reverse", headers=scoped)
+    assert reversal.status_code == 200
+    with db() as session:
+        target = session.query(ARAPTransaction).filter_by(id=receivable["id"]).one()
+        target.applied_amount = Decimal("10.00")
+        session.add(ARAPAllocation(
+            account_book_id=book["id"],
+            source_id=payment_id,
+            target_id=receivable["id"],
+            amount=Decimal("10.00"),
+        ))
+        session.commit()
+
+    reversal_id = reversal.json()["id"]
+    for action in ("submit", "approve"):
+        assert client.post(f"/api/v1/finance/vouchers/{reversal_id}/{action}", headers=scoped).status_code == 200
+    blocked = client.post(f"/api/v1/finance/vouchers/{reversal_id}/post", headers=scoped)
+    assert blocked.status_code == 409
+    assert blocked.json()["detail"]["code"] == "F-ARAP-OPEN-ALLOCATIONS"
+
+    with db() as session:
+        session.query(ARAPAllocation).filter_by(account_book_id=book["id"], target_id=receivable["id"]).delete()
+        target = session.query(ARAPTransaction).filter_by(id=receivable["id"]).one()
+        target.applied_amount = Decimal("0.00")
+        session.commit()
+    posted = client.post(f"/api/v1/finance/vouchers/{reversal_id}/post", headers=scoped)
+    assert posted.status_code == 200
+
+
+def test_receivable_reports_use_posted_vouchers_and_statement_opening_balance(client):
+    headers = _auth(client, "admin", "admin123456")
+    book = _book(client, headers, "AR-AP-REPORTS")
+    scoped = _scoped(headers, book)
+    accounts = _accounts(client, scoped)
+    periods = client.get("/api/v1/finance/periods", headers=scoped).json()
+    january, february = periods[0], periods[1]
+    customer = client.post(
+        "/api/v1/finance/auxiliary-items",
+        headers=scoped,
+        json={"kind": "customer", "code": "REPORT-C01", "name": "账龄客户"},
+    ).json()
+
+    def receivable(period, amount, summary):
+        return client.post(
+            "/api/v1/finance/receivables",
+            headers=scoped,
+            json={
+                "period_id": period["id"], "transaction_date": period["start_date"],
+                "customer_id": customer["id"], "amount": amount,
+                "receivable_account_id": accounts["11220101"]["id"],
+                "revenue_account_id": accounts["6001"]["id"], "summary": summary,
+            },
+        ).json()
+
+    def post_voucher(voucher_id):
+        assert client.post(f"/api/v1/finance/vouchers/{voucher_id}/submit", headers=scoped).status_code == 200
+        assert client.post(f"/api/v1/finance/vouchers/{voucher_id}/approve", headers=scoped).status_code == 200
+        assert client.post(f"/api/v1/finance/vouchers/{voucher_id}/post", headers=scoped).status_code == 200
+
+    posted_invoice = receivable(january, "100.00", "已过账应收")
+    post_voucher(posted_invoice["voucher"]["id"])
+    draft_invoice = receivable(january, "50.00", "草稿应收")
+    listed_before_posting = client.get("/api/v1/finance/receivables", headers=scoped).json()["items"]
+    draft_item = next(item for item in listed_before_posting if item["id"] == draft_invoice["id"])
+    assert draft_item["voucher_status"] == "draft"
+
+    draft_collection = client.post(
+        "/api/v1/finance/receivable-collections",
+        headers=scoped,
+        json={
+            "period_id": february["id"], "transaction_date": february["start_date"],
+            "customer_id": customer["id"], "amount": "40.00",
+            "cash_account_id": accounts["10020101"]["id"], "cashflow_item": "C01",
+            "summary": "草稿收款",
+        },
+    ).json()
+
+    aging = client.get(
+        "/api/v1/finance/receivables/aging",
+        headers=scoped,
+        params={"as_of": february["end_date"], "party_id": customer["id"]},
+    )
+    assert aging.status_code == 200
+    assert aging.json()["total_outstanding"] == "100.00"
+    assert aging.json()["buckets"]["31_60"] == "100.00"
+
+    post_voucher(draft_collection["voucher"]["id"])
+    statement = client.get(
+        "/api/v1/finance/receivables/statement",
+        headers=scoped,
+        params={
+            "party_id": customer["id"], "account_id": accounts["11220101"]["id"],
+            "from_date": february["start_date"], "to_date": february["end_date"],
+        },
+    )
+    assert statement.status_code == 200
+    assert statement.json()["opening_balance"] == "100.00"
+    assert statement.json()["period_increase"] == "0.00"
+    assert statement.json()["period_decrease"] == "40.00"
+    assert statement.json()["closing_balance"] == "60.00"
+    assert len(statement.json()["items"]) == 1
+    assert statement.json()["items"][0]["voucher_id"] == draft_collection["voucher"]["id"]
+    assert draft_invoice["voucher"]["status"] == "draft"

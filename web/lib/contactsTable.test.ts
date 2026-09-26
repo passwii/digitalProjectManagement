@@ -36,7 +36,7 @@ describe("通讯录花名册列契约", () => {
 
   it("表格锁 min-width + 单元格 nowrap：窄屏横滑，不折行", () => {
     assert.match(page(), /<table className="grid contacts-table" aria-busy=\{loading\}>/);
-    assert.match(page(), /className="table-scroll"/);
+    assert.match(page(), /<DesktopTable>[\s\S]*<table className="grid contacts-table"/);
     const style = css();
     assert.match(style, /\.contacts-table \{\n min-width: 1210px;\n table-layout: fixed;\n\}/);
     assert.match(
