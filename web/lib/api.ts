@@ -677,6 +677,7 @@ export interface FinanceARAPItem {
   id: number;
   period_id: number;
   transaction_date: string;
+  voucher_date: string | null;
   party_id: number;
   account_id: number;
   amount: string;

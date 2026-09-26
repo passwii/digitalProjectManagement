@@ -293,7 +293,7 @@ export function ArapSettlementDialog({
   const eligibleDocuments = useMemo(() => documents.filter((item) =>
     item.party_id === party?.id && item.account_id === account?.id &&
     item.voucher_status === "posted" && !item.is_reversing && !item.is_reversed &&
-    item.transaction_date <= date && (toCents(item.outstanding) ?? BigInt(0)) > BigInt(0),
+    item.voucher_date !== null && item.voucher_date <= date && (toCents(item.outstanding) ?? BigInt(0)) > BigInt(0),
   ).sort((a, b) => a.transaction_date.localeCompare(b.transaction_date) || a.id - b.id), [documents, party?.id, account?.id, date]);
   const allocationTotal = eligibleDocuments.reduce(
     (sum, item) => sum + (toCents(allocationAmounts[item.id] ?? "") ?? BigInt(0)), BigInt(0),
@@ -463,7 +463,7 @@ export function ArapSettlementDialog({
           {eligibleDocuments.map((item) => (
             <div key={item.id} className="status-row" style={{ marginBottom: 10 }}>
               <span className="mono">{item.voucher_no ?? `凭证 #${item.voucher_id ?? item.id}`}</span>
-              <span>{item.transaction_date}</span>
+              <span>{item.voucher_date}</span>
               <span>{item.summary || "-"}</span>
               <span>剩余额 {formatCents(toCents(item.outstanding) ?? BigInt(0))} 元</span>
               <label className="field">

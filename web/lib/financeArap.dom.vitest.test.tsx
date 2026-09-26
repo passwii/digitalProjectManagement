@@ -25,6 +25,7 @@ const receivable = {
   id: 8,
   period_id: 3,
   transaction_date: "2026-09-01",
+  voucher_date: "2026-09-01",
   party_id: 5,
   account_id: 20,
   amount: "100.00",
@@ -51,7 +52,7 @@ const settlementAccount: FinanceAccount = {
 const settlementParty = { id: 5, kind: "customer" as const, code: "C-005", name: "客户甲", metadata: {}, is_active: true };
 const settlementItems: FinanceARAPItem[] = [
   { ...receivable, id: 8, outstanding: "60.00", is_reversing: false },
-  { ...receivable, id: 9, transaction_date: "2026-09-02", voucher_no: "记-0002", summary: "第二期款", outstanding: "40.00", is_reversing: false },
+  { ...receivable, id: 9, transaction_date: "2026-09-02", voucher_date: "2026-09-02", voucher_no: "记-0002", summary: "第二期款", outstanding: "40.00", is_reversing: false },
 ];
 
 function renderSettlement(items: FinanceARAPItem[] = settlementItems) {
@@ -65,6 +66,7 @@ function renderSettlement(items: FinanceARAPItem[] = settlementItems) {
     documents={items} accounts={[accounts[0], settlementAccount]} cashflows={[]}
     onClose={() => {}} onSaved={onSaved}
   />);
+  fireEvent.change(screen.getByLabelText("交易日期"), { target: { value: "2026-09-26" } });
   return { payment, onSaved };
 }
 
@@ -91,7 +93,7 @@ describe("往来指定单据核销", () => {
       { ...settlementItems[0], id: 32, voucher_status: "draft", voucher_no: "排除-草稿" },
       { ...settlementItems[0], id: 33, is_reversing: true, voucher_no: "排除-冲销中" },
       { ...settlementItems[0], id: 34, is_reversed: true, voucher_no: "排除-已冲销" },
-      { ...settlementItems[0], id: 35, transaction_date: "2026-10-01", voucher_no: "排除-未来" },
+      { ...settlementItems[0], id: 35, transaction_date: "2026-10-01", voucher_date: "2026-10-01", voucher_no: "排除-未来" },
       { ...settlementItems[0], id: 36, outstanding: "0.00", voucher_no: "排除-零余额" },
     ];
     renderSettlement([...settlementItems, ...excluded]);
@@ -99,6 +101,20 @@ describe("往来指定单据核销", () => {
     expect(screen.getByText("记-0001")).toBeTruthy();
     expect(screen.getByText("记-0002")).toBeTruthy();
     for (const item of excluded) expect(screen.queryByText(item.voucher_no!)).toBeNull();
+  });
+
+  it("按实际凭证日期筛选和展示候选", () => {
+    const items: FinanceARAPItem[] = [
+      { ...settlementItems[0], id: 40, transaction_date: "2026-09-28", voucher_date: "2026-09-20", voucher_no: "记-可核销" },
+      { ...settlementItems[0], id: 41, transaction_date: "2026-09-03", voucher_date: "2026-09-27", voucher_no: "记-凭证未来" },
+      { ...settlementItems[0], id: 42, transaction_date: "2026-09-04", voucher_date: null, voucher_no: "记-凭证缺失" },
+    ];
+    renderSettlement(items);
+    fireEvent.click(screen.getByLabelText("指定单据"));
+    expect(screen.getByText("记-可核销")).toBeTruthy();
+    expect(screen.getByText("2026-09-20")).toBeTruthy();
+    expect(screen.queryByText("记-凭证未来")).toBeNull();
+    expect(screen.queryByText("记-凭证缺失")).toBeNull();
   });
 
   it("拆分金额合计等于收款额时发送正金额目标明细", async () => {

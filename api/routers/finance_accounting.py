@@ -749,6 +749,7 @@ def _arap_items(db: Session, book_id: int, kind: str, party_id: int | None = Non
         "id": row.id,
         "period_id": row.period_id,
         "transaction_date": row.transaction_date.isoformat(),
+        "voucher_date": vouchers[row.voucher_id].voucher_date.isoformat() if row.voucher_id in vouchers else None,
         "party_id": row.party_id,
         "account_id": row.account_id,
         "amount": str(row.amount),

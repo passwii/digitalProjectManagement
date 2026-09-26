@@ -666,6 +666,34 @@ def _create_arap_document(client, headers, period, party_id, account_id, offset_
     return response.json()
 
 
+def test_arap_ledger_reports_posted_voucher_date_after_draft_edit(client):
+    headers = _auth(client, "admin", "admin123456")
+    book = _book(client, headers, "AR-VOUCHER-DATE")
+    scoped = _scoped(headers, book)
+    accounts = _accounts(client, scoped)
+    period = client.get("/api/v1/finance/periods", headers=scoped).json()[0]
+    customer = client.post("/api/v1/finance/auxiliary-items", headers=scoped, json={
+        "kind": "customer", "code": "DATE-C01", "name": "日期客户",
+    }).json()
+    document = _create_arap_document(
+        client, scoped, period, customer["id"], accounts["11220101"]["id"],
+        accounts["6001"]["id"], "20.00", "receivable",
+    )
+    voucher_id = document["voucher"]["id"]
+    changed_date = period["end_date"]
+    edited = client.patch(f"/api/v1/finance/vouchers/{voucher_id}", headers=scoped, json={
+        "voucher_date": changed_date,
+    })
+    assert edited.status_code == 200, edited.text
+    _post_arap_voucher(client, scoped, voucher_id)
+
+    ledger = client.get("/api/v1/finance/receivables", headers=scoped)
+    assert ledger.status_code == 200, ledger.text
+    item = next(item for item in ledger.json()["items"] if item["id"] == document["id"])
+    assert item["transaction_date"] == period["start_date"]
+    assert item["voucher_date"] == changed_date
+
+
 def test_receivable_collection_can_split_manual_allocations(client):
     headers = _auth(client, "admin", "admin123456")
     book = _book(client, headers, "AR-MANUAL-SPLIT")
