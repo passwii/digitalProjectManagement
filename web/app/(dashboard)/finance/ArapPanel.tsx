@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Empty from "@/components/ui/Empty";
+import { CardItem, CardList, DesktopTable } from "@/components/ui/CardList";
 import { LoadFailed, LoadingBlock } from "@/components/ui/PageState";
 import { useToast } from "@/components/ui/Toast";
 import { useAsyncData } from "@/lib/useAsyncData";
@@ -180,6 +181,21 @@ export default function ArapPanel({
     setDialog({ type: "settlement", kind: documentKind, partyId: item.party_id, accountId: item.account_id });
   }
 
+  function settlementAction(item: FinanceARAPItem, party?: FinanceAuxiliaryItem, account?: FinanceAccount) {
+    if (cents(item.outstanding) <= BigInt(0)) return null;
+    const canSettle = Boolean(party && account && cents(outstandingFor(item.party_id, item.account_id)) > BigInt(0) && canWrite && paymentSetupReady);
+    return (
+      <button
+        className="btn-xs btn-ghost"
+        disabled={!canSettle}
+        title={!canWrite ? "需要开放会计期间" : !paymentSetupReady ? "需要维护现金/银行科目和现金流项目" : !party ? "缺少有效往来主体资料" : !account ? "缺少有效往来科目资料" : undefined}
+        onClick={() => openSettlement(item)}
+      >
+        {view === "receivable" ? "登记收款" : "登记付款"}
+      </button>
+    );
+  }
+
   function onDocumentSaved(result: { voucher: { voucher_no: string } }) {
     setDialog(null);
     toast.ok(`${viewLabel}已登记，草稿凭证 ${result.voucher.voucher_no} 待审核。`);
@@ -307,7 +323,30 @@ export default function ArapPanel({
           />
         </div>
       ) : (
-        <div className="table-scroll">
+        <>
+        <CardList label={`${viewLabel}明细`}>
+          {filteredItems.map((item) => {
+            const party = partyById.get(item.party_id);
+            const account = accountById.get(item.account_id);
+            return (
+              <CardItem
+                key={item.id}
+                title={party?.name || `未知主体 #${item.party_id}`}
+                code={item.transaction_date}
+                fields={[
+                  { label: "往来科目", value: account ? `${account.name} · ${account.code}` : `科目 #${item.account_id}` },
+                  { label: "摘要", value: item.summary || "-" },
+                  { label: "单据金额", value: formatCents(cents(item.amount)), mono: true },
+                  { label: "已分配", value: formatCents(cents(item.applied_amount)), mono: true },
+                  { label: "可核销余额", value: formatCents(cents(item.outstanding)), mono: true },
+                  { label: "关联凭证", value: item.voucher_no || (item.voucher_id ? `凭证 #${item.voucher_id}` : "-"), mono: true },
+                ]}
+                actions={settlementAction(item, party, account)}
+              />
+            );
+          })}
+        </CardList>
+        <DesktopTable>
           <table className="grid">
             <thead>
               <tr>
@@ -326,7 +365,6 @@ export default function ArapPanel({
               {filteredItems.map((item) => {
                 const party = partyById.get(item.party_id);
                 const account = accountById.get(item.account_id);
-                const canSettle = Boolean(party && account && cents(outstandingFor(item.party_id, item.account_id)) > BigInt(0) && canWrite && paymentSetupReady);
                 return (
                   <tr key={item.id}>
                     <td>{party ? <><span>{party.name}</span><span className="tiny muted"> · {party.code}</span></> : <span className="muted">未知主体 #{item.party_id}</span>}</td>
@@ -337,24 +375,14 @@ export default function ArapPanel({
                     <td className="num">{formatCents(cents(item.applied_amount))}</td>
                     <td className="num"><b>{formatCents(cents(item.outstanding))}</b></td>
                     <td>{item.voucher_no ? <span className="mono">{item.voucher_no}</span> : item.voucher_id ? <span className="mono">凭证 #{item.voucher_id}</span> : "-"}</td>
-                    <td className="no-print">
-                      {cents(item.outstanding) > BigInt(0) && (
-                        <button
-                          className="btn-xs btn-ghost"
-                          disabled={!canSettle}
-                          title={!canWrite ? "需要开放会计期间" : !paymentSetupReady ? "需要维护现金/银行科目和现金流项目" : !party ? "缺少有效往来主体资料" : !account ? "缺少有效往来科目资料" : undefined}
-                          onClick={() => openSettlement(item)}
-                        >
-                          {view === "receivable" ? "登记收款" : "登记付款"}
-                        </button>
-                      )}
-                    </td>
+                    <td className="no-print">{settlementAction(item, party, account)}</td>
                   </tr>
                 );
               })}
             </tbody>
           </table>
-        </div>
+        </DesktopTable>
+        </>
       )}
 
       {missingPartyData && !isAdmin && (

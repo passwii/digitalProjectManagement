@@ -438,7 +438,7 @@
     transform 180ms ease;
 }
 
-.field input::placeholder { color: rgba(201, 227, 235, 0.34); }
+.field input::placeholder { color: rgba(201, 227, 235, 0.58); }
 
 .field input:hover { border-color: rgba(108, 243, 255, 0.42); }
 
@@ -802,7 +802,7 @@
   .card form { margin-top: 21px; }
   .wrap[data-login-page] .card form { margin-top: 20px; }
   .field { gap: 7px; margin-bottom: 12px; }
-  .field label { font-size: 10px; }
+  .field label { font-size: 12px; letter-spacing: 0.08em; }
   .field input { height: 46px; min-height: 46px; font-size: 16px; }
   .submit { height: 48px; min-height: 48px; font-size: 15px; }
   .cardMeta { padding-top: 11px; margin-top: 12px; font-size: 9px; }

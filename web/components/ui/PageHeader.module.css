@@ -97,19 +97,24 @@
   }
 }
 
-@media (max-width: 520px) {
+/* 与手机 Dock 使用同一断点；否则 521–767px 会同时显示手机壳和桌面命令带。 */
+@media (max-width: 767px) {
   .pageHeader {
     align-items: stretch;
     flex-direction: column;
     min-height: 0;
+    gap: 12px;
+    margin-bottom: 16px;
     padding-bottom: 14px;
   }
+  .title { font-size: 22px; }
   .filters,
   .actions {
     width: 100%;
     flex: 0 0 auto;
   }
-  .titleWrap { width: 100%; }
+  .titleWrap { width: 100%; min-width: 0; }
+  .title { overflow-wrap: anywhere; }
   .filters > :global(.toolbar-field) {
     width: 100%;
     flex: 1 1 100%;
@@ -118,8 +123,8 @@
     width: 100%;
     flex: 1 1 100%;
   }
-  .filters > input,
-  .filters > select { flex: 1 1 100%; min-width: 0; width: 100%; }
+  .filters > input { flex: 1 1 100%; min-width: 0; width: 100%; }
+  .filters > select { flex: 1 1 calc(50% - 4px); min-width: 140px; width: auto; }
   .actions { margin-left: 0; }
   .actions {
     padding-left: 0;

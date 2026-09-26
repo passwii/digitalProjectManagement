@@ -1,7 +1,8 @@
 "use client";
 
 import { AnimatePresence, m, useReducedMotion } from "framer-motion";
-import { useId } from "react";
+import { useId, useRef, type KeyboardEvent } from "react";
+import s from "./MotionTabs.module.css";
 
 interface Item<T extends string> {
   id: T;
@@ -21,16 +22,45 @@ export default function MotionTabs<T extends string>({
 }) {
   const reduced = useReducedMotion();
   const layoutId = useId();
+  const buttons = useRef<Array<HTMLButtonElement | null>>([]);
+
+  function onTabKeyDown(event: KeyboardEvent<HTMLButtonElement>, index: number) {
+    let next = index;
+    if (event.key === "ArrowRight") next = (index + 1) % items.length;
+    else if (event.key === "ArrowLeft") next = (index - 1 + items.length) % items.length;
+    else if (event.key === "Home") next = 0;
+    else if (event.key === "End") next = items.length - 1;
+    else return;
+    event.preventDefault();
+    buttons.current[next]?.focus();
+    buttons.current[next]?.scrollIntoView?.({ block: "nearest", inline: "nearest" });
+    onChange(items[next].id);
+  }
+
   return (
     <>
-      <div className="tabs detail-tabs" role="tablist">
-        {items.map((item) => (
+      <select
+        className={s.mobileSelect}
+        aria-label="选择页面分区"
+        value={active}
+        onChange={(event) => onChange(event.target.value as T)}
+      >
+        {items.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}
+      </select>
+      <div className={`tabs detail-tabs ${s.tabList}`} role="tablist" aria-label="页面分区">
+        {items.map((item, index) => (
           <button
             key={item.id}
+            ref={(node) => { buttons.current[index] = node; }}
+            id={`${layoutId}-tab-${index}`}
+            type="button"
             role="tab"
             aria-selected={active === item.id}
+            aria-controls={`${layoutId}-panel`}
+            tabIndex={active === item.id ? 0 : -1}
             className={active === item.id ? "active" : ""}
             onClick={() => onChange(item.id)}
+            onKeyDown={(event) => onTabKeyDown(event, index)}
           >
             {item.label}
             {active === item.id && !reduced && (
@@ -45,6 +75,10 @@ export default function MotionTabs<T extends string>({
       <AnimatePresence mode="wait" initial={false}>
         <m.div
           key={active}
+          id={`${layoutId}-panel`}
+          role="tabpanel"
+          aria-labelledby={`${layoutId}-tab-${items.findIndex((item) => item.id === active)}`}
+          aria-label={items.find((item) => item.id === active)?.label}
           initial={reduced ? false : { opacity: 0, y: 3 }}
           animate={{ opacity: 1, y: 0 }}
           exit={reduced ? { opacity: 1 } : { opacity: 0 }}

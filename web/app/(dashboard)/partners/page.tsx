@@ -15,6 +15,7 @@ import Empty from "@/components/ui/Empty";
 import Pagination from "@/components/ui/Pagination";
 import { LoadingBlock, LoadFailed } from "@/components/ui/PageState";
 import PageHeader from "@/components/ui/PageHeader";
+import { CardItem, CardList, DesktopTable } from "@/components/ui/CardList";
 import { Confirm } from "@/components/ui/Modal";
 import { useToast } from "@/components/ui/Toast";
 import PartnerDrawer from "./PartnerDrawer";
@@ -145,12 +146,34 @@ function PartnersInner() {
         <div className="card">
           <Empty
             title={hasFilter ? "没有匹配的友商" : "暂无友商档案"}
-            hint={hasFilter ? "调整筛选条件后重试。" : "点击右上角「新建友商」开始建档。"}
+            hint={hasFilter ? "调整筛选条件后重试。" : "点击「新建友商」开始建档。"}
           />
         </div>
       ) : (
         <>
-          <div className="table-scroll">
+          <CardList label="友商档案">
+            {items.map((row) => (
+              <CardItem
+                key={row.id}
+                title={row.name}
+                fields={[
+                  { label: "联系人", value: row.contact_name || "-" },
+                  { label: "联系电话", value: row.phone || "-", mono: true },
+                  { label: "业绩数", value: row.contract_count ?? row.contracts?.length ?? 0, mono: true },
+                  { label: "附件数", value: row.attachment_count, mono: true },
+                  { label: "更新时间", value: fmtDateTime(row.updated_at), mono: true },
+                ]}
+                onSelect={() => setSelected(row.id)}
+                actions={
+                  <>
+                    <button type="button" className="btn-ghost btn-xs" onClick={() => setSelected(row.id)}>编辑</button>
+                    <button type="button" className="btn-ghost btn-xs danger-link" onClick={() => setDeleting(row)}>删除</button>
+                  </>
+                }
+              />
+            ))}
+          </CardList>
+          <DesktopTable>
             <table
               className="grid"
               aria-busy={loading}
@@ -216,7 +239,7 @@ function PartnersInner() {
                 ))}
               </tbody>
             </table>
-          </div>
+          </DesktopTable>
           <Pagination
             page={page}
             size={size}

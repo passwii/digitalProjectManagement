@@ -15,6 +15,7 @@ import Empty from "@/components/ui/Empty";
 import Pagination from "@/components/ui/Pagination";
 import { LoadingBlock, LoadFailed } from "@/components/ui/PageState";
 import PageHeader from "@/components/ui/PageHeader";
+import { CardItem, CardList, DesktopTable } from "@/components/ui/CardList";
 import ContactDrawer from "./ContactDrawer";
 
 const SIZE_OPTIONS = [20, 50, 100];
@@ -158,7 +159,27 @@ function ContactsInner() {
         </div>
       ) : (
         <>
-          <div className="table-scroll">
+          <CardList label="通讯录人员">
+            {items.map((row) => (
+              <CardItem
+                key={row.id}
+                title={row.real_name || row.username}
+                code={row.employee_no}
+                badges={<Badge status={EMPLOYMENT_STATUS[row.employment_status] || row.employment_status} tone={row.employment_status === "leave" ? "paused" : "doing"} />}
+                fields={[
+                  { label: "联系电话", value: row.mobile || "-", mono: true },
+                  { label: "部门", value: row.dept_name || "-" },
+                  { label: "岗位", value: row.position || "-" },
+                  { label: "用工类型", value: row.employment_type || "-" },
+                  { label: "入职日期", value: row.hire_date || "-", mono: true },
+                  { label: "账号", value: row.has_account ? (row.account_status === "active" ? "已关联" : "已停用") : "无登录账号" },
+                ]}
+                onSelect={() => setSelected(row.id)}
+                actions={<button type="button" className="btn-ghost btn-xs" onClick={() => setSelected(row.id)}>编辑档案</button>}
+              />
+            ))}
+          </CardList>
+          <DesktopTable>
             {/*
               列宽固定 + 单元格不折行：每列都保证「最起码宽度」（工号至少完整显示 SHZK-002），
               窄屏（笔记本/平板）由 .table-scroll 横向滚动，而不是把内容折成两行。
@@ -247,7 +268,7 @@ function ContactsInner() {
                 ))}
               </tbody>
             </table>
-          </div>
+          </DesktopTable>
           <Pagination
             page={page}
             size={size}

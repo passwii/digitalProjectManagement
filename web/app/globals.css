@@ -306,7 +306,7 @@ input[type="checkbox"] {
 }
 input::placeholder,
 textarea::placeholder {
- color: var(--ink-3);
+ color: var(--ink-2);
 }
 input:focus,
 select:focus,
