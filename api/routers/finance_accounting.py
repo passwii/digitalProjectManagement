@@ -64,6 +64,15 @@ def _money_text(value: Decimal) -> str:
     return str(value.quantize(Decimal("0.01")))
 
 
+def _arap_money(value: Decimal, field: str = "金额") -> Decimal:
+    try:
+        if value.is_finite() and value != value.quantize(Decimal("0.01")):
+            _error(400, "F-INVALID-AMOUNT", f"{field}最多精确到分")
+    except InvalidOperation:
+        _error(400, "F-INVALID-AMOUNT", f"{field}必须为合法数字")
+    return _money(value, field)
+
+
 class EntryIn(BaseModel):
     account_id: int
     summary: str = Field(default="", max_length=255)
@@ -808,7 +817,7 @@ def list_payables(party_id: int | None = None, x_account_book: str | None = Head
 
 def _apply_arap_payment(kind: str, body: ARAPPaymentIn, book: AccountBook, db: Session, user: User):
     _role(db, user, book.id, {ROLE_CASHIER, ROLE_FINANCE_MANAGER})
-    amount = _money(body.amount)
+    amount = _arap_money(body.amount)
     if amount <= 0:
         _error(400, "F-ARAP-INVALID", "收付款金额必须大于零")
     party_id = body.party_id or body.customer_id or body.vendor_id
@@ -871,7 +880,7 @@ def _apply_arap_payment(kind: str, body: ARAPPaymentIn, book: AccountBook, db: S
         total = Decimal("0.00")
         for item in body.allocations:
             target = targets[item.target_id]
-            applied = _money(item.amount, "核销明细金额")
+            applied = _arap_money(item.amount, "核销明细金额")
             if applied <= 0:
                 _error(400, "F-ARAP-INVALID", "核销明细金额必须大于零")
             outstanding = Decimal(target.amount) - Decimal(target.applied_amount)

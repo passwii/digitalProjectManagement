@@ -781,7 +781,7 @@ def test_manual_allocation_rejects_empty_details_without_side_effects(client):
     assert item["applied_amount"] == "0.00"
 
 
-def test_manual_allocation_normalizes_to_cents_and_rejects_zero_cents(client):
+def test_manual_allocation_rejects_subcent_amount_without_side_effects(client):
     headers = _auth(client, "admin", "admin123456")
     book = _book(client, headers, "AR-MANUAL-CENTS")
     scoped = _scoped(headers, book)
@@ -796,16 +796,38 @@ def test_manual_allocation_normalizes_to_cents_and_rejects_zero_cents(client):
         "cash_account_id": accounts["10020101"]["id"],
         "cashflow_item": "C01",
     }
+    before_vouchers = client.get("/api/v1/finance/vouchers", headers=scoped).json()["total"]
     rejected = client.post("/api/v1/finance/receivable-collections", headers=scoped, json={
-        **base, "allocations": [{"target_id": target["id"], "amount": "0.004"}],
-    })
-    assert rejected.status_code == 400, rejected.text
-    assert rejected.json()["detail"]["code"] == "F-ARAP-INVALID"
-    accepted = client.post("/api/v1/finance/receivable-collections", headers=scoped, json={
         **base, "allocations": [{"target_id": target["id"], "amount": "0.006"}],
     })
-    assert accepted.status_code == 200, accepted.text
-    assert accepted.json()["allocations"] == [{"receivable_id": target["id"], "amount": "0.01"}]
+    assert rejected.status_code == 400, rejected.text
+    assert rejected.json()["detail"]["code"] == "F-INVALID-AMOUNT"
+    assert client.get("/api/v1/finance/vouchers", headers=scoped).json()["total"] == before_vouchers
+    item = next(item for item in client.get("/api/v1/finance/receivables", headers=scoped).json()["items"] if item["id"] == target["id"])
+    assert item["applied_amount"] == "0.00"
+
+
+def test_collection_rejects_subcent_total_without_side_effects(client):
+    headers = _auth(client, "admin", "admin123456")
+    book = _book(client, headers, "AR-TOTAL-CENTS")
+    scoped = _scoped(headers, book)
+    accounts = _accounts(client, scoped)
+    period = client.get("/api/v1/finance/periods", headers=scoped).json()[0]
+    customer = client.post("/api/v1/finance/auxiliary-items", headers=scoped, json={"kind": "customer", "code": "TOTAL-C01", "name": "收款精度客户"}).json()
+    target = _create_arap_document(client, scoped, period, customer["id"], accounts["11220101"]["id"], accounts["6001"]["id"], "1.00", "receivable")
+    _post_arap_voucher(client, scoped, target["voucher"]["id"])
+    before_vouchers = client.get("/api/v1/finance/vouchers", headers=scoped).json()["total"]
+    response = client.post("/api/v1/finance/receivable-collections", headers=scoped, json={
+        "period_id": period["id"], "transaction_date": period["start_date"],
+        "customer_id": customer["id"], "amount": "0.006",
+        "cash_account_id": accounts["10020101"]["id"], "account_id": accounts["11220101"]["id"],
+        "cashflow_item": "C01", "allocations": [{"target_id": target["id"], "amount": "0.01"}],
+    })
+    assert response.status_code == 400, response.text
+    assert response.json()["detail"]["code"] == "F-INVALID-AMOUNT"
+    assert client.get("/api/v1/finance/vouchers", headers=scoped).json()["total"] == before_vouchers
+    item = next(item for item in client.get("/api/v1/finance/receivables", headers=scoped).json()["items"] if item["id"] == target["id"])
+    assert item["applied_amount"] == "0.00"
 
 
 def test_manual_receivable_allocation_validation_is_atomic(client):
