@@ -1,0 +1,18 @@
+.mobileSelect { display: none; }
+
+@media (max-width: 767px) {
+  .mobileSelect {
+    display: block;
+    width: 100%;
+    min-height: var(--m-tap);
+    margin-bottom: 16px;
+    padding: 0 12px;
+    border: 1px solid var(--line);
+    border-radius: 0;
+    background: var(--th-bg);
+    color: var(--ink);
+    font-size: 16px;
+  }
+  .mobileSelect:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+  .tabList { display: none; }
+}

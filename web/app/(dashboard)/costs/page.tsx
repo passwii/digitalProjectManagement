@@ -21,6 +21,7 @@ import ProgressBar from "@/components/ui/ProgressBar";
 import { Confirm, Dialog } from "@/components/ui/Modal";
 import { useToast } from "@/components/ui/Toast";
 import PageHeader from "@/components/ui/PageHeader";
+import { CardItem, CardList, DesktopTable, useVisibleTargetScroll } from "@/components/ui/CardList";
 import CountUp from "@/components/motion/CountUp";
 import MotionReveal from "@/components/motion/MotionReveal";
 import MotionStagger from "@/components/motion/MotionStagger";
@@ -102,6 +103,7 @@ function CostsInner() {
   const budget = project?.budget_total ?? 0;
   const rate = budget > 0 ? spent / budget : 0;
   useTargetScroll(target, !firstLoad && expenses.some((x) => isTargetRow(x.id, target)));
+  useVisibleTargetScroll(target, !firstLoad && expenses.some((x) => isTargetRow(x.id, target)));
 
   const onExpenseAct = useCallback(({ kind, expense }: ExpenseAct) => {
     const run = async (reason: string) => {
@@ -224,11 +226,39 @@ function CostsInner() {
 
           {expenses.length === 0 ? (
             <div className="card">
-              <Empty title={url.status ? "该状态下暂无支出" : "暂无支出"} hint="点击右上角「+ 支出」开始登记。" />
+              <Empty title={url.status ? "该状态下暂无支出" : "暂无支出"} hint="点击「+ 支出」开始登记。" />
             </div>
           ) : (
             <MotionReveal delay={0.08}>
-              <div className="table-scroll">
+              <CardList label="支出记录">
+                {expenses.map((x) => (
+                  <CardItem
+                    key={x.id}
+                    title={`${fmtMoney(x.amount)} 元`}
+                    code={fmtDate(x.exp_date)}
+                    badges={<Badge status={expenseStatusLabel(x.status)} tone={expenseTone(x.status)} />}
+                    fields={[
+                      { label: "人员", value: x.subject },
+                      { label: "费用说明", value: x.note || "-" },
+                    ]}
+                    targetId={x.id}
+                    hit={isTargetRow(x.id, target)}
+                    actions={
+                      <>
+                        <button className="btn-ghost btn-xs" onClick={() => setVouchersOf(x)}>票据</button>
+                        {x.status === "rejected" && (
+                          <>
+                            <button className="btn-ghost btn-xs" onClick={() => setReasonOf(x)}>查看审批意见</button>
+                            <button className="btn-ghost btn-xs" onClick={() => { setResubmitOf(x); setExpenseOpen(true); }}>重新提交</button>
+                          </>
+                        )}
+                        <ExpenseActions expense={x} canApprove={canApprove} onAct={onExpenseAct} />
+                      </>
+                    }
+                  />
+                ))}
+              </CardList>
+              <DesktopTable>
                 <table className="grid" aria-busy={loading}>
                   <thead>
                     <tr><th>支出日期</th><th>人员</th><th className="num">支出金额</th><th>费用说明</th><th>状态</th><th className="no-print" /></tr>
@@ -267,7 +297,7 @@ function CostsInner() {
                     })}
                   </tbody>
                 </table>
-              </div>
+              </DesktopTable>
               <Pagination
                 page={page}
                 size={size}

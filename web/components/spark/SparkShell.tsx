@@ -122,7 +122,7 @@ export default function SparkShell({ children }: { children: React.ReactNode }) 
               <SparkGlyph name="security" size={16} />
               <i />
             </span>
-            <Link className={s.returnLink} href="/dashboard" title="返回数科云办公">
+            <Link className={s.returnLink} href="/dashboard" title="返回数科云办公" aria-label="返回数科云办公">
               <SparkGlyph name="back" size={16} />
               <span>返回主系统</span>
             </Link>

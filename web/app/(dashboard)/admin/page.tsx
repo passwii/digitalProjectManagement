@@ -16,6 +16,7 @@ import { LoadingBlock, LoadFailed, NoAccess } from "@/components/ui/PageState";
 import { Confirm, Drawer } from "@/components/ui/Modal";
 import { useToast } from "@/components/ui/Toast";
 import PageHeader from "@/components/ui/PageHeader";
+import { CardItem, CardList, DesktopTable } from "@/components/ui/CardList";
 import MotionTabs from "@/components/motion/MotionTabs";
 import { useActivity } from "@/lib/useActivity";
 import {
@@ -157,6 +158,40 @@ function AdminInner() {
   const [paramEdit, setParamEdit] = useState<{ key: string; value: string } | null>(null);
   const [confirm, setConfirm] = useState<{ title: string; text?: string; danger?: boolean; run: () => Promise<void> } | null>(null);
 
+  function toggleUser(u: AdminUser) {
+    setConfirm({
+      title: u.status === "active" ? `停用用户「${u.username}」？` : `启用用户「${u.username}」？`,
+      danger: u.status === "active",
+      text: u.status === "active" ? "停用后该账号无法登录，已登录会话不受影响。" : "启用后该账号可正常登录。",
+      run: async () => {
+        await adminApi.updateUser(u.id, { status: u.status === "active" ? "disabled" : "active" });
+        toast.ok("用户状态已更新");
+        users.reload();
+      },
+    });
+  }
+
+  function userActions(u: AdminUser) {
+    return <>
+      <button className="btn-ghost btn-xs" onClick={() => { setEditingUser(u); setUserOpen(true); }}>编辑</button>
+      <button className={`btn-ghost btn-xs ${u.status === "active" ? "btn-danger-outline" : ""}`} onClick={() => toggleUser(u)}>
+        {u.status === "active" ? "停用" : "启用"}
+      </button>
+    </>;
+  }
+
+  function restoreProject(p: RecycleBinItem) {
+    setConfirm({
+      title: `恢复项目「${p.name}」？`,
+      text: "恢复后项目重新出现在台账列表。",
+      run: async () => {
+        await projectsApi.restore(p.id);
+        toast.ok("项目已恢复");
+        bin.reload();
+      },
+    });
+  }
+
   // 主操作随页签变化；没有主操作的页签（角色 / 参数 / 日志 / 回收站）不传，
   // 避免又留一条空白操作行（BLF-1140）
   const pageActions =
@@ -187,7 +222,23 @@ function AdminInner() {
           <div className="card"><Empty title="暂无用户" hint="新增用户后可分配角色。" /></div>
         ) : (
           <>
-            <div className="table-scroll">
+            <CardList label="系统用户">
+              {userItems.map((u) => (
+                <CardItem
+                  key={u.id}
+                  title={u.real_name || u.username}
+                  code={u.username}
+                  badges={<Badge status={u.status === "active" ? "启用" : u.status === "locked" ? "锁定" : "停用"} tone={u.status === "active" ? "done" : u.status === "locked" ? "warn" : "paused"} />}
+                  fields={[
+                    { label: "部门", value: deptName(u.dept_id) },
+                    { label: "角色", value: u.roles.map((r) => r.name).join(" / ") || "-" },
+                  ]}
+                  onSelect={() => { setEditingUser(u); setUserOpen(true); }}
+                  actions={userActions(u)}
+                />
+              ))}
+            </CardList>
+            <DesktopTable>
               <table className="grid" aria-busy={users.loading}>
                 <thead><tr><th>手机号</th><th>姓名</th><th>部门</th><th>角色</th><th>状态</th><th className="no-print" /></tr></thead>
                 <tbody>
@@ -203,36 +254,12 @@ function AdminInner() {
                           tone={u.status === "active" ? "done" : u.status === "locked" ? "warn" : "paused"}
                         />
                       </td>
-                      <td className="no-print" onClick={(e) => e.stopPropagation()}>
-                        <span className="table-actions">
-                          <button className="btn-ghost btn-xs"
-                            onClick={() => { setEditingUser(u); setUserOpen(true); }}>
-                            编辑
-                          </button>
-                          <button
-                            className={`btn-ghost btn-xs ${u.status === "active" ? "btn-danger-outline" : ""}`}
-                            onClick={() =>
-                              setConfirm({
-                                title: u.status === "active" ? `停用用户「${u.username}」？` : `启用用户「${u.username}」？`,
-                                danger: u.status === "active",
-                                text: u.status === "active" ? "停用后该账号无法登录，已登录会话不受影响。" : "启用后该账号可正常登录。",
-                                run: async () => {
-                                  await adminApi.updateUser(u.id, { status: u.status === "active" ? "disabled" : "active" });
-                                  toast.ok("用户状态已更新");
-                                  users.reload();
-                                },
-                              })
-                            }
-                          >
-                            {u.status === "active" ? "停用" : "启用"}
-                          </button>
-                        </span>
-                      </td>
+                      <td className="no-print" onClick={(e) => e.stopPropagation()}><span className="table-actions">{userActions(u)}</span></td>
                     </tr>
                   ))}
                 </tbody>
               </table>
-            </div>
+            </DesktopTable>
             <Pagination
               page={userPage}
               size={userSize}
@@ -287,7 +314,22 @@ function AdminInner() {
         params.firstLoad ? (
           <LoadingBlock kpis={0} label="加载参数…" />
         ) : (
-          <div className="table-scroll">
+          <>
+          <CardList label="系统参数">
+            {Object.entries(paramItems).map(([k, v]) => (
+              <CardItem
+                key={k}
+                title={PARAM_LABELS[k] ?? k}
+                code={k}
+                fields={[
+                  { label: "当前值", value: v, mono: true },
+                  { label: "说明", value: k === "expense_approval_on" ? "1=支出需审批" : k === "budget_approval_on" ? "1=预算调整需审批" : "-" },
+                ]}
+                actions={<button className="btn-ghost btn-xs" onClick={() => setParamEdit({ key: k, value: v })}>编辑</button>}
+              />
+            ))}
+          </CardList>
+          <DesktopTable>
             <table className="grid">
               <thead><tr><th>参数</th><th>当前值</th><th>说明</th><th className="no-print" /></tr></thead>
               <tbody>
@@ -306,7 +348,8 @@ function AdminInner() {
                 ))}
               </tbody>
             </table>
-          </div>
+          </DesktopTable>
+          </>
         )
       )}
 
@@ -329,7 +372,23 @@ function AdminInner() {
             </div>
           ) : (
             <>
-              <div className="table-scroll">
+              <CardList label="审计日志">
+                {logItems.map((l) => (
+                  <CardItem
+                    key={l.id}
+                    title={auditActionLabel(l.action, l.resource)}
+                    code={fmtDateTime(l.created_at)}
+                    fields={[
+                      { label: "操作人", value: l.operator_name },
+                      { label: "对象", value: auditResourceDisplay(l.resource, l.resource_id) },
+                      { label: "详情", value: auditDetailLabel(l.action, l.resource, l.detail) },
+                      { label: "IP", value: l.ip || "-", mono: true },
+                    ]}
+                    onSelect={() => setLogDetail(l)}
+                  />
+                ))}
+              </CardList>
+              <DesktopTable>
                 <table className="grid" aria-busy={logs.loading}>
                   <thead><tr><th>时间</th><th>操作人</th><th>动作</th><th>对象</th><th>详情</th><th>IP</th></tr></thead>
                   <tbody>
@@ -352,7 +411,7 @@ function AdminInner() {
                     ))}
                   </tbody>
                 </table>
-              </div>
+              </DesktopTable>
               <Pagination
                 page={logPage}
                 size={logSize}
@@ -374,7 +433,21 @@ function AdminInner() {
           <div className="card"><Empty title="回收站为空" hint="删除的项目会进入这里，可恢复。" /></div>
         ) : (
           <>
-          <div className="table-scroll">
+          <CardList label="项目回收站">
+            {binItems.map((p) => (
+              <CardItem
+                key={p.id}
+                title={p.name}
+                code={p.code}
+                fields={[
+                  { label: "原状态", value: projectStatusLabel(p.status) },
+                  { label: "删除时间", value: fmtDateTime(p.deleted_at), mono: true },
+                ]}
+                actions={<button className="btn-ghost btn-xs" onClick={() => restoreProject(p)}>恢复项目</button>}
+              />
+            ))}
+          </CardList>
+          <DesktopTable>
             <table className="grid" aria-busy={bin.loading}>
               <thead><tr><th>编号</th><th>名称</th><th>原状态</th><th>删除时间</th><th className="no-print" /></tr></thead>
               <tbody>
@@ -385,20 +458,7 @@ function AdminInner() {
                     <td>{projectStatusLabel(p.status)}</td>
                     <td className="mono tiny">{fmtDateTime(p.deleted_at)}</td>
                     <td className="no-print">
-                      <button
-                        className="btn-ghost btn-xs"
-                        onClick={() =>
-                          setConfirm({
-                            title: `恢复项目「${p.name}」？`,
-                            text: "恢复后项目重新出现在台账列表。",
-                            run: async () => {
-                              await projectsApi.restore(p.id);
-                              toast.ok("项目已恢复");
-                              bin.reload();
-                            },
-                          })
-                        }
-                      >
+                      <button className="btn-ghost btn-xs" onClick={() => restoreProject(p)}>
                         恢复
                       </button>
                     </td>
@@ -406,7 +466,7 @@ function AdminInner() {
                 ))}
               </tbody>
             </table>
-          </div>
+          </DesktopTable>
           <Pagination
             page={binPage}
             size={binSize}

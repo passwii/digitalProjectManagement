@@ -1,0 +1,47 @@
+.desktopActions { display: contents; }
+.mobileActions { display: none; }
+
+@media (max-width: 767px) {
+  .desktopActions { display: none; }
+  .mobileActions {
+    display: grid;
+    width: 100%;
+    gap: 8px;
+  }
+  .mobileActions > button { width: 100%; }
+  .moreActions {
+    min-width: 0;
+    border: 1px solid var(--line);
+    background: var(--th-bg);
+  }
+  .moreActions summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    min-height: var(--m-tap);
+    padding: 0 14px;
+    color: var(--ink);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    list-style: none;
+  }
+  .moreActions summary::-webkit-details-marker { display: none; }
+  .moreActions summary::after {
+    width: 7px;
+    height: 7px;
+    border-right: 1px solid currentColor;
+    border-bottom: 1px solid currentColor;
+    transform: rotate(45deg);
+    content: "";
+  }
+  .moreActions[open] summary::after { transform: rotate(225deg); }
+  .moreActions summary:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+  .moreBody {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    padding: 0 8px 8px;
+  }
+  .moreBody button { min-width: 0; width: 100%; }
+}

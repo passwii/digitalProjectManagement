@@ -15,12 +15,14 @@ import { useMenus } from "@/lib/useMeta";
 import { LoadingBlock, LoadFailed, NoAccess } from "@/components/ui/PageState";
 import Empty from "@/components/ui/Empty";
 import PageHeader from "@/components/ui/PageHeader";
+import { CardItem, CardList, DesktopTable } from "@/components/ui/CardList";
 import MotionTabs from "@/components/motion/MotionTabs";
 import { Confirm, Dialog } from "@/components/ui/Modal";
 import { useToast } from "@/components/ui/Toast";
 import ArapPanel from "./ArapPanel";
 import { AccountBookRecycleBinDialog, MoveBookToRecycleBinDialog } from "./AccountBookLifecycle";
 import BookMembersDialog from "./BookMembersDialog";
+import fm from "./finance.module.css";
 
 const TABS = ["账套概览", "基础设置", "凭证", "应收应付", "出纳与对账", "固定资产", "账簿与报表", "期末结账"] as const;
 type Tab = (typeof TABS)[number];
@@ -95,6 +97,17 @@ function FinanceInner() {
   if (books.firstLoad) return <LoadingBlock kpis={4} label="加载财务账套…" />;
   if (books.error) return <LoadFailed message={books.error} onRetry={books.reload} />;
 
+  const bookActions = <>
+    <button className="btn-ghost" onClick={refreshAll} title="刷新财务工作台">刷新</button>
+    {isAdmin && <button className="btn-ghost" onClick={() => setBookOpen(true)}>+ 新建账套</button>}
+    {isAdmin && <button className="btn-ghost" onClick={() => setRecycleBinOpen(true)}>账套回收站</button>}
+    {isAdmin && book && <button className="btn-ghost" onClick={() => setBookMembersOpen(true)}>成员与权限</button>}
+    {isAdmin && book && <button className="btn-danger-outline" onClick={() => setDeleteBookOpen(true)}>移入回收站</button>}
+  </>;
+  const voucherAction = activeBook && currentPeriod
+    ? <button className="btn-primary" onClick={() => setVoucherOpen(true)}>+ 凭证</button>
+    : null;
+
   return (
     <div>
       <PageHeader
@@ -113,12 +126,14 @@ function FinanceInner() {
         }
         actions={
           <>
-            <button className="btn-ghost" onClick={refreshAll} title="刷新财务工作台">刷新</button>
-            {isAdmin && <button className="btn-ghost" onClick={() => setBookOpen(true)}>+ 新建账套</button>}
-            {isAdmin && <button className="btn-ghost" onClick={() => setRecycleBinOpen(true)}>账套回收站</button>}
-            {isAdmin && book && <button className="btn-ghost" onClick={() => setBookMembersOpen(true)}>成员与权限</button>}
-            {isAdmin && book && <button className="btn-danger-outline" onClick={() => setDeleteBookOpen(true)}>移入回收站</button>}
-            {activeBook && currentPeriod && <button className="btn-primary" onClick={() => setVoucherOpen(true)}>+ 凭证</button>}
+            <div className={fm.desktopActions}>{bookActions}{voucherAction}</div>
+            <div className={fm.mobileActions}>
+              {voucherAction}
+              <details className={fm.moreActions}>
+                <summary>账套操作</summary>
+                <div className={fm.moreBody}>{bookActions}</div>
+              </details>
+            </div>
           </>
         }
       />
@@ -228,11 +243,53 @@ function VoucherList({ book, period, templates, data, loading, error, onRetry, o
     await runAction("void", voidTarget, voidReason.trim());
   }
 
+  function voucherActions(voucher: FinanceVoucher) {
+    return <>
+      {voucher.status === "draft" && <>
+        <button className="btn-xs btn-ghost" disabled={busyVoucherId !== null} onClick={() => void runAction("submit", voucher)}>提交</button>
+        <button className="btn-xs btn-danger-outline" disabled={busyVoucherId !== null} onClick={() => setDeleteTarget(voucher)}>删除草稿</button>
+      </>}
+      {voucher.status === "pending" && <>
+        <button className="btn-xs btn-ghost" disabled={busyVoucherId !== null} onClick={() => void runAction("approve", voucher)}>审核</button>
+        <button className="btn-xs btn-primary" disabled={busyVoucherId !== null} onClick={() => void runAction("post", voucher)}>过账</button>
+        <button className="btn-xs btn-danger-outline" disabled={busyVoucherId !== null} onClick={() => { setVoidTarget(voucher); setVoidReason(""); setVoidError(""); }}>作废</button>
+      </>}
+      {voucher.status === "posted" && <button className="btn-xs btn-ghost" disabled={busyVoucherId !== null} onClick={() => void runAction("reverse", voucher)}>红字冲销</button>}
+    </>;
+  }
+
   if (loading) return <LoadingBlock kpis={0} label="加载凭证…" />;
   if (error) return <LoadFailed message={error} onRetry={onRetry} />;
   return <>
     <div className="section-head"><div><h2>凭证</h2><p>当前期间的凭证流水，草稿、待审核和已过账状态由后端控制。</p></div><div className="row-actions"><button className="btn-ghost" onClick={onTemplate}>模板</button><button className="btn-ghost" onClick={() => document.getElementById("finance-voucher-import")?.click()}>导入 Excel</button><input id="finance-voucher-import" type="file" accept=".xlsx" hidden onChange={async (event) => { const file = event.target.files?.[0]; if (file && period) { await financeApi.importVouchers(book, period.id, file); window.location.reload(); } }} /><button className="btn-ghost" disabled={!period} onClick={() => period && financeApi.exportVouchers(book, period.id)}>导出 Excel</button><button className="btn-primary" onClick={onCreate}>+ 新建凭证</button></div></div>
-    {!data.length ? <div className="card"><Empty title="当前期间还没有凭证" hint="从一张手工凭证开始建立财务事实。" /></div> : <div className="table-scroll"><table className="grid"><thead><tr><th>凭证号</th><th>日期</th><th>摘要</th><th className="num">借方</th><th className="num">贷方</th><th>状态</th><th className="no-print">操作</th></tr></thead><tbody>{data.map((voucher) => <tr key={voucher.id}><td className="mono">{voucher.voucher_no}</td><td>{voucher.voucher_date}</td><td>{voucher.summary || "-"}</td><td className="num">{money(voucher.total_debit)}</td><td className="num">{money(voucher.total_credit)}</td><td><span className={`badge ${voucher.status === "posted" ? "done" : voucher.status === "pending" ? "doing" : "muted"}`}>{({ draft: "草稿", pending: "待审核", posted: "已过账", void: "已作废" } as Record<string, string>)[voucher.status]}</span></td><td className="no-print"><div className="row-actions">{voucher.status === "draft" && <><button className="btn-xs btn-ghost" disabled={busyVoucherId !== null} onClick={() => void runAction("submit", voucher)}>提交</button><button className="btn-xs btn-danger-outline" disabled={busyVoucherId !== null} onClick={() => setDeleteTarget(voucher)}>删除草稿</button></>}{voucher.status === "pending" && <><button className="btn-xs btn-ghost" disabled={busyVoucherId !== null} onClick={() => void runAction("approve", voucher)}>审核</button><button className="btn-xs btn-primary" disabled={busyVoucherId !== null} onClick={() => void runAction("post", voucher)}>过账</button><button className="btn-xs btn-danger-outline" disabled={busyVoucherId !== null} onClick={() => { setVoidTarget(voucher); setVoidReason(""); setVoidError(""); }}>作废</button></>}{voucher.status === "posted" && <button className="btn-xs btn-ghost" disabled={busyVoucherId !== null} onClick={() => void runAction("reverse", voucher)}>红字冲销</button>}</div></td></tr>)}</tbody></table></div>}
+    {!data.length ? <div className="card"><Empty title="当前期间还没有凭证" hint="从一张手工凭证开始建立财务事实。" /></div> : <>
+      <CardList label="财务凭证">
+        {data.map((voucher) => (
+          <CardItem
+            key={voucher.id}
+            title={voucher.voucher_no}
+            code={voucher.voucher_date}
+            badges={<span className={`badge ${voucher.status === "posted" ? "done" : voucher.status === "pending" ? "doing" : "muted"}`}>{({ draft: "草稿", pending: "待审核", posted: "已过账", void: "已作废" } as Record<string, string>)[voucher.status]}</span>}
+            fields={[
+              { label: "摘要", value: voucher.summary || "-" },
+              { label: "借方", value: money(voucher.total_debit), mono: true },
+              { label: "贷方", value: money(voucher.total_credit), mono: true },
+            ]}
+            actions={voucher.status === "void" ? undefined : voucherActions(voucher)}
+          />
+        ))}
+      </CardList>
+      <DesktopTable>
+        <table className="grid"><thead><tr><th>凭证号</th><th>日期</th><th>摘要</th><th className="num">借方</th><th className="num">贷方</th><th>状态</th><th className="no-print">操作</th></tr></thead>
+          <tbody>{data.map((voucher) => <tr key={voucher.id}>
+            <td className="mono">{voucher.voucher_no}</td><td>{voucher.voucher_date}</td><td>{voucher.summary || "-"}</td>
+            <td className="num">{money(voucher.total_debit)}</td><td className="num">{money(voucher.total_credit)}</td>
+            <td><span className={`badge ${voucher.status === "posted" ? "done" : voucher.status === "pending" ? "doing" : "muted"}`}>{({ draft: "草稿", pending: "待审核", posted: "已过账", void: "已作废" } as Record<string, string>)[voucher.status]}</span></td>
+            <td className="no-print"><div className="row-actions">{voucherActions(voucher)}</div></td>
+          </tr>)}</tbody>
+        </table>
+      </DesktopTable>
+    </>}
     <Confirm
       open={!!deleteTarget}
       title="删除草稿凭证？"

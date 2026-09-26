@@ -321,5 +321,5 @@
   .nodeColumn { display: none; }
   .entries { padding-left: 0; }
   .entry { grid-template-columns: 50px minmax(0, 1fr); gap: 10px; padding: 13px 12px; }
-  .entry p { font-size: 12px; }
+  .entry p { font-size: 13px; }
 }

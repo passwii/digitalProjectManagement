@@ -40,7 +40,7 @@ export default function ChangePasswordPage() {
             <span className={st.cardBadge}>SHZK</span>
             <div>
               <p className={st.cardEyebrow}>数科云办公</p>
-              <h2>首次登录 · 修改密码</h2>
+              <h1>首次登录 · 修改密码</h1>
             </div>
           </div>
           <form onSubmit={onSubmit}>

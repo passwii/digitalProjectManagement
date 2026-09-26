@@ -35,6 +35,7 @@ import {
 import { PROJECT_TABS, parseProjectTab, type ProjectTab } from "@/lib/projectTabs";
 import Badge from "@/components/ui/Badge";
 import Empty from "@/components/ui/Empty";
+import { CardItem, CardList, DesktopTable } from "@/components/ui/CardList";
 import { LoadingBlock } from "@/components/ui/PageState";
 import FileDropZone from "@/components/ui/FileDropZone";
 import { useToast } from "@/components/ui/Toast";
@@ -681,7 +682,19 @@ function ProjectDetail({ pid }: { pid: number }) {
           {tasks.length === 0 ? (
             <Empty title="暂无进度" hint="点击「添加进度」记录第一条项目进展。" />
           ) : (
-            <div className="table-scroll">
+            <>
+            <CardList label="项目进度记录">
+              {tasks.map((t) => (
+                <CardItem
+                  key={t.id}
+                  title={t.name}
+                  code={fmtDate(t.plan_end || t.plan_start)}
+                  fields={[{ label: "记录人", value: userName(t.owner_id) }]}
+                  actions={<button className="btn-ghost btn-xs" onClick={() => { setEditingTask(t); setNodeOpen(true); }}>编辑</button>}
+                />
+              ))}
+            </CardList>
+            <DesktopTable>
               <table className="grid">
                 <thead><tr><th>进度节点时间</th><th>进度关键内容</th><th>记录人</th><th className="no-print" /></tr></thead>
                 <tbody>
@@ -697,7 +710,8 @@ function ProjectDetail({ pid }: { pid: number }) {
                   ))}
                 </tbody>
               </table>
-            </div>
+            </DesktopTable>
+            </>
           )}
         </section>
       )}
@@ -714,7 +728,22 @@ function ProjectDetail({ pid }: { pid: number }) {
           {expenses.length === 0 ? (
             <Empty title="暂无支出" hint="点击「+ 支出」登记项目关联费用。" />
           ) : (
-            <div className="table-scroll">
+            <>
+            <CardList label="项目支出">
+              {expenses.map((x) => (
+                <CardItem
+                  key={x.id}
+                  title={`${fmtMoney(x.amount)} 元`}
+                  code={fmtDate(x.exp_date)}
+                  badges={<Badge status={expenseStatusLabel(x.status)} tone={expenseTone(x.status)} />}
+                  fields={[
+                    { label: "人员", value: x.subject },
+                    { label: "费用说明", value: x.note || "-" },
+                  ]}
+                />
+              ))}
+            </CardList>
+            <DesktopTable>
               <table className="grid">
                 <thead><tr><th>日期</th><th>人员</th><th className="num">金额</th><th>费用说明</th><th>状态</th></tr></thead>
                 <tbody>
@@ -729,7 +758,8 @@ function ProjectDetail({ pid }: { pid: number }) {
                   ))}
                 </tbody>
               </table>
-            </div>
+            </DesktopTable>
+            </>
           )}
         </section>
       )}
