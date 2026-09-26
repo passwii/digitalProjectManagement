@@ -28,12 +28,7 @@ def upgrade():
 
 
 def downgrade():
-    for n, t in [("ix_projects_dept_id", "projects"), ("ix_projects_owner_id", "projects"),
-                 ("ix_followups_user_id", "followups"), ("ix_followups_remind_at", "followups"),
-                 ("ix_tasks_proj_status", "tasks"), ("ix_logs_proj_created", "progress_logs"),
-                 ("ix_milestones_proj_status", "milestones"),
-                 ("ix_expenses_proj_subject", "expenses"), ("ix_expenses_proj_status", "expenses"),
-                 ("ix_budgets_proj_subject", "budgets")]:
-        existing = {i["name"] for i in sa.inspect(op.get_bind()).get_indexes(t)}
-        if n in existing:
-            op.drop_index(n, table_name=t)
+    # These indexes are part of the frozen 0001 baseline. This revision remains
+    # as an idempotent compatibility step for databases that predate the
+    # snapshot; downgrading must not remove objects owned by 0001.
+    pass

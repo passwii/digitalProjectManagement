@@ -50,11 +50,7 @@ def upgrade():
 
 
 def downgrade():
-    if _has_table("notifications"):
-        op.drop_table("notifications")
-    if _has_column("projects", "deleted_at"):
-        try:
-            op.drop_index("ix_projects_deleted_at", table_name="projects")
-        except Exception:
-            pass
-        op.drop_column("projects", "deleted_at")
+    # notifications and projects.deleted_at are part of the frozen 0001
+    # baseline. This revision remains idempotent for databases that predate
+    # the snapshot, so its downgrade must preserve those baseline objects.
+    pass
