@@ -273,7 +273,10 @@ export default function Select({
   }, [currentValue]);
 
   return (
-    <span className={`${styles.root}${className ? ` ${className}` : ""}`}>
+    <span
+      data-select-root="true"
+      className={`${styles.root}${className ? ` ${className}` : ""}`}
+    >
       <button
         ref={triggerRef}
         type="button"
