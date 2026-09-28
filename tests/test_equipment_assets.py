@@ -68,11 +68,18 @@ def test_batch_and_unique_codes(client, db):
     assert client.post(f"{ROOT}/inbound", headers=login(client, "pm"), json={"items": []}).status_code == 403
 
 
-def test_export_neutralizes_formula_strings_in_csv_and_xlsx(client):
+def test_export_neutralizes_formula_strings_in_csv_and_xlsx(client, db):
     admin = login(client, "admin")
     values = ["=1+1", "+SUM(A1:A2)", "-1+2", "@SUM(A1)", "  =1+1", "\t+1+1"]
     for i, value in enumerate(values):
         _create(client, admin, name=value, serial_number=f"FORMULA-{i}")
+    # Normal asset creation trims these fields; place legacy/external values in
+    # storage directly to exercise the export boundary's whitespace handling.
+    with db() as session:
+        for i, value in enumerate(values):
+            asset = session.query(EquipmentAsset).filter_by(serial_number=f"FORMULA-{i}").one()
+            asset.name = value
+        session.commit()
 
     csv_response = client.get(f"{ROOT}/export?format=csv", headers=admin)
     assert csv_response.status_code == 200
