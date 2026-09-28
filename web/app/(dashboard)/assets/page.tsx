@@ -336,6 +336,7 @@ function AssetDetail({ asset, categories, batch, events, deleteCheck, userName, 
   const [due, setDue] = useState("");
   const [editing, setEditing] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [pendingTerminalAction, setPendingTerminalAction] = useState<"scrap" | "void" | null>(null);
   const [confirmCode, setConfirmCode] = useState("");
   const [deleteReason, setDeleteReason] = useState("");
   const [deleteError, setDeleteError] = useState("");
@@ -359,6 +360,13 @@ function AssetDetail({ asset, categories, batch, events, deleteCheck, userName, 
     try { await onDelete(deleteReason.trim()); }
     catch (e) { setDeleteError(errText(e)); }
   };
+  const confirmTerminalAction = () => {
+    if (!pendingTerminalAction || busy) return;
+    const action = pendingTerminalAction;
+    setPendingTerminalAction(null);
+    onAction(action, { note });
+  };
+  const terminalActionLabel = pendingTerminalAction === "scrap" ? "报废" : "作废";
 
   return <Drawer
     open
@@ -391,8 +399,8 @@ function AssetDetail({ asset, categories, batch, events, deleteCheck, userName, 
           {!(["void", "scrapped", "pending_acceptance"].includes(asset.status)) && <button type="button" className="btn-ghost" disabled={busy} onClick={() => setEditing(!editing)}>{editing ? "取消编辑" : "编辑档案"}</button>}
           {asset.status === "available" && <button type="button" className="btn-ghost" disabled={busy} onClick={() => onAction("maintenance", { note })}>送修</button>}
           {asset.status === "maintenance" && <button type="button" className="btn-ghost" disabled={busy} onClick={() => onAction("restore", { note })}>恢复可用</button>}
-          {["available", "maintenance"].includes(asset.status) && <button type="button" className="btn-ghost asset-danger" disabled={busy} onClick={() => onAction("scrap", { note })}>报废</button>}
-          {!(["void", "scrapped", "pending_acceptance"].includes(asset.status)) && <button type="button" className="btn-ghost asset-danger" disabled={busy} onClick={() => onAction("void", { note })}>作废</button>}
+          {["available", "maintenance"].includes(asset.status) && <button type="button" className="btn-ghost asset-danger" disabled={busy} onClick={() => setPendingTerminalAction("scrap")}>报废</button>}
+          {!(["void", "scrapped", "pending_acceptance"].includes(asset.status)) && <button type="button" className="btn-ghost asset-danger" disabled={busy} onClick={() => setPendingTerminalAction("void")}>作废</button>}
         </div>
         {editing && <form className="asset-edit-form" onSubmit={(event) => { event.preventDefault(); onEdit(form); }}>
           <h4>编辑资产档案</h4>
@@ -451,6 +459,34 @@ function AssetDetail({ asset, categories, batch, events, deleteCheck, userName, 
           <label>删除原因 <span className="asset-required">*</span><textarea aria-label="删除原因" maxLength={500} rows={4} value={deleteReason} onChange={(event) => setDeleteReason(event.target.value)} placeholder="例如：重复录入、录入错误" /></label>
           {confirmCode && confirmCode.trim() !== asset.code && <div className="field-err" role="alert">设备编号不匹配</div>}
           {deleteError && <div className="field-err" role="alert">{deleteError}</div>}
+        </div>
+      </Dialog>}
+
+      {pendingTerminalAction && <Dialog
+        open
+        onClose={() => { if (!busy) setPendingTerminalAction(null); }}
+        title={`确认${terminalActionLabel}设备`}
+        size="sm"
+        maskClosable={!busy}
+        footer={<>
+          <button className="btn-ghost" disabled={busy} onClick={() => setPendingTerminalAction(null)}>取消</button>
+          <button className="btn-ghost asset-danger" disabled={busy} onClick={confirmTerminalAction}>{busy ? "处理中…" : `确认${terminalActionLabel}`}</button>
+        </>}
+      >
+        <div className="asset-terminal-dialog">
+          <dl className="asset-terminal-identity">
+            <div><dt>设备编号</dt><dd>{asset.code}</dd></div>
+            <div><dt>设备名称</dt><dd>{asset.name}</dd></div>
+            <div><dt>当前状态</dt><dd>{STATUS[asset.status] ?? asset.status}</dd></div>
+          </dl>
+          <p className="asset-terminal-warning">
+            {pendingTerminalAction === "scrap"
+              ? "确认后设备将进入「已报废」状态，后续不能恢复或编辑档案。"
+              : "确认后设备将进入「已作废」状态，后续不能恢复或编辑档案。"}
+          </p>
+          {pendingTerminalAction === "void" && ["claimed", "borrowed"].includes(asset.status) && (
+            <p className="asset-terminal-warning">作废后，系统会清空该设备的使用人和到期日。</p>
+          )}
         </div>
       </Dialog>}
     </div>
