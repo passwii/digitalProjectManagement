@@ -10,7 +10,7 @@ from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from fastapi.responses import StreamingResponse
 from openpyxl import Workbook, load_workbook
 from pydantic import BaseModel
-from sqlalchemy import func, or_
+from sqlalchemy import case, func, or_
 from sqlalchemy.orm import Session
 
 from ..core.audit import commit_audited, write_audit
@@ -177,9 +177,16 @@ def statistics(db: Session = Depends(get_db), user: User = Depends(get_current_u
                    db.query(EquipmentAsset.category_code, func.count()).group_by(EquipmentAsset.category_code).all()]
     by_status = [{"status": status, "count": count} for status, count in
                  db.query(EquipmentAsset.status, func.count()).group_by(EquipmentAsset.status).all()]
-    by_month = [{"month": month, "count": count} for month, count in
-                db.query(func.to_char(EquipmentAsset.created_at, "YYYY-MM"), func.count())
-                .group_by(func.to_char(EquipmentAsset.created_at, "YYYY-MM")).order_by(1).all()]
+    event_month = func.to_char(EquipmentEvent.created_at, "YYYY-MM")
+    inbound_actions = ("create", "inbound", "import", "return")
+    outbound_actions = ("claim", "borrow")
+    monthly_events = db.query(
+        event_month.label("month"),
+        func.sum(case((EquipmentEvent.action.in_(inbound_actions), 1), else_=0)).label("inbound"),
+        func.sum(case((EquipmentEvent.action.in_(outbound_actions), 1), else_=0)).label("outbound"),
+    ).group_by(event_month).order_by(event_month).all()
+    by_month = [{"month": month, "inbound": inbound, "outbound": outbound}
+                for month, inbound, outbound in monthly_events]
     by_holder = [{"user_id": uid, "name": name, "count": count} for uid, name, count in
                  db.query(User.id, User.real_name, func.count()).join(EquipmentAsset, EquipmentAsset.holder_id == User.id)
                  .group_by(User.id, User.real_name).all()]

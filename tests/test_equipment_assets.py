@@ -1,4 +1,6 @@
 """公司设备资产：权限、生命周期和批量导入的接口契约。"""
+from datetime import date
+
 import pytest
 from openpyxl import Workbook
 
@@ -184,3 +186,67 @@ def test_audit_failure_rolls_back_state_and_event(client, db, monkeypatch):
     with db() as session:
         assert session.get(EquipmentAsset, asset["id"]).status == "available"
         assert session.query(EquipmentEvent).filter_by(asset_id=asset["id"]).count() == 1
+
+
+def test_overdue_lists_only_borrowed_assets_past_due_date(client, db):
+    admin, pm = login(client, "admin"), login(client, "pm")
+    overdue_asset = _create(client, admin, name="逾期电脑")
+    upcoming_asset = _create(client, admin, name="未逾期电脑")
+    assert client.post(f"{ROOT}/{overdue_asset['id']}/borrow", headers=pm,
+                       json={"due_date": "2099-01-01"}).status_code == 200
+    assert client.post(f"{ROOT}/{upcoming_asset['id']}/borrow", headers=pm,
+                       json={"due_date": "2099-01-01"}).status_code == 200
+    with db() as session:
+        session.get(EquipmentAsset, overdue_asset["id"]).due_date = date(2000, 1, 1)
+        session.commit()
+
+    response = client.get(f"{ROOT}/overdue", headers=pm)
+    assert response.status_code == 200, response.text
+    assert [item["id"] for item in response.json()["items"]] == [overdue_asset["id"]]
+
+
+def test_category_admin_crud_and_referenced_category_cannot_be_deleted(client):
+    admin = login(client, "admin")
+    created = client.post(f"{ROOT}/categories", headers=admin,
+                          json={"code": "camera", "label": "相机", "sort": 9})
+    assert created.status_code == 200, created.text
+    assert created.json() == {"code": "camera", "label": "相机", "sort": 9}
+    updated = client.patch(f"{ROOT}/categories/camera", headers=admin,
+                           json={"label": "摄影设备", "sort": 3})
+    assert updated.status_code == 200, updated.text
+    assert updated.json() == {"code": "camera", "label": "摄影设备", "sort": 3}
+    assert client.delete(f"{ROOT}/categories/camera", headers=admin).json() == {"ok": True}
+
+    assert client.post(f"{ROOT}/categories", headers=admin,
+                       json={"code": "tablet", "label": "平板"}).status_code == 200
+    assert client.post(ROOT, headers=admin,
+                       json={"name": "平板设备", "category_code": "tablet"}).status_code == 200
+    blocked = client.delete(f"{ROOT}/categories/tablet", headers=admin)
+    assert blocked.status_code == 400
+
+
+def test_statistics_monthly_inbound_and_outbound_count_equipment_events(client):
+    admin, pm = login(client, "admin"), login(client, "pm")
+    created = _create(client, admin, name="新建资产")
+    inbound = client.post(f"{ROOT}/inbound", headers=admin, json={"items": [
+        {"name": "入库资产", "category_code": "computer"},
+    ]})
+    assert inbound.status_code == 200, inbound.text
+    pending = client.post(f"{ROOT}/inbound", headers=admin, json={
+        "acceptance_status": "pending_acceptance",
+        "items": [{"name": "验收资产", "category_code": "monitor"}],
+    })
+    assert pending.status_code == 200, pending.text
+    pending_id = pending.json()["batch_id"]
+    assert client.post(f"{ROOT}/batches/{pending_id}/accept", headers=admin).status_code == 200
+    assert client.post(f"{ROOT}/{created['id']}/claim", headers=pm).status_code == 200
+    assert client.post(f"{ROOT}/{created['id']}/return", headers=admin).status_code == 200
+    inbound_asset_id = inbound.json()["items"][0]["id"]
+    assert client.post(f"{ROOT}/{inbound_asset_id}/borrow", headers=pm,
+                       json={"due_date": "2099-01-01"}).status_code == 200
+
+    response = client.get(f"{ROOT}/statistics", headers=pm)
+    assert response.status_code == 200, response.text
+    month = date.today().strftime("%Y-%m")
+    summary = next(row for row in response.json()["by_month"] if row["month"] == month)
+    assert summary == {"month": month, "inbound": 4, "outbound": 2}
