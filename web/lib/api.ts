@@ -1753,3 +1753,66 @@ export const partnersApi = {
   deleteAttachment: (pid: number, aid: number) =>
     apiDelete<{ ok: boolean }>(`/partners/${pid}/attachments/${aid}`),
 };
+
+// ---------------- 公司设备资产 ----------------
+export type EquipmentAssetStatus = "pending_acceptance" | "available" | "claimed" | "borrowed" | "maintenance" | "scrapped" | "void";
+export interface EquipmentAsset {
+  id: number; code: string; name: string; category_code: string; serial_number: string | null;
+  brand: string | null; model: string | null; location: string | null; note: string | null;
+  purchase_date: string | null; purchase_price: number | null; status: EquipmentAssetStatus;
+  holder_id: number | null; due_date: string | null; batch_id: number | null;
+  created_by: number | null; created_at: string; updated_at: string;
+}
+export interface EquipmentBatch {
+  id: number; source: string | null; supplier: string | null; purchase_order_no: string | null;
+  invoice_no: string | null; acceptance_status: "pending_acceptance" | "accepted"; note: string | null;
+  created_by: number | null; created_at: string; items?: EquipmentAsset[];
+}
+export interface EquipmentEvent {
+  id: number; asset_id: number; batch_id: number | null; action: string; from_status: string | null;
+  to_status: string | null; actor_id: number | null; holder_id: number | null; due_date: string | null;
+  note: string | null; created_at: string;
+}
+export interface EquipmentCategory { code: string; label: string; sort: number }
+export interface EquipmentOverview { total: number; by_status: Record<string, number>; overdue: number }
+export interface EquipmentStatistics {
+  by_category: { category_code: string; count: number }[];
+  by_status: { status: string; count: number }[];
+  by_month: { month: string; inbound: number; outbound: number }[];
+  by_holder: { user_id: number; name: string; count: number }[];
+}
+export type EquipmentListParams = { keyword?: string; category_code?: string; status?: string; holder_id?: number | string; page?: number; size?: number };
+export type EquipmentWrite = Partial<Pick<EquipmentAsset, "name" | "category_code" | "serial_number" | "brand" | "model" | "location" | "note" | "purchase_date" | "purchase_price">>;
+export function equipmentAssetActions(asset: EquipmentAsset, isAdmin: boolean, currentUserId?: number) {
+  return {
+    canClaim: !isAdmin && asset.status === "available",
+    canBorrow: !isAdmin && asset.status === "available",
+    canReturn: asset.status === "borrowed" && (isAdmin || asset.holder_id === currentUserId) || isAdmin && asset.status === "claimed",
+    canManage: isAdmin && asset.status !== "pending_acceptance",
+  };
+}
+const EQUIPMENT_ASSETS = "/equipment-assets";
+export const equipmentAssetsApi = {
+  list: (params: EquipmentListParams = {}, signal?: AbortSignal) => apiGet<Paged<EquipmentAsset>>(`${EQUIPMENT_ASSETS}${buildQuery(params)}`, signal),
+  overview: (signal?: AbortSignal) => apiGet<EquipmentOverview>(`${EQUIPMENT_ASSETS}/overview`, signal),
+  statistics: (signal?: AbortSignal) => apiGet<EquipmentStatistics>(`${EQUIPMENT_ASSETS}/statistics`, signal),
+  overdue: (page = 1, size = 20, signal?: AbortSignal) => apiGet<Paged<EquipmentAsset>>(`${EQUIPMENT_ASSETS}/overdue${buildQuery({ page, size })}`, signal),
+  categories: (signal?: AbortSignal) => apiGet<EquipmentCategory[]>(`${EQUIPMENT_ASSETS}/categories`, signal),
+  createCategory: (body: Partial<EquipmentCategory>) => apiPost<EquipmentCategory>(`${EQUIPMENT_ASSETS}/categories`, body),
+  updateCategory: (code: string, body: Partial<EquipmentCategory>) => apiPatch<EquipmentCategory>(`${EQUIPMENT_ASSETS}/categories/${encodeURIComponent(code)}`, body),
+  deleteCategory: (code: string) => apiDelete<{ ok: boolean }>(`${EQUIPMENT_ASSETS}/categories/${encodeURIComponent(code)}`),
+  get: (id: number, signal?: AbortSignal) => apiGet<EquipmentAsset>(`${EQUIPMENT_ASSETS}/${id}`, signal),
+  create: (body: EquipmentWrite) => apiPost<EquipmentAsset>(EQUIPMENT_ASSETS, body),
+  update: (id: number, body: EquipmentWrite) => apiPatch<EquipmentAsset>(`${EQUIPMENT_ASSETS}/${id}`, body),
+  events: (id: number, signal?: AbortSignal) => apiGet<Paged<EquipmentEvent>>(`${EQUIPMENT_ASSETS}/${id}/events${buildQuery({ page: 1, size: 100 })}`, signal),
+  batches: (page = 1, size = 20, signal?: AbortSignal) => apiGet<Paged<EquipmentBatch>>(`${EQUIPMENT_ASSETS}/batches${buildQuery({ page, size })}`, signal),
+  batch: (id: number, signal?: AbortSignal) => apiGet<EquipmentBatch>(`${EQUIPMENT_ASSETS}/batches/${id}`, signal),
+  inbound: (body: { source?: string; supplier?: string; purchase_order_no?: string; invoice_no?: string; acceptance_status?: "pending_acceptance" | "accepted"; note?: string; items: EquipmentWrite[] }) => apiPost<EquipmentBatch>(`${EQUIPMENT_ASSETS}/inbound`, body),
+  acceptBatch: (id: number, body: { note?: string } = {}) => apiPost<EquipmentBatch>(`${EQUIPMENT_ASSETS}/batches/${id}/accept`, body),
+  claim: (id: number, body: { note?: string } = {}) => apiPost<EquipmentAsset>(`${EQUIPMENT_ASSETS}/${id}/claim`, body),
+  borrow: (id: number, body: { due_date?: string; note?: string } = {}) => apiPost<EquipmentAsset>(`${EQUIPMENT_ASSETS}/${id}/borrow`, body),
+  return: (id: number, body: { note?: string } = {}) => apiPost<EquipmentAsset>(`${EQUIPMENT_ASSETS}/${id}/return`, body),
+  transition: (id: number, action: "maintenance" | "restore" | "scrap" | "void", body: { note?: string } = {}) => apiPost<EquipmentAsset>(`${EQUIPMENT_ASSETS}/${id}/${action}`, body),
+  upload: (file: File) => { const form = new FormData(); form.append("file", file); return apiUpload<{ batch_id: number; created: number }>(`${EQUIPMENT_ASSETS}/import`, form); },
+  export: (format: "csv" | "xlsx") => downloadFile(`${EQUIPMENT_ASSETS}/export${buildQuery({ format })}`, `equipment_assets.${format}`),
+};
