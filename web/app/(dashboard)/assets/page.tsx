@@ -352,7 +352,8 @@ function AssetDetail({ asset, categories, batch, events, deleteCheck, userName, 
   });
   const { canReturn, canClaim, canBorrow } = equipmentAssetActions(asset, isAdmin, currentUser);
   const categoryName = categories.find((category) => category.code === asset.category_code)?.label ?? asset.category_code;
-  const deleteReady = Boolean(deleteCheck?.allowed && confirmCode.trim() === asset.code && deleteReason.trim());
+  const deleteReady = Boolean(confirmCode.trim() === asset.code && deleteReason.trim());
+  const forceDelete = Boolean(deleteCheck && !deleteCheck.allowed);
   const confirmDelete = async () => {
     setDeleteError("");
     try { await onDelete(deleteReason.trim()); }
@@ -425,26 +426,26 @@ function AssetDetail({ asset, categories, batch, events, deleteCheck, userName, 
       </section>
 
       {isAdmin && <section className="asset-detail-section asset-delete-zone">
-        <div className="asset-section-heading"><div><h3>危险操作</h3><p>永久删除仅用于清理错误录入；真实使用过的资产必须保留历史。</p></div></div>
-        {!deleteCheck ? <p className="asset-muted">正在检查删除资格…</p> : deleteCheck.allowed ? <>
-          <p className="asset-delete-hint">该资产尚未产生领用、借用、维修、报废或作废等业务流水，可以永久删除。所属入库批次会保留。</p>
-          <button type="button" className="btn-danger" disabled={busy} onClick={() => { setConfirmCode(""); setDeleteReason(""); setDeleteError(""); setDeleteOpen(true); }}>删除资产</button>
-        </> : <>
-          <p className="asset-delete-blocked">{deleteCheck.reason}</p>
-          <button type="button" className="btn-danger" disabled>不可删除</button>
+        <div className="asset-section-heading"><div><h3>危险操作</h3><p>永久删除会连带清除该资产的设备流水，无法恢复。</p></div></div>
+        {!deleteCheck ? <p className="asset-muted">正在检查删除资格…</p> : <>
+          {deleteCheck.allowed
+            ? <p className="asset-delete-hint">该资产尚未产生领用、借用、维修、报废或作废等业务流水，可以永久删除。所属入库批次会保留。</p>
+            : <p className="asset-delete-blocked">{deleteCheck.reason}。管理员仍可强制删除，此操作不可撤销。</p>}
+          <button type="button" className="btn-danger" disabled={busy} onClick={() => { setConfirmCode(""); setDeleteReason(""); setDeleteError(""); setDeleteOpen(true); }}>{forceDelete ? "强制删除" : "删除资产"}</button>
         </>}
       </section>}
 
       {deleteOpen && <Dialog
         open
         onClose={() => { if (!busy) setDeleteOpen(false); }}
-        title="永久删除资产"
+        title={forceDelete ? "强制删除资产" : "永久删除资产"}
         size="sm"
         maskClosable={!busy}
-        footer={<><button className="btn-ghost" disabled={busy} onClick={() => setDeleteOpen(false)}>取消</button><button className="btn-danger" disabled={busy || !deleteReady} onClick={() => void confirmDelete()}>{busy ? "删除中…" : "永久删除"}</button></>}
+        footer={<><button className="btn-ghost" disabled={busy} onClick={() => setDeleteOpen(false)}>取消</button><button className="btn-danger" disabled={busy || !deleteReady} onClick={() => void confirmDelete()}>{busy ? "删除中…" : forceDelete ? "强制删除" : "永久删除"}</button></>}
       >
         <div className="asset-delete-dialog">
-          <p>此操作会永久删除设备 <b>{asset.name}</b> 及其录入阶段流水，无法恢复。入库批次不会被删除。</p>
+          <p>此操作会永久删除设备 <b>{asset.name}</b> 及其设备流水，无法恢复。入库批次不会被删除。</p>
+          {forceDelete && <p className="asset-delete-blocked">警告：{deleteCheck?.reason}，继续删除将永久丢失上述业务历史。</p>}
           <div className="asset-delete-code"><span>设备编号</span><code>{asset.code}</code></div>
           <label>请输入设备编号确认<input aria-label="输入设备编号确认删除" value={confirmCode} onChange={(event) => setConfirmCode(event.target.value)} autoComplete="off" /></label>
           <label>删除原因 <span className="asset-required">*</span><textarea aria-label="删除原因" maxLength={500} rows={4} value={deleteReason} onChange={(event) => setDeleteReason(event.target.value)} placeholder="例如：重复录入、录入错误" /></label>

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 
 const { api, me, users, isAdmin } = vi.hoisted(() => ({
   api: {
@@ -155,18 +155,32 @@ describe("资产页面分页和刷新", () => {
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
   });
 
-  it("有真实生命周期流水时显示原因并禁止永久删除", async () => {
+  it("管理员在有真实生命周期流水时看到警告但仍可强制删除", async () => {
     api.deleteCheck.mockResolvedValue({
       allowed: false, asset_id: 1, code: "EQ-001", event_count: 3,
-      reason: "该设备已有借用、归还等业务记录，不能彻底删除，请使用作废或报废功能",
+      reason: "该设备已有借用、归还等业务记录，删除将永久丢失这些历史",
       protected_actions: ["borrow", "return"],
     });
     fireEvent.click(await screen.findByRole("tab", { name: "设备台账" }));
     fireEvent.click(await screen.findByRole("button", { name: "查看" }));
 
     expect(await screen.findByText(/该设备已有借用、归还等业务记录/)).toBeTruthy();
-    expect((screen.getByRole("button", { name: "不可删除" }) as HTMLButtonElement).disabled).toBe(true);
-    expect(api.remove).not.toHaveBeenCalled();
+    const forceButton = await screen.findByRole("button", { name: "强制删除" });
+    expect((forceButton as HTMLButtonElement).disabled).toBe(false);
+    fireEvent.click(forceButton);
+
+    // 强制删除仍要求编号确认 + 原因，保持二次确认防线
+    const dialogTitle = await screen.findByRole("heading", { name: "强制删除资产" });
+    const dialog = dialogTitle.closest('[role="dialog"]') as HTMLElement;
+    const confirmButton = within(dialog).getByRole("button", { name: "强制删除" });
+    expect((confirmButton as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.change(screen.getByLabelText("输入设备编号确认删除"), { target: { value: "EQ-001" } });
+    fireEvent.change(screen.getByLabelText("删除原因"), { target: { value: "测试数据清理" } });
+    expect((confirmButton as HTMLButtonElement).disabled).toBe(false);
+    fireEvent.click(confirmButton);
+
+    await waitFor(() => expect(api.remove).toHaveBeenCalledWith(1, { confirm_code: "EQ-001", reason: "测试数据清理" }));
+    expect(await screen.findByText("资产 EQ-001 已永久删除")).toBeTruthy();
   });
 
   it("普通用户不显示删除入口，也不请求删除资格", async () => {
