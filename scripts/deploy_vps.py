@@ -28,7 +28,7 @@ printf '\\n'
 
 def main() -> int:
     target = f"{VPS_USER}@{VPS_HOST}"
-    print(f"Deploying {BRANCH} on {target}:{APP_DIR}")
+    print(f"正在部署 {BRANCH} 到 {target}:{APP_DIR}", flush=True)
 
     command = [
         "ssh",
@@ -43,13 +43,13 @@ def main() -> int:
     try:
         subprocess.run(command, check=True)
     except FileNotFoundError:
-        print("ssh command not found", file=sys.stderr)
+        print("未找到 ssh 命令", file=sys.stderr)
         return 1
     except subprocess.CalledProcessError as exc:
-        print(f"deployment failed with exit code {exc.returncode}", file=sys.stderr)
+        print(f"部署失败，退出码：{exc.returncode}", file=sys.stderr)
         return exc.returncode
 
-    print("deployment completed")
+    print("部署完成")
     return 0
 
 
