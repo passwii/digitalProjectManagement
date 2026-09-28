@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
+import { Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import {
   errText,
   financeApi,
@@ -28,6 +28,7 @@ import fm from "./finance.module.css";
 
 const TABS = ["账套概览", "基础设置", "凭证", "项目支出入账", "应收应付", "出纳与对账", "固定资产", "账簿与报表", "期末结账"] as const;
 type Tab = (typeof TABS)[number];
+type MenuPosition = { top: number; left: number; width: number; maxHeight: number };
 
 function money(value: string | number) {
   return Number(value || 0).toLocaleString("zh-CN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -45,8 +46,56 @@ function FinanceInner() {
   const [deleteBookOpen, setDeleteBookOpen] = useState(false);
   const [bookMembersOpen, setBookMembersOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [menuPosition, setMenuPosition] = useState<MenuPosition | null>(null);
   const menuTriggerRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    if (!mobileMenuOpen) {
+      setMenuPosition(null);
+      return;
+    }
+    let frame = 0;
+    const positionMenu = () => {
+      const trigger = menuTriggerRef.current;
+      const menu = menuRef.current;
+      if (!trigger || !menu) return;
+      const rect = trigger.getBoundingClientRect();
+      const viewport = window.visualViewport;
+      const edgeLeft = viewport?.offsetLeft ?? 0;
+      const edgeTop = viewport?.offsetTop ?? 0;
+      const edgeRight = edgeLeft + (viewport?.width ?? window.innerWidth);
+      const edgeBottom = edgeTop + (viewport?.height ?? window.innerHeight);
+      const gap = 4;
+      const inset = 8;
+      const width = Math.min(rect.width, Math.max(0, edgeRight - edgeLeft - inset * 2));
+      menu.style.width = `${width}px`;
+      const above = Math.max(0, rect.top - edgeTop - gap - inset);
+      const below = Math.max(0, edgeBottom - rect.bottom - gap - inset);
+      const flipAbove = below < menu.scrollHeight && above > below;
+      const maxHeight = flipAbove ? above : below;
+      const left = Math.max(edgeLeft + inset, Math.min(rect.left, edgeRight - inset - width));
+      const top = flipAbove
+        ? Math.max(edgeTop + inset, rect.top - gap - maxHeight)
+        : Math.min(rect.bottom + gap, edgeBottom - inset - maxHeight);
+      setMenuPosition({ top, left, width, maxHeight });
+    };
+    const schedulePosition = () => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(positionMenu);
+    };
+    positionMenu();
+    window.addEventListener("resize", schedulePosition);
+    window.addEventListener("scroll", schedulePosition, true);
+    window.visualViewport?.addEventListener("resize", schedulePosition);
+    window.visualViewport?.addEventListener("scroll", schedulePosition);
+    return () => {
+      cancelAnimationFrame(frame);
+      window.removeEventListener("resize", schedulePosition);
+      window.removeEventListener("scroll", schedulePosition, true);
+      window.visualViewport?.removeEventListener("resize", schedulePosition);
+      window.visualViewport?.removeEventListener("scroll", schedulePosition);
+    };
+  }, [mobileMenuOpen]);
   useEffect(() => {
     if (!mobileMenuOpen) return;
     menuRef.current?.querySelector<HTMLButtonElement>("[role=menuitem]")?.focus();
@@ -133,6 +182,12 @@ function FinanceInner() {
       event.preventDefault();
       setMobileMenuOpen(false);
       menuTriggerRef.current?.focus();
+    } else if (event.key === "Tab") {
+      // Keep the browser's normal Tab destination; the blur handler closes
+      // the menu once focus has actually left its items.
+      requestAnimationFrame(() => {
+        if (!menuRef.current?.contains(document.activeElement)) setMobileMenuOpen(false);
+      });
     } else if (items.length && ["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) {
       event.preventDefault();
       const next = event.key === "Home" ? 0 : event.key === "End" ? items.length - 1 : (index + (event.key === "ArrowDown" ? 1 : -1) + items.length) % items.length;
@@ -168,8 +223,10 @@ function FinanceInner() {
                 <button ref={menuTriggerRef} type="button" className={fm.menuTrigger} aria-haspopup="menu" aria-expanded={mobileMenuOpen} onClick={() => setMobileMenuOpen((open) => !open)} onKeyDown={(event) => {
                   if (event.key === "ArrowDown" && !mobileMenuOpen) { event.preventDefault(); setMobileMenuOpen(true); }
                   if (event.key === "Escape" && mobileMenuOpen) { event.preventDefault(); setMobileMenuOpen(false); }
-                }}>账套操作<span aria-hidden="true">⌄</span></button>
-                {mobileMenuOpen && <div ref={menuRef} className={fm.moreBody} role="menu" aria-label="账套操作" onKeyDown={handleMobileMenuKeyDown}>
+                }}>账套操作<span className={fm.menuChevron} aria-hidden="true" /></button>
+                {mobileMenuOpen && <div ref={menuRef} className={fm.moreBody} role="menu" aria-label="账套操作" style={menuPosition ?? undefined} onKeyDown={handleMobileMenuKeyDown} onBlur={(event) => {
+                  if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setMobileMenuOpen(false);
+                }}>
                   {mobileBookActions.map((action) => <button key={action.label} type="button" role="menuitem" className={action.className} onClick={() => { setMobileMenuOpen(false); action.onClick(); }}>{action.label}</button>)}
                 </div>}
               </div>
