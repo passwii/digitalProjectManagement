@@ -2,7 +2,7 @@
 import pytest
 from openpyxl import Workbook
 
-from api.models import AuditLog, Dict, EquipmentAsset, EquipmentEvent
+from api.models import AuditLog, Dict, EquipmentAsset, EquipmentEvent, EquipmentBatch
 from test_mvp import login
 
 
@@ -59,7 +59,74 @@ def test_batch_and_unique_codes(client, db):
     items = response.json()["items"]
     assert len(items) == 2 and len({item["code"] for item in items}) == 2
     assert all(item["batch_id"] == response.json()["batch_id"] for item in items)
+    assert response.json()["acceptance_status"] == "accepted"
+    assert all(item["status"] == "available" for item in items)
     assert client.post(f"{ROOT}/inbound", headers=login(client, "pm"), json={"items": []}).status_code == 403
+
+
+def test_pending_batch_metadata_is_readable_and_assets_cannot_be_claimed(client, db):
+    admin, pm = login(client, "admin"), login(client, "pm")
+    response = client.post(f"{ROOT}/inbound", headers=admin, json={
+        "source": "供应商送货", "supplier": "星河设备有限公司", "purchase_order_no": "PO-2026-018",
+        "invoice_no": "INV-2026-88", "acceptance_status": "pending_acceptance", "note": "待清点",
+        "items": [{"name": "待验收电脑", "category_code": "computer", "serial_number": "PENDING-1"}],
+    })
+    assert response.status_code == 200, response.text
+    result = response.json()
+    asset = result["items"][0]
+    assert asset["status"] == "pending_acceptance"
+    assert client.post(f"{ROOT}/{asset['id']}/claim", headers=pm).status_code == 400
+    assert client.post(f"{ROOT}/{asset['id']}/borrow", headers=pm, json={"due_date": "2099-01-01"}).status_code == 400
+    batches = client.get(f"{ROOT}/batches", headers=pm)
+    assert batches.status_code == 200
+    batch = next(item for item in batches.json()["items"] if item["id"] == result["batch_id"])
+    assert batch["source"] == "供应商送货"
+    assert batch["supplier"] == "星河设备有限公司"
+    assert batch["purchase_order_no"] == "PO-2026-018"
+    assert batch["invoice_no"] == "INV-2026-88"
+    assert batch["acceptance_status"] == "pending_acceptance"
+    assert batch["note"] == "待清点"
+    assert batch["created_by"]
+    assert batch["created_at"]
+    detail = client.get(f"{ROOT}/batches/{result['batch_id']}", headers=pm)
+    assert detail.status_code == 200
+    assert detail.json()["items"][0]["id"] == asset["id"]
+
+
+def test_admin_acceptance_updates_batch_assets_events_and_audit_atomically(client, db, monkeypatch):
+    admin, pm = login(client, "admin"), login(client, "pm")
+    response = client.post(f"{ROOT}/inbound", headers=admin, json={
+        "supplier": "Acme", "acceptance_status": "pending_acceptance", "items": [
+            {"name": "电脑甲", "category_code": "computer"},
+            {"name": "电脑乙", "category_code": "computer"},
+        ],
+    })
+    assert response.status_code == 200, response.text
+    batch_id = response.json()["batch_id"]
+    assert client.post(f"{ROOT}/batches/{batch_id}/accept", headers=pm).status_code == 403
+    accepted = client.post(f"{ROOT}/batches/{batch_id}/accept", headers=admin, json={"note": "验收合格"})
+    assert accepted.status_code == 200, accepted.text
+    assert accepted.json()["acceptance_status"] == "accepted"
+    assert {item["status"] for item in accepted.json()["items"]} == {"available"}
+    with db() as session:
+        assert session.query(EquipmentEvent).filter_by(batch_id=batch_id, action="acceptance").count() == 2
+        assert session.query(AuditLog).filter_by(resource="equipment_batches", resource_id=str(batch_id)).count() == 2
+
+    pending = client.post(f"{ROOT}/inbound", headers=admin, json={
+        "acceptance_status": "pending_acceptance", "items": [{"name": "电脑丙", "category_code": "computer"}],
+    }).json()
+    second_batch_id = pending["batch_id"]
+    import api.core.audit as audit
+    def fail(*_args, **_kwargs):
+        raise RuntimeError("audit unavailable")
+    monkeypatch.setattr(audit, "audit_row", fail)
+    failed = client.post(f"{ROOT}/batches/{second_batch_id}/accept", headers=admin)
+    assert failed.status_code == 500
+    with db() as session:
+        assert session.get(EquipmentBatch, second_batch_id).acceptance_status == "pending_acceptance"
+        second_asset = session.query(EquipmentAsset).filter_by(batch_id=second_batch_id).one()
+        assert second_asset.status == "pending_acceptance"
+        assert session.query(EquipmentEvent).filter_by(asset_id=second_asset.id).count() == 1
 
 
 def test_import_prevalidation_is_atomic(client, db):

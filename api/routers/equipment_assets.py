@@ -39,6 +39,10 @@ class AssetIn(BaseModel):
 
 class BatchIn(BaseModel):
     source: str = ""
+    supplier: str = ""
+    purchase_order_no: str = ""
+    invoice_no: str = ""
+    acceptance_status: str = "accepted"
     note: str = ""
     items: list[AssetIn]
 
@@ -76,6 +80,16 @@ def _event(e: EquipmentEvent) -> dict:
             "note": e.note, "created_at": e.created_at}
 
 
+def _batch(b: EquipmentBatch, items=None) -> dict:
+    result = {"id": b.id, "source": b.source, "supplier": b.supplier,
+              "purchase_order_no": b.purchase_order_no, "invoice_no": b.invoice_no,
+              "acceptance_status": b.acceptance_status, "note": b.note,
+              "created_by": b.created_by, "created_at": b.created_at}
+    if items is not None:
+        result["items"] = [_asset(a) for a in items]
+    return result
+
+
 def _category(db, code):
     return db.query(Dict).filter_by(type="equipment_category", code=code).first()
 
@@ -104,17 +118,17 @@ def _get(db, asset_id, lock=False):
     return a
 
 
-def _add_asset(db, body: AssetIn, actor_id: int, batch_id=None, action="create"):
+def _add_asset(db, body: AssetIn, actor_id: int, batch_id=None, action="create", status="available"):
     a = EquipmentAsset(code=f"EQ-{app_today().year}-{uuid.uuid4().hex[:12].upper()}",
                        name=body.name.strip(), category_code=body.category_code.strip(),
                        serial_number=body.serial_number.strip() or None, brand=body.brand.strip(),
                        model=body.model.strip(), location=body.location.strip(), note=body.note.strip(),
                        purchase_date=body.purchase_date, purchase_price=body.purchase_price,
-                       batch_id=batch_id, created_by=actor_id, status="available")
+                       batch_id=batch_id, created_by=actor_id, status=status)
     db.add(a)
     db.flush()
     db.add(EquipmentEvent(asset_id=a.id, batch_id=batch_id, action=action,
-                          from_status=None, to_status="available", actor_id=actor_id,
+                          from_status=None, to_status=status, actor_id=actor_id,
                           note=body.note.strip()))
     return a
 
@@ -225,14 +239,59 @@ def inbound(body: BatchIn, db: Session = Depends(get_db), user: User = Depends(g
     serials = [item.serial_number.strip() for item in body.items if item.serial_number.strip()]
     if len(serials) != len(set(serials)):
         raise HTTPException(400, "入库文件中设备序列号重复")
+    if body.acceptance_status not in {"pending_acceptance", "accepted"}:
+        raise HTTPException(400, "验收状态只能为 pending_acceptance 或 accepted")
     for item in body.items:
         _validate(db, item)
-    batch = EquipmentBatch(source=body.source.strip(), note=body.note.strip(), created_by=user.id)
+    batch = EquipmentBatch(source=body.source.strip(), supplier=body.supplier.strip(),
+                           purchase_order_no=body.purchase_order_no.strip(), invoice_no=body.invoice_no.strip(),
+                           acceptance_status=body.acceptance_status, note=body.note.strip(), created_by=user.id)
     db.add(batch)
     db.flush()
-    items = [_add_asset(db, item, user.id, batch.id, "inbound") for item in body.items]
+    asset_status = "pending_acceptance" if body.acceptance_status == "pending_acceptance" else "available"
+    items = [_add_asset(db, item, user.id, batch.id, "inbound", asset_status) for item in body.items]
     commit_audited(db, user.id, "inbound_equipment", "equipment_batches", batch.id, f"count={len(items)}")
-    return {"batch_id": batch.id, "items": [_asset(a) for a in items]}
+    return {"batch_id": batch.id, **_batch(batch, items)}
+
+
+@router.get("/batches")
+def list_batches(page: int = Query(1, ge=1), size: int = Query(20, ge=1, le=100),
+                 db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    q = db.query(EquipmentBatch)
+    return {"total": q.count(), "page": page, "size": size,
+            "items": [_batch(b) for b in q.order_by(EquipmentBatch.id.desc())
+                      .offset((page-1)*size).limit(size).all()]}
+
+
+@router.get("/batches/{batch_id}")
+def batch_detail(batch_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    batch = db.query(EquipmentBatch).filter_by(id=batch_id).first()
+    if not batch:
+        raise HTTPException(404, "入库批次不存在")
+    assets = db.query(EquipmentAsset).filter_by(batch_id=batch_id).order_by(EquipmentAsset.id).all()
+    return _batch(batch, assets)
+
+
+@router.post("/batches/{batch_id}/accept")
+def accept_batch(batch_id: int, body: TransitionIn = TransitionIn(),
+                 db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    require_admin(user)
+    batch = db.query(EquipmentBatch).filter_by(id=batch_id).with_for_update().first()
+    if not batch:
+        raise HTTPException(404, "入库批次不存在")
+    if batch.acceptance_status != "pending_acceptance":
+        raise HTTPException(400, "入库批次无需验收")
+    assets = db.query(EquipmentAsset).filter_by(batch_id=batch_id, status="pending_acceptance")\
+        .with_for_update().order_by(EquipmentAsset.id).all()
+    batch.acceptance_status = "accepted"
+    for asset in assets:
+        asset.status = "available"
+        db.add(EquipmentEvent(asset_id=asset.id, batch_id=batch.id, action="acceptance",
+                              from_status="pending_acceptance", to_status="available",
+                              actor_id=user.id, note=body.note.strip()))
+    commit_audited(db, user.id, "accept_equipment_batch", "equipment_batches", batch.id,
+                   f"count={len(assets)};note={body.note.strip()}")
+    return _batch(batch, assets)
 
 
 @router.post("")

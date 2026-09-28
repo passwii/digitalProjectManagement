@@ -943,6 +943,10 @@ class EquipmentBatch(Base):
   __tablename__ = "equipment_batches"
   id = Column(Integer, primary_key=True)
   source = Column(String(255), nullable=False, default="")
+  supplier = Column(String(255), nullable=False, default="")
+  purchase_order_no = Column(String(128), nullable=False, default="")
+  invoice_no = Column(String(128), nullable=False, default="")
+  acceptance_status = Column(String(24), nullable=False, default="accepted")
   note = Column(Text, nullable=False, default="")
   created_by = Column(Integer, ForeignKey("users.id"), nullable=False)
   created_at = Column(DateTime, default=_now, nullable=False)
@@ -970,7 +974,7 @@ class EquipmentAsset(Base):
   created_at = Column(DateTime, default=_now, nullable=False)
   updated_at = Column(DateTime, default=_now, onupdate=_now, nullable=False)
   __table_args__ = (CheckConstraint(
-      "status IN ('available','claimed','borrowed','maintenance','scrapped','void')",
+      "status IN ('pending_acceptance','available','claimed','borrowed','maintenance','scrapped','void')",
       name="ck_equipment_status"),)
 
 
