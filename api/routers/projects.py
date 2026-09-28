@@ -20,10 +20,11 @@ from ..core.deps import get_current_user
 from ..core.limits import MAX_ATTACHMENT_SIZE, read_within_limit
 from ..core.paging import DEFAULT_PAGE_SIZE, paginate
 from ..core.rbac import (
+    MODULE_ADMIN,
     check_project_access,
     is_admin,
     project_scope_condition,
-    require_admin,
+    require_module,
 )
 from ..core.timeutil import app_now, app_today, iso, to_db
 from ..models import (
@@ -936,7 +937,7 @@ def delete_project(
     已取消/已归档/进行中/已立项等任意状态均可删除：删除只把项目移入回收站，
     关联的任务、支出、附件、跟进与审批记录全部保留，管理员可在回收站恢复。
     """
-    require_admin(user)
+    require_module(user, MODULE_ADMIN)
     p = db.query(Project).filter_by(id=pid, deleted_at=None).first()
     if not p:
         raise HTTPException(404, "项目不存在")
@@ -951,7 +952,7 @@ def restore_project(
     pid: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)
 ):
     """从回收站恢复（仅管理员）。"""
-    require_admin(user)
+    require_module(user, MODULE_ADMIN)
     p = db.query(Project).filter_by(id=pid).first()
     if not p or not p.deleted_at:
         raise HTTPException(404, "回收站中无此项目")
@@ -973,7 +974,7 @@ def recycle_bin(
 
     统一分页信封；排序白名单 `id` / `deleted_at` / `code` / `name`，默认按删除时间倒序。
     """
-    require_admin(user)
+    require_module(user, MODULE_ADMIN)
     q = db.query(Project).filter(Project.deleted_at.isnot(None))
 
     def _row(p: Project):

@@ -33,19 +33,19 @@ type Decision = {
 };
 
 export default function ApprovalsPage() {
-  // 审批中心属于管理与审批面：非管理员不拉取数据，也不会看到必然 403 的按钮
-  const { isAdmin, loading: permsLoading, error: permsError, reload } = useMenus();
+  // 审批中心属于「审批中心」功能模块：未分配该模块不拉取数据，也不会看到必然 403 的按钮
+  const { canApprove, loading: permsLoading, error: permsError, reload } = useMenus();
 
   if (permsLoading) return <LoadingBlock kpis={4} />;
   if (permsError) return <LoadFailed message={permsError} onRetry={reload} />;
-  if (!isAdmin) {
+  if (!canApprove) {
     return (
       <div>
         <NoAccess
-          title="审批中心仅管理员可用"
+          title="审批中心模块未分配"
           hint={
             <>
-              当前账号不属于管理员，无法查看或处理立项、预算调整与支出审批。
+              当前账号未被分配「审批中心」模块，无法查看或处理立项、预算调整与支出审批。
               <br />
               项目负责人与项目成员仍可在项目台账、进度跟进、成本支出中继续参与业务，审批结果会通过通知告知您。
             </>

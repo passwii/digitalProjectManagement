@@ -30,6 +30,64 @@ RESERVED_ROLES = [ROLE_PM, ROLE_DEPT, ROLE_MEMBER, ROLE_COST, ROLE_EXEC]
 FINANCE_ROLES = [ROLE_FINANCE_CLERK, ROLE_FINANCE_REVIEWER, ROLE_CASHIER, ROLE_FINANCE_MANAGER, ROLE_FINANCE_AUDITOR]
 ALL_ROLES = [ROLE_ADMIN, *RESERVED_ROLES, *FINANCE_ROLES]
 
+# ---------------- 功能模块（Stage 5：页面可见性改为按用户手动分配） ----------------
+#
+# 契约变更：不再用「是否 admin 角色」推导通讯录/友商/审批中心/系统管理等页面的可见性，
+# 改为模块目录 + user_modules 按用户分配；管理员天然拥有全部模块，普通用户以分配为准。
+# 模块键与前端导航一一对应，顺序即导航顺序。财务（/finance）沿用账套成员授权，不在此列。
+MODULE_OPPORTUNITIES = "opportunities"
+MODULE_PROJECTS = "projects"
+MODULE_ASSETS = "assets"
+MODULE_REPORTS = "reports"
+MODULE_CONTACTS = "contacts"
+MODULE_PARTNERS = "partners"
+MODULE_APPROVALS = "approvals"
+MODULE_ADMIN = "admin"
+
+# (key, label, href)：后端是模块目录的单一事实来源，前端菜单与用户弹窗都消费它。
+MODULE_CATALOG: list[tuple[str, str, str]] = [
+    (MODULE_OPPORTUNITIES, "商机管理", "/opportunities"),
+    (MODULE_PROJECTS, "项目台账", "/projects"),
+    (MODULE_ASSETS, "资产管理", "/assets"),
+    (MODULE_REPORTS, "支出报表", "/reports"),
+    (MODULE_CONTACTS, "通讯录", "/contacts"),
+    (MODULE_PARTNERS, "我的友商", "/partners"),
+    (MODULE_APPROVALS, "审批中心", "/approvals"),
+    (MODULE_ADMIN, "系统管理", "/admin"),
+]
+ALL_MODULES = [key for key, _label, _href in MODULE_CATALOG]
+# 存量/未显式分配用户的默认模块：与本次改动前的基础导航一致，保证升级后既有
+# 普通用户行为不变，管理员再按需增减。
+DEFAULT_MODULES = [MODULE_OPPORTUNITIES, MODULE_PROJECTS, MODULE_ASSETS, MODULE_REPORTS]
+
+
+def user_module_codes(user) -> set:
+    """已显式写入 user_modules 的模块集合（不含默认回落）。"""
+    return {m.module for m in getattr(user, "modules", []) or []}
+
+
+def effective_modules(user) -> set:
+    """用户实际生效的模块集合：管理员全量；其余按显式分配，否则回落默认业务模块。"""
+    if is_admin(user):
+        return set(ALL_MODULES)
+    if getattr(user, "modules_assigned", False):
+        return user_module_codes(user)
+    return set(DEFAULT_MODULES)
+
+
+def has_module(user, module: str) -> bool:
+    return module in effective_modules(user)
+
+
+def require_module(user, *modules: str) -> None:
+    """模块门禁：至少拥有其中一个模块才放行（管理员天然全量）。
+
+    用于路由级依赖与端点内校验，保证「前端能看到入口」与「后端接口放行」同一判定，
+    不会出现入口可见但接口 403 的错位契约。
+    """
+    if not (effective_modules(user) & set(modules)):
+        raise HTTPException(403, "无权访问该功能模块")
+
 
 def role_codes(user) -> set:
     return {r.code for r in getattr(user, "roles", []) or []}
@@ -40,16 +98,20 @@ def is_admin(user) -> bool:
 
 
 def can_approve(user) -> bool:
-    """审批资格：当前契约下唯一审批人 = 管理员。
+    """审批资格：拥有「审批中心」模块（管理员天然拥有）即可审批。
 
     `GET /approvals/pending` 行内的 can_decide 与各决策入口共用本判定，
     保证「列表里能点」与「接口放行」永远一致，不出现按钮可见但接口 403 的错位契约。
     """
-    return is_admin(user)
+    return has_module(user, MODULE_APPROVALS)
 
 
 def require_admin(user) -> None:
-    """管理/审批统一门禁：非管理员稳定 403（调用点必须在任何业务读写之前）。"""
+    """兼容保留的 admin 角色门禁。
+
+    Stage 5 起页面/接口可见性应使用 require_module；仅在确实需要「必须是 admin 角色」
+    而非「拥有某模块」时使用（如设备资产的特权写操作），本函数保留以免外部集成断裂。
+    """
     if not is_admin(user):
         raise HTTPException(403, "仅管理员可操作")
 

@@ -83,7 +83,7 @@ function DeliveryLog({ weekly, userName }: { weekly: Weekly | null; userName: (i
 export default function DashboardPage() {
   const { userName, deptName } = useMeta();
   const { me } = useMe();
-  const { isAdmin } = useMenus();
+  const { canApprove } = useMenus();
   const { beginActivity } = useActivity();
   const reduced = useReducedMotion();
   const [data, setData] = useState<DashboardSummary | null>(null);
@@ -190,7 +190,7 @@ export default function DashboardPage() {
             >
               {loading ? "校准中" : "刷新坐标"}
             </button>
-            {isAdmin && (
+            {canApprove && (
               <Link className={s.approvalButton} href="/approvals">
                 进入审批 · {k.pending_approvals}
               </Link>
@@ -226,7 +226,7 @@ export default function DashboardPage() {
               tone={k.overdue_tasks > 0 ? "danger" : "neutral"}
               detail={<>我负责 <span className="mono">{k.my_overdue_tasks}</span></>}
             />
-            {isAdmin ? (
+            {canApprove ? (
               <DashboardReadout
                 label="待我审批"
                 value={k.pending_approvals}
@@ -270,7 +270,7 @@ export default function DashboardPage() {
               </div>
               <span className={s.zoneCode}>待办队列</span>
             </div>
-            <DashboardInterventionQueue weekly={weekly} kpi={k} isAdmin={isAdmin} userName={userName} />
+            <DashboardInterventionQueue weekly={weekly} kpi={k} isAdmin={canApprove} userName={userName} />
           </section>
         </div>
 

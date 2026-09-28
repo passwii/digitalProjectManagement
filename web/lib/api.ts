@@ -484,10 +484,11 @@ export interface DictItem {
 }
 export interface MenuResp {
   roles: string[];
-  /** 是否管理员（后端 /meta/me/menus 契约）：唯一管理与审批角色 */
+  /** 是否管理员（后端 /meta/me/menus 契约）：仅表示角色，用于全局数据范围等高权限判定 */
   is_admin: boolean;
-  /** 是否可审批：当前契约下与 is_admin 等价（列表 can_decide 同一判定） */
+  /** 是否可审批 = 是否拥有「审批中心」模块（管理员天然拥有，列表 can_decide 同一判定） */
   can_approve: boolean;
+  /** 是否有财务账套访问权（账套成员或管理员），与手动模块分配独立 */
   can_finance: boolean;
   menus: { key: string; label: string; href: string }[];
   readonly: boolean;
@@ -1472,6 +1473,15 @@ export interface AdminUser {
   status: string;
   dept_id: number | null;
   roles: { code: string; name: string }[];
+  /** 生效的功能模块（后端 effective_modules），弹窗按此回填勾选 */
+  modules: string[];
+}
+
+/** 功能模块目录（后端 GET /admin/modules） */
+export interface ModuleItem {
+  key: string;
+  label: string;
+  href: string;
 }
 export interface AuditLog {
   id: number;
@@ -1503,6 +1513,7 @@ export const adminApi = {
   createUser: (body: Record<string, unknown>) => apiPost<AdminUser>("/admin/users", body),
   updateUser: (id: number, body: Record<string, unknown>) => apiPatch<AdminUser>(`/admin/users/${id}`, body),
   roles: (signal?: AbortSignal) => apiGet<{ id: number; code: string; name: string }[]>("/admin/roles", signal),
+  modules: (signal?: AbortSignal) => apiGet<ModuleItem[]>("/admin/modules", signal),
   dicts: (type = "", signal?: AbortSignal) =>
     apiGet<DictItem[]>(`/admin/dicts${type ? `?type=${type}` : ""}`, signal),
   createDict: (body: Record<string, unknown>) => apiPost<{ id: number }>("/admin/dicts", body),

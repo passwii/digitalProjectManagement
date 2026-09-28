@@ -1,7 +1,7 @@
 "use client";
-// 用户新增/编辑弹窗：角色多选（并集）、可重置密码
+// 用户新增/编辑弹窗：角色多选（并集）、功能模块分配（Stage 5，可多选）、可重置密码
 import { useEffect, useState } from "react";
-import { adminApi, type AdminUser } from "@/lib/api";
+import { adminApi, type AdminUser, type ModuleItem } from "@/lib/api";
 import { useMeta } from "@/lib/useMeta";
 import { useForm } from "@/lib/useForm";
 import { Dialog } from "@/components/ui/Modal";
@@ -16,22 +16,28 @@ interface Values {
 
 const BLANK: Values = { username: "", real_name: "", dept_id: "", password: "admin123456" };
 
+// 新用户的默认模块：与后端 DEFAULT_MODULES 对齐（四个基础导航模块），管理员可再增减。
+const DEFAULT_MODULE_KEYS = ["opportunities", "projects", "assets", "reports"];
+
 export default function UserDialog({
   open,
   onClose,
   user,
   roles,
+  modules,
   onSaved,
 }: {
   open: boolean;
   onClose: () => void;
   user: AdminUser | null;
   roles: { id: number; code: string; name: string }[];
+  modules: ModuleItem[];
   onSaved: (isNew: boolean) => void;
 }) {
   const { depts } = useMeta();
   const isEdit = !!user;
   const [picked, setPicked] = useState<string[]>([]);
+  const [pickedModules, setPickedModules] = useState<string[]>([]);
 
   const form = useForm<Values>(
     isEdit && user
@@ -60,6 +66,11 @@ export default function UserDialog({
   useEffect(() => {
     if (!open) return;
     setPicked(user ? user.roles.map((r) => r.code) : []);
+    setPickedModules(
+      user
+        ? user.modules
+        : DEFAULT_MODULE_KEYS.filter((k) => modules.some((m) => m.key === k))
+    );
     form.reset(
       user
         ? { username: user.username, real_name: user.real_name, dept_id: user.dept_id ? String(user.dept_id) : "", password: "" }
@@ -80,6 +91,7 @@ export default function UserDialog({
         real_name: v.real_name,
         dept_id: v.dept_id ? Number(v.dept_id) : null,
         roles: picked,
+        modules: pickedModules,
       };
       if (v.password) payload.password = v.password;
       await adminApi.updateUser(user!.id, payload);
@@ -90,17 +102,21 @@ export default function UserDialog({
         real_name: v.real_name,
         dept_id: v.dept_id ? Number(v.dept_id) : null,
         roles: picked,
+        modules: pickedModules,
       });
     }
     onSaved(!isEdit);
     onClose();
   }
 
+  const modulesDirty =
+    !!user && JSON.stringify(pickedModules) !== JSON.stringify(user.modules);
+
   return (
     <Dialog
       open={open}
       onClose={onClose}
-      dirty={form.dirty || (!!user && JSON.stringify(picked) !== JSON.stringify(user.roles.map((r) => r.code)))}
+      dirty={form.dirty || (!!user && JSON.stringify(picked) !== JSON.stringify(user.roles.map((r) => r.code))) || modulesDirty}
       title={isEdit ? `编辑用户 · ${user?.username ?? ""}` : "新增用户"}
       footer={
         <>
@@ -157,8 +173,34 @@ export default function UserDialog({
             })}
           </div>
         </Field>
+        <Field
+          label="功能模块（可多选，决定该用户可见页面与可访问接口）"
+          hint="管理员的模块分配不影响其全量权限；财务页面沿用账套成员授权。普通用户未分配任何模块时仅能进入工作台。"
+          span
+        >
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8, paddingTop: 2 }}>
+            {modules.map((mod) => {
+              const on = pickedModules.includes(mod.key);
+              return (
+                <button
+                  key={mod.key}
+                  type="button"
+                  className={`${on ? "btn-primary" : "btn-ghost"} btn-xs`}
+                  aria-pressed={on}
+                  onClick={() =>
+                    setPickedModules((prev) =>
+                      prev.includes(mod.key) ? prev.filter((k) => k !== mod.key) : [...prev, mod.key]
+                    )
+                  }
+                >
+                  {on ? "✓ " : ""}{mod.label}
+                </button>
+              );
+            })}
+          </div>
+        </Field>
       </div>
-      {isEdit && <p className="tiny">仅管理员可编辑用户；改密后该用户下次登录需使用新密码。</p>}
+      {isEdit && <p className="tiny">仅系统管理模块用户可编辑用户；改密后该用户下次登录需使用新密码。</p>}
     </Dialog>
   );
 }

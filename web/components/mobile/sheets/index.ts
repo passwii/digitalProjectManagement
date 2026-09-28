@@ -25,8 +25,10 @@ export interface SheetContentProps {
   ready: boolean;
   /** 权限同步是否失败（`useMenus().error`）：失败走降级，不猜测管理员身份 */
   failed: boolean;
-  /** 是否可审批（`useMenus().canApprove`，当前契约下与 `is_admin` 同判定） */
+  /** 是否可审批（`useMenus().canApprove` = 拥有「审批中心」模块） */
   canApprove: boolean;
+  /** 是否管理员角色（`useMenus().isAdmin`）：仅用于「我的」抽屉身份展示 */
+  isAdmin?: boolean;
   /** 权限重试（`useMenus().reload`）：降级行的「重试」按钮用 */
   onReloadMenus?: () => void;
 }

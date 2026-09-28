@@ -150,7 +150,7 @@ function SheetContent({
 }: {
   id: DockId;
   onSelect: () => void;
-} & DockMenuInput & { onReloadMenus?: () => void }) {
+} & DockMenuInput & { onReloadMenus?: () => void; isAdmin?: boolean }) {
   const items = buildDockItems(menus);
   const item = items.find((i) => i.id === id);
   if (!item) return null;
@@ -162,6 +162,7 @@ function SheetContent({
       ready={menus.ready ?? false}
       failed={menus.failed ?? false}
       canApprove={menus.canApprove ?? false}
+      isAdmin={menus.isAdmin ?? false}
       onReloadMenus={menus.onReloadMenus}
     />
   );
@@ -197,6 +198,8 @@ function useCloseOnDesktop(open: boolean, close: () => void) {
  * 保证侧栏与 Dock 不会各自拿到不同批次的权限状态。
  */
 export interface MobileDockProps extends DockMenuInput {
+  /** 是否管理员角色（`useMenus().isAdmin`）：仅用于「我的」抽屉身份展示 */
+  isAdmin?: boolean;
   /** 权限重试（`useMenus().reload`）：「我的」抽屉降级行的「重试」按钮用 */
   onReloadMenus?: () => void;
 }
@@ -313,6 +316,7 @@ export default function MobileDock(props: MobileDockProps) {
             ready={props.ready}
             failed={props.failed}
             canApprove={props.canApprove}
+            isAdmin={props.isAdmin}
             onReloadMenus={props.onReloadMenus}
           />
         )}
