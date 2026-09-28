@@ -88,6 +88,13 @@ describe("资产页面分页和刷新", () => {
     fireEvent.change(screen.getByLabelText("借用到期日"), { target: { value: "2026-12-31" } });
     fireEvent.click(screen.getByRole("button", { name: "借用" }));
     await waitFor(() => expect(api.list).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(api.get).toHaveBeenCalledTimes(2));
+    const detail = screen.getByRole("dialog");
+    await waitFor(() => {
+      expect(detail.textContent).toContain("借用中");
+      expect(detail.textContent).toContain("张三");
+      expect(detail.textContent).toContain("2026-12-31");
+    });
     await waitFor(() => expect(document.querySelector(".grid tbody tr td:nth-child(3)")?.textContent).toBe("借用中"));
     expect(document.querySelector(".grid tbody tr td:nth-child(4)")?.textContent).toBe("张三");
     expect(document.querySelector(".grid tbody tr td:nth-child(5)")?.textContent).toBe("2026-12-31");
