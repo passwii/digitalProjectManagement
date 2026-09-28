@@ -20,7 +20,7 @@ vi.mock("next/link", () => ({
 vi.mock("@/lib/useMeta", () => ({
   useMeta: () => ({ userName: () => "张伟", deptName: () => "产品部" }),
   useMe: () => ({ me: { dept_id: 3 } }),
-  useMenus: () => ({ isAdmin: true }),
+  useMenus: () => ({ canApprove: true }),
 }));
 
 vi.mock("@/lib/useActivity", () => ({

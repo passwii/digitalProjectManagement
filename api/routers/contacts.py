@@ -20,7 +20,7 @@ from ..core.database import get_db
 from ..core.deps import get_current_user
 from ..core.limits import MAX_ATTACHMENT_SIZE, read_within_limit
 from ..core.paging import DEFAULT_PAGE_SIZE, paginate
-from ..core.rbac import require_admin
+from ..core.rbac import MODULE_CONTACTS, require_module
 from ..core.timeutil import app_now, app_today, iso
 from ..models import Attachment, ContactProfile, Department, User
 
@@ -117,7 +117,7 @@ class ContactIn(BaseModel):
 
 
 def _admin(user: User) -> None:
-    require_admin(user)
+    require_module(user, MODULE_CONTACTS)
 
 
 def _iso(value):

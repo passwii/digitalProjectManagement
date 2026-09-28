@@ -2,7 +2,7 @@
 
 口径与通讯录模块（`routers/contacts.py`）对齐：
 
-  · 全接口 `require_admin`（非管理员稳定 403，鉴权先于任何业务读写）；
+  · 全接口 `require_module(user, "partners")`（未分配该模块稳定 403，鉴权先于任何业务读写）；
   · 列表走 `core.paging.paginate` 统一信封 `{total,page,size,items}`；
   · 附件复用 `attachments` 表（`ref_type='partner'` + 分类），正文读写经
     `core.attachments` 收口（本地 / R2 双后端），体积上限与扩展名白名单与
@@ -32,7 +32,7 @@ from ..core.database import get_db
 from ..core.deps import get_current_user
 from ..core.limits import MAX_ATTACHMENT_SIZE, read_within_limit
 from ..core.paging import DEFAULT_PAGE_SIZE, paginate
-from ..core.rbac import require_admin
+from ..core.rbac import MODULE_PARTNERS, require_module
 from ..core.timeutil import app_now, iso
 from ..models import Attachment, Partner, PartnerContract, User
 
@@ -87,7 +87,7 @@ class PartnerContractIn(BaseModel):
 
 
 def _admin(user: User) -> None:
-    require_admin(user)
+    require_module(user, MODULE_PARTNERS)
 
 
 def _iso(value):

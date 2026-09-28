@@ -25,7 +25,7 @@ from ..core.audit import commit_audited
 from ..core.database import get_db
 from ..core.deps import get_current_user
 from ..core.notify import push
-from ..core.rbac import can_approve, get_active_project, require_admin
+from ..core.rbac import MODULE_APPROVALS, can_approve, get_active_project, require_module
 from ..core.timeline import (
     ACTION_APPROVE,
     ACTION_EXCEPTION,
@@ -64,7 +64,7 @@ def pending(limit: int = 200, kind: str = "", db: Session = Depends(get_db),
         但 `totals` 仍给全量口径，避免前端误判「没有待办」。
       · 行内 `can_decide` 与决策入口共用 `core.rbac.can_approve`，不存在「按钮可见但接口 403」。
     """
-    require_admin(user)
+    require_module(user, MODULE_APPROVALS)
     if limit < 1 or limit > MAX_LIMIT:
         raise HTTPException(400, f"limit 须为 1-{MAX_LIMIT} 的整数，收到 {limit!r}")
     if kind and kind not in KINDS:
@@ -153,7 +153,7 @@ def pending(limit: int = 200, kind: str = "", db: Session = Depends(get_db),
 def pending_timeline(kind: str, aid: int, db: Session = Depends(get_db),
                      user: User = Depends(get_current_user)):
     """审批对象时间线：管理员可查任意单据的流转；申请人在各域 timeline 接口查自己的单据。"""
-    require_admin(user)
+    require_module(user, MODULE_APPROVALS)
     if kind not in KINDS:
         raise HTTPException(400, f"不支持的审批类型：{kind}")
     return {"kind": kind, "id": aid, "items": timeline(db, kind, aid)}
@@ -163,7 +163,7 @@ def pending_timeline(kind: str, aid: int, db: Session = Depends(get_db),
 def decide(kind: str, aid: int, body: dict, db: Session = Depends(get_db),
            user: User = Depends(get_current_user)):
     """统一决策入口：body {approve: bool, reason: str}。仅管理员。"""
-    require_admin(user)  # 先鉴权：非管理员稳定 403，且早于任何状态读取/写入
+    require_module(user, MODULE_APPROVALS)  # 先鉴权：非管理员稳定 403，且早于任何状态读取/写入
     if kind not in KINDS:
         raise HTTPException(400, f"不支持的审批类型：{kind}")
     approve = bool(body.get("approve", True))
@@ -255,7 +255,7 @@ def decide(kind: str, aid: int, body: dict, db: Session = Depends(get_db),
 def exception_by_center(eid: int, body: dict, db: Session = Depends(get_db),
                         user: User = Depends(get_current_user)):
     """审批中心里的超预算特批放行（复用支出 exception 语义）。仅管理员，理由必填。"""
-    require_admin(user)
+    require_module(user, MODULE_APPROVALS)
     e = db.query(Expense).filter_by(id=eid).first()
     if not e:
         raise HTTPException(404, "支出不存在")

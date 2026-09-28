@@ -98,28 +98,33 @@ def dicts(type: str = "", db: Session = Depends(get_db),
 
 @router.get("/me/menus")
 def menus(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    """按角色返回可见菜单，供前端做单一入口控制（避免硬编码多套角色判断）。
+    """按**用户模块分配**返回可见菜单，供前端做单一入口控制。
 
-    契约（Stage 1 收敛）：
-      · 管理员 = 唯一管理与审批角色 → 额外拿到「审批中心」「系统管理」入口，且 can_approve=true。
-      · 非管理员不返回管理与审批入口；直接请求管理与审批接口会稳定拿到 403。
-      · role 字段保留为未来扩展结构；readonly 恒为 false（高层只读规则已取消）。
+    契约（Stage 5：页面可见性改为手动分配）：
+      · 菜单不再按 admin 角色硬编码拼接，而是取 `core.rbac` 模块目录 ∩ 用户生效模块；
+        管理员天然拥有全部模块，普通用户以 `user_modules` 分配为准。
+      · `can_approve` = 拥有「审批中心」模块；各决策接口 `require_module(approvals)` 同一判定。
+      · `is_admin` 仍表示角色（用于全局数据范围与演示开关等高权限判定），不再直接决定页面可见性。
+      · 财务管理（/finance）沿用账套成员授权：`can_finance` 由账套成员关系或管理员决定，
+        不纳入手动模块分配，避免把账套数据权限降级为普通页面开关。
     另附演示数据开关状态：所有登录用户都需知道当前是否展示演示数据，仅管理员可切换。
     """
-    from ..core.rbac import ROLE_ADMIN, can_approve, demo_data_on, finance_role, role_codes
+    from ..core.rbac import (
+        MODULE_CATALOG,
+        can_approve,
+        demo_data_on,
+        effective_modules,
+        is_admin,
+        role_codes,
+    )
     codes = role_codes(user)
-    admin = ROLE_ADMIN in codes
+    admin = is_admin(user)
+    effective = effective_modules(user)
     items = [
-        {"key": "opportunities", "label": "商机管理", "href": "/opportunities"},
-        {"key": "projects", "label": "项目台账", "href": "/projects"},
-        {"key": "assets", "label": "资产管理", "href": "/assets"},
-        {"key": "reports", "label": "支出报表", "href": "/reports"},
+        {"key": key, "label": label, "href": href}
+        for key, label, href in MODULE_CATALOG
+        if key in effective
     ]
-    if admin:
-        items.append({"key": "contacts", "label": "通讯录", "href": "/contacts"})
-        items.append({"key": "partners", "label": "我的友商", "href": "/partners"})
-        items.append({"key": "approvals", "label": "审批中心", "href": "/approvals"})
-        items.append({"key": "admin", "label": "系统管理", "href": "/admin"})
     finance_books = (
         db.query(AccountBookMember.account_book_id)
         .join(AccountBook, AccountBook.id == AccountBookMember.account_book_id)

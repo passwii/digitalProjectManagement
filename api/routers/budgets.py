@@ -20,9 +20,10 @@ from ..core.database import get_db
 from ..core.deps import get_current_user
 from ..core.paging import DEFAULT_PAGE_SIZE, paginate
 from ..core.rbac import (
+    MODULE_APPROVALS,
     can_read_project,
     get_active_project,
-    require_admin,
+    require_module,
     scope_child_query,
 )
 from ..core.timeline import (
@@ -238,7 +239,7 @@ def adjust_timeline(aid: int, db: Session = Depends(get_db),
 def approve_adjust(aid: int, body: dict, db: Session = Depends(get_db),
                    user: User = Depends(get_current_user)):
     """预算调整决策（仅管理员）：先鉴权，非管理员稳定 403 且不产生状态变更。"""
-    require_admin(user)
+    require_module(user, MODULE_APPROVALS)
     a = db.query(BudgetAdjust).filter_by(id=aid).first()
     if not a or a.status != "pending":
         raise HTTPException(404, "调整单不存在或已处理")

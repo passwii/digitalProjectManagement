@@ -1,11 +1,23 @@
 import os
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 # 确保模型注册
 from . import models  # noqa: F401
+from .core.deps import get_current_user
+from .core.rbac import (
+    MODULE_ADMIN,
+    MODULE_APPROVALS,
+    MODULE_ASSETS,
+    MODULE_CONTACTS,
+    MODULE_OPPORTUNITIES,
+    MODULE_PARTNERS,
+    MODULE_PROJECTS,
+    MODULE_REPORTS,
+    require_module,
+)
 from .core.storage import storage_profile, validate_storage_settings
 from .routers import (
   admin,
@@ -50,14 +62,27 @@ app = FastAPI(
   version="0.1.0",
   lifespan=lifespan,
   description="""
-## 管理与审批边界契约（Stage 1 收敛，2026-09-16 确认）
+## 功能模块与页面可见性契约（Stage 5，2026-09-28）
 
-- **管理员（`admin`）是唯一的管理与审批角色**，也是唯一拥有全局数据范围的用户：可跨部门、跨项目读取和操作。
-- 管理接口（`/admin/*`：用户/角色/字典/参数/审计日志）、审批接口（`/approvals/*`、`/budget-adjusts/{id}/approve`、
-  `/expenses/{id}/approve|reject|exception`）、回收站（`/projects/recycle-bin/list`、项目删除与恢复）**仅管理员可用**。
-- 非管理员调用上述接口**稳定返回 403**，且鉴权先于业务读写，不会产生任何业务状态变更。
-- 审批中心 `GET /approvals/pending` 行内的 `can_decide` 与各决策入口共用同一判定（`core.rbac.can_approve`），
-  不会出现按钮可见但接口拒绝的错位契约。
+- **页面可见性改为按用户手动分配**：导航/页面不再由 admin 角色推导，而是取模块目录
+  （`opportunities/projects/assets/reports/contacts/partners/approvals/admin`）∩ 用户生效模块。
+- **生效规则**：`admin` 角色天然拥有全部模块；普通用户以 `user_modules` 显式分配为准；
+  存量/未显式分配用户回落到四个基础模块（升级平滑，行为不变）。
+- **前端菜单与后端接口同一判定**：`GET /meta/me/menus` 与各路由 `require_module` 共用
+  `core.rbac.effective_modules`，不会出现入口可见但接口 403 的错位契约。
+- **审批资格** = 拥有「审批中心」模块（`can_approve`）；**系统管理** = 拥有「系统管理」模块。
+- **财务**（`/finance`）沿用账套成员授权（`can_finance`，`require_finance` 按账套角色判定），
+  不纳入手动模块分配；设备资产的特权写操作仍要求 admin 角色。
+- 管理员角色仍用于全局数据范围（跨部门/跨项目）与演示数据开关等高权限判定。
+
+## 管理与审批边界契约（Stage 1 收敛，2026-09-16 确认；Stage 5 起模块化）
+
+- **管理员（`admin`）拥有全部模块与全局数据范围**：可跨部门、跨项目读取和操作。
+- 管理接口（`/admin/*`）、审批接口（`/approvals/*`、`/budget-adjusts/{id}/approve`、
+  `/expenses/{id}/approve|reject|exception`）、回收站（`/projects/recycle-bin/list`、项目删除与恢复）
+  分别要求 `admin` / `approvals` 模块；未分配该模块的账号稳定返回 403，鉴权先于任何业务读写。
+- 审批中心 `GET /approvals/pending` 行内的 `can_decide` 与各决策入口共用同一判定
+  （`core.rbac.can_approve`），不会出现按钮可见但接口拒绝的错位契约。
 - **管理员全局 ≠ 包含回收站**：正常业务列表仍排除软删除项目，回收站单独查看与恢复。
 - 普通用户按「项目负责人 / 项目成员」参与业务（立项、任务、进度填报、跟进、预算/支出登记），该参与路径本轮不变。
 - `project_manager` / `dept_manager` / `member` / `cost_admin` / `executive` 仅作为未来扩展的结构字段保留，
@@ -122,27 +147,53 @@ app.add_middleware(
   expose_headers=["Content-Disposition"],
 )
 
+def _module_guard(*modules: str):
+    """路由级模块门禁依赖：拥有其中任一模块（管理员天然全量）才放行整个路由。
+
+    前端菜单与后端接口共用 core.rbac.effective_modules，避免「入口可见但接口 403」。
+    """
+    def _dep(user=Depends(get_current_user)):
+        require_module(user, *modules)
+    return _dep
+
+
+# 路由 → 允许的模块（任一即可）。auth/meta/dashboard/notifications 为全站公共面，不设模块门禁：
+#   · projects 是项目详情、跨模块选择器与回收站（admin）的共用读源，放行全部基础业务模块 + 系统管理；
+#   · reports 被支出页用于预算执行汇总，故同时放行 projects 等基础模块；
+#   · tasks/milestones/budgets/expenses 是项目详情/进度/支出子页面的子资源，无独立导航模块，保持开放；
+#   · finance / finance_accounting 沿用账套成员授权（require_finance），不按模块门禁。
+_ROUTER_MODULES: list[tuple[object, tuple[str, ...]]] = [
+    (admin.router, (MODULE_ADMIN,)),
+    (contacts.router, (MODULE_CONTACTS,)),
+    (partners.router, (MODULE_PARTNERS,)),
+    (approvals.router, (MODULE_APPROVALS,)),
+    (opportunities.router, (MODULE_OPPORTUNITIES,)),
+    (equipment_assets.router, (MODULE_ASSETS,)),
+    (reports.router, (MODULE_REPORTS, MODULE_PROJECTS, MODULE_OPPORTUNITIES, MODULE_ASSETS)),
+    (projects.router, (MODULE_OPPORTUNITIES, MODULE_PROJECTS, MODULE_ASSETS,
+                       MODULE_REPORTS, MODULE_ADMIN)),
+]
+
 for r in (
-  auth.router,
-  meta.router,
-  admin.router,
-  contacts.router,
-  partners.router,
-  projects.router,
-  tasks.router,
-  milestones.router,
-  budgets.router,
-  expenses.router,
-  equipment_assets.router,
-  finance.router,
-  finance_accounting.router,
-  reports.router,
-  notifications.router,
-  opportunities.router,
-  approvals.router,
-  dashboard.router,
+    auth.router,
+    meta.router,
+    dashboard.router,
+    notifications.router,
+    tasks.router,
+    milestones.router,
+    budgets.router,
+    expenses.router,
+    finance.router,
+    finance_accounting.router,
 ):
-  app.include_router(r, prefix="/api/v1")
+    app.include_router(r, prefix="/api/v1")
+
+for r, _mods in _ROUTER_MODULES:
+    app.include_router(
+        r,
+        prefix="/api/v1",
+        dependencies=[Depends(_module_guard(*_mods))],
+    )
 
 
 @app.get("/health")

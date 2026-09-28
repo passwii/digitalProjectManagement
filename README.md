@@ -422,7 +422,13 @@ R2_PUBLIC_URL=
 - 账号以手机号标识，密码使用 bcrypt 单向哈希。
 - Access Token 有效期 8 小时，Refresh Token 有效期 7 天；同一账号只保留一个当前会话，新登录会使旧 access/refresh token 失效，登出后将 access JTI 写入黑名单。
 - 连续登录失败达到阈值后锁定账号，成功和失败登录均写审计。
-- 管理员是唯一的管理与审批角色；普通用户仅能读取或写入其负责、参与的项目。
+- 页面可见性与接口访问按**功能模块手动分配**（Stage 5）：模块目录为
+  `opportunities/projects/assets/reports/contacts/partners/approvals/admin`；管理员天然拥有全部模块，
+  普通用户以 `user_modules` 显式分配为准（未显式分配的存量用户默认四个基础模块）。
+  `GET /meta/me/menus` 与各路由 `require_module` 共用同一判定，入口可见即接口放行。
+  财务（`/finance`）沿用账套成员授权（`can_finance`），不纳入手动模块分配。
+- 管理员角色仍用于全局数据范围（跨部门/跨项目）、演示数据开关与设备资产的受控写操作等高权限判定。
+- 普通用户仅能读取或写入其负责、参与的项目。
 - 项目、子表和附件接口在数据库查询层下推可见性与软删除条件。
 
 `[目标]`：

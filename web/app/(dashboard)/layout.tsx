@@ -111,9 +111,8 @@ const LABEL: Record<string, string> = {
   "/spark": "NebulaCloud 演示站",
 };
 
-/** 工作台恒可见（非管理与审批入口）；权限同步失败时退回这组参与性入口，绝不默认放行管理入口 */
+/** 工作台恒可见；权限同步失败时退回这组参与性入口，绝不因同步失败就清空导航 */
 const BASE_HREFS = ["/dashboard", "/opportunities", "/projects", "/assets", "/reports"];
-const ADMIN_HREFS = ["/contacts", "/partners", "/approvals", "/finance", "/admin"];
 
 const CRUMB: Record<string, string> = LABEL;
 
@@ -378,8 +377,9 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
     const fromMenus = menus
       .filter((m) => m.href !== "/spark")
       .map((m) => ({ href: m.href, label: m.label || LABEL[m.href] || m.href }));
-    // 权限同步失败（或菜单为空）：只保留参与性入口并提示重试，绝不猜测管理员身份
-    const list = permsError || menus.length === 0
+    // 权限同步失败时才退回参与性入口并提示重试；空菜单是合法的「未分配任何模块」，
+    // 此时只保留恒可见的工作台与本地 Spark 入口（Stage 5：模块按用户手动分配）。
+    const list = permsError
       ? BASE_HREFS.map((href) => ({ href, label: LABEL[href] }))
       : [{ href: "/dashboard", label: LABEL["/dashboard"] }, ...fromMenus];
     const out: NavItem[] = [];
@@ -453,18 +453,11 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
           </div>
         </div>
         <nav className={s.nav} aria-label="主导航" aria-busy={permsLoading}>
-          {navItems.map((n, i) => {
+          {navItems.map((n) => {
             const active = pathname === n.href || pathname.startsWith(n.href + "/");
-            const prev = navItems[i - 1]?.href ?? "";
-            const startsAdminGroup = ADMIN_HREFS.includes(n.href) && !ADMIN_HREFS.includes(prev);
             const startsSparkGroup = n.href === "/spark";
             return (
               <Fragment key={n.href}>
-                {startsAdminGroup && (
-                  <span className={s.navGroupLabel} title="仅管理员可见" aria-hidden={collapsed}>
-                    {collapsed ? "——" : "管理与审批"}
-                  </span>
-                )}
                 {startsSparkGroup && (
                   <span className={s.navGroupLabel} title="Spark" aria-hidden={collapsed}>
                     {collapsed ? "——" : "Spark"}
@@ -555,6 +548,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
         ready={permsReady}
         failed={Boolean(permsError)}
         canApprove={canApprove}
+        isAdmin={isAdmin}
       />
     </div>
     </>

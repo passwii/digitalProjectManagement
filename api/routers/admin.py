@@ -1,6 +1,7 @@
-"""系统管理（用户/角色/字典/参数/日志）：管理与审批面，admin 专属。
+"""系统管理（用户/角色/字典/参数/日志）：系统管理模块面。
 
-权限契约（Stage 1 收敛）：所有接口统一走 core.rbac.require_admin，非管理员恒定 403。
+权限契约（Stage 5）：所有接口统一走 core.rbac.require_module(user, "admin")，
+未分配「系统管理」模块的账号恒定 403；管理员天然拥有全部模块。
 """
 import re
 
@@ -13,7 +14,13 @@ from ..core.audit import commit_audited, write_audit
 from ..core.database import get_db
 from ..core.deps import get_current_user
 from ..core.paging import DEFAULT_PAGE_SIZE, paginate
-from ..core.rbac import require_admin
+from ..core.rbac import (
+    ALL_MODULES,
+    MODULE_ADMIN,
+    MODULE_CATALOG,
+    effective_modules,
+    require_module,
+)
 from ..core.security import hash_password
 from ..core.timeutil import app_now, iso
 from ..models import (
@@ -24,14 +31,16 @@ from ..models import (
     Role,
     SysParam,
     User,
+    UserModule,
     UserRole,
 )
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 PHONE_RE = re.compile(r"^1\d{10}$")
 
-# 统一门禁：定义在 core.rbac（唯一管理员判定来源），此处仅做别名以保持调用点简短
-_admin = require_admin
+# 统一门禁：系统管理模块（管理员天然拥有；也可由管理员分配给其他用户）
+def _admin(user: User) -> None:
+    require_module(user, MODULE_ADMIN)
 
 # 排序白名单（Stage 3A）：字段名 → ORM 列
 USER_SORTS = {
@@ -64,7 +73,14 @@ def _operator_name(user_id: int | None, account: User | None = None) -> str:
 def _u(u: User):
     return {"id": u.id, "username": u.username, "real_name": u.real_name,
             "status": u.status, "dept_id": u.dept_id,
-            "roles": [{"code": r.code, "name": r.name} for r in u.roles]}
+            "roles": [{"code": r.code, "name": r.name} for r in u.roles],
+            "modules": _sorted_modules(u)}
+
+
+def _sorted_modules(u: User) -> list[str]:
+    """按模块目录顺序回带生效模块，前端弹窗直接回填当前勾选。"""
+    effective = effective_modules(u)
+    return [key for key in ALL_MODULES if key in effective]
 
 
 class UserIn(BaseModel):
@@ -73,6 +89,21 @@ class UserIn(BaseModel):
     real_name: str = ""
     dept_id: int | None = None
     roles: list[str] = []
+    modules: list[str] | None = None
+
+
+def _apply_modules(db: Session, uid: int, modules: list[str]) -> None:
+    """整表覆盖式写入用户模块分配，并把用户标记为「已显式分配」。
+
+    只接受模块目录内取值（去重、忽略非法值）；空列表表示显式不分配任何模块。
+    """
+    wanted = [m for m in dict.fromkeys(modules) if m in ALL_MODULES]
+    db.query(UserModule).filter_by(user_id=uid).delete()
+    for module in wanted:
+        db.add(UserModule(user_id=uid, module=module))
+    account = db.query(User).filter_by(id=uid).first()
+    if account is not None:
+        account.modules_assigned = True
 
 
 @router.get("/users")
@@ -133,6 +164,8 @@ def create_user(body: UserIn, db: Session = Depends(get_db), user: User = Depend
         r = db.query(Role).filter_by(code=code).first()
         if r:
             db.add(UserRole(user_id=u.id, role_id=r.id))
+    if body.modules is not None:
+        _apply_modules(db, u.id, body.modules)
     commit_audited(db, user.id, "create_user", "users", u.id, username)
     return _u(db.query(User).filter_by(id=u.id).first())
 
@@ -156,6 +189,8 @@ def update_user(uid: int, body: dict, db: Session = Depends(get_db),
             r = db.query(Role).filter_by(code=code).first()
             if r:
                 db.add(UserRole(user_id=uid, role_id=r.id))
+    if "modules" in body and isinstance(body["modules"], list):
+        _apply_modules(db, uid, [str(m) for m in body["modules"]])
     if body.get("status") == "active":
         u.failed_count, u.locked_until = 0, None
     contact = db.query(ContactProfile).filter_by(user_id=uid).first()
@@ -199,6 +234,14 @@ def set_demo_data_flag(body: dict, db: Session = Depends(get_db),
 def list_roles(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     _admin(user)
     return [{"id": r.id, "code": r.code, "name": r.name} for r in db.query(Role).all()]
+
+
+@router.get("/modules")
+def list_modules(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """功能模块目录（仅系统管理模块可见）：供用户弹窗渲染可分配模块与排序。"""
+    _admin(user)
+    return [{"key": key, "label": label, "href": href}
+            for key, label, href in MODULE_CATALOG]
 
 
 @router.get("/dicts")

@@ -542,8 +542,14 @@ class User(Base):
   locked_until = Column(DateTime, nullable=True)
   must_change_pwd = Column(Boolean, default=False)
   session_version = Column(Integer, nullable=False, default=0, server_default="0")
+  # 功能模块分配（Stage 5）：是否已显式分配过模块。False（存量/未分配用户）走默认
+  # 业务模块；True 时以 user_modules 行为准（允许显式分配为空）。
+  modules_assigned = Column(Boolean, default=False, server_default="false")
   created_at = Column(DateTime, default=_now)
   roles = relationship("Role", secondary="user_roles", back_populates="users")
+  modules = relationship(
+    "UserModule", back_populates="user", cascade="all, delete-orphan"
+  )
 
 
 class ContactProfile(Base):
@@ -614,6 +620,21 @@ class UserRole(Base):
   role_id = Column(
     Integer, ForeignKey("roles.id", ondelete="CASCADE"), primary_key=True
   )
+
+
+class UserModule(Base):
+  """用户功能模块分配（Stage 5）：按用户勾选的页面模块决定导航与接口访问。
+
+  与角色解耦：管理员仍天然拥有全部模块（见 core.rbac）；普通用户以本表为准，
+  未显式分配（users.modules_assigned=False）时回落到默认业务模块，保证存量平滑。
+  """
+
+  __tablename__ = "user_modules"
+  user_id = Column(
+    Integer, ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
+  )
+  module = Column(String(32), primary_key=True)
+  user = relationship("User", back_populates="modules")
 
 
 class Project(Base):

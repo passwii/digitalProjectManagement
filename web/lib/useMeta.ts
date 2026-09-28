@@ -236,6 +236,11 @@ export interface MenuState {
   /** 与列表行内 can_decide / 决策接口同一判定 */
   canApprove: boolean;
   canFinance: boolean;
+  /**
+   * 当前用户是否拥有某功能模块（Stage 5：页面可见性按用户手动分配）。
+   * 判定来源就是后端返回的可见菜单 key，与接口门禁同源，不新增角色判断。
+   */
+  hasModule: (key: string) => boolean;
   /** 演示数据开关是否打开（决定列表是否包含演示数据） */
   demoOn: boolean;
   /** 当前用户是否可切换演示开关（仅管理员） */
@@ -289,6 +294,7 @@ export function useMenus(): MenuState {
     ready: data !== null && !error,
     canApprove: !!data?.can_approve,
     canFinance: !!data?.can_finance,
+    hasModule: (key: string) => (data?.menus ?? []).some((m) => m.key === key),
     demoOn: !!data?.demo_on,
     canToggleDemo: !!data?.can_toggle_demo,
     loading,

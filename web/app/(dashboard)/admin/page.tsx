@@ -3,7 +3,7 @@
 import { Suspense, useState } from "react";
 import {
   adminApi, buildQuery, errText, projectsApi, unwrapPaged,
-  type AdminUser, type AuditLog, type DictItem, type RecycleBinItem,
+  type AdminUser, type AuditLog, type DictItem, type ModuleItem, type RecycleBinItem,
 } from "@/lib/api";
 import { useAsyncData } from "@/lib/useAsyncData";
 import { urlInt, useUrlState, useUrlText } from "@/lib/useUrlState";
@@ -50,21 +50,22 @@ const URL_DEFAULTS = {
 };
 
 export default function AdminPage() {
-  // 系统管理属于管理与审批面：非管理员不拉取数据（避免整页 403 报错），并给出明确说明
-  const { isAdmin, loading: permsLoading, error: permsError, reload } = useMenus();
+  // 系统管理属于「系统管理」功能模块：无该模块不拉取数据（避免整页 403 报错），并给出明确说明
+  const { hasModule, loading: permsLoading, error: permsError, reload } = useMenus();
+  const canManage = hasModule("admin");
 
   if (permsLoading) return <LoadingBlock kpis={0} />;
   if (permsError) return <LoadFailed message={permsError} onRetry={reload} />;
-  if (!isAdmin) {
+  if (!canManage) {
     return (
       <div>
         <NoAccess
-          title="系统管理仅管理员可用"
+          title="系统管理模块未分配"
           hint={
             <>
-              当前账号不属于管理员，无法查看用户、角色、字典、参数、审计日志与回收站。
+              当前账号未被分配「系统管理」模块，无法查看用户、角色、字典、参数、审计日志与回收站。
               <br />
-              需要调整权限或恢复项目时，请联系管理员处理。
+              需要调整权限或恢复项目时，请联系管理员在用户管理中分配该模块。
             </>
           }
         />
@@ -115,6 +116,12 @@ function AdminInner() {
     [],
     { enabled: tab === "用户" || tab === "角色" },
   );
+  // 功能模块目录（Stage 5）：用户弹窗按它渲染可分配模块并回填勾选
+  const modules = useAsyncData(
+    (signal) => adminApi.modules(signal),
+    [],
+    { enabled: tab === "用户" },
+  );
   const dicts = useAsyncData(
     (signal) => adminApi.dicts("", signal),
     [],
@@ -146,6 +153,8 @@ function AdminInner() {
 
   const userItems: AdminUser[] = users.data?.items ?? [];
   const roleItems: RoleItem[] = roles.data ?? [];
+  const moduleItems: ModuleItem[] = modules.data ?? [];
+  const moduleLabel = new Map(moduleItems.map((m) => [m.key, m.label]));
   const dictItems: DictItem[] = dicts.data ?? [];
   const paramItems = params.data ?? {};
   const logItems: AuditLog[] = logs.data?.items ?? [];
@@ -219,7 +228,7 @@ function AdminInner() {
         users.firstLoad ? (
           <LoadingBlock kpis={0} label="加载用户…" />
         ) : userItems.length === 0 ? (
-          <div className="card"><Empty title="暂无用户" hint="新增用户后可分配角色。" /></div>
+          <div className="card"><Empty title="暂无用户" hint="新增用户后可分配角色与功能模块。" /></div>
         ) : (
           <>
             <CardList label="系统用户">
@@ -232,6 +241,7 @@ function AdminInner() {
                   fields={[
                     { label: "部门", value: deptName(u.dept_id) },
                     { label: "角色", value: u.roles.map((r) => r.name).join(" / ") || "-" },
+                    { label: "模块", value: u.modules.length === 0 ? "-" : u.modules.map((k) => moduleLabel.get(k) ?? k).join(" / ") },
                   ]}
                   onSelect={() => { setEditingUser(u); setUserOpen(true); }}
                   actions={userActions(u)}
@@ -240,7 +250,7 @@ function AdminInner() {
             </CardList>
             <DesktopTable>
               <table className="grid" aria-busy={users.loading}>
-                <thead><tr><th>手机号</th><th>姓名</th><th>部门</th><th>角色</th><th>状态</th><th className="no-print" /></tr></thead>
+                <thead><tr><th>手机号</th><th>姓名</th><th>部门</th><th>角色</th><th>模块</th><th>状态</th><th className="no-print" /></tr></thead>
                 <tbody>
                   {userItems.map((u) => (
                     <tr key={u.id} className="clickable-row" onClick={() => { setEditingUser(u); setUserOpen(true); }}>
@@ -248,6 +258,7 @@ function AdminInner() {
                       <td>{u.real_name}</td>
                       <td className="muted">{deptName(u.dept_id)}</td>
                       <td>{u.roles.map((r) => r.name).join(" / ") || "-"}</td>
+                      <td className="muted tiny">{u.modules.length === 0 ? "-" : u.modules.map((k) => moduleLabel.get(k) ?? k).join(" / ")}</td>
                       <td>
                         <Badge
                           status={u.status === "active" ? "启用" : u.status === "locked" ? "锁定" : "停用"}
@@ -485,6 +496,7 @@ function AdminInner() {
         onClose={() => setUserOpen(false)}
         user={editingUser}
         roles={roleItems}
+        modules={moduleItems}
         onSaved={(isNew) => { toast.ok(isNew ? "用户已创建" : "用户已保存"); users.reload(); }}
       />
 

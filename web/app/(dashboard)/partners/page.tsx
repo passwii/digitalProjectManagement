@@ -38,11 +38,12 @@ export default function PartnersPage() {
 function PartnersInner() {
   const toast = useToast();
   const {
-    isAdmin,
+    hasModule,
     loading: menuLoading,
     error: menuError,
     reload: reloadMenus,
   } = useMenus();
+  const canRead = hasModule("partners");
   const [url, setUrl] = useUrlState(URL_DEFAULTS, { pageKey: "page" });
   const page = urlInt(url.page, 1);
   const size = SIZE_OPTIONS.includes(Number(url.size)) ? Number(url.size) : SIZE_OPTIONS[0];
@@ -61,8 +62,8 @@ function PartnersInner() {
         }),
         signal,
       ),
-    [page, size, url.q, isAdmin],
-    { enabled: isAdmin, resetOnDepChange: true },
+    [page, size, url.q, canRead],
+    { enabled: canRead, resetOnDepChange: true },
   );
 
   const items = data?.items ?? [];
@@ -95,10 +96,10 @@ function PartnersInner() {
     );
   }
   if (menuError) return <LoadFailed message={menuError} onRetry={reloadMenus} />;
-  if (!isAdmin) {
+  if (!canRead) {
     return (
       <div className="card">
-        <Empty title="仅管理员可访问我的友商" hint="友商基本信息、业绩合同与资质附件不对普通账号开放。" />
+        <Empty title="未分配我的友商模块" hint="友商基本信息、业绩合同与资质附件仅对已分配该模块的账号开放。" />
       </div>
     );
   }

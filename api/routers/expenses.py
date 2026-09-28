@@ -32,10 +32,11 @@ from ..core.deps import get_current_user
 from ..core.limits import MAX_ATTACHMENT_SIZE, read_within_limit
 from ..core.paging import DEFAULT_PAGE_SIZE, paginate
 from ..core.rbac import (
+    MODULE_APPROVALS,
     can_read_project,
     get_active_project,
     is_admin,
-    require_admin,
+    require_module,
     scope_child_query,
 )
 from ..core.timeline import (
@@ -549,7 +550,7 @@ def approve(
     eid: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)
 ):
     """支出通过（仅管理员）。超预算时须先调预算或走特批。"""
-    require_admin(user)
+    require_module(user, MODULE_APPROVALS)
     e = _expense(db, eid)
     if e.status != "pending":
         raise HTTPException(400, "支出不在待审批状态")
@@ -569,7 +570,7 @@ def reject(
     user: User = Depends(get_current_user),
 ):
     """支出驳回（仅管理员）。驳回意见必填且对申请人可见，申请人可修改后重新提交。"""
-    require_admin(user)
+    require_module(user, MODULE_APPROVALS)
     e = _expense(db, eid)
     if e.status != "pending":
         raise HTTPException(400, "支出不在待审批状态")
@@ -590,7 +591,7 @@ def exception(
     user: User = Depends(get_current_user),
 ):
     """特批放行超预算支出（仅管理员）。仅「待审批 / 已驳回」可特批，意见必填。"""
-    require_admin(user)
+    require_module(user, MODULE_APPROVALS)
     e = _expense(db, eid)
     if e.status not in ("pending", "rejected"):
         raise HTTPException(400, f"仅待审批/已驳回可特批，当前为 {e.status}")

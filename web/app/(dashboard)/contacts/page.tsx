@@ -44,11 +44,12 @@ export default function ContactsPage() {
 function ContactsInner() {
   const { depts } = useMeta();
   const {
-    isAdmin,
+    hasModule,
     loading: menuLoading,
     error: menuError,
     reload: reloadMenus,
   } = useMenus();
+  const canRead = hasModule("contacts");
   const [url, setUrl] = useUrlState(URL_DEFAULTS, { pageKey: "page" });
   const page = urlInt(url.page, 1);
   const size = SIZE_OPTIONS.includes(Number(url.size)) ? Number(url.size) : SIZE_OPTIONS[0];
@@ -67,8 +68,8 @@ function ContactsInner() {
         }),
         signal,
       ),
-    [page, size, url.q, url.dept, url.employment_status, isAdmin],
-    { enabled: isAdmin, resetOnDepChange: true },
+    [page, size, url.q, url.dept, url.employment_status, canRead],
+    { enabled: canRead, resetOnDepChange: true },
   );
 
   const items = data?.items ?? [];
@@ -89,10 +90,10 @@ function ContactsInner() {
     );
   }
   if (menuError) return <LoadFailed message={menuError} onRetry={reloadMenus} />;
-  if (!isAdmin) {
+  if (!canRead) {
     return (
       <div className="card">
-        <Empty title="仅管理员可访问通讯录" hint="身份证、学历、证书和合同附件不对普通账号开放。" />
+        <Empty title="未分配通讯录模块" hint="身份证、学历、证书和合同附件仅对已分配通讯录模块的账号开放。" />
       </div>
     );
   }

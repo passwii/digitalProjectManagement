@@ -28,16 +28,18 @@ export default function MineSheet({
   ready,
   failed,
   canApprove,
+  isAdmin,
   onReloadMenus,
 }: SheetContentProps) {
   const router = useRouter();
   const { me, displayName, roleNames } = useMe();
   const { deptName } = useMeta();
 
-  // 管理员才需要待审批总数；非管理员 / 权限未确认时不发这个请求
-  const showAdmin = ready && !failed && canApprove && item.visible.length > 0;
+  // 「我的」抽屉有已分配的管理/审批类模块时才展示该分组；未确认/同步失败不渲染
+  const showManage = ready && !failed && item.visible.length > 0;
+  // 待审批总数只有拥有「审批中心」模块时才需要拉取
   const { data: pending } = useAsyncData((signal) => approvalsApi.pending(signal), [], {
-    enabled: showAdmin,
+    enabled: showManage && canApprove,
   });
 
   async function logout() {
@@ -53,7 +55,7 @@ export default function MineSheet({
   }
 
   const roleText = ready
-    ? canApprove
+    ? isAdmin
       ? "管理员"
       : roleNames.join("、") || "成员"
     : "身份确认中…";
@@ -83,15 +85,15 @@ export default function MineSheet({
           )}
         </div>
         {ready && (
-          <span className={s.rolePill} data-admin={canApprove}>
-            {canApprove ? "管理员" : "成员"}
+          <span className={s.rolePill} data-admin={isAdmin}>
+            {isAdmin ? "管理员" : "成员"}
           </span>
         )}
       </div>
 
-      {showAdmin ? (
+      {showManage ? (
         <>
-          <div className={s.sec}>管理与审批</div>
+          <div className={s.sec}>功能入口</div>
           {item.visible.map((m) => (
             <SheetCard
               key={m.href}

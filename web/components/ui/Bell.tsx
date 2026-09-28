@@ -29,9 +29,9 @@ function targetKeyOf(refType: string): string {
  * 落到具体业务对象（任务/里程碑/支出/跟进），而不是模块首页。
  *
  * · 审批类与项目级通知没有子对象可定位，退回项目详情（立项审批的 ref 就是项目本身）；
- * · 预算调整/支出对管理员指向审批中心并高亮对应待办行，对申请人指向成本页。
+ * · 预算调整/支出对有审批模块的用户指向审批中心并高亮对应待办行，对申请人指向成本页。
  */
-export function hrefOf(n: Notification, isAdmin: boolean): string | null {
+export function hrefOf(n: Notification, canApprove: boolean): string | null {
   const costs = (q = "") => `/costs?project_id=${n.project_id}${q}`;
   const progress = (q = "") => `/progress?project_id=${n.project_id}${q}`;
   const key = targetKeyOf(n.ref_type);
@@ -40,20 +40,20 @@ export function hrefOf(n: Notification, isAdmin: boolean): string | null {
 
   if (!n.project_id) {
     // 无项目归属：仅审批类通知可落到审批中心
-    return n.type === "approval" && isAdmin ? "/approvals" : null;
+    return n.type === "approval" && canApprove ? "/approvals" : null;
   }
   if (n.ref_type === "task") return progress(target);
   if (n.ref_type === "milestone") return progress(target);
   if (n.ref_type === "expense") {
-    return isAdmin ? `/approvals?expense=${n.ref_id}` : costs(target);
+    return canApprove ? `/approvals?expense=${n.ref_id}` : costs(target);
   }
   if (n.ref_type === "budget_adjust") {
-    return isAdmin ? `/approvals?adjust=${n.ref_id}` : costs(target);
+    return canApprove ? `/approvals?adjust=${n.ref_id}` : costs(target);
   }
   if (n.ref_type === "followup") return `/projects/${n.project_id}?tab=跟进${target}`;
   if (n.type === "approval") {
-    // 立项审批：ref 就是项目自身，管理员去审批中心高亮该行
-    return isAdmin ? `/approvals?filing=${n.project_id}` : `/projects/${n.project_id}`;
+    // 立项审批：ref 就是项目自身，有审批模块去审批中心高亮该行
+    return canApprove ? `/approvals?filing=${n.project_id}` : `/projects/${n.project_id}`;
   }
   // 预算预警 / 停滞等以项目为对象
   return `/projects/${n.project_id}`;
@@ -67,7 +67,7 @@ function hasLocator(n: Notification): boolean {
 
 export default function Bell() {
   const router = useRouter();
-  const { isAdmin } = useMenus();
+  const { canApprove } = useMenus();
   const toast = useToast();
   const [open, setOpen] = useState(false);
   const [unread, setUnread] = useState(0);
@@ -164,7 +164,7 @@ export default function Bell() {
   }, [open, loadList]);
 
   async function openItem(n: Notification) {
-    const href = hrefOf(n, isAdmin);
+    const href = hrefOf(n, canApprove);
     // 已读失败不阻断跳转，但要如实告知（不再静默吞掉）
     if (!n.read) {
       setBusyId(n.id);
@@ -264,7 +264,7 @@ export default function Bell() {
             <button className={s.link} onClick={loadList} disabled={loading}>
               {loading ? "刷新中…" : "刷新"}
             </button>
-            {isAdmin && (
+            {canApprove && (
               <button className={s.link} onClick={() => { setOpen(false); router.push("/approvals"); }}>
                 前往审批中心 →
               </button>
