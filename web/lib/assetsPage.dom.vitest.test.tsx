@@ -63,14 +63,14 @@ describe("资产页面分页和刷新", () => {
   it("批次与逾期分别按服务端 total/page/size 翻页，并保持每页不超过 100", async () => {
     cleanup();
     setup({ batchTotal: 101, overdueTotal: 101 });
-    fireEvent.click(await screen.findByRole("button", { name: "入库批次" }));
+    fireEvent.click(await screen.findByRole("tab", { name: "入库批次" }));
     expect(await screen.findByText("批次 #10")).toBeTruthy();
     expect(document.querySelector(".asset-pagination span")?.textContent).toBe("第 1 页 · 共 101 批");
     fireEvent.click(screen.getByRole("button", { name: "下一页批次" }));
     expect(await screen.findByText("批次 #11")).toBeTruthy();
     await waitFor(() => expect(api.batches).toHaveBeenLastCalledWith(2, 100, expect.any(AbortSignal)));
 
-    fireEvent.click(screen.getByRole("button", { name: "逾期借用" }));
+    fireEvent.click(screen.getByRole("tab", { name: "逾期借用" }));
     expect(document.querySelector(".asset-pagination span")?.textContent).toBe("第 1 页 · 共 101 件");
     fireEvent.click(screen.getByRole("button", { name: "下一页逾期" }));
     await waitFor(() => expect(api.overdue).toHaveBeenLastCalledWith(2, 100, expect.any(AbortSignal)));
@@ -83,7 +83,7 @@ describe("资产页面分页和刷新", () => {
     api.list.mockImplementation(async () => page([current]));
     api.get.mockImplementation(async () => current);
     api.borrow.mockImplementation(async () => { current = asset({ status: "borrowed", holder_id: 42, due_date: "2026-12-31" }); });
-    fireEvent.click(await screen.findByRole("button", { name: "设备台账" }));
+    fireEvent.click(await screen.findByRole("tab", { name: "设备台账" }));
     fireEvent.click(await screen.findByRole("button", { name: "查看" }));
     fireEvent.change(screen.getByLabelText("借用到期日"), { target: { value: "2026-12-31" } });
     fireEvent.click(screen.getByRole("button", { name: "借用" }));
@@ -102,14 +102,14 @@ describe("资产页面分页和刷新", () => {
 
   it("批次详情失败时显示可见错误且不产生未处理拒绝", async () => {
     api.batch.mockRejectedValue(new Error("批次服务不可用"));
-    fireEvent.click(await screen.findByRole("button", { name: "入库批次" }));
+    fireEvent.click(await screen.findByRole("tab", { name: "入库批次" }));
     fireEvent.click(await screen.findByRole("button", { name: "查看设备" }));
     expect((await screen.findByRole("alert")).textContent).toContain("批次服务不可用");
   });
 
   it("映射详情持有人姓名，找不到目录用户时回退到用户编号", async () => {
     api.list.mockResolvedValue(page([asset({ holder_id: 42, status: "claimed" })]));
-    fireEvent.click(await screen.findByRole("button", { name: "设备台账" }));
+    fireEvent.click(await screen.findByRole("tab", { name: "设备台账" }));
     fireEvent.click(await screen.findByRole("button", { name: "查看" }));
     expect(await screen.findByRole("button", { name: "编辑档案" })).toBeTruthy();
     expect(await screen.findByText("张三")).toBeTruthy();
@@ -118,7 +118,7 @@ describe("资产页面分页和刷新", () => {
     setup();
     api.list.mockResolvedValue(page([asset({ holder_id: 99, status: "claimed" })]));
     api.get.mockResolvedValue(asset({ holder_id: 99, status: "claimed" }));
-    fireEvent.click(await screen.findByRole("button", { name: "设备台账" }));
+    fireEvent.click(await screen.findByRole("tab", { name: "设备台账" }));
     fireEvent.click(await screen.findByRole("button", { name: "查看" }));
     expect(await screen.findByText("用户 99")).toBeTruthy();
   });
