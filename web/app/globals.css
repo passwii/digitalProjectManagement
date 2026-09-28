@@ -1306,6 +1306,12 @@ th.num {
 .danger-link {
  color: var(--danger) !important;
 }
+.btn-ghost.danger-link:hover,
+.btn-ghost.danger-link:focus-visible {
+ border-color: var(--danger);
+ background: var(--danger-bg);
+ color: var(--danger);
+}
 
 .inline-person {
  display: inline-flex;
