@@ -84,7 +84,7 @@ def test_export_neutralizes_formula_strings_in_csv_and_xlsx(client, db):
     csv_response = client.get(f"{ROOT}/export?format=csv", headers=admin)
     assert csv_response.status_code == 200
     rows = list(csv.DictReader(io.StringIO(csv_response.content.decode("utf-8-sig"))))
-    assert [row["name"] for row in rows] == ["'" + value for value in values]
+    assert [row["设备名称"] for row in rows] == ["'" + value for value in values]
 
     xlsx_response = client.get(f"{ROOT}/export?format=xlsx", headers=admin)
     assert xlsx_response.status_code == 200
