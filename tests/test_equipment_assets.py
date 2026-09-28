@@ -6,6 +6,7 @@ import json
 
 import pytest
 from openpyxl import Workbook
+from sqlalchemy import text
 
 from api.models import AuditLog, Dict, EquipmentAsset, EquipmentEvent, EquipmentBatch
 from test_mvp import login
@@ -13,14 +14,60 @@ from test_mvp import login
 
 ROOT = "/api/v1/equipment-assets"
 
+# 与 0027/0030 迁移完全一致的可变体。单元测试用 create_all 建表、**不跑迁移**，
+# 所以流水不可变触发器在这里必须手工装上——否则「删流水被触发器拦截导致生产 500」
+# 这类缺陷在测试里永远是绿的（#99 删除功能就是这么漏到线上的）。
+IMMUTABLE_TRIGGER_FN = """
+CREATE OR REPLACE FUNCTION prevent_equipment_event_change()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $function$
+BEGIN
+    IF COALESCE(current_setting('app.allow_event_purge', true), 'off') = 'on' THEN
+        RETURN OLD;
+    END IF;
+    RAISE EXCEPTION 'equipment event history is immutable';
+END; $function$
+"""
+IMMUTABLE_TRIGGER = (
+    "CREATE TRIGGER equipment_events_immutable BEFORE UPDATE OR DELETE ON equipment_events "
+    "FOR EACH ROW EXECUTE FUNCTION prevent_equipment_event_change()"
+)
+
 
 @pytest.fixture(autouse=True)
 def categories(db):
+    """分类字典 + 流水不可变触发器。
+
+    `db` 是 sessionmaker，`with db()` 拿到的会话与被测代码（TestClient 走
+    dependency_overrides）指向同一个临时 schema，所以触发器对接口同样生效。
+    """
     with db() as session:
         for code, label in (("computer", "电脑"), ("monitor", "显示器"), ("printer", "打印机"),
                             ("network", "网络设备"), ("instrument", "工具仪器"), ("other", "其他")):
             session.add(Dict(type="equipment_category", code=code, label=label))
         session.commit()
+        session.execute(text(IMMUTABLE_TRIGGER_FN))
+        session.execute(text(IMMUTABLE_TRIGGER))
+        session.commit()
+
+
+@pytest.fixture()
+def locked_events(client, db):
+    """反向确认：触发器真的在拦截（否则删除相关测试是假绿）。
+
+    0027 的触发器是 BEFORE UPDATE OR DELETE + FOR EACH ROW，所以必须先有真实流水行，
+    0 行的 DELETE 不会触发。探针资产与流水随临时 schema 一起丢弃，删不掉也无妨。
+    """
+    probe = _create(client, login(client, "admin"), name="触发器探针")
+    with db() as session:
+        eid = (session.query(EquipmentEvent)
+               .filter_by(asset_id=probe["id"]).order_by(EquipmentEvent.id.desc()).first().id)
+        for sql in ("DELETE FROM equipment_events WHERE id = :i",
+                    "UPDATE equipment_events SET note = 'x' WHERE id = :i"):
+            with pytest.raises(Exception, match="equipment event history is immutable"):
+                session.execute(text(sql), {"i": eid})
+            session.rollback()
 
 
 def _create(client, headers, name="笔记本", **extra):
@@ -166,7 +213,41 @@ def test_admin_can_force_delete_asset_with_business_lifecycle(client, db):
         assert detail["reason"] == "测试数据清理"
 
 
-def test_force_delete_of_clean_asset_is_not_flagged_in_audit(client, db):
+def test_delete_survives_immutable_trigger_and_trigger_stays_closed_otherwise(client, db, locked_events):
+    """回归：#99 的删除接口在生产会 500，因为 equipment_events 的不可变触发器拦截 DELETE。
+
+    现在删除接口在事务内 SET LOCAL 打开 app.allow_event_purge 穿透开关，而触发器对
+    其它写路径依然完全关闭。
+    """
+    admin, pm = login(client, "admin"), login(client, "pm")
+    asset = _create(client, admin, name="带流水电脑")
+    aid = asset["id"]
+    assert client.post(f"{ROOT}/{aid}/borrow", headers=pm, json={"due_date": "2099-01-01"}).status_code == 200
+    assert client.post(f"{ROOT}/{aid}/return", headers=pm).status_code == 200
+
+    deleted = client.request("DELETE", f"{ROOT}/{aid}", headers=admin,
+                             json={"confirm_code": asset["code"], "reason": "测试数据清理"})
+    assert deleted.status_code == 200, deleted.text
+    assert deleted.json() == {"ok": True, "id": aid, "code": asset["code"]}
+    with db() as session:
+        assert session.get(EquipmentAsset, aid) is None
+        assert session.query(EquipmentEvent).filter_by(asset_id=aid).count() == 0
+
+    # 关键不变量：删除之后，流水不可变依旧对普通写路径生效（事务级开关不泄漏）。
+    keeper = _create(client, admin, name="留存设备")
+    with db() as session:
+        kid = keeper["id"]
+        assert session.query(EquipmentEvent).filter_by(asset_id=kid).count() >= 1
+        with pytest.raises(Exception, match="equipment event history is immutable"):
+            session.execute(text("DELETE FROM equipment_events WHERE asset_id = :aid"), {"aid": kid})
+        session.rollback()
+        # UPDATE 同样被拦（0027 触发器是 BEFORE UPDATE OR DELETE）
+        with pytest.raises(Exception, match="equipment event history is immutable"):
+            session.execute(text("UPDATE equipment_events SET note = 'x' WHERE asset_id = :aid"), {"aid": kid})
+        session.rollback()
+
+
+def test_force_delete_of_clean_asset_is_not_flagged_in_audit(client, db, locked_events):
     admin = login(client, "admin")
     asset = _create(client, admin, name="重复录入电脑")
     deleted = client.request("DELETE", f"{ROOT}/{asset['id']}", headers=admin,
