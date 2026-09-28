@@ -595,6 +595,53 @@
   color: var(--danger);
 }
 
+.asset-terminal-dialog {
+  display: grid;
+  gap: 14px;
+}
+
+.asset-terminal-identity {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+}
+
+.asset-terminal-identity > div {
+  display: grid;
+  grid-template-columns: 84px minmax(0, 1fr);
+  align-items: baseline;
+  gap: 10px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.asset-terminal-identity dt {
+  color: var(--ink-2);
+  font-size: 12px;
+}
+
+.asset-terminal-identity dd {
+  min-width: 0;
+  margin: 0;
+  color: var(--ink);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.asset-terminal-identity > div:first-child dd {
+  font-family: var(--font-mono);
+}
+
+.asset-terminal-warning {
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--line-danger);
+  background: var(--danger-bg);
+  color: var(--danger);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
 .asset-delete-hint,
 .asset-delete-blocked {
   margin: 0 0 12px;
