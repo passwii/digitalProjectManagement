@@ -326,10 +326,8 @@ def test_soft_delete_recycle_restore(client):
     # 非管理员不可删
     assert client.delete(f"/api/v1/projects/{p['id']}", headers=h).status_code == 403
     ha = login(client, "admin")
-    # 已立项/进行中不可删
+    # 已立项项目也可删除：软删除只移入回收站，关联数据保留（已放开状态限制）
     client.post(f"/api/v1/projects/{p['id']}/status", headers=ha, json={"status": "filed"})
-    assert client.delete(f"/api/v1/projects/{p['id']}", headers=ha).status_code == 400
-    client.post(f"/api/v1/projects/{p['id']}/status", headers=ha, json={"status": "cancelled"})
     assert client.delete(f"/api/v1/projects/{p['id']}", headers=ha).status_code == 200
     # 台账不再可见
     ids = [x["id"] for x in client.get("/api/v1/projects", headers=ha).json()["items"]]
@@ -343,6 +341,9 @@ def test_soft_delete_recycle_restore(client):
     assert client.post(f"/api/v1/projects/{p['id']}/restore", headers=ha).status_code == 200
     ids2 = [x["id"] for x in client.get("/api/v1/projects", headers=ha).json()["items"]]
     assert p["id"] in ids2
+    # 进行中项目同样可删（放开状态限制后不再要求先取消/归档）
+    client.post(f"/api/v1/projects/{p['id']}/status", headers=ha, json={"status": "doing"})
+    assert client.delete(f"/api/v1/projects/{p['id']}", headers=ha).status_code == 200
 
 
 # ============ Stage 3：通知 + 审批中心 ============
@@ -700,9 +701,7 @@ def test_soft_delete_boundary_with_admin_global_scope(client, db):
     hpm = login(client, "pm")
     p = mkproject(client, hpm, "PBinBoundary")
     client.post(f"/api/v1/projects/{p['id']}/status", headers=ha, json={"status": "filed"})
-    assert client.delete(f"/api/v1/projects/{p['id']}", headers=ha).status_code == 400  # 已立项不可删
-    client.post(f"/api/v1/projects/{p['id']}/status", headers=ha, json={"status": "cancelled"})
-    assert client.delete(f"/api/v1/projects/{p['id']}", headers=ha).status_code == 200
+    assert client.delete(f"/api/v1/projects/{p['id']}", headers=ha).status_code == 200  # 已立项也可删
     assert p["id"] not in [x["id"] for x in client.get("/api/v1/projects?size=100", headers=ha).json()["items"]]
     assert client.get(f"/api/v1/projects/{p['id']}", headers=ha).status_code == 404
     assert any(x["id"] == p["id"] for x in items(client.get("/api/v1/projects/recycle-bin/list", headers=ha)))
