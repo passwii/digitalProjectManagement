@@ -353,8 +353,8 @@ export const apiPatchScoped = <T>(path: string, body: unknown, headers: Record<s
   );
 export const apiDeleteScoped = <T>(path: string, headers: Record<string, string>) =>
   trackedMutation("删除中", () => requestOnce<T>(path, { method: "DELETE", headers }));
-export const apiDeleteWithBody = <T>(path: string, body: unknown) =>
-  trackedMutation("移入回收站", () =>
+export const apiDeleteWithBody = <T>(path: string, body: unknown, activityLabel = "移入回收站") =>
+  trackedMutation(activityLabel, () =>
     requestOnce<T>(path, { method: "DELETE", body: JSON.stringify(body) }),
   );
 export const apiDelete = <T>(path: string) =>
@@ -1805,6 +1805,14 @@ export interface EquipmentStatistics {
   by_month: { month: string; inbound: number; outbound: number }[];
   by_holder: { user_id: number; name: string; count: number }[];
 }
+export interface EquipmentDeleteCheck {
+  allowed: boolean;
+  asset_id: number;
+  code: string;
+  reason: string | null;
+  event_count: number;
+  protected_actions: string[];
+}
 export type EquipmentListParams = { keyword?: string; category_code?: string; status?: string; holder_id?: number | string; page?: number; size?: number };
 export type EquipmentWrite = Partial<Pick<EquipmentAsset, "name" | "category_code" | "serial_number" | "brand" | "model" | "location" | "note" | "purchase_date" | "purchase_price">>;
 export function equipmentAssetActions(asset: EquipmentAsset, isAdmin: boolean, currentUserId?: number) {
@@ -1831,6 +1839,8 @@ export const equipmentAssetsApi = {
   get: (id: number, signal?: AbortSignal) => apiGet<EquipmentAsset>(`${EQUIPMENT_ASSETS}/${id}`, signal),
   create: (body: EquipmentWrite) => apiPost<EquipmentAsset>(EQUIPMENT_ASSETS, body),
   update: (id: number, body: EquipmentWrite) => apiPatch<EquipmentAsset>(`${EQUIPMENT_ASSETS}/${id}`, body),
+  deleteCheck: (id: number, signal?: AbortSignal) => apiGet<EquipmentDeleteCheck>(`${EQUIPMENT_ASSETS}/${id}/delete-check`, signal),
+  remove: (id: number, body: { confirm_code: string; reason: string }) => apiDeleteWithBody<{ ok: boolean; id: number; code: string }>(`${EQUIPMENT_ASSETS}/${id}`, body, "永久删除中"),
   events: (id: number, signal?: AbortSignal) => apiGet<Paged<EquipmentEvent>>(`${EQUIPMENT_ASSETS}/${id}/events${buildQuery({ page: 1, size: 100 })}`, signal),
   batches: (page = 1, size = 20, signal?: AbortSignal) => apiGet<Paged<EquipmentBatch>>(`${EQUIPMENT_ASSETS}/batches${buildQuery({ page, size })}`, signal),
   batch: (id: number, signal?: AbortSignal) => apiGet<EquipmentBatch>(`${EQUIPMENT_ASSETS}/batches/${id}`, signal),
