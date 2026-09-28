@@ -3,8 +3,9 @@ import csv
 import io
 import uuid
 from zipfile import BadZipFile
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
+from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from fastapi.responses import StreamingResponse
@@ -22,7 +23,49 @@ from ..models import Dict, EquipmentAsset, EquipmentBatch, EquipmentEvent, User
 
 router = APIRouter(prefix="/equipment-assets", tags=["equipment-assets"])
 FIELDS = ("name", "category_code", "serial_number", "brand", "model", "location", "note", "purchase_date", "purchase_price")
-EXPORT_FIELDS = ("code", *FIELDS, "status", "holder_id", "due_date", "batch_id")
+
+# ---------------------------------------------------------------------------
+# 用户可见文案：数据库列名与接口契约保持英文 snake_case，
+# 只有落到用户手里的文件（导出 / 导入模板）和报错文案才用中文。
+# 两套名字集中在这里维护；前端 assets/page.tsx 的 STATUS 需与之保持一致。
+# ---------------------------------------------------------------------------
+FIELD_LABELS = {
+    "code": "资产编号", "name": "设备名称", "category_code": "设备分类", "serial_number": "序列号",
+    "brand": "品牌", "model": "型号", "location": "存放位置", "note": "备注",
+    "purchase_date": "采购日期", "purchase_price": "采购金额", "status": "设备状态",
+    "holder_id": "使用人", "due_date": "归还日期", "batch_id": "所属批次",
+}
+# 导出列：按台账阅读顺序排列，备注收尾。
+EXPORT_FIELDS = ("code", "name", "category_code", "serial_number", "brand", "model", "location",
+                 "purchase_date", "purchase_price", "status", "holder_id", "due_date", "batch_id", "note")
+# 导入可写列：一次导入只负责「建档」，因此不含状态 / 使用人 / 归还日期等流转字段。
+IMPORT_FIELDS = ("name", "category_code", "serial_number", "brand", "model", "location",
+                 "purchase_date", "purchase_price", "note")
+# 认得但导入时忽略的列（导出后再导回来就会出现），回给前端提示，避免用户以为写丢了。
+IMPORT_IGNORED = ("code", "status", "holder_id", "due_date", "batch_id")
+FIELD_HINTS = {
+    "name": "必填。设备名称。",
+    "category_code": "必填。填分类名称（如「电脑」），也接受分类编码（如 computer）。",
+    "serial_number": "选填。厂商序列号，填了则全库不可重复。",
+    "brand": "选填。品牌。",
+    "model": "选填。型号。",
+    "location": "选填。存放位置。",
+    "purchase_date": "选填。支持 2026-01-05、2026/1/5、2026年1月5日。",
+    "purchase_price": "选填。填数字即可，支持 ¥1,200.00，不能为负数。",
+    "note": "选填。备注。",
+}
+STATUS_LABELS = {"pending_acceptance": "待验收", "available": "可用", "claimed": "已领用",
+                 "borrowed": "借用中", "maintenance": "维修中", "scrapped": "已报废", "void": "已作废"}
+
+EXPORT_STEM = "设备台账"
+TEMPLATE_STEM = "设备台账导入模板"
+IMPORT_EXAMPLE = {"name": "示例笔记本电脑（导入前请删除本行）", "category_code": "",
+                  "serial_number": "SN-EXAMPLE-0001", "brand": "示例品牌", "model": "Model-A",
+                  "location": "总部 3 楼", "purchase_date": None, "purchase_price": 6800, "note": "示例行"}
+
+
+class RowError(ValueError):
+    """单行导入失败；message 已是可直接展示的中文。"""
 
 
 def _csv_safe(value: str) -> str:
@@ -30,6 +73,80 @@ def _csv_safe(value: str) -> str:
     # before deciding whether a cell is a formula.
     probe = value.lstrip("".join(chr(i) for i in range(33)))
     return "'" + value if probe.startswith(("=", "+", "-", "@")) else value
+
+
+def _header_key(value) -> str:
+    """表头归一化：去空白（含全角空格）、下划线与中英文标点差异，再小写。"""
+    text = str(value or "").strip().lower()
+    for ch in " \t\r\n　_（）()：:-/":
+        text = text.replace(ch, "")
+    return text
+
+
+def _build_header_aliases() -> dict:
+    table = {}
+    for field, label in FIELD_LABELS.items():
+        table[_header_key(field)] = field
+        table[_header_key(label)] = field
+    # 口语化别名，减少用户自己造列名、导不进来的概率。
+    for alias, field in (("分类", "category_code"), ("分类名称", "category_code"),
+                         ("分类编码", "category_code"), ("资产分类", "category_code"),
+                         ("名称", "name"), ("设备", "name"), ("物品名称", "name"),
+                         ("编号", "code"), ("资产编码", "code"),
+                         ("购买日期", "purchase_date"), ("购入日期", "purchase_date"),
+                         ("购置日期", "purchase_date"), ("金额", "purchase_price"),
+                         ("价格", "purchase_price"), ("购置金额", "purchase_price"),
+                         ("序号", "serial_number"), ("持有人", "holder_id"),
+                         ("使用人姓名", "holder_id"), ("状态", "status"), ("备注信息", "note")):
+        table[_header_key(alias)] = field
+    return table
+
+
+HEADER_ALIASES = _build_header_aliases()
+
+
+def _parse_date(value):
+    """容忍 Excel 日期单元格、2026-01-05、2026/1/5、2026年1月5日 等写法。"""
+    if value is None or (isinstance(value, str) and not value.strip()):
+        return None
+    if isinstance(value, datetime):
+        return value.date()
+    if isinstance(value, date):
+        return value
+    text = str(value).strip()
+    for ch in ("年", "月", "日", "/", ".", " "):
+        text = text.replace(ch, "-")
+    parts = [p for p in text.split("-") if p]
+    if len(parts) != 3:
+        return RowError("采购日期格式错误，请填 2026-01-05 这类日期")
+    try:
+        return date(int(parts[0]), int(parts[1]), int(parts[2]))
+    except ValueError:
+        return RowError("采购日期格式错误，请填 2026-01-05 这类日期")
+
+
+def _parse_money(value):
+    """容忍 ¥1,200.00 / 1200元 / 1,200 这类写法。"""
+    if value is None or (isinstance(value, str) and not value.strip()):
+        return None
+    if isinstance(value, bool):
+        return RowError("采购金额格式错误，请填数字")
+    if isinstance(value, (int, float, Decimal)):
+        return Decimal(str(value))
+    text = str(value).strip().replace(",", "").replace("，", "").replace(" ", "")
+    for symbol in ("¥", "￥", "元", "RMB"):
+        text = text.replace(symbol, "").replace(symbol.lower(), "")
+    try:
+        return Decimal(text)
+    except (InvalidOperation, ValueError):
+        return RowError("采购金额格式错误，请填数字")
+
+
+def _disposition(stem: str, extension: str) -> dict:
+    """中文文件名：ASCII 回退给老客户端，RFC 5987 给现代浏览器。"""
+    return {"Content-Disposition":
+            f"attachment; filename=equipment_assets.{extension}; "
+            f"filename*=UTF-8''{quote(f'{stem}.{extension}')}"}
 
 
 class AssetIn(BaseModel):
@@ -71,13 +188,39 @@ class CategoryPatch(BaseModel):
 
 
 def _asset(a: EquipmentAsset) -> dict:
-    return {"id": a.id, "code": a.code, "name": a.name, "category_code": a.category_code,
-            "serial_number": a.serial_number or "", "brand": a.brand, "model": a.model,
-            "location": a.location, "note": a.note, "purchase_date": a.purchase_date,
+    return {"id": a.id, "code": a.code or "", "name": a.name or "", "category_code": a.category_code,
+            "serial_number": a.serial_number or "", "brand": a.brand or "", "model": a.model or "",
+            "location": a.location or "", "note": a.note or "", "purchase_date": a.purchase_date,
             "purchase_price": float(a.purchase_price) if a.purchase_price is not None else None,
             "status": a.status, "holder_id": a.holder_id, "due_date": a.due_date,
             "batch_id": a.batch_id, "created_by": a.created_by,
             "created_at": a.created_at, "updated_at": a.updated_at}
+
+
+def _export_row(a: EquipmentAsset, categories: dict, user_names: dict,
+                batch_desc: dict, export_fields: tuple = EXPORT_FIELDS) -> list:
+    """一行导出的值：中文表头对应中文取值，金额与日期保持原生类型。"""
+    row = []
+    for field in export_fields:
+        if field == "category_code":
+            row.append((categories or {}).get(a.category_code, a.category_code))
+        elif field == "status":
+            row.append(STATUS_LABELS.get(a.status, a.status))
+        elif field == "holder_id":
+            row.append((user_names or {}).get(a.holder_id, ""))
+        elif field == "batch_id":
+            row.append((batch_desc or {}).get(a.batch_id, ""))
+        elif field == "purchase_date" and a.purchase_date is not None:
+            row.append(a.purchase_date.isoformat())
+        elif field == "due_date" and a.due_date is not None:
+            row.append(a.due_date.isoformat())
+        elif field == "purchase_price" and a.purchase_price is not None:
+            row.append(float(a.purchase_price))
+        elif field == "note":
+            row.append(a.note or "")
+        else:
+            row.append(getattr(a, field, "") or "")
+    return row
 
 
 def _event(e: EquipmentEvent) -> dict:
@@ -105,7 +248,7 @@ def _validate(db, body: AssetIn, exclude_id=None):
     if not body.name.strip():
         raise HTTPException(400, "设备名称必填")
     if not _category(db, body.category_code.strip()):
-        raise HTTPException(400, "设备分类不存在")
+        raise HTTPException(400, f"设备分类「{body.category_code.strip()}」不存在，请使用已有分类")
     if body.purchase_price is not None and (not body.purchase_price.is_finite() or body.purchase_price < 0):
         raise HTTPException(400, "采购金额必须为非负有限数")
     serial = body.serial_number.strip()
@@ -322,32 +465,102 @@ def export_assets(format: str = "csv", db: Session = Depends(get_db), user: User
     require_admin(user)
     if format not in {"csv", "xlsx"}:
         raise HTTPException(400, "仅支持 csv 或 xlsx")
-    records = [_asset(a) for a in db.query(EquipmentAsset).order_by(EquipmentAsset.id).all()]
+    records = db.query(EquipmentAsset).order_by(EquipmentAsset.id).all()
+    categories = {d.code: d.label for d in db.query(Dict).filter_by(type="equipment_category").all()}
+    holder_ids = {a.holder_id for a in records if a.holder_id is not None}
+    user_names = {u.id: u.real_name for u in
+                  db.query(User).filter(User.id.in_(holder_ids))} if holder_ids else {}
+    batch_ids = {a.batch_id for a in records if a.batch_id is not None}
+    batches = {b.id: (f"{b.source}（批次 #{b.id}）" if b.source else f"批次 #{b.id}")
+               for b in db.query(EquipmentBatch).filter(EquipmentBatch.id.in_(batch_ids))} if batch_ids else {}
+    rows = [_export_row(a, categories, user_names, batches) for a in records]
     if format == "csv":
         out = io.StringIO()
         writer = csv.writer(out)
-        writer.writerow(EXPORT_FIELDS)
-        writer.writerows([[_csv_safe(str(r.get(field) or "")) for field in EXPORT_FIELDS] for r in records])
+        writer.writerow([FIELD_LABELS[f] for f in EXPORT_FIELDS])
+        for row in rows:
+            writer.writerow([_csv_safe(v) if isinstance(v, str) else v for v in row])
         content = ("\ufeff" + out.getvalue()).encode("utf-8")
         media = "text/csv; charset=utf-8"
     else:
         book = Workbook()
         sheet = book.active
-        sheet.append(EXPORT_FIELDS)
-        for r in records:
-            values = [str(r.get(field) or "") for field in EXPORT_FIELDS]
-            sheet.append(values)
-            # openpyxl otherwise treats a leading '=' as a formula. Force every
-            # exported user-controlled value to a string cell.
-            for cell in sheet[sheet.max_row]:
-                cell.data_type = "s"
+        sheet.title = EXPORT_STEM
+        sheet.append([FIELD_LABELS[f] for f in EXPORT_FIELDS])
+        for row in rows:
+            sheet.append(row)
+            for cell, value in zip(sheet[sheet.max_row], row):
+                if isinstance(value, str):
+                    cell.data_type = "s"
+        for letter, width in zip("ABCDEFGHIJKLMN", (20, 22, 12, 18, 12, 14, 16, 14, 12, 10, 10, 12, 22, 24)):
+            sheet.column_dimensions[letter].width = width
+        sheet.freeze_panes = "A2"
         out = io.BytesIO()
         book.save(out)
         content = out.getvalue()
         media = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-    write_audit(db, user.id, "export_equipment", "equipment_assets", detail=f"count={len(records)},format={format}")
+    write_audit(db, user.id, "export_equipment", "equipment_assets", detail=f"count={len(rows)},format={format}")
     return StreamingResponse(io.BytesIO(content), media_type=media,
-                             headers={"Content-Disposition": f"attachment; filename=equipment_assets.{format}"})
+                             headers=_disposition(EXPORT_STEM, format))
+
+
+@router.get("/import-template")
+def import_template(format: str = "xlsx", db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """导入模板：中文表头 + 示例行，Excel 版附带「填写说明」页列出可选分类。"""
+    require_admin(user)
+    if format not in {"csv", "xlsx"}:
+        raise HTTPException(400, "仅支持 csv 或 xlsx")
+    labels = [FIELD_LABELS[f] for f in IMPORT_FIELDS]
+    cats = db.query(Dict).filter_by(type="equipment_category").order_by(Dict.sort, Dict.id).all()
+    example = [IMPORT_EXAMPLE[f] for f in IMPORT_FIELDS]
+    if not cats:
+        example[IMPORT_FIELDS.index("category_code")] = "（请先在「分类维护」中创建分类）"
+    if format == "csv":
+        out = io.StringIO()
+        writer = csv.writer(out)
+        writer.writerow(labels)
+        writer.writerow(example)
+        content = ("\ufeff" + out.getvalue()).encode("utf-8")
+        media = "text/csv; charset=utf-8"
+    else:
+        book = Workbook()
+        sheet = book.active
+        sheet.title = "台账导入"
+        sheet.append(labels)
+        sheet.append(example)
+        for letter, width in zip("ABCDEFGHI", (12, 30, 12, 20, 12, 14, 16, 14, 30)):
+            sheet.column_dimensions[letter].width = width
+        sheet.freeze_panes = "A2"
+        guide = book.create_sheet("填写说明")
+        guide.append(["列名", "是否必填", "填写说明"])
+        for field in IMPORT_FIELDS:
+            guide.append([FIELD_LABELS[field], "必填" if field in {"name", "category_code"} else "选填",
+                          FIELD_HINTS.get(field, "")])
+        guide.append(["", "", "导入时按表头识别列，列顺序随意，多余的列会被忽略。"])
+        guide.append(["设备分类可选值", "", "、".join(d.label for d in cats) if cats else "（暂无，请先到「分类维护」创建）"])
+        guide.column_dimensions["A"].width = 14
+        guide.column_dimensions["B"].width = 10
+        guide.column_dimensions["C"].width = 60
+        out = io.BytesIO()
+        book.save(out)
+        content = out.getvalue()
+        media = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    write_audit(db, user.id, "download_equipment_template", "equipment_assets", detail=f"format={format}")
+    return StreamingResponse(io.BytesIO(content), media_type=media,
+                             headers=_disposition(TEMPLATE_STEM, format))
+
+
+def _resolve_category(value: str, categories: dict) -> str:
+    """分类列接受中文名称或英文编码，导出→再导入能原样回填。"""
+    text = (value or "").strip()
+    if not text:
+        raise RowError("设备分类必填")
+    if text in categories:
+        return text
+    for code, label in categories.items():
+        if label == text:
+            return code
+    raise RowError(f"设备分类「{text}」不存在，请使用已有分类名称或编码")
 
 
 @router.post("/import")
@@ -371,39 +584,72 @@ def import_assets(file: UploadFile = File(...), db: Session = Depends(get_db), u
         raise
     except (UnicodeError, ValueError, OSError, StopIteration, csv.Error, BadZipFile) as exc:
         raise HTTPException(400, "文件无法读取") from exc
-    if not rows or not {"name", "category_code"}.issubset(rows[0]):
-        raise HTTPException(400, "文件须包含 name、category_code 且至少有一行设备")
+    if not rows:
+        raise HTTPException(400, "文件没有任何数据行，请确认已按模板填写并保存")
+    categories = {d.code: d.label for d in db.query(Dict).filter_by(type="equipment_category").all()}
+    # 表头 → 原始列名：中文列名与英文列名都能对上，同时收集无法识别的列。
+    columns, unknown = {}, []
+    for title in rows[0]:
+        title = str(title or "").strip()
+        if not title:
+            continue
+        field = HEADER_ALIASES.get(_header_key(title))
+        if field is None:
+            unknown.append(title)
+        else:
+            columns.setdefault(field, title)
+    for field in ("name", "category_code"):
+        if field not in columns:
+            raise HTTPException(400,
+                f"文件缺少必需列「{FIELD_LABELS[field]}」，请下载「设备台账导入模板」后按中文表头填写")
+
     errors, parsed, seen = [], [], set()
     for number, row in enumerate(rows, 2):
-        data = {key: row.get(key) or "" for key in FIELDS}
-        data = {key: str(value).strip() if key not in {"purchase_date", "purchase_price"} else value
-                for key, value in data.items()}
+        if not any(str(value or "").strip() for value in row.values()):
+            continue
+        def cell(field):
+            title = columns.get(field)
+            return row.get(title) if title is not None else None
         try:
-            if data["purchase_date"]:
-                data["purchase_date"] = (data["purchase_date"] if isinstance(data["purchase_date"], date)
-                                         else date.fromisoformat(str(data["purchase_date"])))
-            else:
-                data["purchase_date"] = None
-            data["purchase_price"] = Decimal(str(data["purchase_price"])) if data["purchase_price"] != "" else None
-            body = AssetIn(**data)
+            name = str(cell("name") or "").strip()
+            if not name:
+                raise RowError("设备名称必填")
+            code = _resolve_category(cell("category_code"), categories)
+            serial = (cell("serial_number") or "").strip() or None
+            purchase_date = _parse_date(cell("purchase_date"))
+            if isinstance(purchase_date, RowError):
+                raise purchase_date
+            purchase_price = _parse_money(cell("purchase_price"))
+            if isinstance(purchase_price, RowError):
+                raise purchase_price
+            body = AssetIn(name=name, category_code=code, serial_number=serial or "",
+                           brand=(cell("brand") or "").strip(), model=(cell("model") or "").strip(),
+                           location=(cell("location") or "").strip(), note=(cell("note") or "").strip(),
+                           purchase_date=purchase_date, purchase_price=purchase_price)
             _validate(db, body)
             serial = body.serial_number.strip()
             if serial and serial in seen:
-                raise HTTPException(400, "文件中设备序列号重复")
+                raise RowError("文件中设备序列号重复")
             seen.add(serial)
             parsed.append(body)
+        except RowError as exc:
+            errors.append({"row": number, "message": str(exc)})
         except (ValueError, InvalidOperation, HTTPException) as exc:
-            message = exc.detail if isinstance(exc, HTTPException) else "日期或金额格式错误"
-            errors.append({"row": number, "message": message})
+            errors.append({"row": number,
+                           "message": exc.detail if isinstance(exc, HTTPException) else "日期或金额格式错误"})
     if errors:
-        raise HTTPException(400, {"errors": errors})
+        raise HTTPException(400, {"errors": errors, "message": f"共 {len(errors)} 行导入失败，请修正后重新导入"})
     batch = EquipmentBatch(source=f"导入 {file.filename}", note="", created_by=user.id)
     db.add(batch)
     db.flush()
     for body in parsed:
         _add_asset(db, body, user.id, batch.id, "import")
     commit_audited(db, user.id, "import_equipment", "equipment_batches", batch.id, f"count={len(parsed)}")
-    return {"batch_id": batch.id, "created": len(parsed)}
+    result = {"batch_id": batch.id, "created": len(parsed)}
+    ignored = [FIELD_LABELS[f] for f in IMPORT_IGNORED if f in columns]
+    if unknown or ignored:
+        result["ignored_columns"] = {"未识别": unknown, "仅导出用(导入时忽略)": ignored}
+    return result
 
 
 @router.get("/{asset_id}")

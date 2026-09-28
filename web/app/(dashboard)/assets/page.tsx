@@ -3,12 +3,12 @@
 import { Suspense, useCallback, useEffect, useState } from "react";
 import PageHeader from "@/components/ui/PageHeader";
 import { CardItem, CardList, DesktopTable } from "@/components/ui/CardList";
-import { Drawer } from "@/components/ui/Modal";
+import { Dialog, Drawer } from "@/components/ui/Modal";
 import MotionTabs from "@/components/motion/MotionTabs";
 import { LoadingBlock, LoadFailed } from "@/components/ui/PageState";
 import { useAsyncData } from "@/lib/useAsyncData";
 import { useMenus, useMeta } from "@/lib/useMeta";
-import { authApi, errText, equipmentAssetActions, equipmentAssetsApi as api, type EquipmentAsset, type EquipmentBatch, type EquipmentCategory, type EquipmentEvent, type EquipmentStatistics, type EquipmentWrite } from "@/lib/api";
+import { authApi, errDetail, errText, equipmentAssetActions, equipmentAssetsApi as api, type EquipmentAsset, type EquipmentBatch, type EquipmentCategory, type EquipmentEvent, type EquipmentImportError, type EquipmentStatistics, type EquipmentWrite } from "@/lib/api";
 import "./assets.css";
 
 type Section = "overview" | "ledger" | "inbound" | "batches" | "overdue" | "statistics" | "categories";
@@ -17,6 +17,18 @@ const SECTIONS: { id: Section; label: string }[] = [
   { id: "batches", label: "入库批次" }, { id: "overdue", label: "逾期借用" }, { id: "statistics", label: "统计" }, { id: "categories", label: "分类维护" },
 ];
 const STATUS: Record<string, string> = { pending_acceptance: "待验收", available: "可用", claimed: "已领用", borrowed: "借用中", maintenance: "维修中", scrapped: "已报废", void: "已作废" };
+/** 导入模板的中文列名与填写说明，与 api/routers/equipment_assets.py 的 IMPORT_FIELDS / FIELD_HINTS 保持一致 */
+const IMPORT_COLUMNS: { name: string; required: boolean; hint: string }[] = [
+  { name: "设备名称", required: true, hint: "必填，同一序列号不可重复登记" },
+  { name: "设备分类", required: true, hint: "填分类名称（如「电脑」），也接受编码（如 computer）" },
+  { name: "序列号", required: false, hint: "选填，填了则全库唯一" },
+  { name: "品牌", required: false, hint: "选填" },
+  { name: "型号", required: false, hint: "选填" },
+  { name: "存放位置", required: false, hint: "选填" },
+  { name: "采购日期", required: false, hint: "选填，支持 2026-01-05、2026/1/5、2026年1月5日" },
+  { name: "采购金额", required: false, hint: "选填，填数字，支持 ¥1,200.00" },
+  { name: "备注", required: false, hint: "选填" },
+];
 
 export default function AssetsPage() {
   return <Suspense fallback={<LoadingBlock label="加载资产模块…" />}><AssetsInner /></Suspense>;
@@ -85,13 +97,26 @@ function AssetsInner() {
     setError("");
     try { await api.export(format); } catch (e) { setError(errText(e)); }
   };
+  const [importOpen, setImportOpen] = useState(false);
   const visibleSections = SECTIONS.filter((item) =>
     (item.id !== "categories" && item.id !== "inbound") || isAdmin,
   );
   const visibleRows = ledgerData?.items ?? [];
 
   return <main className="asset-module">
-    <PageHeader title="公司设备资产" actions={isAdmin ? <><label className="btn-ghost asset-import-button">导入 CSV / Excel<input type="file" accept=".csv,.xlsx" aria-label="导入 CSV 或 Excel 台账" onChange={(e) => { const file = e.currentTarget.files?.[0]; if (file) void perform(() => api.upload(file), "导入完成"); e.currentTarget.value = ""; }} /></label><button className="btn-ghost" onClick={() => void exportAssets("csv")}>导出 CSV</button><button className="btn-ghost" onClick={() => void exportAssets("xlsx")}>导出 Excel</button></> : null} />
+    <PageHeader title="公司设备资产" actions={isAdmin ? <><button className="btn-ghost" onClick={() => setImportOpen(true)}>导入台账</button><button className="btn-ghost" onClick={() => void exportAssets("csv")}>导出 CSV</button><button className="btn-ghost" onClick={() => void exportAssets("xlsx")}>导出 Excel</button></> : null} />
+    {importOpen && <ImportDialog
+      categories={categories}
+      onClose={() => setImportOpen(false)}
+      onImported={(result) => {
+        setImportOpen(false);
+        notify(`已导入 ${result.created} 件设备，归入入库批次 #${result.batch_id}`);
+        void refresh();
+        reloadLedger();
+        reloadBatches();
+        reloadOverdue();
+      }}
+    />}
     <p className="asset-intro">公司设备台账、入库和领用借用记录。</p>
     {loadError && <LoadFailed message={loadError} onRetry={reload} />}{error && <div className="asset-error" role="alert">{error}</div>}{toast && <div className="asset-toast" role="status">{toast}</div>}
     <MotionTabs items={visibleSections} active={section} onChange={setSection} panelOffset={0}>
@@ -147,6 +172,98 @@ function AssetRows({ rows, categories, onOpen, userName }: { rows: EquipmentAsse
     <DesktopTable><table className="grid"><thead><tr><th>编号 / 名称</th><th>分类</th><th>状态</th><th>使用人</th><th>到期日</th><th>位置</th><th /></tr></thead><tbody>{rows.map((asset) => <tr key={asset.id}><td><b>{asset.code}</b><div>{asset.name}</div></td><td>{label(asset.category_code)}</td><td><span className={`asset-status ${asset.status}`}>{STATUS[asset.status] ?? asset.status}</span></td><td>{userName(asset.holder_id)}</td><td>{asset.due_date ?? "—"}</td><td>{asset.location ?? "—"}</td><td><button type="button" className="btn-ghost" onClick={() => onOpen(asset)}>查看</button></td></tr>)}</tbody></table></DesktopTable>
     {rows.length === 0 && <div className="asset-empty">没有符合条件的设备</div>}
   </>;
+}
+
+/**
+ * 导入台账弹层：把「该填什么列」直接写在界面上，而不是让用户猜英文列名。
+ * 上传与逐行报错都留在弹层内，用户改完文件可直接重试，不用关掉再打开。
+ */
+function ImportDialog({ categories, onClose, onImported }: {
+  categories: EquipmentCategory[];
+  onClose: () => void;
+  onImported: (result: { batch_id: number; created: number; ignored_columns?: Record<string, string[]> }) => void;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [rows, setRows] = useState<EquipmentImportError[]>([]);
+  const [summary, setSummary] = useState("");
+  const [ignored, setIgnored] = useState<Record<string, string[]>>({});
+  const [fileName, setFileName] = useState("");
+
+  const reset = () => { setRows([]); setSummary(""); setIgnored({}); };
+  const upload = async (file: File) => {
+    setBusy(true);
+    reset();
+    setFileName(file.name);
+    try {
+      const result = await api.upload(file);
+      onImported(result);
+    } catch (e) {
+      // 批量导入的 detail 是 { errors, message } 结构，errText 会退化成整段 JSON，必须单独取。
+      const detail = errDetail(e) as { errors?: EquipmentImportError[]; message?: string } | undefined;
+      if (detail?.errors?.length) {
+        setRows(detail.errors);
+        setSummary(detail.message || `有 ${detail.errors.length} 行未能导入，请修正后重试`);
+      } else {
+        setSummary(errText(e));
+      }
+    } finally {
+      setBusy(false);
+    }
+  };
+  const onPick = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (file) void upload(file);
+  };
+  const ignoredNotes = Object.entries(ignored).filter(([, values]) => values.length > 0);
+
+  return <Dialog
+    open
+    onClose={onClose}
+    title="导入设备台账"
+    size="md"
+    footer={<>
+      <button className="btn-ghost" onClick={() => void api.importTemplate("csv")}>下载 CSV 模板</button>
+      <button className="btn-ghost" onClick={() => void api.importTemplate("xlsx")}>下载 Excel 模板</button>
+      <label className={`btn-primary asset-import-button${busy ? " is-busy" : ""}`}>
+        {busy ? "导入中…" : fileName ? "重新选择文件" : "选择文件导入"}
+        <input type="file" accept=".csv,.xlsx" aria-label="选择 CSV 或 Excel 台账文件" disabled={busy} onChange={onPick} />
+      </label>
+    </>}
+  >
+    <div className="asset-import">
+      <p className="tiny muted">
+        支持 CSV 与 Excel（.xlsx），单文件不超过 5 MB。表头请用下面的中文列名，列顺序随意，多余的列会被忽略。
+        建议先下载模板，模板里带示例行和填写说明。
+      </p>
+
+      <div className="asset-import-columns">
+        <table className="grid">
+          <thead><tr><th>列名</th><th>是否必填</th><th>填写说明</th></tr></thead>
+          <tbody>{IMPORT_COLUMNS.map((column) => <tr key={column.name}>
+            <td><b>{column.name}</b></td>
+            <td>{column.required ? "必填" : "选填"}</td>
+            <td className="tiny muted">{column.hint}</td>
+          </tr>)}</tbody>
+        </table>
+      </div>
+
+      <p className="tiny muted">
+        「设备分类」当前可选：
+        {categories.length ? categories.map((category) => category.label).join("、") : "暂无，请先到「分类维护」创建"}
+        {categories.length ? "" : "（导入前请先创建分类）"}
+      </p>
+      <p className="tiny muted">导入只为设备建档，状态一律为「可用」；资产编号、状态、使用人等列即使存在也会被忽略。</p>
+
+      {summary && <div className="asset-error" role="alert">{summary}</div>}
+      {!!rows.length && <ol className="asset-import-errors" aria-label="导入失败明细">
+        {rows.map((row) => <li key={`${row.row}-${row.message}`}>第 {row.row} 行：{row.message}</li>)}
+      </ol>}
+      {!!ignoredNotes.length && <div className="asset-import-notes">
+        {ignoredNotes.map(([title, values]) => <p className="tiny muted" key={title}>{title}：{values.join("、")}</p>)}
+      </div>}
+    </div>
+  </Dialog>;
 }
 
 function InboundForm({ categories, busy, onSubmit }: { categories: EquipmentCategory[]; busy: boolean; onSubmit: (body: { source?: string; supplier?: string; purchase_order_no?: string; invoice_no?: string; acceptance_status: "pending_acceptance" | "accepted"; note?: string; items: EquipmentWrite[] }) => void }) {

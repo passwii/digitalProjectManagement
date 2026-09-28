@@ -142,6 +142,19 @@ export function errText(e: unknown): string {
   return body || "请求失败";
 }
 
+/** 取出后端 `detail` 的结构化内容。errText 只吃字符串 detail，批量导入这类
+ *  `detail: { errors: [...] }` 必须单独取，否则会把整段 JSON 当文案显示给用户。 */
+export function errDetail(e: unknown): unknown {
+  const msg = e instanceof Error ? e.message : String(e);
+  const m = msg.match(/API \d+:\s*(.+)$/);
+  try {
+    const parsed = JSON.parse((m ? m[1] : msg).trim());
+    return parsed && typeof parsed === "object" ? parsed.detail : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 function parseRetryAfter(value: string | null): number | null {
   if (!value) return null;
   const trimmed = value.trim();
@@ -1803,6 +1816,9 @@ export function equipmentAssetActions(asset: EquipmentAsset, isAdmin: boolean, c
   };
 }
 const EQUIPMENT_ASSETS = "/equipment-assets";
+/** 设备台账文件相关的后端字段（英文列名），与 api/routers/equipment_assets.py 的 FIELD_LABELS 对应 */
+export type EquipmentImportError = { row: number; message: string };
+export type EquipmentImportResult = { batch_id: number; created: number; ignored_columns?: Record<string, string[]> };
 export const equipmentAssetsApi = {
   list: (params: EquipmentListParams = {}, signal?: AbortSignal) => apiGet<Paged<EquipmentAsset>>(`${EQUIPMENT_ASSETS}${buildQuery(params)}`, signal),
   overview: (signal?: AbortSignal) => apiGet<EquipmentOverview>(`${EQUIPMENT_ASSETS}/overview`, signal),
@@ -1824,6 +1840,8 @@ export const equipmentAssetsApi = {
   borrow: (id: number, body: { due_date?: string; note?: string } = {}) => apiPost<EquipmentAsset>(`${EQUIPMENT_ASSETS}/${id}/borrow`, body),
   return: (id: number, body: { note?: string } = {}) => apiPost<EquipmentAsset>(`${EQUIPMENT_ASSETS}/${id}/return`, body),
   transition: (id: number, action: "maintenance" | "restore" | "scrap" | "void", body: { note?: string } = {}) => apiPost<EquipmentAsset>(`${EQUIPMENT_ASSETS}/${id}/${action}`, body),
-  upload: (file: File) => { const form = new FormData(); form.append("file", file); return apiUpload<{ batch_id: number; created: number }>(`${EQUIPMENT_ASSETS}/import`, form); },
-  export: (format: "csv" | "xlsx") => downloadFile(`${EQUIPMENT_ASSETS}/export${buildQuery({ format })}`, `equipment_assets.${format}`),
+  upload: (file: File) => { const form = new FormData(); form.append("file", file); return apiUpload<EquipmentImportResult>(`${EQUIPMENT_ASSETS}/import`, form); },
+  /** 导入模板（中文表头 + 示例行），供用户下载后填写 */
+  importTemplate: (format: "csv" | "xlsx") => downloadFile(`${EQUIPMENT_ASSETS}/import-template${buildQuery({ format })}`, `设备台账导入模板.${format}`),
+  export: (format: "csv" | "xlsx") => downloadFile(`${EQUIPMENT_ASSETS}/export${buildQuery({ format })}`, `设备台账.${format}`),
 };
