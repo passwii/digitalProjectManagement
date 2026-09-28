@@ -931,13 +931,15 @@ def set_members(
 def delete_project(
     pid: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)
 ):
-    """软删除项目：仅管理员，数据保留可恢复（回收站见 GET /projects/recycle-bin）。"""
+    """软删除项目：仅管理员，数据保留可恢复（回收站见 GET /projects/recycle-bin）。
+
+    已取消/已归档/进行中/已立项等任意状态均可删除：删除只把项目移入回收站，
+    关联的任务、支出、附件、跟进与审批记录全部保留，管理员可在回收站恢复。
+    """
     require_admin(user)
     p = db.query(Project).filter_by(id=pid, deleted_at=None).first()
     if not p:
         raise HTTPException(404, "项目不存在")
-    if p.status in ("doing", "filed"):
-        raise HTTPException(400, "进行中/已立项项目不可删除，请先取消或归档")
     p.deleted_at = app_now()
     db.commit()
     write_audit(db, user.id, "delete_project", "projects", pid, p.code)
