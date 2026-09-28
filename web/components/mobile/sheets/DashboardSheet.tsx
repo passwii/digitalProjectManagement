@@ -2,10 +2,9 @@
 
 // 工作台抽屉（BLF-1127 / S4，§3 第一行）：快捷跳转卡。
 //
-// 五张卡与桌面工作台 KPI 同口径，不新造统计：
+// 首页快捷卡与桌面工作台 KPI 同口径，不新造统计：
 //   · 待我审批 / 未读通知 —— `dashboard/summary.kpi`（与 `dashboard/page.tsx` 同一字段）；
-//   · 待填报 / 逾期 —— `dashboard/my-weekly`（与工作台「近 7 天」区块同一来源）；
-//   · 临近里程碑 / 本月支出 —— `summary.kpi.near_milestones / month_spent`。
+//   · 本月支出 —— `summary.kpi.month_spent`，通过 `/reports` 进入报表。
 // 「今日待填报」没有精确到日的接口：值取 7 天内到期的任务数，note 如实写
 // 「7 天内到期」，不伪造今日口径。
 //
@@ -24,11 +23,8 @@ export default function DashboardSheet({
   canApprove,
 }: SheetContentProps) {
   const { data, firstLoad, error, reload } = useAsyncData(async (signal) => {
-    const [summary, weekly] = await Promise.all([
-      dashboardApi.summary(signal),
-      dashboardApi.weekly(0, signal).catch(() => null),
-    ]);
-    return { summary, weekly };
+    const summary = await dashboardApi.summary(signal);
+    return { summary };
   }, []);
 
   if (firstLoad)
@@ -39,9 +35,6 @@ export default function DashboardSheet({
     );
 
   const k = data.summary.kpi;
-  const dueSoon = data.weekly?.due_soon.length ?? 0;
-  const overdue = data.weekly?.overdue.length ?? 0;
-
   return (
     <>
       {canApprove ? (
@@ -62,31 +55,6 @@ export default function DashboardSheet({
           onSelect={onSelect}
         />
       )}
-      <SheetCard
-        href="/progress"
-        title="待填报"
-        note={
-          overdue > 0 ? `7 天内到期 · 另有逾期 ${overdue}` : "7 天内到期的任务"
-        }
-        value={String(dueSoon)}
-        onSelect={onSelect}
-      />
-      <SheetCard
-        href="/progress"
-        title="逾期任务"
-        note={`我负责 ${k.my_overdue_tasks}`}
-        value={String(k.overdue_tasks)}
-        tone={k.overdue_tasks > 0 ? "danger" : "default"}
-        onSelect={onSelect}
-      />
-      <SheetCard
-        href="/progress"
-        title="临近里程碑"
-        note="近期到期"
-        value={String(k.near_milestones)}
-        tone={k.near_milestones > 0 ? "warn" : "default"}
-        onSelect={onSelect}
-      />
       <SheetCard
         href="/reports"
         title={`${k.month}支出`}

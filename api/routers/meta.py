@@ -112,8 +112,7 @@ def menus(db: Session = Depends(get_db), user: User = Depends(get_current_user))
     items = [
         {"key": "opportunities", "label": "商机管理", "href": "/opportunities"},
         {"key": "projects", "label": "项目台账", "href": "/projects"},
-        {"key": "progress", "label": "进度跟踪", "href": "/progress"},
-        {"key": "costs", "label": "支出记录", "href": "/costs"},
+        {"key": "assets", "label": "资产管理", "href": "/assets"},
         {"key": "reports", "label": "支出报表", "href": "/reports"},
     ]
     if admin:

@@ -5,9 +5,9 @@ import {
   SHEET_META,
 } from "@/components/mobile/sheets";
 import DashboardSheet from "@/components/mobile/sheets/DashboardSheet";
-import ExpensesSheet from "@/components/mobile/sheets/ExpensesSheet";
+import AssetsSheet from "@/components/mobile/sheets/AssetsSheet";
+import ReportsSheet from "@/components/mobile/sheets/ReportsSheet";
 import MineSheet from "@/components/mobile/sheets/MineSheet";
-import ProgressSheet from "@/components/mobile/sheets/ProgressSheet";
 import ProjectsSheet from "@/components/mobile/sheets/ProjectsSheet";
 
 /**
@@ -24,15 +24,16 @@ describe("SHEET_CONTENT（§3：5 个位各一份抽屉内容）", () => {
     );
   });
 
-  it("D1：costs 位渲染 ExpensesSheet（同时吸收 reports）", () => {
-    expect(SHEET_CONTENT.costs).toBe(ExpensesSheet);
-    expect(SHEET_CONTENT.costs).not.toBe(ProjectsSheet);
+  it("资产与报表各有独立面板", () => {
+    expect(SHEET_CONTENT.assets).toBe(AssetsSheet);
+    expect(SHEET_CONTENT.reports).toBe(ReportsSheet);
   });
 
   it("每位各配各的组件", () => {
     expect(SHEET_CONTENT.dashboard).toBe(DashboardSheet);
     expect(SHEET_CONTENT.projects).toBe(ProjectsSheet);
-    expect(SHEET_CONTENT.progress).toBe(ProgressSheet);
+    expect(SHEET_CONTENT.assets).toBe(AssetsSheet);
+    expect(SHEET_CONTENT.reports).toBe(ReportsSheet);
     expect(SHEET_CONTENT.mine).toBe(MineSheet);
   });
 });
@@ -49,9 +50,11 @@ describe("SHEET_META（抽屉头）", () => {
     }
   });
 
-  it("工作台与三个业务分组提供数据失败时仍可用的直达入口", () => {
-    for (const id of ["dashboard", "projects", "progress", "costs"] as const) {
+  it("工作台、项目、资产与报表位提供稳定入口", () => {
+    for (const id of ["dashboard", "projects", "assets", "reports"] as const) {
       expect(SHEET_META[id].action?.href.startsWith("/")).toBe(true);
     }
+    expect(SHEET_META.reports.action?.href).toBe("/reports");
+    expect(SHEET_META.assets.action?.href).toBe("/assets");
   });
 });

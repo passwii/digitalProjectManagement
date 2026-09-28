@@ -12,8 +12,7 @@ import { DOCK_SIZE, DOCK_SLOTS, buildDockItems, dockIdForPath, type MenuLike } f
 /** `/meta/me/menus` 的后端契约（api/routers/meta.py）：4 项参与性入口 + 管理员的 5 项 */
 const USER_MENUS: MenuLike[] = [
   { key: "projects", label: "项目台账", href: "/projects" },
-  { key: "progress", label: "进度跟踪", href: "/progress" },
-  { key: "costs", label: "支出记录", href: "/costs" },
+  { key: "assets", label: "资产管理", href: "/assets" },
   { key: "reports", label: "支出报表", href: "/reports" },
 ];
 
@@ -29,20 +28,16 @@ const ADMIN_MENUS: MenuLike[] = [
 describe("Dock 位定义（§3）", () => {
   it("恒定 5 位，顺序即渲染顺序", () => {
     expect(DOCK_SIZE).toBe(5);
-    expect(DOCK_SLOTS.map((s) => s.id)).toEqual(["dashboard", "projects", "progress", "costs", "mine"]);
+    expect(DOCK_SLOTS.map((s) => s.id)).toEqual(["dashboard", "projects", "assets", "reports", "mine"]);
   });
 
-  it("标签是手机端文案：工作台 / 项目 / 进度 / 支出 / 我的", () => {
-    expect(DOCK_SLOTS.map((s) => s.label)).toEqual(["工作台", "项目", "进度", "支出", "我的"]);
+  it("标签固定为工作台 / 项目 / 资产 / 报表 / 我的", () => {
+    expect(DOCK_SLOTS.map((s) => s.label)).toEqual(["工作台", "项目", "资产", "报表", "我的"]);
   });
 
-  it("D1：第 4 位叫「支出」而不是「费用」，且路由键仍是 costs", () => {
-    const costs = DOCK_SLOTS.find((s) => s.id === "costs")!;
-    expect(costs.label).toBe("支出");
-    // 标签可以改，契约键不动（§3.1）：这一位的成员判定仍按后端 key
-    expect(costs.keys).toContain("costs");
-    // 「费用」只是桌面表格里的列名（费用说明），不是导航文案
-    expect(DOCK_SLOTS.map((s) => s.label)).not.toContain("费用");
+  it("资产与报表各自占位，并落到对应页面", () => {
+    expect(DOCK_SLOTS.find((s) => s.id === "assets")).toMatchObject({ href: "/assets", keys: ["assets"] });
+    expect(DOCK_SLOTS.find((s) => s.id === "reports")).toMatchObject({ href: "/reports", keys: ["reports"] });
   });
 });
 
@@ -62,12 +57,12 @@ describe("buildDockItems（§3 + D1/D3）", () => {
     expect(items.find((i) => i.id === "mine")!.visible.map((v) => v.key)).toEqual(["contacts", "partners", "approvals", "finance", "admin"]);
   });
 
-  it("D1：costs 位吸收「支出记录」与「支出报表」两条菜单", () => {
+  it("资产与报表位分别只包含对应菜单，不合并支出录入路由", () => {
     const items = buildDockItems({ menus: USER_MENUS, ready: true });
-    const costs = items.find((i) => i.id === "costs")!;
-    expect(costs.visible.map((v) => v.key)).toEqual(["costs", "reports"]);
-    // 报表作为同一业务对象的汇总面进入抽屉，不再单独占一格 Dock
-    expect(costs.hrefs).toEqual(["/costs", "/reports"]);
+    expect(items.find((i) => i.id === "assets")!.visible.map((v) => v.key)).toEqual(["assets"]);
+    expect(items.find((i) => i.id === "reports")!.visible.map((v) => v.key)).toEqual(["reports"]);
+    expect(items.flatMap((i) => i.hrefs)).not.toContain("/costs");
+    expect(items.flatMap((i) => i.hrefs)).not.toContain("/progress");
   });
 
   it("菜单为空也返回 5 位（禁用不了导航，权限未知不是「没有导航」）", () => {
@@ -76,9 +71,9 @@ describe("buildDockItems（§3 + D1/D3）", () => {
   });
 
   it("同一 href 出现两次只留一条（抽屉里不该出现两张同落点的卡）", () => {
-    const dup = [...USER_MENUS, { key: "costs", label: "支出记录", href: "/costs" }];
+    const dup = [...USER_MENUS, { key: "assets", label: "资产管理", href: "/assets" }];
     const items = buildDockItems({ menus: dup, ready: true });
-    expect(items.find((i) => i.id === "costs")!.visible).toHaveLength(2);
+    expect(items.find((i) => i.id === "assets")!.visible).toHaveLength(1);
   });
 
   it("D3：待办红点挂在「我的」位，且只在权限已确认、未失败、可审批时出现", () => {
@@ -111,8 +106,8 @@ describe("dockIdForPath（当前位高亮）", () => {
   it("直接命中每个位", () => {
     expect(dockIdForPath("/dashboard")).toBe("dashboard");
     expect(dockIdForPath("/projects")).toBe("projects");
-    expect(dockIdForPath("/progress")).toBe("progress");
-    expect(dockIdForPath("/costs")).toBe("costs");
+    expect(dockIdForPath("/assets")).toBe("assets");
+    expect(dockIdForPath("/reports")).toBe("reports");
   });
 
   it("子路由归属所属位（详情页也要高亮住的位，否则进详情就没有「我在哪」）", () => {
@@ -120,8 +115,9 @@ describe("dockIdForPath（当前位高亮）", () => {
     expect(dockIdForPath("/dashboard/x")).toBe("dashboard");
   });
 
-  it("D1：/reports 也高亮「支出」位（同一业务对象的汇总面）", () => {
-    expect(dockIdForPath("/reports")).toBe("costs");
+  it("原有的进度与支出页不占 Dock 位", () => {
+    expect(dockIdForPath("/progress")).toBeNull();
+    expect(dockIdForPath("/costs")).toBeNull();
   });
 
   it("D3：管理 / 审批 / 通讯录 / 友商页高亮「我的」（它们只从「我的」抽屉进入）", () => {
