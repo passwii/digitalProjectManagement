@@ -225,7 +225,7 @@
   min-width: 160px;
 }
 
-.asset-filters select {
+.asset-filters [data-select-root="true"] {
   flex: 0 1 180px;
   min-width: 140px;
 }
@@ -960,7 +960,7 @@
     flex-basis: 100%;
   }
 
-  .asset-filters select {
+  .asset-filters [data-select-root="true"] {
     flex: 1 1 calc(50% - 4px);
     min-width: 0;
   }
