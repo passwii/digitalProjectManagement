@@ -7,6 +7,7 @@ const { api, me, users, isAdmin } = vi.hoisted(() => ({
     overview: vi.fn(), categories: vi.fn(), batches: vi.fn(), overdue: vi.fn(), statistics: vi.fn(),
     list: vi.fn(), get: vi.fn(), events: vi.fn(), batch: vi.fn(), acceptBatch: vi.fn(),
     inbound: vi.fn(), claim: vi.fn(), borrow: vi.fn(), return: vi.fn(), transition: vi.fn(), update: vi.fn(),
+    deleteCheck: vi.fn(), remove: vi.fn(),
     upload: vi.fn(), export: vi.fn(), createCategory: vi.fn(), updateCategory: vi.fn(), deleteCategory: vi.fn(),
   },
   me: vi.fn(),
@@ -45,6 +46,8 @@ function setup({ batchTotal = 1, overdueTotal = 1 }: { batchTotal?: number; over
   api.list.mockResolvedValue(page([asset()]));
   api.get.mockImplementation(async (id: number) => asset({ id, holder_id: 42, status: "borrowed", due_date: "2026-12-31" }));
   api.events.mockResolvedValue({ items: [] });
+  api.deleteCheck.mockResolvedValue({ allowed: true, asset_id: 1, code: "EQ-001", reason: null, event_count: 1, protected_actions: [] });
+  api.remove.mockResolvedValue({ ok: true, id: 1, code: "EQ-001" });
   api.batch.mockResolvedValue({ id: 10, acceptance_status: "accepted", items: [asset()] });
   me.mockResolvedValue({ id: 42 });
   return render(<AssetsPage />);
@@ -130,5 +133,51 @@ describe("资产页面分页和刷新", () => {
     fireEvent.click(await screen.findByRole("tab", { name: "设备台账" }));
     fireEvent.click(await screen.findByRole("button", { name: "查看" }));
     expect(await screen.findByText("用户 99")).toBeTruthy();
+  });
+
+  it("管理员仅在后端允许时通过编号和原因二次确认永久删除", async () => {
+    fireEvent.click(await screen.findByRole("tab", { name: "设备台账" }));
+    fireEvent.click(await screen.findByRole("button", { name: "查看" }));
+
+    const deleteButton = await screen.findByRole("button", { name: "删除资产" });
+    expect(api.deleteCheck).toHaveBeenCalledWith(1);
+    fireEvent.click(deleteButton);
+
+    const permanentButton = screen.getByRole("button", { name: "永久删除" });
+    expect((permanentButton as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.change(screen.getByLabelText("输入设备编号确认删除"), { target: { value: "EQ-001" } });
+    fireEvent.change(screen.getByLabelText("删除原因"), { target: { value: "重复录入" } });
+    expect((permanentButton as HTMLButtonElement).disabled).toBe(false);
+    fireEvent.click(permanentButton);
+
+    await waitFor(() => expect(api.remove).toHaveBeenCalledWith(1, { confirm_code: "EQ-001", reason: "重复录入" }));
+    expect(await screen.findByText("资产 EQ-001 已永久删除")).toBeTruthy();
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+  });
+
+  it("有真实生命周期流水时显示原因并禁止永久删除", async () => {
+    api.deleteCheck.mockResolvedValue({
+      allowed: false, asset_id: 1, code: "EQ-001", event_count: 3,
+      reason: "该设备已有借用、归还等业务记录，不能彻底删除，请使用作废或报废功能",
+      protected_actions: ["borrow", "return"],
+    });
+    fireEvent.click(await screen.findByRole("tab", { name: "设备台账" }));
+    fireEvent.click(await screen.findByRole("button", { name: "查看" }));
+
+    expect(await screen.findByText(/该设备已有借用、归还等业务记录/)).toBeTruthy();
+    expect((screen.getByRole("button", { name: "不可删除" }) as HTMLButtonElement).disabled).toBe(true);
+    expect(api.remove).not.toHaveBeenCalled();
+  });
+
+  it("普通用户不显示删除入口，也不请求删除资格", async () => {
+    cleanup();
+    isAdmin.mockReturnValue(false);
+    setup();
+    fireEvent.click(await screen.findByRole("tab", { name: "设备台账" }));
+    fireEvent.click(await screen.findByRole("button", { name: "查看" }));
+
+    await waitFor(() => expect(api.get).toHaveBeenCalledWith(1));
+    expect(screen.queryByText("危险操作")).toBeNull();
+    expect(api.deleteCheck).not.toHaveBeenCalled();
   });
 });

@@ -1,6 +1,7 @@
 """公司设备资产台账，独立于财务固定资产。"""
 import csv
 import io
+import json
 import uuid
 from zipfile import BadZipFile
 from datetime import date, datetime
@@ -56,6 +57,9 @@ FIELD_HINTS = {
 }
 STATUS_LABELS = {"pending_acceptance": "待验收", "available": "可用", "claimed": "已领用",
                  "borrowed": "借用中", "maintenance": "维修中", "scrapped": "已报废", "void": "已作废"}
+PROTECTED_DELETE_ACTIONS = ("claim", "borrow", "return", "maintenance", "restore", "scrap", "void")
+PROTECTED_DELETE_LABELS = {"claim": "领用", "borrow": "借用", "return": "归还", "maintenance": "维修",
+                           "restore": "恢复", "scrap": "报废", "void": "作废"}
 
 EXPORT_STEM = "设备台账"
 TEMPLATE_STEM = "设备台账导入模板"
@@ -176,6 +180,11 @@ class TransitionIn(BaseModel):
     note: str = ""
 
 
+class AssetDeleteIn(BaseModel):
+    confirm_code: str
+    reason: str
+
+
 class CategoryIn(BaseModel):
     code: str
     label: str
@@ -266,6 +275,26 @@ def _get(db, asset_id, lock=False):
     if not a:
         raise HTTPException(404, "设备不存在")
     return a
+
+
+def _delete_check(db: Session, asset: EquipmentAsset) -> dict:
+    actions = [action for (action,) in db.query(EquipmentEvent.action).filter_by(asset_id=asset.id).all()]
+    protected = [action for action in PROTECTED_DELETE_ACTIONS if action in actions]
+    status_blocked = asset.status not in {"pending_acceptance", "available"}
+    reason = None
+    if protected:
+        labels = "、".join(PROTECTED_DELETE_LABELS[action] for action in protected)
+        reason = f"该设备已有{labels}等业务记录，不能彻底删除，请使用作废或报废功能"
+    elif status_blocked:
+        reason = f"设备当前状态为{STATUS_LABELS.get(asset.status, asset.status)}，不能彻底删除，请使用正常资产流转处理"
+    return {
+        "allowed": not protected and not status_blocked,
+        "asset_id": asset.id,
+        "code": asset.code,
+        "reason": reason,
+        "event_count": len(actions),
+        "protected_actions": protected,
+    }
 
 
 def _add_asset(db, body: AssetIn, actor_id: int, batch_id=None, action="create", status="available"):
@@ -650,6 +679,49 @@ def import_assets(file: UploadFile = File(...), db: Session = Depends(get_db), u
     if unknown or ignored:
         result["ignored_columns"] = {"未识别": unknown, "仅导出用(导入时忽略)": ignored}
     return result
+
+
+@router.get("/{asset_id}/delete-check")
+def delete_check(asset_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    require_admin(user)
+    return _delete_check(db, _get(db, asset_id))
+
+
+@router.delete("/{asset_id}")
+def delete_asset(asset_id: int, body: AssetDeleteIn, db: Session = Depends(get_db),
+                 user: User = Depends(get_current_user)):
+    require_admin(user)
+    asset = _get(db, asset_id, lock=True)
+    if body.confirm_code.strip() != asset.code:
+        raise HTTPException(400, "设备编号确认不一致")
+    reason = body.reason.strip()
+    if not reason:
+        raise HTTPException(400, "删除原因必填")
+    if len(reason) > 500:
+        raise HTTPException(400, "删除原因不能超过 500 个字符")
+
+    check = _delete_check(db, asset)
+    if not check["allowed"]:
+        raise HTTPException(409, check["reason"])
+
+    snapshot = json.dumps({
+        "code": asset.code,
+        "name": asset.name,
+        "serial_number": asset.serial_number,
+        "category_code": asset.category_code,
+        "batch_id": asset.batch_id,
+        "status": asset.status,
+        "purchase_price": float(asset.purchase_price) if asset.purchase_price is not None else None,
+        "created_by": asset.created_by,
+        "created_at": asset.created_at,
+        "event_count": check["event_count"],
+        "reason": reason,
+    }, ensure_ascii=False, default=str, separators=(",", ":"))
+    deleted_code = asset.code
+    db.query(EquipmentEvent).filter_by(asset_id=asset.id).delete(synchronize_session=False)
+    db.delete(asset)
+    commit_audited(db, user.id, "delete_equipment", "equipment_assets", asset_id, snapshot)
+    return {"ok": True, "id": asset_id, "code": deleted_code}
 
 
 @router.get("/{asset_id}")

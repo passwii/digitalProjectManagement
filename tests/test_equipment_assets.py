@@ -2,6 +2,7 @@
 from datetime import date
 import csv
 import io
+import json
 
 import pytest
 from openpyxl import Workbook
@@ -52,6 +53,99 @@ def test_permissions_and_lifecycle(client, db):
     with db() as session:
         assert session.query(EquipmentEvent).filter_by(asset_id=aid).count() == 7
         assert session.query(AuditLog).filter_by(resource="equipment_assets", resource_id=str(aid)).count() == 7
+
+
+def test_admin_can_permanently_delete_only_correction_only_assets(client, db):
+    admin, pm = login(client, "admin"), login(client, "pm")
+    asset = _create(client, admin, name="重复录入电脑", serial_number="DELETE-ME-1")
+    aid = asset["id"]
+
+    assert client.get(f"{ROOT}/{aid}/delete-check", headers=pm).status_code == 403
+    assert client.request("DELETE", f"{ROOT}/{aid}", headers=pm,
+                          json={"confirm_code": asset["code"], "reason": "重复录入"}).status_code == 403
+
+    check = client.get(f"{ROOT}/{aid}/delete-check", headers=admin)
+    assert check.status_code == 200, check.text
+    assert check.json() == {
+        "allowed": True, "asset_id": aid, "code": asset["code"], "reason": None,
+        "event_count": 1, "protected_actions": [],
+    }
+
+    updated = client.patch(f"{ROOT}/{aid}", headers=admin, json={
+        "name": "重复录入电脑（已核对）", "category_code": "computer", "serial_number": "DELETE-ME-1",
+    })
+    assert updated.status_code == 200, updated.text
+    check = client.get(f"{ROOT}/{aid}/delete-check", headers=admin).json()
+    assert check["allowed"] is True
+    assert check["event_count"] == 2
+
+    assert client.request("DELETE", f"{ROOT}/{aid}", headers=admin,
+                          json={"confirm_code": "WRONG-CODE", "reason": "重复录入"}).status_code == 400
+    assert client.request("DELETE", f"{ROOT}/{aid}", headers=admin,
+                          json={"confirm_code": asset["code"], "reason": "   "}).status_code == 400
+
+    deleted = client.request("DELETE", f"{ROOT}/{aid}", headers=admin,
+                             json={"confirm_code": asset["code"], "reason": "重复录入"})
+    assert deleted.status_code == 200, deleted.text
+    assert deleted.json() == {"ok": True, "id": aid, "code": asset["code"]}
+
+    with db() as session:
+        assert session.get(EquipmentAsset, aid) is None
+        assert session.query(EquipmentEvent).filter_by(asset_id=aid).count() == 0
+        audit = session.query(AuditLog).filter_by(
+            action="delete_equipment", resource="equipment_assets", resource_id=str(aid)
+        ).one()
+        detail = json.loads(audit.detail)
+        assert detail["code"] == asset["code"]
+        assert detail["name"] == "重复录入电脑（已核对）"
+        assert detail["reason"] == "重复录入"
+        assert detail["event_count"] == 2
+
+
+def test_acceptance_does_not_block_delete_and_batch_is_preserved(client, db):
+    admin = login(client, "admin")
+    inbound = client.post(f"{ROOT}/inbound", headers=admin, json={
+        "supplier": "录入测试供应商", "acceptance_status": "pending_acceptance",
+        "items": [{"name": "误录显示器", "category_code": "monitor"}],
+    })
+    assert inbound.status_code == 200, inbound.text
+    batch_id = inbound.json()["batch_id"]
+    asset = inbound.json()["items"][0]
+    assert client.post(f"{ROOT}/batches/{batch_id}/accept", headers=admin).status_code == 200
+
+    check = client.get(f"{ROOT}/{asset['id']}/delete-check", headers=admin)
+    assert check.status_code == 200, check.text
+    assert check.json()["allowed"] is True
+    assert check.json()["event_count"] == 2
+
+    deleted = client.request("DELETE", f"{ROOT}/{asset['id']}", headers=admin,
+                             json={"confirm_code": asset["code"], "reason": "验收后发现重复录入"})
+    assert deleted.status_code == 200, deleted.text
+    with db() as session:
+        assert session.get(EquipmentBatch, batch_id) is not None
+        assert session.get(EquipmentAsset, asset["id"]) is None
+
+
+def test_business_lifecycle_permanently_blocks_hard_delete(client, db):
+    admin, pm = login(client, "admin"), login(client, "pm")
+    asset = _create(client, admin, name="已使用电脑")
+    aid = asset["id"]
+    assert client.post(f"{ROOT}/{aid}/borrow", headers=pm,
+                       json={"due_date": "2099-01-01"}).status_code == 200
+    assert client.post(f"{ROOT}/{aid}/return", headers=pm).status_code == 200
+
+    check = client.get(f"{ROOT}/{aid}/delete-check", headers=admin)
+    assert check.status_code == 200, check.text
+    assert check.json()["allowed"] is False
+    assert check.json()["protected_actions"] == ["borrow", "return"]
+    assert "借用" in check.json()["reason"]
+
+    blocked = client.request("DELETE", f"{ROOT}/{aid}", headers=admin,
+                             json={"confirm_code": asset["code"], "reason": "尝试删除"})
+    assert blocked.status_code == 409
+    with db() as session:
+        assert session.get(EquipmentAsset, aid) is not None
+        assert session.query(EquipmentEvent).filter_by(asset_id=aid).count() == 3
 
 
 def test_batch_and_unique_codes(client, db):

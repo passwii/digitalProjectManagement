@@ -587,6 +587,71 @@
   background: var(--danger-bg) !important;
 }
 
+.asset-delete-zone {
+  border-top-color: var(--line-danger);
+}
+
+.asset-delete-zone h3 {
+  color: var(--danger);
+}
+
+.asset-delete-hint,
+.asset-delete-blocked {
+  margin: 0 0 12px;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.asset-delete-hint {
+  color: var(--ink-2);
+}
+
+.asset-delete-blocked {
+  padding: 10px 12px;
+  border: 1px solid var(--line-danger);
+  background: var(--danger-bg);
+  color: var(--danger);
+}
+
+.asset-delete-dialog {
+  display: grid;
+  gap: 14px;
+}
+
+.asset-delete-dialog > p {
+  margin: 0;
+  color: var(--ink-2);
+  line-height: 1.65;
+}
+
+.asset-delete-dialog label {
+  display: grid;
+  gap: 6px;
+  color: var(--ink-2);
+  font-size: 13px;
+}
+
+.asset-delete-code {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--line-soft);
+  background: var(--th-bg);
+  font-size: 13px;
+}
+
+.asset-delete-code code {
+  color: var(--ink);
+  font-family: var(--font-mono);
+  overflow-wrap: anywhere;
+}
+
+.asset-required {
+  color: var(--danger);
+}
+
 .asset-pagination {
   display: flex;
   align-items: center;

@@ -24,6 +24,20 @@ describe("equipmentAssetsApi", () => {
     ]);
   });
 
+  it("checks delete eligibility and sends confirmed permanent deletion payload", async () => {
+    const fetch = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ allowed: true, asset_id: 12, code: "EQ-12", reason: null, event_count: 1, protected_actions: [] })))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ ok: true, id: 12, code: "EQ-12" })));
+    vi.stubGlobal("fetch", fetch);
+
+    await equipmentAssetsApi.deleteCheck(12);
+    await equipmentAssetsApi.remove(12, { confirm_code: "EQ-12", reason: "重复录入" });
+
+    expect(String(fetch.mock.calls[0][0])).toContain("/equipment-assets/12/delete-check");
+    expect((fetch.mock.calls[1][1] as RequestInit).method).toBe("DELETE");
+    expect(JSON.parse((fetch.mock.calls[1][1] as RequestInit).body as string)).toEqual({ confirm_code: "EQ-12", reason: "重复录入" });
+  });
+
   it("exposes batch acceptance, category maintenance, and import/export routes", async () => {
     const fetch = vi.fn().mockImplementation(() => Promise.resolve(new Response(JSON.stringify({})))) as ReturnType<typeof vi.fn>;
     vi.stubGlobal("fetch", fetch);

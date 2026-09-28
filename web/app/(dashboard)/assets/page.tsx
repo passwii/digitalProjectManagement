@@ -8,7 +8,7 @@ import MotionTabs from "@/components/motion/MotionTabs";
 import { LoadingBlock, LoadFailed } from "@/components/ui/PageState";
 import { useAsyncData } from "@/lib/useAsyncData";
 import { useMenus, useMeta } from "@/lib/useMeta";
-import { authApi, errDetail, errText, equipmentAssetActions, equipmentAssetsApi as api, type EquipmentAsset, type EquipmentBatch, type EquipmentCategory, type EquipmentEvent, type EquipmentImportError, type EquipmentStatistics, type EquipmentWrite } from "@/lib/api";
+import { authApi, errDetail, errText, equipmentAssetActions, equipmentAssetsApi as api, type EquipmentAsset, type EquipmentBatch, type EquipmentCategory, type EquipmentDeleteCheck, type EquipmentEvent, type EquipmentImportError, type EquipmentStatistics, type EquipmentWrite } from "@/lib/api";
 import "./assets.css";
 
 type Section = "overview" | "ledger" | "inbound" | "batches" | "overdue" | "statistics" | "categories";
@@ -69,6 +69,7 @@ function AssetsInner() {
   );
   const [events, setEvents] = useState<EquipmentEvent[]>([]);
   const [batch, setBatch] = useState<EquipmentBatch | null>(null);
+  const [deleteCheck, setDeleteCheck] = useState<EquipmentDeleteCheck | null>(null);
 
   const notify = (message: string) => { setToast(message); window.setTimeout(() => setToast(""), 3200); };
   const refresh = useCallback(async () => { await reload(); }, [reload]);
@@ -80,10 +81,14 @@ function AssetsInner() {
     finally { setBatchLoadingId(null); }
   };
   const openAsset = async (asset: EquipmentAsset) => {
-    setSelected(asset); setEvents([]); setBatch(null);
+    setSelected(asset); setEvents([]); setBatch(null); setDeleteCheck(null);
     try {
-      const [detail, history] = await Promise.all([api.get(asset.id), api.events(asset.id)]);
-      setSelected(detail); setEvents(history.items);
+      const [detail, history, deletion] = await Promise.all([
+        api.get(asset.id),
+        api.events(asset.id),
+        isAdmin ? api.deleteCheck(asset.id) : Promise.resolve(null),
+      ]);
+      setSelected(detail); setEvents(history.items); setDeleteCheck(deletion);
       if (detail.batch_id) setBatch(await api.batch(detail.batch_id));
     } catch (e) { setError(errText(e)); }
   };
@@ -92,6 +97,21 @@ function AssetsInner() {
     try { await action(); notify(success); await refresh(); reloadLedger(); reloadBatches(); reloadOverdue(); if (selected) await openAsset(selected); }
     catch (e) { setError(errText(e)); }
     finally { setBusy(false); }
+  };
+  const deleteAsset = async (asset: EquipmentAsset, reason: string) => {
+    setBusy(true); setError("");
+    try {
+      await api.remove(asset.id, { confirm_code: asset.code, reason });
+      setSelected(null); setEvents([]); setBatch(null); setDeleteCheck(null);
+      notify(`资产 ${asset.code} 已永久删除`);
+      await refresh();
+      reloadLedger(); reloadBatches(); reloadOverdue();
+    } catch (e) {
+      setError(errText(e));
+      throw e;
+    } finally {
+      setBusy(false);
+    }
   };
   const exportAssets = async (format: "csv" | "xlsx") => {
     setError("");
@@ -130,7 +150,7 @@ function AssetsInner() {
       {section === "categories" && isAdmin && <CategoryManager categories={categories} busy={busy} onChange={async () => { await refresh(); }} onError={(e) => setError(errText(e))} onToast={notify} />}
     </>}
     </MotionTabs>
-    {selected && <AssetDetail asset={selected} categories={categories} batch={batch} events={events} userName={userName} isAdmin={isAdmin} currentUser={data?.me.id} busy={busy} onClose={() => setSelected(null)} onEdit={(body) => perform(() => api.update(selected.id, body), "档案已更新")} onAction={(action, body) => perform(() => action === "claim" ? api.claim(selected.id, body) : action === "borrow" ? api.borrow(selected.id, body) : action === "return" ? api.return(selected.id, body) : api.transition(selected.id, action, body), "设备状态已更新")} />}
+    {selected && <AssetDetail asset={selected} categories={categories} batch={batch} events={events} deleteCheck={deleteCheck} userName={userName} isAdmin={isAdmin} currentUser={data?.me.id} busy={busy} onClose={() => setSelected(null)} onEdit={(body) => perform(() => api.update(selected.id, body), "档案已更新")} onAction={(action, body) => perform(() => action === "claim" ? api.claim(selected.id, body) : action === "borrow" ? api.borrow(selected.id, body) : action === "return" ? api.return(selected.id, body) : api.transition(selected.id, action, body), "设备状态已更新")} onDelete={(reason) => deleteAsset(selected, reason)} />}
   </main>;
 }
 
@@ -311,10 +331,14 @@ function CategoryRow({ category, onError, onChange, onToast }: { category: Equip
   return <div><code>{category.code}</code><input aria-label={`${category.label}分类名称`} value={label} onChange={(e) => setLabel(e.target.value)} /><button type="button" className="btn-ghost" onClick={async () => { try { await api.updateCategory(category.code, { label }); await onChange(); onToast("分类已更新"); } catch (e) { onError(e); } }}>保存</button><button type="button" className="btn-ghost asset-danger" onClick={async () => { try { await api.deleteCategory(category.code); await onChange(); onToast("分类已删除"); } catch (e) { onError(e); } }}>删除</button></div>;
 }
 
-function AssetDetail({ asset, categories, batch, events, userName, isAdmin, currentUser, busy, onClose, onEdit, onAction }: { asset: EquipmentAsset; categories: EquipmentCategory[]; batch: EquipmentBatch | null; events: EquipmentEvent[]; userName: (id: number | null) => string; isAdmin: boolean; currentUser?: number; busy: boolean; onClose: () => void; onEdit: (body: EquipmentWrite) => void; onAction: (action: "claim" | "borrow" | "return" | "maintenance" | "restore" | "scrap" | "void", body: { note?: string; due_date?: string }) => void }) {
+function AssetDetail({ asset, categories, batch, events, deleteCheck, userName, isAdmin, currentUser, busy, onClose, onEdit, onAction, onDelete }: { asset: EquipmentAsset; categories: EquipmentCategory[]; batch: EquipmentBatch | null; events: EquipmentEvent[]; deleteCheck: EquipmentDeleteCheck | null; userName: (id: number | null) => string; isAdmin: boolean; currentUser?: number; busy: boolean; onClose: () => void; onEdit: (body: EquipmentWrite) => void; onAction: (action: "claim" | "borrow" | "return" | "maintenance" | "restore" | "scrap" | "void", body: { note?: string; due_date?: string }) => void; onDelete: (reason: string) => Promise<void> }) {
   const [note, setNote] = useState("");
   const [due, setDue] = useState("");
   const [editing, setEditing] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [confirmCode, setConfirmCode] = useState("");
+  const [deleteReason, setDeleteReason] = useState("");
+  const [deleteError, setDeleteError] = useState("");
   const [form, setForm] = useState<EquipmentWrite>({
     name: asset.name,
     category_code: asset.category_code,
@@ -328,6 +352,12 @@ function AssetDetail({ asset, categories, batch, events, userName, isAdmin, curr
   });
   const { canReturn, canClaim, canBorrow } = equipmentAssetActions(asset, isAdmin, currentUser);
   const categoryName = categories.find((category) => category.code === asset.category_code)?.label ?? asset.category_code;
+  const deleteReady = Boolean(deleteCheck?.allowed && confirmCode.trim() === asset.code && deleteReason.trim());
+  const confirmDelete = async () => {
+    setDeleteError("");
+    try { await onDelete(deleteReason.trim()); }
+    catch (e) { setDeleteError(errText(e)); }
+  };
 
   return <Drawer
     open
@@ -393,6 +423,35 @@ function AssetDetail({ asset, categories, batch, events, userName, isAdmin, curr
         <div className="asset-section-heading"><div><h3>设备流水</h3><p>记录入库、领用、借用、归还和状态变化</p></div><span className="asset-event-count">{events.length} 条</span></div>
         {events.length ? <ol className="asset-events">{events.map((event) => <li key={event.id}><b>{event.action}</b><span>{event.from_status ? `${STATUS[event.from_status] ?? event.from_status} → ` : ""}{STATUS[event.to_status ?? ""] ?? event.to_status ?? ""}</span><time>{new Date(event.created_at).toLocaleString("zh-CN")}</time>{event.note && <small>{event.note}</small>}</li>)}</ol> : <p className="asset-empty asset-empty-inline">暂无流水记录</p>}
       </section>
+
+      {isAdmin && <section className="asset-detail-section asset-delete-zone">
+        <div className="asset-section-heading"><div><h3>危险操作</h3><p>永久删除仅用于清理错误录入；真实使用过的资产必须保留历史。</p></div></div>
+        {!deleteCheck ? <p className="asset-muted">正在检查删除资格…</p> : deleteCheck.allowed ? <>
+          <p className="asset-delete-hint">该资产尚未产生领用、借用、维修、报废或作废等业务流水，可以永久删除。所属入库批次会保留。</p>
+          <button type="button" className="btn-danger" disabled={busy} onClick={() => { setConfirmCode(""); setDeleteReason(""); setDeleteError(""); setDeleteOpen(true); }}>删除资产</button>
+        </> : <>
+          <p className="asset-delete-blocked">{deleteCheck.reason}</p>
+          <button type="button" className="btn-danger" disabled>不可删除</button>
+        </>}
+      </section>}
+
+      {deleteOpen && <Dialog
+        open
+        onClose={() => { if (!busy) setDeleteOpen(false); }}
+        title="永久删除资产"
+        size="sm"
+        maskClosable={!busy}
+        footer={<><button className="btn-ghost" disabled={busy} onClick={() => setDeleteOpen(false)}>取消</button><button className="btn-danger" disabled={busy || !deleteReady} onClick={() => void confirmDelete()}>{busy ? "删除中…" : "永久删除"}</button></>}
+      >
+        <div className="asset-delete-dialog">
+          <p>此操作会永久删除设备 <b>{asset.name}</b> 及其录入阶段流水，无法恢复。入库批次不会被删除。</p>
+          <div className="asset-delete-code"><span>设备编号</span><code>{asset.code}</code></div>
+          <label>请输入设备编号确认<input aria-label="输入设备编号确认删除" value={confirmCode} onChange={(event) => setConfirmCode(event.target.value)} autoComplete="off" /></label>
+          <label>删除原因 <span className="asset-required">*</span><textarea aria-label="删除原因" maxLength={500} rows={4} value={deleteReason} onChange={(event) => setDeleteReason(event.target.value)} placeholder="例如：重复录入、录入错误" /></label>
+          {confirmCode && confirmCode.trim() !== asset.code && <div className="field-err" role="alert">设备编号不匹配</div>}
+          {deleteError && <div className="field-err" role="alert">{deleteError}</div>}
+        </div>
+      </Dialog>}
     </div>
   </Drawer>;
 }
