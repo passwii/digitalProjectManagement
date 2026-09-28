@@ -12,7 +12,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { dashboardApi, errText, type DashboardSummary, type Weekly } from "@/lib/api";
+import { dashboardApi, errText, type DashboardSummary, type HealthRow, type Weekly } from "@/lib/api";
 import { useMe, useMeta, useMenus } from "@/lib/useMeta";
 import { MONEY_LABEL } from "@/lib/kpi";
 import { fmtMoney, fmtDateTime } from "@/lib/labels";
@@ -31,11 +31,23 @@ import { linkAbortSignal, refreshAbortMessage, useRegisterPageRefresh } from "@/
 
 const SUBJECT_SIGNALS = ["cyan", "lime", "amber", "violet", "muted"] as const;
 
+// 首页只保留最需要关注的项目；完整台账在 /projects。风险优先级：异常 > 风险 > 正常 > 已结束。
+const ROUTE_LIMIT = 8;
+const HEALTH_RANK: Record<HealthRow["health"], number> = { bad: 0, risk: 1, ok: 2, closed: 3 };
+
+function rankRoutes(a: HealthRow, b: HealthRow) {
+  const byHealth = HEALTH_RANK[a.health] - HEALTH_RANK[b.health];
+  if (byHealth !== 0) return byHealth;
+  if (b.overdue_tasks !== a.overdue_tasks) return b.overdue_tasks - a.overdue_tasks;
+  return a.progress - b.progress;
+}
+
 function SubjectPulse({ subjects }: { subjects: DashboardSummary["by_subject"] }) {
   if (subjects.length === 0) {
     return <Empty title="暂无科目构成" hint="登记并通过支出后显示科目脉冲。" />;
   }
 
+  const single = subjects.length === 1;
   const peak = Math.max(...subjects.map((subject) => subject.spent), 1);
   return (
     <div className={s.subjectList}>
@@ -48,9 +60,11 @@ function SubjectPulse({ subjects }: { subjects: DashboardSummary["by_subject"] }
               <span>{subject.subject}</span>
               <b>{fmtMoney(subject.spent)} 元</b>
             </div>
-            <div className={s.subjectTrack} aria-label={`${subject.subject}支出 ${fmtMoney(subject.spent)} 元`}>
-              <span className={`${s.subjectFill} ${s[signal]}`} style={{ transform: `scaleX(${percent / 100})` }} />
-            </div>
+            {!single && (
+              <div className={s.subjectTrack} aria-label={`${subject.subject}支出 ${fmtMoney(subject.spent)} 元`}>
+                <span className={`${s.subjectFill} ${s[signal]}`} style={{ transform: `scaleX(${percent / 100})` }} />
+              </div>
+            )}
           </div>
         );
       })}
@@ -167,6 +181,8 @@ export default function DashboardPage() {
   const k = data.kpi;
   const trendData = data.trend.map((point) => ({ ...point, label: point.month.slice(5) + "月" }));
   const actionState = loading ? "校准中" : err ? "待检查" : "已接入";
+  const routeRows = [...data.health].sort(rankRoutes).slice(0, ROUTE_LIMIT);
+  const hiddenRoutes = data.health.length - routeRows.length;
 
   return (
     <div className={s.dashboard} data-dashboard-page="true" aria-busy={loading}>
@@ -190,7 +206,7 @@ export default function DashboardPage() {
             >
               {loading ? "校准中" : "刷新坐标"}
             </button>
-            {canApprove && (
+            {canApprove && k.pending_approvals > 0 && (
               <Link className={s.approvalButton} href="/approvals">
                 进入审批 · {k.pending_approvals}
               </Link>
@@ -208,11 +224,7 @@ export default function DashboardPage() {
       <MotionStagger className={s.motion}>
         <section className={s.readoutZone} data-testid="dashboard-zone-readouts" aria-labelledby="dashboard-readouts-title">
           <div className={s.zoneHeader}>
-            <div>
-              <h2 id="dashboard-readouts-title">当前工作态势</h2>
-              <p>实时读数 · 数据源已连接</p>
-            </div>
-            <span className={s.zoneCode}>实时坐标</span>
+            <h2 id="dashboard-readouts-title">当前工作态势</h2>
           </div>
           <div className={s.readoutRail}>
             <DashboardReadout
@@ -253,22 +265,21 @@ export default function DashboardPage() {
         <div className={s.commandGrid}>
           <section className={`${s.zone} ${s.routesZone}`} data-testid="dashboard-zone-routes" aria-labelledby="dashboard-routes-title">
             <div className={s.zoneHeader}>
-              <div>
-                <h2 id="dashboard-routes-title">项目航迹</h2>
-                <p>以进度、执行率和风险定位交付坐标</p>
-              </div>
+              <h2 id="dashboard-routes-title">项目航迹</h2>
               <span className={s.zoneMetric}><span className="mono">{data.health.length}</span> 个项目</span>
             </div>
-            <DashboardRouteField health={data.health} />
+            <DashboardRouteField health={routeRows} />
+            {hiddenRoutes > 0 && (
+              <Link className={s.zoneMore} href="/projects">
+                <span>查看全部项目</span>
+                <span aria-hidden="true">→</span>
+              </Link>
+            )}
           </section>
 
           <section className={`${s.zone} ${s.interventionZone}`} data-testid="dashboard-zone-interventions" aria-labelledby="dashboard-interventions-title">
             <div className={s.zoneHeader}>
-              <div>
-                <h2 id="dashboard-interventions-title">需要介入</h2>
-                <p>优先处理会改变交付节奏的事项</p>
-              </div>
-              <span className={s.zoneCode}>待办队列</span>
+              <h2 id="dashboard-interventions-title">需要介入</h2>
             </div>
             <DashboardInterventionQueue weekly={weekly} kpi={k} isAdmin={canApprove} userName={userName} />
           </section>
@@ -276,11 +287,7 @@ export default function DashboardPage() {
 
         <section className={`${s.zone} ${s.pulseZone}`} data-testid="dashboard-zone-pulse" aria-labelledby="dashboard-pulse-title">
           <div className={s.zoneHeader}>
-            <div>
-              <h2 id="dashboard-pulse-title">数据脉冲</h2>
-              <p>资金流动和团队动作的连续读数</p>
-            </div>
-            <span className={s.zoneCode}>近 6 个月</span>
+            <h2 id="dashboard-pulse-title">数据脉冲</h2>
           </div>
 
           <div className={s.pulseGrid}>
