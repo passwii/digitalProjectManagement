@@ -1,5 +1,14 @@
 .shell {
   --sidebar-width: 252px;
+  /*
+    侧栏品牌区 .ws 与右侧顶栏 .topbar 共用的总高（box-sizing: border-box，
+    含各自的 1px border-bottom）。两侧下划线因此落在同一条水平线上。
+
+    75px = .ws 自身的 padding 20 + .wsName min-height 40 + padding 14 + border 1。
+    定这个值时不要改 .ws 的 padding —— 改了两边会一起偏移；真要改就同步改这里。
+    两个盒子都读同一个变量，所以它们是**按定义相等**，不是数值碰巧对上。
+  */
+  --shell-head-h: 75px;
   width: 100%;
   min-width: 0;
   max-width: 100%;
@@ -27,6 +36,10 @@
 
 .ws {
   flex: none;
+  /* 与 .topbar 读同一个 --shell-head-h，两条下划线必然平齐。
+     注意这里用 height 而不是 min-height：min-height 允许 .ws 变高，
+     一旦品牌名换行把 .ws 撑过顶栏，对齐就又破了。 */
+  height: var(--shell-head-h);
   padding: 20px 16px 14px;
   border-bottom: 1px solid var(--nav-border);
 }
@@ -213,8 +226,9 @@
   position: sticky;
   top: 0;
   z-index: 20;
-  height: 64px;
-  flex: 0 0 64px;
+  /* 高度来自 .shell 上的 --shell-head-h，与侧栏品牌区 .ws 同源，见那里的注释。 */
+  height: var(--shell-head-h);
+  flex: 0 0 var(--shell-head-h);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -402,6 +416,9 @@
     display: flex;
     align-items: center;
     gap: 12px;
+    /* ≤900px 侧栏已经和主区上下堆叠了，「两条下划线平齐」这件事不存在了，
+       所以这里解除桌面那份定高，回到内容驱动（12+40+12 = 64px）。 */
+    height: auto;
     padding: 12px 14px;
   }
   .wsName { flex: 1; margin: 0; }
@@ -436,7 +453,12 @@
 }
 
 @media (min-width: 901px) and (max-width: 1180px) {
-  .shell { --sidebar-width: 220px; }
+  /*
+    --shell-head-h 跟着 .ws 的收窄一起改：18 + 40(.wsName) + 12 + 1(border) = 71px。
+    .topbar 读同一个变量自动跟随 —— 不要再单独写它的 height，
+    那正是这次要消除的「两处各写一个高度然后慢慢漂移」。
+  */
+  .shell { --sidebar-width: 220px; --shell-head-h: 71px; }
   .sidebar,
   .collapsed .sidebar { width: var(--sidebar-width); flex-basis: var(--sidebar-width); }
   .ws { padding: 18px 14px 12px; }
