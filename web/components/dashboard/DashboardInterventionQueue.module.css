@@ -21,16 +21,7 @@
 .danger { --queue-signal: var(--dash-alert); }
 .neutral { --queue-signal: var(--dash-muted); }
 
-.pin {
-  position: absolute;
-  top: 22px;
-  left: 0;
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: var(--queue-signal);
-  box-shadow: 0 0 10px color-mix(in srgb, var(--queue-signal) 55%, transparent);
-}
+.pin { display: none; }
 
 .link {
   position: relative;
@@ -38,16 +29,14 @@
   grid-template-columns: minmax(0, 1fr) 18px;
   gap: 3px 12px;
   min-width: 0;
-  padding: 15px 0 16px 16px;
+  padding: 15px 18px 16px;
   color: var(--dash-ink);
   text-decoration: none;
-  transform: translateX(0);
-  transition: color 180ms ease-out, transform 180ms ease-out, background 180ms ease-out;
+  transition: color 180ms ease-out, background 180ms ease-out;
 }
 
 .link:hover,
 .link:focus-visible {
-  transform: translateX(5px);
   color: var(--queue-signal);
   background: var(--row-hover);
   text-decoration: none;
@@ -115,5 +104,5 @@
 
 @media (prefers-reduced-motion: reduce) {
   .item { animation: none; }
-  .link { transform: none; transition: none; }
+  .link { transition: none; }
 }
