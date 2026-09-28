@@ -191,6 +191,11 @@ body {
  margin: 0;
 }
 
+/* 页面高度变化时固定根滚动条槽位，避免居中内容随滚动条出现或消失而横移。 */
+html {
+ scrollbar-gutter: stable;
+}
+
 body {
  font-family: var(--font-body);
  background: var(--bg);
