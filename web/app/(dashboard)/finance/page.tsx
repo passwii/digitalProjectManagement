@@ -73,9 +73,10 @@ function FinanceInner() {
       const below = Math.max(0, edgeBottom - rect.bottom - gap - inset);
       const flipAbove = below < menu.scrollHeight && above > below;
       const maxHeight = flipAbove ? above : below;
+      const renderedHeight = Math.min(menu.scrollHeight, maxHeight);
       const left = Math.max(edgeLeft + inset, Math.min(rect.left, edgeRight - inset - width));
       const top = flipAbove
-        ? Math.max(edgeTop + inset, rect.top - gap - maxHeight)
+        ? Math.max(edgeTop + inset, rect.top - gap - renderedHeight)
         : Math.min(rect.bottom + gap, edgeBottom - inset - maxHeight);
       setMenuPosition({ top, left, width, maxHeight });
     };
