@@ -284,9 +284,9 @@ def _delete_check(db: Session, asset: EquipmentAsset) -> dict:
     reason = None
     if protected:
         labels = "、".join(PROTECTED_DELETE_LABELS[action] for action in protected)
-        reason = f"该设备已有{labels}等业务记录，不能彻底删除，请使用作废或报废功能"
+        reason = f"该设备已有{labels}等业务记录，删除将永久丢失这些历史"
     elif status_blocked:
-        reason = f"设备当前状态为{STATUS_LABELS.get(asset.status, asset.status)}，不能彻底删除，请使用正常资产流转处理"
+        reason = f"设备当前状态为{STATUS_LABELS.get(asset.status, asset.status)}，删除将永久丢失其流转历史"
     return {
         "allowed": not protected and not status_blocked,
         "asset_id": asset.id,
@@ -700,9 +700,10 @@ def delete_asset(asset_id: int, body: AssetDeleteIn, db: Session = Depends(get_d
     if len(reason) > 500:
         raise HTTPException(400, "删除原因不能超过 500 个字符")
 
+    # 管理员可强制删除：这里只做技术校验（编号确认 + 原因），
+    # 不再按生命周期闸门拦截——真实使用过的资产也允许清理，
+    # 但强制删除的事实会写进审计快照的 force_delete / protected_actions。
     check = _delete_check(db, asset)
-    if not check["allowed"]:
-        raise HTTPException(409, check["reason"])
 
     snapshot = json.dumps({
         "code": asset.code,
@@ -715,6 +716,8 @@ def delete_asset(asset_id: int, body: AssetDeleteIn, db: Session = Depends(get_d
         "created_by": asset.created_by,
         "created_at": asset.created_at,
         "event_count": check["event_count"],
+        "protected_actions": check["protected_actions"],
+        "force_delete": not check["allowed"],
         "reason": reason,
     }, ensure_ascii=False, default=str, separators=(",", ":"))
     deleted_code = asset.code

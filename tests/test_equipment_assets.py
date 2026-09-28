@@ -126,7 +126,7 @@ def test_acceptance_does_not_block_delete_and_batch_is_preserved(client, db):
         assert session.get(EquipmentAsset, asset["id"]) is None
 
 
-def test_business_lifecycle_permanently_blocks_hard_delete(client, db):
+def test_admin_can_force_delete_asset_with_business_lifecycle(client, db):
     admin, pm = login(client, "admin"), login(client, "pm")
     asset = _create(client, admin, name="已使用电脑")
     aid = asset["id"]
@@ -134,18 +134,51 @@ def test_business_lifecycle_permanently_blocks_hard_delete(client, db):
                        json={"due_date": "2099-01-01"}).status_code == 200
     assert client.post(f"{ROOT}/{aid}/return", headers=pm).status_code == 200
 
+    # delete-check 仍如实回报"有受保护流水"，仅供前端展示警告，不再作为拦截闸门
     check = client.get(f"{ROOT}/{aid}/delete-check", headers=admin)
     assert check.status_code == 200, check.text
     assert check.json()["allowed"] is False
     assert check.json()["protected_actions"] == ["borrow", "return"]
     assert "借用" in check.json()["reason"]
 
-    blocked = client.request("DELETE", f"{ROOT}/{aid}", headers=admin,
-                             json={"confirm_code": asset["code"], "reason": "尝试删除"})
-    assert blocked.status_code == 409
+    # 技术校验仍然生效：编号不匹配 / 原因缺失 依旧拒绝
+    assert client.request("DELETE", f"{ROOT}/{aid}", headers=admin,
+                          json={"confirm_code": "WRONG", "reason": "清理"}).status_code == 400
+    assert client.request("DELETE", f"{ROOT}/{aid}", headers=admin,
+                          json={"confirm_code": asset["code"], "reason": "   "}).status_code == 400
     with db() as session:
         assert session.get(EquipmentAsset, aid) is not None
-        assert session.query(EquipmentEvent).filter_by(asset_id=aid).count() == 3
+
+    deleted = client.request("DELETE", f"{ROOT}/{aid}", headers=admin,
+                             json={"confirm_code": asset["code"], "reason": "测试数据清理"})
+    assert deleted.status_code == 200, deleted.text
+    assert deleted.json() == {"ok": True, "id": aid, "code": asset["code"]}
+
+    with db() as session:
+        assert session.get(EquipmentAsset, aid) is None
+        assert session.query(EquipmentEvent).filter_by(asset_id=aid).count() == 0
+        audit = session.query(AuditLog).filter_by(
+            action="delete_equipment", resource="equipment_assets", resource_id=str(aid)
+        ).one()
+        detail = json.loads(audit.detail)
+        assert detail["force_delete"] is True
+        assert detail["protected_actions"] == ["borrow", "return"]
+        assert detail["reason"] == "测试数据清理"
+
+
+def test_force_delete_of_clean_asset_is_not_flagged_in_audit(client, db):
+    admin = login(client, "admin")
+    asset = _create(client, admin, name="重复录入电脑")
+    deleted = client.request("DELETE", f"{ROOT}/{asset['id']}", headers=admin,
+                             json={"confirm_code": asset["code"], "reason": "重复录入"})
+    assert deleted.status_code == 200, deleted.text
+    with db() as session:
+        audit = session.query(AuditLog).filter_by(
+            action="delete_equipment", resource="equipment_assets", resource_id=str(asset["id"])
+        ).one()
+        detail = json.loads(audit.detail)
+        assert detail["force_delete"] is False
+        assert detail["protected_actions"] == []
 
 
 def test_batch_and_unique_codes(client, db):
