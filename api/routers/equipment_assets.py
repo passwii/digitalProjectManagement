@@ -12,7 +12,7 @@ from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from fastapi.responses import StreamingResponse
 from openpyxl import Workbook, load_workbook
 from pydantic import BaseModel
-from sqlalchemy import case, func, or_
+from sqlalchemy import case, func, or_, text
 from sqlalchemy.orm import Session
 
 from ..core.audit import commit_audited, write_audit
@@ -721,6 +721,11 @@ def delete_asset(asset_id: int, body: AssetDeleteIn, db: Session = Depends(get_d
         "reason": reason,
     }, ensure_ascii=False, default=str, separators=(",", ":"))
     deleted_code = asset.code
+    # equipment_events 挂了「流水不可变」触发器（0027 建、0030 加受控放行）。这里在同一
+    # 事务内用 SET LOCAL 打开 app.allow_event_purge 开关，让本次管理员删除能带走该设备
+    # 的录入阶段流水；事务提交/回滚后开关自动失效，任何其他写路径依旧删不掉、也改不掉
+    # 流水。被删流水的关键信息已随 force_delete / protected_actions 写入审计快照。
+    db.execute(text("SET LOCAL app.allow_event_purge = 'on'"))
     db.query(EquipmentEvent).filter_by(asset_id=asset.id).delete(synchronize_session=False)
     db.delete(asset)
     commit_audited(db, user.id, "delete_equipment", "equipment_assets", asset_id, snapshot)
