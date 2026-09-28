@@ -28,6 +28,10 @@ export type ProjectsListContentProps = {
   onPageChange: (next: PaginationChange) => void;
   onSelect?: (project: Project) => void;
   onEdit?: (project: Project) => void;
+  /** 是否展示「删除」入口（仅管理员，权限口径与后端 require_admin 一致） */
+  canDelete?: boolean;
+  /** 点击「删除」：交由页面走两步确认后执行软删除 */
+  onDelete?: (project: Project) => void;
   ownerText?: (project: Project) => string;
 };
 
@@ -43,6 +47,8 @@ export function ProjectsListContent({
   onPageChange,
   onSelect,
   onEdit,
+  canDelete = false,
+  onDelete,
   ownerText = (project) => project.owner_name || String(project.owner_id),
 }: ProjectsListContentProps) {
   return (
@@ -117,13 +123,24 @@ export function ProjectsListContent({
                 },
               ]}
               actions={
-                <button
-                  type="button"
-                  className="btn-ghost btn-xs"
-                  onClick={() => onEdit?.(p)}
-                >
-                  编辑
-                </button>
+                <>
+                  <button
+                    type="button"
+                    className="btn-ghost btn-xs"
+                    onClick={() => onEdit?.(p)}
+                  >
+                    编辑
+                  </button>
+                  {canDelete && (
+                    <button
+                      type="button"
+                      className="btn-ghost btn-xs danger-link"
+                      onClick={() => onDelete?.(p)}
+                    >
+                      删除
+                    </button>
+                  )}
+                </>
               }
               onSelect={() => onSelect?.(p)}
             />
@@ -211,6 +228,17 @@ export function ProjectsListContent({
                       >
                         编辑
                       </button>
+                      {canDelete && (
+                        <button
+                          className="btn-ghost btn-xs danger-link"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onDelete?.(p);
+                          }}
+                        >
+                          删除
+                        </button>
+                      )}
                     </span>
                   </td>
                 </tr>

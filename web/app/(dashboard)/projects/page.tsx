@@ -34,6 +34,7 @@ import { ListPageLayout } from "@/components/ui/ListPageLayout";
 import PageHeader from "@/components/ui/PageHeader";
 import MotionReveal from "@/components/motion/MotionReveal";
 import ProjectFormDialog from "./ProjectFormDialog";
+import { ProjectDeleteDialogs } from "./ProjectDeleteDialogs";
 import { ProjectsListContent } from "./ProjectsListContent";
 
 const SIZE_OPTIONS = [15, 50, 100];
@@ -119,6 +120,8 @@ function ProjectsInner() {
     to: string;
   } | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Project | null>(null);
+  // 软删除两步确认：1 = 说明影响；2 = 最终确认后才真正执行
+  const [deleteStep, setDeleteStep] = useState<1 | 2 | null>(null);
   const [busy, setBusy] = useState(false);
 
   const statusOptions = Object.entries(PROJECT_STATUS).map(([code, label]) => ({
@@ -149,6 +152,34 @@ function ProjectsInner() {
     } finally {
       setBusy(false);
       setConfirmFlow(null);
+    }
+  }
+
+  /** 打开软删除流程（列表行 / 详情抽屉 / 编辑弹窗三个入口共用）：从第一步确认开始 */
+  function requestDelete(p: Project) {
+    setDeleteTarget(p);
+    setDeleteStep(1);
+  }
+
+  function closeDelete() {
+    setDeleteTarget(null);
+    setDeleteStep(null);
+  }
+
+  /** 第二步确认后真正执行软删除；成功后刷新列表并清理「最近项目」缓存 */
+  async function confirmDelete() {
+    if (!deleteTarget) return;
+    setBusy(true);
+    try {
+      await projectsApi.remove(deleteTarget.id);
+      removeRecentProject(deleteTarget.id);
+      toast.ok("项目已移入回收站（系统管理 → 回收站可恢复）");
+      reload();
+    } catch (e) {
+      toast.err(errText(e));
+    } finally {
+      setBusy(false);
+      closeDelete();
     }
   }
 
@@ -286,6 +317,8 @@ function ProjectsInner() {
             setEditing(project);
             setFormOpen(true);
           }}
+          canDelete={isAdmin}
+          onDelete={requestDelete}
           ownerText={ownerText}
         />
       )}
@@ -296,10 +329,10 @@ function ProjectsInner() {
         onClose={() => setFormOpen(false)}
         project={editing}
         onRequestDelete={
-          editing && isAdmin && !["doing", "filed"].includes(editing.status)
+          editing && isAdmin
             ? () => {
                 setFormOpen(false);
-                setDeleteTarget(editing);
+                requestDelete(editing);
               }
             : undefined
         }
@@ -346,11 +379,11 @@ function ProjectsInner() {
               >
                 编辑
               </button>
-              {isAdmin && !["doing", "filed"].includes(detail.status) && (
+              {isAdmin && (
                 <button
                   className="btn-ghost danger-link"
                   onClick={() => {
-                    setDeleteTarget(detail);
+                    requestDelete(detail);
                     setDetail(null);
                   }}
                 >
@@ -492,30 +525,14 @@ function ProjectsInner() {
         onCancel={() => setConfirmFlow(null)}
       />
 
-      {/* 软删除二次确认 */}
-      <Confirm
-        open={!!deleteTarget}
-        danger
-        loading={busy}
-        title={`删除项目「${deleteTarget?.name ?? ""}」？`}
-        text="项目将移入回收站（仅管理员可恢复），关联的任务、支出、附件保留。"
-        okText="移入回收站"
-        onConfirm={async () => {
-          if (!deleteTarget) return;
-          setBusy(true);
-          try {
-            await projectsApi.remove(deleteTarget.id);
-            removeRecentProject(deleteTarget.id);
-            toast.ok("项目已移入回收站（系统管理 → 回收站可恢复）");
-            reload();
-          } catch (e) {
-            toast.err(errText(e));
-          } finally {
-            setBusy(false);
-            setDeleteTarget(null);
-          }
-        }}
-        onCancel={() => setDeleteTarget(null)}
+      {/* 软删除两步确认：第一步说明影响，第二步最终确认后执行 */}
+      <ProjectDeleteDialogs
+        target={deleteTarget}
+        step={deleteStep}
+        busy={busy}
+        onNextStep={() => setDeleteStep(2)}
+        onConfirm={confirmDelete}
+        onCancel={closeDelete}
       />
     </ListPageLayout>
   );
