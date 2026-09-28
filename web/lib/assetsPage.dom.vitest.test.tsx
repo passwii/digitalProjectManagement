@@ -160,6 +160,13 @@ describe("资产页面分页和刷新", () => {
     fireEvent.click(screen.getByRole("button", { name: "报废" }));
     heading = await screen.findByRole("heading", { name: "确认报废设备" });
     dialog = heading.closest('[role="dialog"]') as HTMLElement;
+    fireEvent.click(within(dialog).getByRole("button", { name: "关闭" }));
+    await waitFor(() => expect(screen.queryByRole("heading", { name: "确认报废设备" })).toBeNull());
+    expect(api.transition).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "报废" }));
+    heading = await screen.findByRole("heading", { name: "确认报废设备" });
+    dialog = heading.closest('[role="dialog"]') as HTMLElement;
     fireEvent.click(within(dialog).getByRole("button", { name: "确认报废" }));
 
     await waitFor(() => expect(api.transition).toHaveBeenCalledWith(1, "scrap", { note: "" }));
@@ -216,17 +223,26 @@ describe("资产页面分页和刷新", () => {
     expect(api.transition).not.toHaveBeenCalled();
   });
 
-  it("维修与恢复操作仍不增加二次确认", async () => {
+  it("送修与恢复可用仍直接执行，不增加二次确认", async () => {
     cleanup();
     setup();
-    api.get.mockResolvedValue(asset({ status: "available" }));
+    let status = "available";
+    api.get.mockImplementation(async () => asset({ status }));
+    api.transition.mockImplementation(async (_id: number, action: string) => {
+      status = action === "maintenance" ? "maintenance" : action === "restore" ? "available" : status;
+    });
 
     fireEvent.click(await screen.findByRole("tab", { name: "设备台账" }));
     fireEvent.click(await screen.findByRole("button", { name: "查看" }));
     fireEvent.click(await screen.findByRole("button", { name: "送修" }));
 
     await waitFor(() => expect(api.transition).toHaveBeenCalledWith(1, "maintenance", { note: "" }));
+    expect(await screen.findByRole("button", { name: "恢复可用" })).toBeTruthy();
     expect(screen.queryByRole("heading", { name: "确认送修设备" })).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "恢复可用" }));
+    await waitFor(() => expect(api.transition).toHaveBeenLastCalledWith(1, "restore", { note: "" }));
+    expect(screen.queryByRole("heading", { name: "确认恢复可用设备" })).toBeNull();
   });
 
   it("管理员仅在后端允许时通过编号和原因二次确认永久删除", async () => {

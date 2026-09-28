@@ -129,6 +129,6 @@ Run: `git diff --check && git status --short && git diff --stat`
 Expected: 仅本计划的三个实现文件和计划/设计文档有变更；确认无误后提交实现。
 
 ```bash
-git add 'web/app/(dashboard)/assets/page.tsx' 'web/app/(dashboard)/assets/assets.css' web/lib/assetsPage.dom.vitest.test.tsx docs/superpowers/plans/2026-09-28-equipment-scrap-void-confirmation.md
+git add 'web/app/(dashboard)/assets/page.tsx' 'web/app/(dashboard)/assets/assets.css' web/lib/assetsPage.dom.vitest.test.tsx docs/superpowers/specs/2026-09-28-equipment-scrap-void-confirmation-design.md docs/superpowers/plans/2026-09-28-equipment-scrap-void-confirmation.md
 git commit -m "feat(assets): confirm scrap and void actions"
 ```
