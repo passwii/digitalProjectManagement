@@ -13,11 +13,13 @@ export default function MotionTabs<T extends string>({
   items,
   active,
   onChange,
+  panelOffset = 3,
   children,
 }: {
   items: Item<T>[];
   active: T;
   onChange: (next: T) => void;
+  panelOffset?: number;
   children: React.ReactNode;
 }) {
   const reduced = useReducedMotion();
@@ -79,7 +81,7 @@ export default function MotionTabs<T extends string>({
           role="tabpanel"
           aria-labelledby={`${layoutId}-tab-${items.findIndex((item) => item.id === active)}`}
           aria-label={items.find((item) => item.id === active)?.label}
-          initial={reduced ? false : { opacity: 0, y: 3 }}
+          initial={reduced ? false : { opacity: 0, y: panelOffset }}
           animate={{ opacity: 1, y: 0 }}
           exit={reduced ? { opacity: 1 } : { opacity: 0 }}
           transition={{ duration: reduced ? 0 : 0.16 }}
