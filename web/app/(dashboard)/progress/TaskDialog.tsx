@@ -6,6 +6,7 @@ import { useMeta } from "@/lib/useMeta";
 import { useForm } from "@/lib/useForm";
 import { Dialog } from "@/components/ui/Modal";
 import Field from "@/components/ui/Field";
+import Select from "@/components/ui/Select";
 
 interface Values {
   name: string;
@@ -132,25 +133,25 @@ export default function TaskDialog({
           />
         </Field>
         <Field label="负责人" hint="留空默认当前用户">
-          <select value={form.values.owner_id} onChange={(e) => form.set("owner_id", e.target.value)}>
+          <Select value={form.values.owner_id} onChange={(value) => form.set("owner_id", value)}>
             <option value="">默认当前用户</option>
             {users.map((u) => <option key={u.id} value={u.id}>{u.real_name}</option>)}
-          </select>
+          </Select>
         </Field>
         <Field label="权重" error={form.errors.weight} hint="加权进度按权重折算">
           <input value={form.values.weight} onChange={(e) => form.set("weight", e.target.value)} inputMode="decimal" />
         </Field>
         <Field label="父任务" hint={taskScopeNote ? `最多 5 级 · ${taskScopeNote}` : "最多 5 级"}>
-          <select value={form.values.parent_id} onChange={(e) => form.set("parent_id", e.target.value)}>
+          <Select value={form.values.parent_id} onChange={(value) => form.set("parent_id", value)}>
             <option value="">无（作为一级任务）</option>
             {others.map((t) => <option key={t.id} value={t.id}>{t.level > 1 ? "└ " : ""}{t.name}</option>)}
-          </select>
+          </Select>
         </Field>
         <Field label="前置任务" hint={taskScopeNote ? `存在环会被后端拦截 · ${taskScopeNote}` : "存在环会被后端拦截"}>
-          <select value={form.values.predecessor_id} onChange={(e) => form.set("predecessor_id", e.target.value)}>
+          <Select value={form.values.predecessor_id} onChange={(value) => form.set("predecessor_id", value)}>
             <option value="">无</option>
             {others.map((t) => <option key={t.id} value={t.id}>{t.name}（{t.progress}%）</option>)}
-          </select>
+          </Select>
         </Field>
         <Field label="计划开始">
           <input type="date" value={form.values.plan_start} onChange={(e) => form.set("plan_start", e.target.value)} />
