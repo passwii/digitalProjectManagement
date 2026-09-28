@@ -1,9 +1,10 @@
 "use client";
 
-import { Suspense, useCallback, useEffect, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useState } from "react";
 import PageHeader from "@/components/ui/PageHeader";
 import { CardItem, CardList, DesktopTable } from "@/components/ui/CardList";
 import { Drawer } from "@/components/ui/Modal";
+import MotionTabs from "@/components/motion/MotionTabs";
 import { LoadingBlock, LoadFailed } from "@/components/ui/PageState";
 import { useAsyncData } from "@/lib/useAsyncData";
 import { useMenus, useMeta } from "@/lib/useMeta";
@@ -26,7 +27,6 @@ function AssetsInner() {
   const { users } = useMeta();
   const userName = useCallback((id: number | null) => id === null ? "—" : users.find((u) => u.id === id)?.real_name || `用户 ${id}`, [users]);
   const [section, setSection] = useState<Section>("overview");
-  const tabRefs = useRef<Partial<Record<Section, HTMLButtonElement>>>({});
   const [selected, setSelected] = useState<EquipmentAsset | null>(null);
   const [filters, setFilters] = useState({ keyword: "", category_code: "", status: "", holder_id: "" });
   const [page, setPage] = useState(1);
@@ -88,40 +88,13 @@ function AssetsInner() {
   const visibleSections = SECTIONS.filter((item) =>
     (item.id !== "categories" && item.id !== "inbound") || isAdmin,
   );
-  const handleTabKeyDown = (event: React.KeyboardEvent<HTMLButtonElement>, current: Section) => {
-    const currentIndex = visibleSections.findIndex((item) => item.id === current);
-    let nextIndex = currentIndex;
-    if (event.key === "ArrowRight") nextIndex = (currentIndex + 1) % visibleSections.length;
-    else if (event.key === "ArrowLeft") nextIndex = (currentIndex - 1 + visibleSections.length) % visibleSections.length;
-    else if (event.key === "Home") nextIndex = 0;
-    else if (event.key === "End") nextIndex = visibleSections.length - 1;
-    else return;
-    event.preventDefault();
-    const next = visibleSections[nextIndex].id;
-    setSection(next);
-    tabRefs.current[next]?.focus();
-  };
   const visibleRows = ledgerData?.items ?? [];
 
   return <main className="asset-module">
     <PageHeader title="公司设备资产" actions={isAdmin ? <><label className="btn-ghost asset-import-button">导入 CSV / Excel<input type="file" accept=".csv,.xlsx" aria-label="导入 CSV 或 Excel 台账" onChange={(e) => { const file = e.currentTarget.files?.[0]; if (file) void perform(() => api.upload(file), "导入完成"); e.currentTarget.value = ""; }} /></label><button className="btn-ghost" onClick={() => void exportAssets("csv")}>导出 CSV</button><button className="btn-ghost" onClick={() => void exportAssets("xlsx")}>导出 Excel</button></> : null} />
     <p className="asset-intro">公司设备台账、入库和领用借用记录。</p>
     {loadError && <LoadFailed message={loadError} onRetry={reload} />}{error && <div className="asset-error" role="alert">{error}</div>}{toast && <div className="asset-toast" role="status">{toast}</div>}
-    <div className="asset-tabs" role="tablist" aria-label="资产管理分区">
-      {visibleSections.map((item) => <button
-        key={item.id}
-        ref={(node) => { tabRefs.current[item.id] = node ?? undefined; }}
-        id={`asset-tab-${item.id}`}
-        type="button"
-        role="tab"
-        aria-selected={section === item.id}
-        aria-controls="asset-tabpanel"
-        tabIndex={section === item.id ? 0 : -1}
-        onClick={() => setSection(item.id)}
-        onKeyDown={(event) => handleTabKeyDown(event, item.id)}
-      >{item.label}</button>)}
-    </div>
-    <section className="asset-tabpanel" role="tabpanel" id="asset-tabpanel" aria-labelledby={`asset-tab-${section}`} tabIndex={0}>
+    <MotionTabs items={visibleSections} active={section} onChange={setSection}>
     {loading && !data ? <LoadingBlock label="正在读取设备资产…" /> : data && <>
       {section === "overview" && <Overview overview={data.overview} stats={data.stats} categories={categories} onSection={setSection} />}
       {section === "ledger" && <section className="asset-panel"><div className="asset-filters"><input aria-label="搜索设备" placeholder="编号、名称、序列号…" value={filters.keyword} onChange={(e) => setFilters({ ...filters, keyword: e.target.value })} /><select aria-label="设备分类" value={filters.category_code} onChange={(e) => setFilters({ ...filters, category_code: e.target.value })}><option value="">全部分类</option>{categories.map((c) => <option key={c.code} value={c.code}>{c.label}</option>)}</select><select aria-label="设备状态" value={filters.status} onChange={(e) => setFilters({ ...filters, status: e.target.value })}><option value="">全部状态</option>{Object.entries(STATUS).map(([v, label]) => <option key={v} value={v}>{label}</option>)}</select>{filters.holder_id && <button className="btn-ghost" onClick={() => setFilters({ ...filters, holder_id: "" })}>清除使用人筛选</button>}</div>{ledgerLoading && !ledgerData ? <LoadingBlock label="读取设备台账…" /> : <><AssetRows rows={visibleRows} categories={categories} onOpen={openAsset} userName={userName} /><div className="asset-pagination"><span>第 {page} 页 · 共 {ledgerData?.total ?? 0} 件</span><button className="btn-ghost" disabled={page <= 1 || ledgerLoading} onClick={() => setPage(page - 1)}>上一页</button><button className="btn-ghost" disabled={page * 20 >= (ledgerData?.total ?? 0) || ledgerLoading} onClick={() => setPage(page + 1)}>下一页</button></div></>}</section>}
@@ -131,7 +104,7 @@ function AssetsInner() {
       {section === "statistics" && <Statistics stats={data.stats} categories={categories} onHolder={(id) => { setFilters({ ...filters, holder_id: String(id) }); setSection("ledger"); }} />}
       {section === "categories" && isAdmin && <CategoryManager categories={categories} busy={busy} onChange={async () => { await refresh(); }} onError={(e) => setError(errText(e))} onToast={notify} />}
     </>}
-    </section>
+    </MotionTabs>
     {selected && <AssetDetail asset={selected} categories={categories} batch={batch} events={events} userName={userName} isAdmin={isAdmin} currentUser={data?.me.id} busy={busy} onClose={() => setSelected(null)} onEdit={(body) => perform(() => api.update(selected.id, body), "档案已更新")} onAction={(action, body) => perform(() => action === "claim" ? api.claim(selected.id, body) : action === "borrow" ? api.borrow(selected.id, body) : action === "return" ? api.return(selected.id, body) : api.transition(selected.id, action, body), "设备状态已更新")} />}
   </main>;
 }

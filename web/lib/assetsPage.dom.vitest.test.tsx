@@ -60,6 +60,15 @@ beforeEach(() => {
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 
 describe("资产页面分页和刷新", () => {
+  it("使用项目详情页共享标签控件并同步移动端分区选择", async () => {
+    const mobileSection = await screen.findByLabelText("选择页面分区");
+
+    fireEvent.change(mobileSection, { target: { value: "ledger" } });
+
+    expect(screen.getByRole("tab", { name: "设备台账" }).getAttribute("aria-selected")).toBe("true");
+    expect(await screen.findByPlaceholderText("编号、名称、序列号…")).toBeTruthy();
+  });
+
   it("批次与逾期分别按服务端 total/page/size 翻页，并保持每页不超过 100", async () => {
     cleanup();
     setup({ batchTotal: 101, overdueTotal: 101 });

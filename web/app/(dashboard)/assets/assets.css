@@ -34,56 +34,6 @@
   outline-offset: 2px;
 }
 
-.asset-tabs {
-  display: flex;
-  min-width: 0;
-  margin: 8px 0 20px;
-  overflow-x: auto;
-  border-bottom: 1px solid var(--line);
-  scrollbar-width: thin;
-  scrollbar-color: var(--line) transparent;
-}
-
-.asset-tabs button {
-  position: relative;
-  flex: 0 0 auto;
-  min-height: 44px;
-  padding: 10px 15px 9px;
-  border: 0;
-  border-bottom: 2px solid transparent;
-  background: transparent;
-  color: var(--ink-2);
-  font: inherit;
-  white-space: nowrap;
-  cursor: pointer;
-  transition: color var(--motion), background-color var(--motion), border-color var(--motion);
-}
-
-.asset-tabs button:hover {
-  background: var(--brand-soft);
-  color: var(--brand);
-}
-
-.asset-tabs button[aria-selected="true"] {
-  border-bottom-color: var(--brand);
-  color: var(--brand);
-  font-weight: 650;
-}
-
-.asset-tabs button:focus-visible {
-  z-index: 1;
-  outline-offset: -3px;
-}
-
-.asset-tabpanel {
-  min-width: 0;
-}
-
-.asset-tabpanel:focus-visible {
-  outline: 2px solid var(--brand);
-  outline-offset: 3px;
-}
-
 .asset-panel {
   min-width: 0;
   margin-bottom: 16px;
@@ -997,8 +947,7 @@
 
 @media (prefers-reduced-motion: reduce) {
   .asset-kpis button,
-  .asset-stat-track > span,
-  .asset-tabs button {
+  .asset-stat-track > span {
     transition-duration: 0.01ms;
   }
 }
