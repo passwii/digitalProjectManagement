@@ -695,7 +695,7 @@ def test_reserved_roles_have_no_admin_privilege(client, db):
 
 
 def test_navigation_menu_uses_asset_and_report_slots_without_progress_or_costs(client):
-    for username in ("pm", "admin"):
+    for username in ("pm", "admin", "outsider", "cost"):
         headers = login(client, username)
         response = client.get("/api/v1/meta/me/menus", headers=headers)
         assert response.status_code == 200, response.text

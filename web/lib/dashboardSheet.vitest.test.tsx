@@ -21,7 +21,6 @@ vi.mock("@/lib/useAsyncData", () => ({
         month: "2026-09",
         month_spent: 0,
       } },
-      weekly: { due_soon: [], overdue: [] },
     },
     firstLoad: false,
     error: null,

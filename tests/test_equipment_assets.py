@@ -1,5 +1,7 @@
 """公司设备资产：权限、生命周期和批量导入的接口契约。"""
 from datetime import date
+import csv
+import io
 
 import pytest
 from openpyxl import Workbook
@@ -64,6 +66,25 @@ def test_batch_and_unique_codes(client, db):
     assert response.json()["acceptance_status"] == "accepted"
     assert all(item["status"] == "available" for item in items)
     assert client.post(f"{ROOT}/inbound", headers=login(client, "pm"), json={"items": []}).status_code == 403
+
+
+def test_export_neutralizes_formula_strings_in_csv_and_xlsx(client):
+    admin = login(client, "admin")
+    values = ["=1+1", "+SUM(A1:A2)", "-1+2", "@SUM(A1)", "  =1+1", "\t+1+1"]
+    for i, value in enumerate(values):
+        _create(client, admin, name=value, serial_number=f"FORMULA-{i}")
+
+    csv_response = client.get(f"{ROOT}/export?format=csv", headers=admin)
+    assert csv_response.status_code == 200
+    rows = list(csv.DictReader(io.StringIO(csv_response.content.decode("utf-8-sig"))))
+    assert [row["name"] for row in rows] == ["'" + value for value in values]
+
+    xlsx_response = client.get(f"{ROOT}/export?format=xlsx", headers=admin)
+    assert xlsx_response.status_code == 200
+    from openpyxl import load_workbook
+    sheet = load_workbook(io.BytesIO(xlsx_response.content), data_only=False).active
+    assert [sheet.cell(row, 2).value for row in range(2, len(values) + 2)] == values
+    assert all(sheet.cell(row, 2).data_type == "s" for row in range(2, len(values) + 2))
 
 
 def test_pending_batch_metadata_is_readable_and_assets_cannot_be_claimed(client, db):

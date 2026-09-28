@@ -104,6 +104,7 @@ describe("资产页面分页和刷新", () => {
     api.list.mockResolvedValue(page([asset({ holder_id: 42, status: "claimed" })]));
     fireEvent.click(await screen.findByRole("button", { name: "设备台账" }));
     fireEvent.click(await screen.findByRole("button", { name: "查看" }));
+    expect(await screen.findByRole("button", { name: "编辑档案" })).toBeTruthy();
     expect(await screen.findByText("张三")).toBeTruthy();
     cleanup();
     users.splice(0, users.length);

@@ -25,6 +25,13 @@ FIELDS = ("name", "category_code", "serial_number", "brand", "model", "location"
 EXPORT_FIELDS = ("code", *FIELDS, "status", "holder_id", "due_date", "batch_id")
 
 
+def _csv_safe(value: str) -> str:
+    # Spreadsheet applications may ignore leading whitespace/control characters
+    # before deciding whether a cell is a formula.
+    probe = value.lstrip("".join(chr(i) for i in range(33)))
+    return "'" + value if probe.startswith(("=", "+", "-", "@")) else value
+
+
 class AssetIn(BaseModel):
     name: str
     category_code: str
@@ -320,7 +327,7 @@ def export_assets(format: str = "csv", db: Session = Depends(get_db), user: User
         out = io.StringIO()
         writer = csv.writer(out)
         writer.writerow(EXPORT_FIELDS)
-        writer.writerows([[str(r.get(field) or "") for field in EXPORT_FIELDS] for r in records])
+        writer.writerows([[_csv_safe(str(r.get(field) or "")) for field in EXPORT_FIELDS] for r in records])
         content = ("\ufeff" + out.getvalue()).encode("utf-8")
         media = "text/csv; charset=utf-8"
     else:
@@ -328,7 +335,12 @@ def export_assets(format: str = "csv", db: Session = Depends(get_db), user: User
         sheet = book.active
         sheet.append(EXPORT_FIELDS)
         for r in records:
-            sheet.append([str(r.get(field) or "") for field in EXPORT_FIELDS])
+            values = [str(r.get(field) or "") for field in EXPORT_FIELDS]
+            sheet.append(values)
+            # openpyxl otherwise treats a leading '=' as a formula. Force every
+            # exported user-controlled value to a string cell.
+            for cell in sheet[sheet.max_row]:
+                cell.data_type = "s"
         out = io.BytesIO()
         book.save(out)
         content = out.getvalue()
