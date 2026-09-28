@@ -306,7 +306,7 @@ export default function Select({
           value={currentValue}
           required={required}
           disabled={disabled}
-          readOnly
+          onChange={() => {}}
           onInvalid={(event) => {
             event.preventDefault();
             setInvalid(true);
