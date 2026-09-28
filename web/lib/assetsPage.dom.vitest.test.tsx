@@ -1,0 +1,125 @@
+// @vitest-environment jsdom
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+
+const { api, me, users, isAdmin } = vi.hoisted(() => ({
+  api: {
+    overview: vi.fn(), categories: vi.fn(), batches: vi.fn(), overdue: vi.fn(), statistics: vi.fn(),
+    list: vi.fn(), get: vi.fn(), events: vi.fn(), batch: vi.fn(), acceptBatch: vi.fn(),
+    inbound: vi.fn(), claim: vi.fn(), borrow: vi.fn(), return: vi.fn(), transition: vi.fn(), update: vi.fn(),
+    upload: vi.fn(), export: vi.fn(), createCategory: vi.fn(), updateCategory: vi.fn(), deleteCategory: vi.fn(),
+  },
+  me: vi.fn(),
+  users: [{ id: 42, real_name: "张三" }],
+  isAdmin: vi.fn(() => true),
+}));
+
+vi.mock("@/lib/api", () => ({
+  equipmentAssetsApi: api,
+  authApi: { me },
+  errText: (error: unknown) => error instanceof Error ? error.message : String(error),
+  equipmentAssetActions: (asset: { status: string; holder_id: number | null }, isAdmin: boolean, currentUser?: number) => ({
+    canClaim: asset.status === "available" && !isAdmin,
+    canBorrow: asset.status === "available" && !isAdmin,
+    canReturn: asset.status === "borrowed" && (isAdmin || asset.holder_id === currentUser),
+  }),
+}));
+vi.mock("@/lib/useMeta", () => ({ useMenus: () => ({ isAdmin: isAdmin() }), useMeta: () => ({ users: [{ id: 42, real_name: "张三" }, ...users.filter((user) => user.id !== 42)] }) }));
+
+import AssetsPage from "../app/(dashboard)/assets/page";
+
+const asset = (overrides: Record<string, unknown> = {}) => ({
+  id: 1, code: "EQ-001", name: "测试笔记本", category_code: "computer", serial_number: null,
+  brand: null, model: null, location: "A 座", note: null, purchase_date: null, purchase_price: null,
+  status: "available", holder_id: null, due_date: null, batch_id: null, created_by: 1,
+  created_at: "2026-01-01T00:00:00Z", updated_at: "2026-01-01T00:00:00Z", ...overrides,
+});
+const page = <T,>(items: T[], total = items.length, current = 1, size = 20) => ({ items, total, page: current, size });
+
+function setup({ batchTotal = 1, overdueTotal = 1 }: { batchTotal?: number; overdueTotal?: number } = {}) {
+  api.overview.mockResolvedValue({ total: 1, by_status: { available: 1 }, overdue: overdueTotal });
+  api.categories.mockResolvedValue([{ code: "computer", label: "电脑", sort: 1 }]);
+  api.batches.mockImplementation(async (current: number, size: number) => page(current === 1 ? [{ id: 10, source: "采购", supplier: "供方", purchase_order_no: null, invoice_no: null, acceptance_status: "accepted" }] : [{ id: 11, source: "采购", supplier: "供方", purchase_order_no: null, invoice_no: null, acceptance_status: "accepted" }], batchTotal, current, size));
+  api.overdue.mockImplementation(async (current: number, size: number) => page(current === 1 ? [asset({ id: 20, status: "borrowed", holder_id: 42, due_date: "2026-01-01" })] : [asset({ id: 21, status: "borrowed", holder_id: 42, due_date: "2026-01-02" })], overdueTotal, current, size));
+  api.statistics.mockResolvedValue({ by_category: [], by_status: [], by_month: [], by_holder: [] });
+  api.list.mockResolvedValue(page([asset()]));
+  api.get.mockImplementation(async (id: number) => asset({ id, holder_id: 42, status: "borrowed", due_date: "2026-12-31" }));
+  api.events.mockResolvedValue({ items: [] });
+  api.batch.mockResolvedValue({ id: 10, acceptance_status: "accepted", items: [asset()] });
+  me.mockResolvedValue({ id: 42 });
+  return render(<AssetsPage />);
+}
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  users.splice(0, users.length, { id: 42, real_name: "张三" });
+  isAdmin.mockReturnValue(true);
+  vi.stubGlobal("localStorage", { getItem: () => null, setItem: () => {}, removeItem: () => {} });
+  setup();
+});
+afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
+
+describe("资产页面分页和刷新", () => {
+  it("批次与逾期分别按服务端 total/page/size 翻页，并保持每页不超过 100", async () => {
+    cleanup();
+    setup({ batchTotal: 101, overdueTotal: 101 });
+    fireEvent.click(await screen.findByRole("button", { name: "入库批次" }));
+    expect(await screen.findByText("批次 #10")).toBeTruthy();
+    expect(document.querySelector(".asset-pagination span")?.textContent).toBe("第 1 页 · 共 101 批");
+    fireEvent.click(screen.getByRole("button", { name: "下一页批次" }));
+    expect(await screen.findByText("批次 #11")).toBeTruthy();
+    await waitFor(() => expect(api.batches).toHaveBeenLastCalledWith(2, 100, expect.any(AbortSignal)));
+
+    fireEvent.click(screen.getByRole("button", { name: "逾期借用" }));
+    expect(document.querySelector(".asset-pagination span")?.textContent).toBe("第 1 页 · 共 101 件");
+    fireEvent.click(screen.getByRole("button", { name: "下一页逾期" }));
+    await waitFor(() => expect(api.overdue).toHaveBeenLastCalledWith(2, 100, expect.any(AbortSignal)));
+  });
+
+  it("成功借用后重新加载台账并显示更新的持有人、状态和到期日", async () => {
+    isAdmin.mockReturnValue(false);
+    expect(users.find((user) => user.id === 42)?.real_name).toBe("张三");
+    let current = asset();
+    api.list.mockImplementation(async () => page([current]));
+    api.get.mockImplementation(async () => current);
+    api.borrow.mockImplementation(async () => { current = asset({ status: "borrowed", holder_id: 42, due_date: "2026-12-31" }); });
+    fireEvent.click(await screen.findByRole("button", { name: "设备台账" }));
+    fireEvent.click(await screen.findByRole("button", { name: "查看" }));
+    fireEvent.change(screen.getByLabelText("借用到期日"), { target: { value: "2026-12-31" } });
+    fireEvent.click(screen.getByRole("button", { name: "借用" }));
+    await waitFor(() => expect(api.list).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(api.get).toHaveBeenCalledTimes(2));
+    const detail = screen.getByRole("dialog");
+    await waitFor(() => {
+      expect(detail.textContent).toContain("借用中");
+      expect(detail.textContent).toContain("张三");
+      expect(detail.textContent).toContain("2026-12-31");
+    });
+    await waitFor(() => expect(document.querySelector(".grid tbody tr td:nth-child(3)")?.textContent).toBe("借用中"));
+    expect(document.querySelector(".grid tbody tr td:nth-child(4)")?.textContent).toBe("张三");
+    expect(document.querySelector(".grid tbody tr td:nth-child(5)")?.textContent).toBe("2026-12-31");
+  });
+
+  it("批次详情失败时显示可见错误且不产生未处理拒绝", async () => {
+    api.batch.mockRejectedValue(new Error("批次服务不可用"));
+    fireEvent.click(await screen.findByRole("button", { name: "入库批次" }));
+    fireEvent.click(await screen.findByRole("button", { name: "查看设备" }));
+    expect((await screen.findByRole("alert")).textContent).toContain("批次服务不可用");
+  });
+
+  it("映射详情持有人姓名，找不到目录用户时回退到用户编号", async () => {
+    api.list.mockResolvedValue(page([asset({ holder_id: 42, status: "claimed" })]));
+    fireEvent.click(await screen.findByRole("button", { name: "设备台账" }));
+    fireEvent.click(await screen.findByRole("button", { name: "查看" }));
+    expect(await screen.findByRole("button", { name: "编辑档案" })).toBeTruthy();
+    expect(await screen.findByText("张三")).toBeTruthy();
+    cleanup();
+    users.splice(0, users.length);
+    setup();
+    api.list.mockResolvedValue(page([asset({ holder_id: 99, status: "claimed" })]));
+    api.get.mockResolvedValue(asset({ holder_id: 99, status: "claimed" }));
+    fireEvent.click(await screen.findByRole("button", { name: "设备台账" }));
+    fireEvent.click(await screen.findByRole("button", { name: "查看" }));
+    expect(await screen.findByText("用户 99")).toBeTruthy();
+  });
+});

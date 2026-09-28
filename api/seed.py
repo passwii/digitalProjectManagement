@@ -14,6 +14,12 @@ ROLES = [("admin", "系统管理员"), ("finance_clerk", "制单会计"), ("fina
 DEPARTMENTS = ["综合部", "行销部", "交付与服务部", "市场部", "总经办"]
 
 DICTS = [
+    ("equipment_category", "computer", "电脑"),
+    ("equipment_category", "monitor", "显示器"),
+    ("equipment_category", "printer", "打印机"),
+    ("equipment_category", "network", "网络设备"),
+    ("equipment_category", "instrument", "工具仪器"),
+    ("equipment_category", "other", "其他"),
     ("project_type", "research", "科研"), ("project_type", "construct", "工程"),
     ("project_type", "service", "服务"), ("project_type", "other", "其他"),
     ("priority", "高", "高"), ("priority", "中", "中"), ("priority", "低", "低"),

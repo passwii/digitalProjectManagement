@@ -3,17 +3,16 @@
 // Dock 位 id → 单档入口面板内容的映射。五位分组和权限继续沿用 D1/D3。
 //
 // 三条契约钉在这里：
-//   · D1：`costs` 位渲染 `ExpensesSheet` —— 「支出记录 + 支出报表」是同一业务对象
-//     的录入面与汇总面，报表作为抽屉里的第二张卡进入，不占第二个 Dock 位；
-//   · D3：管理与审批入口只出现在「我的」抽屉里（`MineSheet` 消费 `item.visible`），
+//   · 资产与报表各自占一个 Dock 位，报表抽屉只提供 `/reports` 入口；
+//   · 管理与审批入口只出现在「我的」抽屉里（`MineSheet` 消费 `item.visible`），
 //     Dock 位数恒为 5 —— 本文件不做任何角色判断，只做映射。
 
 import type { ComponentType } from "react";
 import type { DockId, DockItem } from "@/lib/mobileNav";
 import DashboardSheet from "./DashboardSheet";
-import ExpensesSheet from "./ExpensesSheet";
+import AssetsSheet from "./AssetsSheet";
+import ReportsSheet from "./ReportsSheet";
 import MineSheet from "./MineSheet";
-import ProgressSheet from "./ProgressSheet";
 import ProjectsSheet from "./ProjectsSheet";
 
 /** 面板内容组件的公共 props：选中收起 + 这一位的 Dock 信息与权限状态 */
@@ -45,22 +44,22 @@ export const SHEET_META: Record<
     subtitle: "状态筛选与最近项目",
     action: { label: "进入台账", href: "/projects" },
   },
-  progress: {
-    subtitle: "待填报 · 逾期 · 临近里程碑",
-    action: { label: "进入跟踪", href: "/progress" },
+  assets: {
+    subtitle: "资产台账与生命周期",
+    action: { label: "进入资产", href: "/assets" },
   },
-  costs: {
-    subtitle: "支出记录 + 支出报表（同一业务对象）",
-    action: { label: "进入支出记录", href: "/costs" },
+  reports: {
+    subtitle: "支出统计与分析",
+    action: { label: "进入报表", href: "/reports" },
   },
   mine: { subtitle: "账号与管理入口" },
 };
 
-/** Dock 位 id → Sheet 组件（D1：`costs` 位渲染 `ExpensesSheet`，同时吸收 `reports`） */
+/** Dock 位 id → Sheet 组件 */
 export const SHEET_CONTENT: Record<DockId, ComponentType<SheetContentProps>> = {
   dashboard: DashboardSheet,
   projects: ProjectsSheet,
-  progress: ProgressSheet,
-  costs: ExpensesSheet,
+  assets: AssetsSheet,
+  reports: ReportsSheet,
   mine: MineSheet,
 };

@@ -5,15 +5,15 @@
  * 做成不依赖 React / DOM 的纯函数，才能用 vitest 直接钉住
  * （`lib/mobileNav.vitest.test.ts`），而不是靠人眼看截图。
  *
- * 三条锁死的行为：
- *   · D1 「支出」位吸收 `/meta/me/menus` 的 `costs` + `reports`，标签写「支出」；
- *   · D3 管理与审批入口（contacts / partners / approvals / finance / admin）**不进 Dock**，只进「我的」抽屉；
+ * 两条锁死的行为：
+ *   · Dock 槽位固定为工作台 / 项目 / 资产 / 报表 / 我的，与后端基础菜单对应；
+ *   · 管理与审批入口（contacts / partners / approvals / finance / admin）**不进 Dock**，只进「我的」抽屉；
  *       角色只影响「我的」位的待办红点与抽屉内容，Dock 位数不变；
  *   · §3 权限唯一入口仍是 `/meta/me/menus`：本文件不新增任何角色判断，
  *       只做「契约菜单 → 5 个位」的分组与信令推导。
  */
 
-export type DockId = "dashboard" | "projects" | "progress" | "costs" | "mine";
+export type DockId = "dashboard" | "projects" | "assets" | "reports" | "mine";
 
 /** `/meta/me/menus` 的一条菜单；只取 Dock 用得到的三个字段，测试可直接造数据 */
 export interface MenuLike {
@@ -25,7 +25,7 @@ export interface MenuLike {
 /** 一个 Dock 位：标签 / 落点 / 吸收的菜单，三者都固定（不随角色变形） */
 export interface DockSlot {
   id: DockId;
-  /** Dock 标签。固定文案，**不取**后端 label：D1 把「支出记录」收成「支出」 */
+  /** Dock 标签。固定文案，**不取**后端 label */
   label: string;
   /**
    * S1 落点。
@@ -43,17 +43,16 @@ export interface DockSlot {
 /**
  * 5 个 Dock 位 = 手机端导航的唯一事实来源（数组顺序即渲染顺序）。
  *
- * D1：「支出记录」是录入面、「支出报表」是同一业务对象的汇总面 —— 合并成 1 位，
- * 报表作为抽屉里的第二张卡进入（§3.1）。**路由键仍是 `costs`**，标签可改契约键不动。
+ * 资产与报表独立占位；`/progress` 与 `/costs` 继续由原页面与上下文入口访问，不占独立导航位。
  *
- * D3：「我的」吸收管理与审批入口 + 账号；非管理员在菜单契约里本就拿不到那三项，
+ * 「我的」吸收管理与审批入口 + 账号；非管理员在菜单契约里本就拿不到那几项，
  * 所以「我的」抽屉的内容由 `visible` 决定，Dock 位数恒为 5。
  */
 export const DOCK_SLOTS: readonly DockSlot[] = [
   { id: "dashboard", label: "工作台", href: "/dashboard", keys: [], hrefs: ["/dashboard"] },
   { id: "projects", label: "项目", href: "/projects", keys: ["projects"], hrefs: ["/projects"] },
-  { id: "progress", label: "进度", href: "/progress", keys: ["progress"], hrefs: ["/progress"] },
-  { id: "costs", label: "支出", href: "/costs", keys: ["costs", "reports"], hrefs: ["/costs", "/reports"] },
+  { id: "assets", label: "资产", href: "/assets", keys: ["assets"], hrefs: ["/assets"] },
+  { id: "reports", label: "报表", href: "/reports", keys: ["reports"], hrefs: ["/reports"] },
   {
     id: "mine",
     label: "我的",

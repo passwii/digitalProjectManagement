@@ -695,6 +695,19 @@ def test_reserved_roles_have_no_admin_privilege(client, db):
     client.put("/api/v1/admin/params", headers=ha, json={"project_approval_on": "0"})
 
 
+def test_navigation_menu_uses_asset_and_report_slots_without_progress_or_costs(client):
+    for username in ("pm", "admin", "outsider", "cost"):
+        headers = login(client, username)
+        response = client.get("/api/v1/meta/me/menus", headers=headers)
+        assert response.status_code == 200, response.text
+        menus = response.json()["menus"]
+        keys = [item["key"] for item in menus]
+        assert keys.index("opportunities") < keys.index("projects") < keys.index("assets") < keys.index("reports")
+        assert not ({"progress", "costs"} & set(keys))
+        assets = next(item for item in menus if item["key"] == "assets")
+        assert assets == {"key": "assets", "label": "资产管理", "href": "/assets"}
+
+
 # 28. 软删除项目边界：管理员全局 ≠ 包含回收站数据
 def test_soft_delete_boundary_with_admin_global_scope(client, db):
     ha = login(client, "admin")

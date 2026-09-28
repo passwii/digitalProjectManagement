@@ -32,8 +32,7 @@ const SHEET_ID = "mobile-sheet";
 /**
  * 每个 Dock 位一张图标。
  *
- * 按「位」取而不是按 href 取：D1 的「支出」位吸收了两条菜单（costs + reports），
- * 按 href 取会在这一位上出现两个图标来源二选一的不稳定行为。
+ * 按「位」取图标，保证固定五槽的每个入口来源稳定。
  * 线条风格与桌面侧栏一致（22px / 1.8 描边），手机上手小，图标比文字更早被识别。
  */
 const ICON: Record<DockId, React.ReactNode> = {
@@ -69,7 +68,7 @@ const ICON: Record<DockId, React.ReactNode> = {
       <path d="M3 9h18M8 4v5" />
     </svg>
   ),
-  progress: (
+  assets: (
     <svg
       width="22"
       height="22"
@@ -80,11 +79,11 @@ const ICON: Record<DockId, React.ReactNode> = {
       strokeLinecap="round"
       strokeLinejoin="round"
     >
-      <path d="M3 17l5-6 4 4 6-8 3 3" />
-      <path d="M3 21h18" />
+      <path d="M3 7.5 12 3l9 4.5v9L12 21l-9-4.5z" />
+      <path d="m3.5 7.8 8.5 4.4 8.5-4.4M12 12.2V21" />
     </svg>
   ),
-  costs: (
+  reports: (
     <svg
       width="22"
       height="22"

@@ -938,6 +938,62 @@ class Dict(Base):
   sort = Column(Integer, default=0)
 
 
+class EquipmentBatch(Base):
+  """公司设备入库批次，与财务固定资产和项目均无关联。"""
+  __tablename__ = "equipment_batches"
+  id = Column(Integer, primary_key=True)
+  source = Column(String(255), nullable=False, default="")
+  supplier = Column(String(255), nullable=False, default="")
+  purchase_order_no = Column(String(128), nullable=False, default="")
+  invoice_no = Column(String(128), nullable=False, default="")
+  acceptance_status = Column(String(24), nullable=False, default="accepted")
+  note = Column(Text, nullable=False, default="")
+  created_by = Column(Integer, ForeignKey("users.id"), nullable=False)
+  created_at = Column(DateTime, default=_now, nullable=False)
+
+
+class EquipmentAsset(Base):
+  """单件设备当前快照；全部状态变更另记 EquipmentEvent。"""
+  __tablename__ = "equipment_assets"
+  id = Column(Integer, primary_key=True)
+  code = Column(String(40), nullable=False, unique=True, index=True)
+  name = Column(String(128), nullable=False)
+  category_code = Column(String(32), nullable=False, index=True)
+  serial_number = Column(String(128), nullable=True, unique=True)
+  brand = Column(String(128), nullable=False, default="")
+  model = Column(String(128), nullable=False, default="")
+  location = Column(String(128), nullable=False, default="")
+  note = Column(Text, nullable=False, default="")
+  purchase_date = Column(Date, nullable=True)
+  purchase_price = Column(Numeric(14, 2), nullable=True)
+  status = Column(String(20), nullable=False, default="available", index=True)
+  holder_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
+  due_date = Column(Date, nullable=True)
+  batch_id = Column(Integer, ForeignKey("equipment_batches.id"), nullable=True, index=True)
+  created_by = Column(Integer, ForeignKey("users.id"), nullable=False)
+  created_at = Column(DateTime, default=_now, nullable=False)
+  updated_at = Column(DateTime, default=_now, onupdate=_now, nullable=False)
+  __table_args__ = (CheckConstraint(
+      "status IN ('pending_acceptance','available','claimed','borrowed','maintenance','scrapped','void')",
+      name="ck_equipment_status"),)
+
+
+class EquipmentEvent(Base):
+  """追加式业务流水；应用层只提供创建和查询。"""
+  __tablename__ = "equipment_events"
+  id = Column(Integer, primary_key=True)
+  asset_id = Column(Integer, ForeignKey("equipment_assets.id"), nullable=False, index=True)
+  batch_id = Column(Integer, ForeignKey("equipment_batches.id"), nullable=True)
+  action = Column(String(24), nullable=False)
+  from_status = Column(String(20), nullable=True)
+  to_status = Column(String(20), nullable=False)
+  actor_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+  holder_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+  due_date = Column(Date, nullable=True)
+  note = Column(Text, nullable=False, default="")
+  created_at = Column(DateTime, default=_now, nullable=False, index=True)
+
+
 class TokenBlacklist(Base):
   __tablename__ = "token_blacklist"
   id = Column(Integer, primary_key=True)
