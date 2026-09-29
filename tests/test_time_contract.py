@@ -19,7 +19,7 @@ from sqlalchemy.orm import sessionmaker
 
 from api.core.database import get_db
 from api.core.security import decode_token
-from api.core.timeutil import APP_TZ, app_now, app_now_aware, as_app
+from api.core.timeutil import APP_TZ, APP_TZ_NAME, app_now, app_now_aware, as_app
 from api.main import app
 from api.models import Attachment, Followup, SysParam, User
 
@@ -110,10 +110,14 @@ def assert_beijing_wall_clock(stored):
 
 @pytest.fixture()
 def env_utc(client, db):
-    """同库同 schema，但每条连接强制 `TimeZone=UTC`。
+    """同一 schema 上开两条会话：一条显式 `TimeZone=UTC`，一条显式 `TimeZone=Asia/Shanghai`。
 
-    这是「换库 / 改 TZ / 新环境」的最小可复现形态：旧代码在这种会话下会把 UTC 瞬时
+    这是「换库 / 改 TZ / 新环境」的最小可复现形态：旧代码在 UTC 会话下会把 UTC 瞬时
     直接写进 naive 列（偏 8 小时），新代码必须与北京时会话完全一致。
+
+    两条会话的时区都是**显式钉死**的，不继承服务端默认值 —— 部署的 PostgreSQL
+    默认时区不受应用控制（本机 Homebrew 是 Asia/Shanghai，CI 的 postgres 容器和
+    大多数托管库是 UTC）。断言环境配置而不只断言代码行为，会在应用完全正确时误报。
     """
     if not TEST_DATABASE_URL:
         pytest.skip("TEST_DATABASE_URL is not configured")
@@ -122,13 +126,18 @@ def env_utc(client, db):
         schema = session.execute(select(func.current_schema())).scalar()
     finally:
         session.close()
-    # 连接级 GUC 在**建立连接时**就生效：会话时区改成 UTC，search_path 仍指向测试 schema。
-    # 不用 connect 事件里 `SET search_path`（那条命令可能被连接回收时的 ROLLBACK 撤掉）。
-    engine = create_engine(
-        TEST_DATABASE_URL, pool_pre_ping=True,
-        connect_args={"options": f"-c timezone=UTC -c search_path={schema}"},
-    )
-    utc_sessionmaker = sessionmaker(bind=engine, autoflush=False, autocommit=False)
+
+    def make(tz):
+        # 连接级 GUC 在**建立连接时**就生效：时区改成目标值，search_path 仍指向测试 schema。
+        # 不用 connect 事件里 `SET search_path`（那条命令可能被连接回收时的 ROLLBACK 撤掉）。
+        engine = create_engine(
+            TEST_DATABASE_URL, pool_pre_ping=True,
+            connect_args={"options": f"-c timezone={tz} -c search_path={schema}"},
+        )
+        return engine, sessionmaker(bind=engine, autoflush=False, autocommit=False)
+
+    utc_engine, utc_sessionmaker = make("UTC")
+    cn_engine, cn_sessionmaker = make(APP_TZ_NAME)
 
     def override():
         session = utc_sessionmaker()
@@ -140,12 +149,14 @@ def env_utc(client, db):
     previous = app.dependency_overrides.get(get_db)
     app.dependency_overrides[get_db] = override
     try:
-        yield SimpleNamespace(client=client, session=utc_sessionmaker)
+        yield SimpleNamespace(client=client, session=utc_sessionmaker,
+                              baseline=cn_sessionmaker)
     finally:
         app.dependency_overrides.pop(get_db, None)
         if previous is not None:
             app.dependency_overrides[get_db] = previous
-        engine.dispose()
+        utc_engine.dispose()
+        cn_engine.dispose()
 
 
 def test_uploaded_at_is_beijing_wall_clock(client, db):
@@ -173,9 +184,12 @@ def test_uploaded_at_serialized_with_offset(client, db):
     assert parsed.replace(tzinfo=None) == Probe(db).uploaded_at()
 
 
-def test_write_and_output_unchanged_under_utc_db_session(env_utc, db):
+def test_write_and_output_unchanged_under_utc_db_session(env_utc):
     """DB 会话时区改成 UTC，落库值与接口出参都不变（核心不变量）。"""
-    assert Probe(db).timezone() == "Asia/Shanghai"
+    # 对照组的时区由 fixture 显式钉成 Asia/Shanghai，所以这条断言校验的是「两条会话
+    # 确实处在不同时区」——即本测试没有退化成 `test_uploaded_at_is_beijing_wall_clock`
+    # 的重复。若这里也钉成 UTC，断言会立刻失败，正是要防的空洞化。
+    assert Probe(env_utc.baseline).timezone() == APP_TZ_NAME
     assert Probe(env_utc.session).timezone() == "UTC"
 
     h = pm(env_utc.client)
