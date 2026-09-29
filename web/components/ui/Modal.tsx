@@ -16,6 +16,7 @@ import {
   MODAL_CLOSE_ATTR,
   resolveInitialFocus,
 } from "@/lib/modalFocus";
+import { hasOpenNestedPopover } from "@/lib/nestedPopover";
 import st from "./Modal.module.css";
 
 type Size = "sm" | "md" | "lg";
@@ -164,6 +165,12 @@ export function useModalBehavior({
 
     function onKey(e: KeyboardEvent) {
       if (e.key === "Escape") {
+        // 有嵌套弹层（日期选择器等）开着时，本次 Esc 归它处理。
+        // 必须在这里让路：本监听在 capture 阶段且先于 React 的事件派发执行，
+        // 下面的 stopPropagation 会让嵌套弹层根本收不到这条 Esc，
+        // 结果就是「按一次 Esc 整个弹窗被关掉」。
+        // 没有嵌套弹层时行为与改动前完全一致。
+        if (hasOpenNestedPopover()) return;
         e.stopPropagation();
         requestCloseRef.current();
         return;
