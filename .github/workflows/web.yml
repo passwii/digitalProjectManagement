@@ -1,0 +1,45 @@
+name: web
+
+# 前端测试守门。存在的原因：PR #106 把原生 <select> 换成自绘下拉，
+# 但没同步更新依赖旧驱动方式的测试，8 个用例带着红灯合进了 main，
+# 而当时仓库没有任何 CI，没有任何东西会报警。
+#
+# 这里跑的是项目自己的入口（web/package.json）：
+#   npm test = test:unit(tsc -p tsconfig.test.json + node --test) + test:motion(vitest run)
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# 同一个 PR 连续推送时，只保留最新一次运行，避免排队浪费额度。
+concurrency:
+  group: web-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: web · 测试
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+
+      # 与 docker/web.Dockerfile 里的 node:20-alpine 对齐，避免本地和 CI 行为漂移。
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: 安装依赖
+        run: npm ci
+
+      - name: 单元与 DOM 测试
+        run: npm test
+
+      # test:unit 里的 tsc 只覆盖 lib 下的测试文件，组件与页面的类型错误只有
+      # next build 能兜住，所以单跑一次构建。
+      - name: 构建
+        run: npm run build
