@@ -1,4 +1,5 @@
 from datetime import datetime
+from decimal import Decimal
 
 from api.models import AuditLog, Project
 from sqlalchemy import event, inspect, text
@@ -90,8 +91,22 @@ def test_project_receivable_page_batches_payment_summaries(client, db):
         create_receivable(client, user, project["id"], name=f"第{i}期", amount="100.00")
         for i in range(5)
     ]
-    for item in receivables:
-        assert add_payment(client, user, project["id"], item["id"], "10.00").status_code == 200
+    expected_totals = {}
+    for index, item in enumerate(receivables, start=1):
+        first_amount = Decimal(index * 10)
+        assert add_payment(
+            client, user, project["id"], item["id"], str(first_amount),
+        ).status_code == 200
+        count = 1
+        total = first_amount
+        if index % 2 == 0:
+            second_amount = Decimal(index)
+            assert add_payment(
+                client, user, project["id"], item["id"], str(second_amount),
+            ).status_code == 200
+            total += second_amount
+            count += 1
+        expected_totals[item["id"]] = (f"{total:.2f}", count)
 
     session = db()
     bind = session.get_bind()
@@ -114,7 +129,10 @@ def test_project_receivable_page_batches_payment_summaries(client, db):
 
     assert response.status_code == 200, response.text
     assert len(response.json()["items"]) == 5
-    assert [row["received_amount"] for row in response.json()["items"]] == ["10.00"] * 5
+    assert {
+        row["id"]: (row["received_amount"], row["payment_count"])
+        for row in response.json()["items"]
+    } == expected_totals
     assert len(payment_queries) <= 2, payment_queries
 
 
