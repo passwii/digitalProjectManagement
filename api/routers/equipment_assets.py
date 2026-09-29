@@ -257,9 +257,10 @@ def _batch(b: EquipmentBatch, items=None, asset_count=None) -> dict:
               "created_by": b.created_by, "created_at": b.created_at}
     if items is not None:
         result["items"] = [_asset(a) for a in items]
-        result["asset_count"] = len(items)
-    elif asset_count is not None:
+    if asset_count is not None:
         result["asset_count"] = asset_count
+    elif items is not None:
+        result["asset_count"] = len(items)
     return result
 
 
@@ -480,7 +481,7 @@ def inbound(body: BatchIn, db: Session = Depends(get_db), user: User = Depends(g
     require_admin(user)
     if not body.items:
         raise HTTPException(400, "入库设备不能为空")
-    if bool(body.batch_id) == bool(body.name.strip()):
+    if (body.batch_id is not None and bool(body.name.strip())) or (body.batch_id is None and not body.name.strip()):
         raise HTTPException(400, "请选择已有批次，或填写新批次名称")
     serials = [item.serial_number.strip() for item in body.items if item.serial_number.strip()]
     if len(serials) != len(set(serials)):
@@ -490,7 +491,7 @@ def inbound(body: BatchIn, db: Session = Depends(get_db), user: User = Depends(g
     for item in body.items:
         _validate(db, item)
 
-    if body.batch_id:
+    if body.batch_id is not None:
         batch = _get_batch(db, body.batch_id)
         action = "add_equipment_to_batch"
     else:
@@ -501,7 +502,8 @@ def inbound(body: BatchIn, db: Session = Depends(get_db), user: User = Depends(g
     asset_status = "pending_acceptance" if batch.acceptance_status == "pending_acceptance" else "available"
     items = [_add_asset(db, item, user.id, batch.id, "inbound", asset_status) for item in body.items]
     commit_audited(db, user.id, action, "equipment_batches", batch.id, f"count={len(items)}")
-    return {"batch_id": batch.id, **_batch(batch, items)}
+    asset_count = db.query(EquipmentAsset).filter_by(batch_id=batch.id).count()
+    return {"batch_id": batch.id, **_batch(batch, items, asset_count=asset_count)}
 
 
 @router.get("/batches")
@@ -532,10 +534,11 @@ def rename_batch(batch_id: int, body: EquipmentBatchPatch, db: Session = Depends
     _check_batch_name_available(db, name, exclude_id=batch_id)
     batch.name = name
     try:
-        commit_audited(db, user.id, "rename_equipment_batch", "equipment_batches", batch.id, name)
+        db.flush()
     except IntegrityError as exc:
         db.rollback()
         raise HTTPException(400, "批次名称已存在，请选择已有批次或更换名称") from exc
+    commit_audited(db, user.id, "rename_equipment_batch", "equipment_batches", batch.id, name)
     return _batch(batch, asset_count=db.query(EquipmentAsset).filter_by(batch_id=batch.id).count())
 
 
@@ -781,9 +784,9 @@ def import_assets(file: UploadFile = File(...), batch_id: int | None = Form(None
         raise HTTPException(400, {"errors": errors, "message": f"共 {len(errors)} 行导入失败，请修正后重新导入"})
     if not parsed:
         raise HTTPException(400, "文件中没有可导入的设备行")
-    if bool(batch_id) == bool(batch_name.strip()):
+    if (batch_id is not None and bool(batch_name.strip())) or (batch_id is None and not batch_name.strip()):
         raise HTTPException(400, "请选择已有批次，或填写新批次名称")
-    if batch_id:
+    if batch_id is not None:
         batch = _get_batch(db, batch_id)
     else:
         batch = _create_batch(db, user.id, name=batch_name, source=source.strip() or f"导入 {file.filename}",

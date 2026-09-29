@@ -8,7 +8,7 @@ import pytest
 from openpyxl import Workbook
 from sqlalchemy import text
 
-from api.models import AuditLog, Dict, EquipmentAsset, EquipmentEvent, EquipmentBatch
+from api.models import AuditLog, Dict, EquipmentAsset, EquipmentEvent, EquipmentBatch, User
 from test_mvp import login
 
 
@@ -277,6 +277,18 @@ def test_batch_and_unique_codes(client, db):
     assert client.post(f"{ROOT}/inbound", headers=login(client, "pm"), json={"items": []}).status_code == 403
 
 
+def test_inbound_does_not_treat_zero_batch_id_as_create_new_batch(client, db):
+    admin = login(client, "admin")
+    response = client.post(f"{ROOT}/inbound", headers=admin, json={
+        "batch_id": 0, "name": "错误地提交的新批次", "items": [{"name": "设备", "category_code": "computer"}],
+    })
+    assert response.status_code == 400
+    assert "请选择已有批次" in response.json()["detail"]
+    with db() as session:
+        assert session.query(EquipmentBatch).count() == 0
+        assert session.query(EquipmentAsset).count() == 0
+
+
 def test_inbound_can_reuse_batch_without_overwriting_metadata_and_inherits_acceptance(client, db):
     admin = login(client, "admin")
     created = client.post(f"{ROOT}/inbound", headers=admin, json={
@@ -293,6 +305,7 @@ def test_inbound_can_reuse_batch_without_overwriting_metadata_and_inherits_accep
     assert appended.status_code == 200, appended.text
     assert appended.json()["batch_id"] == batch_id
     assert appended.json()["name"] == "可复用设备批次"
+    assert appended.json()["asset_count"] == 2
     assert appended.json()["source"] == "供应商送货"
     assert appended.json()["supplier"] == "甲供应商"
     assert appended.json()["note"] == "原始备注"
@@ -317,6 +330,13 @@ def test_batch_admin_rename_search_and_delete_empty_batch(client, db):
     assert renamed.status_code == 200, renamed.text
     assert renamed.json()["name"] == "设备批次·9月"
     assert client.get(f"{ROOT}/batches?keyword=设备批次", headers=pm).json()["items"][0]["asset_count"] == 1
+    duplicate_name = client.post(f"{ROOT}/inbound", headers=admin, json={
+        "name": "另一个批次", "items": [{"name": "另一台设备", "category_code": "computer"}],
+    }).json()
+    conflict = client.patch(f"{ROOT}/batches/{duplicate_name['batch_id']}", headers=admin,
+                            json={"name": "设备批次·9月"})
+    assert conflict.status_code == 400
+    assert "批次名称已存在" in conflict.json()["detail"]
 
     assert client.delete(f"{ROOT}/batches/{batch_id}", headers=pm).status_code == 403
     assert client.delete(f"{ROOT}/batches/{batch_id}", headers=admin).status_code == 409
@@ -333,6 +353,37 @@ def test_batch_admin_rename_search_and_delete_empty_batch(client, db):
         assert session.get(EquipmentBatch, batch_id) is None
         assert session.query(AuditLog).filter_by(action="rename_equipment_batch", resource_id=str(batch_id)).count() == 1
         assert session.query(AuditLog).filter_by(action="delete_equipment_batch", resource_id=str(batch_id)).count() == 1
+
+
+def test_batch_delete_rejects_orphan_event_reference(client, db):
+    admin = login(client, "admin")
+    batch = client.post(f"{ROOT}/inbound", headers=admin, json={
+        "name": "遗留流水批次", "items": [{"name": "设备", "category_code": "computer"}],
+    })
+    assert batch.status_code == 200, batch.text
+    batch_id = batch.json()["batch_id"]
+    asset = batch.json()["items"][0]
+
+    deleted = client.request("DELETE", f"{ROOT}/{asset['id']}", headers=admin,
+                             json={"confirm_code": asset["code"], "reason": "清理测试设备"})
+    assert deleted.status_code == 200, deleted.text
+    standalone = _create(client, admin, name="批次外设备")
+    with db() as session:
+        session.execute(text("DROP TRIGGER equipment_events_immutable ON equipment_events"))
+        session.add(EquipmentEvent(
+            asset_id=standalone["id"], batch_id=batch_id, action="legacy", to_status="available",
+            actor_id=session.query(User.id).filter_by(username="admin").scalar(), note="orphan guard",
+        ))
+        session.commit()
+        session.execute(text(IMMUTABLE_TRIGGER))
+        session.commit()
+
+    removed = client.delete(f"{ROOT}/batches/{batch_id}", headers=admin)
+    assert removed.status_code == 409
+    assert "流水" in removed.json()["detail"]
+    with db() as session:
+        assert session.get(EquipmentBatch, batch_id) is not None
+        assert session.query(EquipmentEvent).filter_by(batch_id=batch_id).count() == 1
 
 
 def test_single_asset_creation_can_join_batch_and_inherits_acceptance_state(client):
@@ -534,7 +585,10 @@ def test_import_prevalidation_is_atomic(client, db):
     duplicate_import = client.post(f"{ROOT}/import", headers=admin, data={"batch_name": "重复导入批次"},
                                   files={"file": ("assets.csv", good, "text/csv")})
     assert duplicate_import.status_code == 400
-    assert client.get(f"{ROOT}/export?format=csv", headers=admin).status_code == 200
+    csv_response = client.get(f"{ROOT}/export?format=csv", headers=admin)
+    assert csv_response.status_code == 200
+    exported = list(csv.DictReader(io.StringIO(csv_response.content.decode("utf-8-sig"))))
+    assert all(row["所属批次"].startswith("有效导入批次 · 批次 #") for row in exported)
     assert client.get(f"{ROOT}/export?format=xlsx", headers=admin).status_code == 200
     assert client.get(f"{ROOT}/export?format=csv", headers=login(client, "pm")).status_code == 403
 

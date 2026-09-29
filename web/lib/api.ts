@@ -1788,10 +1788,13 @@ export interface EquipmentAsset {
   created_by: number | null; created_at: string; updated_at: string;
 }
 export interface EquipmentBatch {
-  id: number; source: string | null; supplier: string | null; purchase_order_no: string | null;
+  id: number; name: string; asset_count: number; source: string | null; supplier: string | null; purchase_order_no: string | null;
   invoice_no: string | null; acceptance_status: "pending_acceptance" | "accepted"; note: string | null;
   created_by: number | null; created_at: string; items?: EquipmentAsset[];
 }
+export type EquipmentBatchSelection =
+  | { batch_id: number }
+  | { batch_id?: undefined; name: string; source?: string; supplier?: string; purchase_order_no?: string; invoice_no?: string; acceptance_status?: "pending_acceptance" | "accepted"; note?: string };
 export interface EquipmentEvent {
   id: number; asset_id: number; batch_id: number | null; action: string; from_status: string | null;
   to_status: string | null; actor_id: number | null; holder_id: number | null; due_date: string | null;
@@ -1826,7 +1829,7 @@ export function equipmentAssetActions(asset: EquipmentAsset, isAdmin: boolean, c
 const EQUIPMENT_ASSETS = "/equipment-assets";
 /** 设备台账文件相关的后端字段（英文列名），与 api/routers/equipment_assets.py 的 FIELD_LABELS 对应 */
 export type EquipmentImportError = { row: number; message: string };
-export type EquipmentImportResult = { batch_id: number; created: number; ignored_columns?: Record<string, string[]> };
+export type EquipmentImportResult = { batch_id: number; batch_name: string; created: number; ignored_columns?: Record<string, string[]> };
 export const equipmentAssetsApi = {
   list: (params: EquipmentListParams = {}, signal?: AbortSignal) => apiGet<Paged<EquipmentAsset>>(`${EQUIPMENT_ASSETS}${buildQuery(params)}`, signal),
   overview: (signal?: AbortSignal) => apiGet<EquipmentOverview>(`${EQUIPMENT_ASSETS}/overview`, signal),
@@ -1842,15 +1845,24 @@ export const equipmentAssetsApi = {
   deleteCheck: (id: number, signal?: AbortSignal) => apiGet<EquipmentDeleteCheck>(`${EQUIPMENT_ASSETS}/${id}/delete-check`, signal),
   remove: (id: number, body: { confirm_code: string; reason: string }) => apiDeleteWithBody<{ ok: boolean; id: number; code: string }>(`${EQUIPMENT_ASSETS}/${id}`, body, "永久删除中"),
   events: (id: number, signal?: AbortSignal) => apiGet<Paged<EquipmentEvent>>(`${EQUIPMENT_ASSETS}/${id}/events${buildQuery({ page: 1, size: 100 })}`, signal),
-  batches: (page = 1, size = 20, signal?: AbortSignal) => apiGet<Paged<EquipmentBatch>>(`${EQUIPMENT_ASSETS}/batches${buildQuery({ page, size })}`, signal),
+  batches: (params: { keyword?: string; page?: number; size?: number } = {}, signal?: AbortSignal) => apiGet<Paged<EquipmentBatch>>(`${EQUIPMENT_ASSETS}/batches${buildQuery(params)}`, signal),
   batch: (id: number, signal?: AbortSignal) => apiGet<EquipmentBatch>(`${EQUIPMENT_ASSETS}/batches/${id}`, signal),
-  inbound: (body: { source?: string; supplier?: string; purchase_order_no?: string; invoice_no?: string; acceptance_status?: "pending_acceptance" | "accepted"; note?: string; items: EquipmentWrite[] }) => apiPost<EquipmentBatch>(`${EQUIPMENT_ASSETS}/inbound`, body),
+  renameBatch: (id: number, body: { name: string }) => apiPatch<EquipmentBatch>(`${EQUIPMENT_ASSETS}/batches/${id}`, body),
+  removeBatch: (id: number) => apiDelete<{ ok: boolean; id: number }>(`${EQUIPMENT_ASSETS}/batches/${id}`),
+  inbound: (body: EquipmentBatchSelection & { items: EquipmentWrite[] }) => apiPost<EquipmentBatch>(`${EQUIPMENT_ASSETS}/inbound`, body),
   acceptBatch: (id: number, body: { note?: string } = {}) => apiPost<EquipmentBatch>(`${EQUIPMENT_ASSETS}/batches/${id}/accept`, body),
   claim: (id: number, body: { note?: string } = {}) => apiPost<EquipmentAsset>(`${EQUIPMENT_ASSETS}/${id}/claim`, body),
   borrow: (id: number, body: { due_date?: string; note?: string } = {}) => apiPost<EquipmentAsset>(`${EQUIPMENT_ASSETS}/${id}/borrow`, body),
   return: (id: number, body: { note?: string } = {}) => apiPost<EquipmentAsset>(`${EQUIPMENT_ASSETS}/${id}/return`, body),
   transition: (id: number, action: "maintenance" | "restore" | "scrap" | "void", body: { note?: string } = {}) => apiPost<EquipmentAsset>(`${EQUIPMENT_ASSETS}/${id}/${action}`, body),
-  upload: (file: File) => { const form = new FormData(); form.append("file", file); return apiUpload<EquipmentImportResult>(`${EQUIPMENT_ASSETS}/import`, form); },
+  upload: (file: File, selection: EquipmentBatchSelection) => {
+    const form = new FormData();
+    form.append("file", file);
+    Object.entries(selection).forEach(([key, value]) => {
+      if (value !== undefined) form.append(key === "name" ? "batch_name" : key, String(value));
+    });
+    return apiUpload<EquipmentImportResult>(`${EQUIPMENT_ASSETS}/import`, form);
+  },
   /** 导入模板（中文表头 + 示例行），供用户下载后填写 */
   importTemplate: (format: "csv" | "xlsx") => downloadFile(`${EQUIPMENT_ASSETS}/import-template${buildQuery({ format })}`, `设备台账导入模板.${format}`),
   export: (format: "csv" | "xlsx") => downloadFile(`${EQUIPMENT_ASSETS}/export${buildQuery({ format })}`, `设备台账.${format}`),
