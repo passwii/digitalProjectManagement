@@ -5,6 +5,7 @@ import ArapPanel from "../app/(dashboard)/finance/ArapPanel";
 import { ArapSettlementDialog } from "../app/(dashboard)/finance/ArapDialogs";
 import { financeApi, type FinanceAccount, type FinanceARAPItem, type FinancePeriod } from "./api";
 import { selectOption } from "./testing/selectDriver";
+import { dateValue, setDate } from "./testing/dateDriver";
 
 const period: FinancePeriod = {
   id: 3,
@@ -67,7 +68,7 @@ function renderSettlement(items: FinanceARAPItem[] = settlementItems) {
     documents={items} accounts={[accounts[0], settlementAccount]} cashflows={[]}
     onClose={() => {}} onSaved={onSaved}
   />);
-  fireEvent.change(screen.getByLabelText("交易日期"), { target: { value: "2026-09-26" } });
+  setDate("交易日期", "2026-09-26");
   return { payment, onSaved, ...view };
 }
 
@@ -204,7 +205,7 @@ describe("往来指定单据核销", () => {
     fillPayment("60.00");
     fireEvent.click(screen.getByLabelText("指定单据"));
     fireEvent.change(screen.getByLabelText("本次核销额 · 记-0001"), { target: { value: "60.00" } });
-    fireEvent.change(screen.getByLabelText("交易日期"), { target: { value: "2026-09-01" } });
+    setDate("交易日期", "2026-09-01");
     expect(screen.getByLabelText("本次核销额 · 记-0001")).toHaveProperty("value", "");
     expect(screen.queryByText("记-0002")).toBeNull();
   });

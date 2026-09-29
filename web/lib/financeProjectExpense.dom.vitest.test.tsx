@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import ProjectExpensePanel from "../app/(dashboard)/finance/ProjectExpensePanel";
 import type { FinanceAccount, FinanceBook, FinancePeriod } from "./api";
 import { openSelect, selectOption, selectedText } from "./testing/selectDriver";
+import { dateValue, setDate } from "./testing/dateDriver";
 
 const book: FinanceBook = { id: 8, code: "BOOK-A", name: "研发账套", base_currency: "CNY", currencies: ["CNY"], status: "active" };
 const periods: FinancePeriod[] = [{ id: 3, year: 2026, month: 9, period: "2026-09", status: "open", start_date: "2026-09-01", end_date: "2026-09-30", version: 1 }];
@@ -28,10 +29,10 @@ describe("项目支出入账", () => {
 
     // 会计期间是自绘下拉，触发器上没有 value，只能读可见文案（period id=3 → 2026-09）
     expect(selectedText("会计期间")).toBe("2026-09");
-    const date = screen.getByLabelText("凭证日期") as HTMLInputElement;
-    expect(date.value).toBe("2026-09-12");
+    // 凭证日期是 DatePicker，值读触发器上的 data-value（展示文案是格式化过的中文）
+    expect(dateValue("凭证日期")).toBe("2026-09-12");
     expect(screen.queryByText(/凭证日期与原支出日期不一致/)).toBeNull();
-    fireEvent.change(date, { target: { value: "2026-09-13" } });
+    setDate("凭证日期", "2026-09-13");
     expect(screen.getByText(/凭证日期与原支出日期不一致.*会计判断确认/)).toBeTruthy();
   });
 
@@ -90,7 +91,7 @@ describe("项目支出入账", () => {
     const amount = screen.getByLabelText("来源金额") as HTMLInputElement;
     expect(amount.readOnly).toBe(true);
     expect(amount.value).toBe("1,234.50");
-    expect((screen.getByLabelText("凭证日期") as HTMLInputElement).value).toBe("2026-09-12");
+    expect(dateValue("凭证日期")).toBe("2026-09-12");
     expect((screen.getByLabelText("摘要") as HTMLInputElement).value).toBe("P-007 · 来源记录 #42 · 材料采购");
     // 借贷科目也是自绘下拉，选项文案为「编码 · 名称」
     selectOption("借方科目", "660201 · 项目费用");

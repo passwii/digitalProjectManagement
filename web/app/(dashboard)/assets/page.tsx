@@ -1,6 +1,7 @@
 "use client";
 
 import { Suspense, useCallback, useEffect, useState } from "react";
+import { DatePicker } from "@/components/ui/DatePicker";
 import PageHeader from "@/components/ui/PageHeader";
 import { CardItem, CardList, DesktopTable } from "@/components/ui/CardList";
 import { Dialog, Drawer } from "@/components/ui/Modal";
@@ -368,6 +369,9 @@ function InboundForm({ categories, busy, refreshKey, onSubmit }: { categories: E
   const [batchSearch, setBatchSearch] = useState("");
   const [selectedBatchId, setSelectedBatchId] = useState("");
   const [searchKeyword, setSearchKeyword] = useState("");
+  const [purchaseDates, setPurchaseDates] = useState<string[]>([]);
+  const setPurchaseDate = (index: number, value: string) =>
+    setPurchaseDates((previous) => Array.from({ length: index + 1 }, (_, current) => current === index ? value : previous[current] ?? ""));
   useEffect(() => {
     const timer = window.setTimeout(() => setSearchKeyword(batchSearch.trim()), 250);
     return () => window.clearTimeout(timer);
@@ -398,7 +402,7 @@ function InboundForm({ categories, busy, refreshKey, onSubmit }: { categories: E
       </>}
     </div>
     {mode === "new" && <div className="asset-form-grid"><label>来源<input name="source" placeholder="采购 / 调拨 / 捐赠" /></label><label>供应商<input name="supplier" /></label><label>采购单号<input name="purchase_order_no" /></label><label>发票号<input name="invoice_no" /></label><label>验收状态<Select aria-label="新批次验收状态" value={acceptance} onChange={(value) => setAcceptance(value as typeof acceptance)}><option value="accepted">已验收</option><option value="pending_acceptance">待验收</option></Select></label><label className="wide">批次备注<input name="note" /></label></div>}
-    {Array.from({ length: count }, (_, i) => <fieldset key={i} className="asset-item-form"><legend>设备 {i + 1}</legend><div className="asset-form-grid"><label>名称<input name={`name-${i}`} required /></label><label>分类<Select key={categories[0]?.code ?? ""} surface="console" name={`category-${i}`} required defaultValue={categories[0]?.code ?? ""}>{categories.map((c) => <option key={c.code} value={c.code}>{c.label}</option>)}</Select></label><label>序列号<input name={`serial-${i}`} /></label><label>品牌<input name={`brand-${i}`} /></label><label>型号<input name={`model-${i}`} /></label><label>存放位置<input name={`location-${i}`} /></label><label>购置日期<input type="date" name={`purchase_date-${i}`} /></label><label>购置金额<input type="number" step="0.01" min="0" name={`purchase_price-${i}`} /></label></div></fieldset>)}
+    {Array.from({ length: count }, (_, i) => <fieldset key={i} className="asset-item-form"><legend>设备 {i + 1}</legend><div className="asset-form-grid"><label>名称<input name={`name-${i}`} required /></label><label>分类<Select key={categories[0]?.code ?? ""} surface="console" name={`category-${i}`} required defaultValue={categories[0]?.code ?? ""}>{categories.map((c) => <option key={c.code} value={c.code}>{c.label}</option>)}</Select></label><label>序列号<input name={`serial-${i}`} /></label><label>品牌<input name={`brand-${i}`} /></label><label>型号<input name={`model-${i}`} /></label><label>存放位置<input name={`location-${i}`} /></label><label>购置日期<DatePicker name={`purchase_date-${i}`} value={purchaseDates[i] ?? ""} onChange={(value) => setPurchaseDate(i, value)} ariaLabel={`设备 ${i + 1} 购置日期`} quick={false} /></label><label>购置金额<input type="number" step="0.01" min="0" name={`purchase_price-${i}`} /></label></div></fieldset>)}
     <button className="btn-primary" disabled={busy || (mode === "new" ? !batchName.trim() : !selectedBatchId)}>{busy ? "提交中…" : `登记 ${count} 件设备`}</button>
   </form>;
 }
@@ -530,7 +534,7 @@ function AssetDetail({ asset, categories, batch, events, deleteCheck, userName, 
       {(canClaim || canBorrow || canReturn) && <section className="asset-detail-section">
         <div className="asset-section-heading"><div><h3>领用与借用</h3><p>领用或借用后，设备将记录当前使用人</p></div></div>
         <div className="asset-detail-actions">
-          {(canClaim || canBorrow) && <label>借用到期日<input type="date" value={due} onChange={(event) => setDue(event.target.value)} /></label>}
+          {(canClaim || canBorrow) && <label>借用到期日<DatePicker value={due} onChange={(v) => setDue(v)} ariaLabel="借用到期日" quick={false} /></label>}
           {canClaim && <button type="button" disabled={busy} className="btn-primary" onClick={() => onAction("claim", { note })}>领用</button>}
           {canBorrow && <button type="button" disabled={busy || !due} className="btn-ghost" onClick={() => onAction("borrow", { due_date: due, note })}>借用</button>}
           {canReturn && <button type="button" disabled={busy} className="btn-primary" onClick={() => onAction("return", { note })}>登记归还</button>}

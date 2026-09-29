@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { DatePicker } from "@/components/ui/DatePicker";
 import { Dialog } from "@/components/ui/Modal";
 import Select from "@/components/ui/Select";
 import { financeApi, errText, type FinanceAccount, type FinanceARAPStatement, type FinanceAuxiliaryItem } from "@/lib/api";
@@ -156,11 +157,11 @@ export default function ArapStatementDialog({
         </label>
         <label className="field">
           <span className="field-label">开始日期</span>
-          <input type="date" value={fromDate} onChange={(event) => changeDate(setFromDate, event.target.value)} />
+          <DatePicker value={fromDate} onChange={(v) => changeDate(setFromDate, v)} ariaLabel="开始日期" />
         </label>
         <label className="field">
           <span className="field-label">结束日期</span>
-          <input type="date" value={toDate} onChange={(event) => changeDate(setToDate, event.target.value)} />
+          <DatePicker value={toDate} onChange={(v) => changeDate(setToDate, v)} ariaLabel="结束日期" />
         </label>
       </div>
 

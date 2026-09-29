@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { DatePicker } from "@/components/ui/DatePicker";
 import Empty from "@/components/ui/Empty";
 import { CardItem, CardList, DesktopTable } from "@/components/ui/CardList";
 import { LoadFailed, LoadingBlock } from "@/components/ui/PageState";
@@ -319,7 +320,7 @@ export default function ArapPanel({
             <div><h2>{viewLabel}账龄</h2><p>按已过账工作台关联凭证日期统计；暂不含普通凭证和期初辅助余额。不等同于合同逾期天数，也不直接用于计提坏账准备。</p></div>
             <label className="toolbar-field">
               <span>截止日期</span>
-              <input type="date" value={asOf} onChange={(event) => { if (event.target.value) setAsOf(event.target.value); }} />
+              <DatePicker size="toolbar" value={asOf} onChange={(v) => { if (v) setAsOf(v); }} ariaLabel="截止日期" quick={false} />
             </label>
           </div>
           {aging.loading ? <LoadingBlock title={false} kpis={4} label={`计算${viewLabel}账龄…`} /> : aging.data && (

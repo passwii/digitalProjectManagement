@@ -434,6 +434,8 @@ function Trigger({
         aria-haspopup="dialog"
         aria-expanded={open}
         aria-label={ariaLabel}
+        // ISO 原值：展示文案是格式化过的中文，测试与 e2e 需要的是可断言的原值
+        data-value={submittedValue}
         title={label === placeholder ? undefined : label}
       >
         <span className={`${st.triggerText}${label === placeholder ? ` ${st.placeholder}` : ""}`}>

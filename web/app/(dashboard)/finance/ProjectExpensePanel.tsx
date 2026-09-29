@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { DatePicker } from "@/components/ui/DatePicker";
 import { Dialog } from "@/components/ui/Modal";
 import Empty from "@/components/ui/Empty";
 import { LoadingBlock, LoadFailed } from "@/components/ui/PageState";
@@ -145,7 +146,7 @@ function ConversionDialog({ expense, book, periods, accounts, onClose, onSaved }
       <div className="field span-2"><span className="field-label">支出说明</span><span>{expense.note || "-"}</span></div>
       <label className="field"><span className="field-label">来源金额</span><input value={money(expense.amount)} readOnly /></label>
       <label className="field"><span className="field-label">会计期间</span><Select value={periodId} onChange={(value) => { const next = openPeriods.find((item) => String(item.id) === value); setPeriodId(value); setDate(next && sourceDateInPeriod(expense, next) ? expense.exp_date ?? "" : ""); }}><option value="">请选择开放期间</option>{openPeriods.map((item) => <option key={item.id} value={item.id}>{item.period}</option>)}</Select></label>
-      <label className="field"><span className="field-label">凭证日期</span><input type="date" min={period?.start_date} max={period?.end_date} value={date} onChange={(event) => setDate(event.target.value)} /></label>
+      <label className="field"><span className="field-label">凭证日期</span><DatePicker value={date} onChange={setDate} ariaLabel="凭证日期" min={period?.start_date} max={period?.end_date} /></label>
       {date && expense.exp_date && date !== expense.exp_date && <p className="tiny muted span-2" role="status">凭证日期与原支出日期不一致，请按会计判断确认。</p>}
       <label className="field span-2"><span className="field-label">摘要</span><input value={summary} maxLength={255} onChange={(event) => setSummary(event.target.value)} /></label>
       {(["debit", "credit"] as const).map((side) => <div className="span-2 form-grid" key={side}>
@@ -210,8 +211,8 @@ export default function ProjectExpensePanel({ book, periods, accounts, onVoucher
       <div className="row-actions"><span className="tiny muted">项目 {projectPage}/{projectTotalPages} 页</span><button className="btn-ghost" disabled={projectPage <= 1 || projects.loading} onClick={() => setProjectPage((current) => current - 1)}>上一页项目</button><button className="btn-ghost" disabled={projectPage >= projectTotalPages || projects.loading} onClick={() => setProjectPage((current) => current + 1)}>下一页项目</button></div>
       {projects.error && <LoadFailed message={projects.error} onRetry={projects.reload} />}
       <label className="toolbar-field"><span>审批状态</span><Select value={status} onChange={(value) => { setStatus(value); setPage(1); }}><option value="">全部状态</option><option value="approved">已审批</option><option value="exception">异常审批</option></Select></label>
-      <label className="toolbar-field"><span>开始日期</span><input type="date" value={dateFrom} max={dateTo || undefined} onChange={(event) => { setDateFrom(event.target.value); setPage(1); }} /></label>
-      <label className="toolbar-field"><span>结束日期</span><input type="date" value={dateTo} min={dateFrom || undefined} onChange={(event) => { setDateTo(event.target.value); setPage(1); }} /></label>
+      <label className="toolbar-field"><span>开始日期</span><DatePicker size="toolbar" value={dateFrom} max={dateTo || undefined} onChange={(v) => { setDateFrom(v); setPage(1); }} ariaLabel="开始日期" quick={false} /></label>
+      <label className="toolbar-field"><span>结束日期</span><DatePicker size="toolbar" value={dateTo} min={dateFrom || undefined} onChange={(v) => { setDateTo(v); setPage(1); }} ariaLabel="结束日期" quick={false} /></label>
     </div>
     {expenses.firstLoad ? <LoadingBlock kpis={0} label="加载项目支出…" /> : expenses.error ? <LoadFailed message={expenses.error} onRetry={expenses.reload} /> : !expenses.data?.items.length ? <div className="card"><Empty title="没有匹配的项目支出" hint="调整项目、状态或日期筛选条件。" /></div> : <>
       <div className="table-scroll"><table className="grid"><thead><tr><th>项目</th><th>支出</th><th>日期</th><th className="num">来源金额</th><th>审批状态</th><th>关联凭证</th><th>操作</th></tr></thead><tbody>{expenses.data.items.map((item) => <tr key={item.id}><td>{item.project.name}<span className="tiny muted"> · {item.project.code}</span></td><td>{item.subject}<span className="tiny muted"> · 来源记录 #{item.id}{item.note ? ` · ${item.note}` : ""}</span></td><td>{item.exp_date || "-"}</td><td className="num">{money(item.amount)}</td><td>{item.status === "approved" ? "已审批" : "异常审批"}</td><td>{voucherSummary(item.source_voucher_summary)}</td><td><button className="btn-xs btn-primary" disabled={!!item.source_voucher_summary || !openPeriods} title={!openPeriods ? "需要开放会计期间" : item.source_voucher_summary ? "此支出已经转换" : undefined} onClick={() => setSelected(item)}>生成凭证</button></td></tr>)}</tbody></table></div>

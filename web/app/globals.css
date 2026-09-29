@@ -285,34 +285,11 @@ textarea {
  padding: 8px 10px;
  resize: vertical;
 }
-input[type="date"],
-input[type="month"],
-input[type="datetime-local"] {
- appearance: none;
- -webkit-appearance: none;
- padding-right: 38px;
- font-family: var(--font-mono);
- letter-spacing: 0.01em;
-}
-input[type="date"]::-webkit-calendar-picker-indicator,
-input[type="month"]::-webkit-calendar-picker-indicator,
-input[type="datetime-local"]::-webkit-calendar-picker-indicator {
- width: 18px;
- height: 18px;
- margin: 0 2px 0 0;
- opacity: 0.58;
- cursor: pointer;
-}
-input[type="date"]::-webkit-datetime-edit,
-input[type="month"]::-webkit-datetime-edit,
-input[type="datetime-local"]::-webkit-datetime-edit {
- padding: 0;
-}
-input[type="date"]::-webkit-inner-spin-button,
-input[type="month"]::-webkit-inner-spin-button,
-input[type="datetime-local"]::-webkit-inner-spin-button {
- display: none;
-}
+/*
+ * 原生 date / month / datetime-local 的样式规则已随 DatePicker 迁移一并删除
+ * （2026-09-29，31 处调用点全部换成 DatePicker / MonthPicker）。
+ * 触发器是 button，这些 WebKit 伪元素规则本来也只对 input 生效。
+ */
 input[type="checkbox"] {
  width: 16px;
  height: 16px;

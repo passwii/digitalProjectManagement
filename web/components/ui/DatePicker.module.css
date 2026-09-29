@@ -37,7 +37,9 @@
   /* 日期/编号在设计规范里统一用等宽字体 */
   font-family: var(--font-mono);
 }
-.triggerToolbar { height: 32px; font-size: 13px; }
+/* 120px 对齐 globals.css 的 `.toolbar-field input { min-width: 120px }`，
+   工具栏里日期控件不能比旁边的输入框/下拉更窄。 */
+.triggerToolbar { height: 32px; font-size: 13px; min-width: 120px; }
 .trigger:hover:not(:disabled) { border-color: var(--brand); }
 .trigger:disabled {
   background: var(--th-bg);

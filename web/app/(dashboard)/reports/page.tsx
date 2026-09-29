@@ -1,6 +1,7 @@
 "use client";
 
 import { Suspense, useMemo, useState } from "react";
+import { MonthPicker } from "@/components/ui/DatePicker";
 import {
   buildQuery, errText, reportsApi,
   type CostRow, type Warnings,
@@ -168,7 +169,7 @@ function ReportsInner() {
               <option value="">全部</option>
               {peopleOptions.map((s) => <option key={s} value={s}>{s}</option>)}
             </Select>
-            <input type="month" value={url.month} onChange={(e) => setUrl({ month: e.target.value })} aria-label="按月份筛选" />
+            <MonthPicker size="toolbar" value={url.month} onChange={(v) => setUrl({ month: v })} ariaLabel="按月份筛选" />
             {hasFilter && (
               <button
                 type="button"

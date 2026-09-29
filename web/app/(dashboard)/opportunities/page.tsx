@@ -1,6 +1,7 @@
 "use client";
 
 import { Suspense, useEffect, useMemo, useState } from "react";
+import { DatePicker } from "@/components/ui/DatePicker";
 import { errText, opportunitiesApi, type Opportunity } from "@/lib/api";
 import { useAsyncData } from "@/lib/useAsyncData";
 import { urlInt, useUrlState, useUrlText } from "@/lib/useUrlState";
@@ -346,7 +347,7 @@ function OpportunityDrawer({
         <label><span>负责人</span><input value={draft.owner_name} onChange={(e) => setField("owner_name", e.target.value)} /></label>
         <label><span>预计金额（元）</span><input type="number" min="0" step="0.01" value={draft.budget_total} onChange={(e) => setField("budget_total", e.target.value)} /></label>
         <label><span>商机阶段</span><Select value={draft.stage} onChange={(value) => setField("stage", value)}>{Object.entries(STAGES).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</Select></label>
-        <label><span>预计签约日期</span><input type="date" value={draft.expected_close} onChange={(e) => setField("expected_close", e.target.value)} /></label>
+        <label><span>预计签约日期</span><DatePicker value={draft.expected_close} onChange={(v) => setField("expected_close", v)} ariaLabel="预计签约日期" /></label>
         <label className="full"><span>备注</span><textarea rows={5} value={draft.description} onChange={(e) => setField("description", e.target.value)} /></label>
       </div>
     </Drawer>
