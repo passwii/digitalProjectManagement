@@ -138,7 +138,6 @@ function AssetsInner() {
         reloadOverdue();
       }}
     />}
-    <p className="asset-intro">公司设备台账、入库和领用借用记录。</p>
     {loadError && <LoadFailed message={loadError} onRetry={reload} />}{error && <div className="asset-error" role="alert">{error}</div>}{toast && <div className="asset-toast" role="status">{toast}</div>}
     <MotionTabs items={visibleSections} active={section} onChange={setSection} panelOffset={0}>
     {loading && !data ? <LoadingBlock label="正在读取设备资产…" /> : data && <>
