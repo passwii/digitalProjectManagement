@@ -1,8 +1,9 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import ProjectExpensePanel from "../app/(dashboard)/finance/ProjectExpensePanel";
 import type { FinanceAccount, FinanceBook, FinancePeriod } from "./api";
+import { openSelect, selectOption, selectedText } from "./testing/selectDriver";
 
 const book: FinanceBook = { id: 8, code: "BOOK-A", name: "研发账套", base_currency: "CNY", currencies: ["CNY"], status: "active" };
 const periods: FinancePeriod[] = [{ id: 3, year: 2026, month: 9, period: "2026-09", status: "open", start_date: "2026-09-01", end_date: "2026-09-30", version: 1 }];
@@ -25,7 +26,8 @@ describe("项目支出入账", () => {
     render(<ProjectExpensePanel book={book} periods={[august, ...periods]} accounts={accounts} onVoucherCreated={() => {}} />);
     fireEvent.click(await screen.findByRole("button", { name: "生成凭证" }));
 
-    expect((screen.getByLabelText("会计期间") as HTMLSelectElement).value).toBe("3");
+    // 会计期间是自绘下拉，触发器上没有 value，只能读可见文案（period id=3 → 2026-09）
+    expect(selectedText("会计期间")).toBe("2026-09");
     const date = screen.getByLabelText("凭证日期") as HTMLInputElement;
     expect(date.value).toBe("2026-09-12");
     expect(screen.queryByText(/凭证日期与原支出日期不一致/)).toBeNull();
@@ -54,8 +56,9 @@ describe("项目支出入账", () => {
     fireEvent.change(screen.getByLabelText("搜索项目"), { target: { value: "火星" } });
     await waitFor(() => expect(seen.some((url) => url.pathname.endsWith("/projects/options") && url.searchParams.get("keyword") === "火星" && url.searchParams.get("page") === "1")).toBe(true));
     fireEvent.click(screen.getByRole("button", { name: "下一页项目" }));
-    expect(await screen.findByRole("option", { name: /火星第 21 项目/ })).toBeTruthy();
-    fireEvent.change(screen.getByLabelText("项目"), { target: { value: "21" } });
+    // 翻到第 2 页后，第 21 项才异步出现在「项目」下拉的选项里
+    const projectListbox = openSelect("项目");
+    fireEvent.click(await within(projectListbox).findByRole("option", { name: /火星第 21 项目/ }));
     await waitFor(() => expect(seen.some((url) => url.pathname.endsWith("/finance/project-expenses") && url.searchParams.get("project_id") === "21")).toBe(true));
   });
 
@@ -89,8 +92,9 @@ describe("项目支出入账", () => {
     expect(amount.value).toBe("1,234.50");
     expect((screen.getByLabelText("凭证日期") as HTMLInputElement).value).toBe("2026-09-12");
     expect((screen.getByLabelText("摘要") as HTMLInputElement).value).toBe("P-007 · 来源记录 #42 · 材料采购");
-    fireEvent.change(screen.getByLabelText("借方科目"), { target: { value: "10" } });
-    fireEvent.change(screen.getByLabelText("贷方科目"), { target: { value: "11" } });
+    // 借贷科目也是自绘下拉，选项文案为「编码 · 名称」
+    selectOption("借方科目", "660201 · 项目费用");
+    selectOption("贷方科目", "100201 · 银行存款");
     const confirm = screen.getByRole("button", { name: "确认生成草稿凭证" }) as HTMLButtonElement;
     await waitFor(() => expect(confirm.disabled).toBe(false));
     fireEvent.click(confirm);
