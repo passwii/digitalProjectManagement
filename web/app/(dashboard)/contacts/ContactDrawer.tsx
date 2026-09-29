@@ -515,7 +515,6 @@ export default function ContactDrawer({
               <div className="form-section-head">
                 <div>
                   <h3>任职与合同</h3>
-                  <p>记录用工关系、直属上级和合同有效期。</p>
                 </div>
               </div>
               <div className="form-grid">
@@ -581,7 +580,6 @@ export default function ContactDrawer({
               <div className="form-section-head">
                 <div>
                   <h3>教育经历</h3>
-                  <p>最高学历、院校与专业信息。</p>
                 </div>
               </div>
               <div className="form-grid">
@@ -607,7 +605,6 @@ export default function ContactDrawer({
               <div className="form-section-head">
                 <div>
                   <h3>紧急联系人</h3>
-                  <p>用于紧急情况下的联系信息。</p>
                 </div>
               </div>
               <div className="form-grid">

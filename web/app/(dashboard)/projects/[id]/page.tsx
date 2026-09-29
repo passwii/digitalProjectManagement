@@ -500,7 +500,6 @@ function ProjectDetail({ pid }: { pid: number }) {
           <div className="doc-toolbar">
             <div>
               <strong>项目文档</strong>
-              <span className="tiny">项目背景、目标、会议结论与下一步安排</span>
             </div>
             <div className="doc-actions">
               <span className={`save-state ${saveState}`} role="status">
@@ -520,7 +519,7 @@ function ProjectDetail({ pid }: { pid: number }) {
             <div className="section-head">
               <div>
                 <h2>附件资料</h2>
-                <p>支持 PDF / Word / Excel，单个文件不超过 {MAX_ATTACHMENT_SIZE_LABEL}；PDF 与图片可在窗口内直接预览。</p>
+                <p>单个文件不超过 {MAX_ATTACHMENT_SIZE_LABEL}。</p>
               </div>
               <FileDropZone
                 variant="button"
@@ -559,7 +558,6 @@ function ProjectDetail({ pid }: { pid: number }) {
             <div className="section-head">
               <div>
                 <h2>图片素材</h2>
-                <p>现场照片与截图，点击缩略图放大查看。</p>
               </div>
               <FileDropZone
                 variant="button"

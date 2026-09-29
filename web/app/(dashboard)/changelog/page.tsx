@@ -90,8 +90,6 @@ export default function ChangelogPage() {
       <header className={s.hero}>
         <div>
           <h1>功能更新</h1>
-          <p className={s.lede}>记录每一次重要能力的上线与迭代。</p>
-          <p className={s.sublede}>从项目管理基本盘，到财务与移动协同，持续推进。</p>
         </div>
         <div className={s.currentMark} aria-label="V2 当前版本">
           <span>当前版本</span>

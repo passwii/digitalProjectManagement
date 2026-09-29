@@ -502,7 +502,6 @@ export default function PartnerDrawer({
               <div className="form-section-head">
                 <div>
                   <h3>业绩合同{contracts.length > 0 && `（${contracts.length}）`}</h3>
-                  <p>对方做过的项目与合同金额，行内增删改。</p>
                 </div>
               </div>
               {!partner ? (

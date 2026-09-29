@@ -257,7 +257,7 @@ export default function ArapPanel({
       <div className="section-head">
         <div>
           <h2>往来台账</h2>
-          <p>按当前账套查看所有期间的应收应付；收付款可按凭证日期先进先出，或指定同主体、同科目的单据核销。</p>
+          <p>收付款支持按凭证日期先进先出，或指定同主体、同科目的单据核销。</p>
         </div>
         <div className="row-actions">
           <button className="btn-ghost" onClick={reload}>刷新</button>
@@ -337,7 +337,7 @@ export default function ArapPanel({
       <div className="section-head">
         <div>
           <h2>{viewLabel}明细</h2>
-          <p>此列表包含草稿和待审核单据，供业务跟踪；账龄和对账单只统计本工作台登记并已过账的往来单据与收付款核销，暂不含普通手工、模板、导入凭证及期初辅助余额。收付款可按日期先进先出或指定符合条件的单据占用待核销额。</p>
+          <p>列表含草稿和待审核单据；账龄与对账单只统计本工作台已过账的往来单据及核销，不含普通手工、模板、导入凭证和期初辅助余额。</p>
         </div>
         <label className="toolbar-field">
           <span>搜索主体、科目或摘要</span>
