@@ -10,38 +10,54 @@
   }
   .mobileActions > button { width: 100%; }
   .moreActions {
+    position: relative;
     min-width: 0;
     border: 1px solid var(--line);
     background: var(--th-bg);
   }
-  .moreActions summary {
+  .menuTrigger {
     display: flex;
     align-items: center;
     justify-content: space-between;
+    width: 100%;
     min-height: var(--m-tap);
     padding: 0 14px;
+    border: 0;
+    background: transparent;
     color: var(--ink);
     font-size: 13px;
     font-weight: 600;
+    text-align: left;
     cursor: pointer;
-    list-style: none;
+    touch-action: manipulation;
   }
-  .moreActions summary::-webkit-details-marker { display: none; }
-  .moreActions summary::after {
+  .menuTrigger:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+  .menuChevron {
     width: 7px;
     height: 7px;
+    margin: -3px 2px 0 10px;
     border-right: 1px solid currentColor;
     border-bottom: 1px solid currentColor;
     transform: rotate(45deg);
-    content: "";
+    transition: transform 120ms ease;
   }
-  .moreActions[open] summary::after { transform: rotate(225deg); }
-  .moreActions summary:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+  .menuTrigger[aria-expanded="true"] .menuChevron { margin-top: 4px; transform: rotate(225deg); }
   .moreBody {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    position: fixed;
+    z-index: 50;
+    display: flex;
+    flex-direction: column;
+    max-width: calc(100vw - 16px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
     gap: 8px;
-    padding: 0 8px 8px;
+    padding: 8px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--th-bg);
+    box-shadow: 0 10px 28px rgb(0 0 0 / 16%);
   }
   .moreBody button { min-width: 0; width: 100%; }
+  .moreBody button:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
 }

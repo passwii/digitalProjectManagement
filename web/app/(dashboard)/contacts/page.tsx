@@ -15,6 +15,7 @@ import Empty from "@/components/ui/Empty";
 import Pagination from "@/components/ui/Pagination";
 import { LoadingBlock, LoadFailed } from "@/components/ui/PageState";
 import PageHeader from "@/components/ui/PageHeader";
+import Select from "@/components/ui/Select";
 import { CardItem, CardList, DesktopTable } from "@/components/ui/CardList";
 import ContactDrawer from "./ContactDrawer";
 
@@ -110,20 +111,20 @@ function ContactsInner() {
               placeholder="搜索姓名 / 联系电话 / 工号 / 岗位…"
               aria-label="搜索通讯录"
             />
-            <select value={url.dept} onChange={(e) => setUrl({ dept: e.target.value })} aria-label="按部门筛选">
+            <Select value={url.dept} onChange={(value) => setUrl({ dept: value })} aria-label="按部门筛选">
               <option value="">全部部门</option>
               {depts.map((dept) => <option key={dept.id} value={dept.id}>{dept.name}</option>)}
-            </select>
-            <select
+            </Select>
+            <Select
               value={url.employment_status}
-              onChange={(e) => setUrl({ employment_status: e.target.value })}
+              onChange={(value) => setUrl({ employment_status: value })}
               aria-label="按任职状态筛选"
             >
               <option value="">全部任职状态</option>
               {Object.entries(EMPLOYMENT_STATUS).map(([value, label]) => (
                 <option key={value} value={value}>{label}</option>
               ))}
-            </select>
+            </Select>
             {hasFilter && (
               <button
                 type="button"

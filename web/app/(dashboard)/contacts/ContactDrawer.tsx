@@ -21,6 +21,7 @@ import { useForm } from "@/lib/useForm";
 import { ATTACHMENT_HINT, CONTACT_ATTACHMENT_EXTENSIONS } from "@/lib/uploadLimits";
 import { Confirm, Drawer } from "@/components/ui/Modal";
 import Field from "@/components/ui/Field";
+import Select from "@/components/ui/Select";
 import FileDropZone from "@/components/ui/FileDropZone";
 import { useToast } from "@/components/ui/Toast";
 import { useUploadQueue } from "@/lib/useUploadQueue";
@@ -436,9 +437,9 @@ export default function ContactDrawer({
                   label="关联登录账号"
                   hint={contact?.user_id ? `已关联：${contact.username}` : "无账号人员可不选择"}
                 >
-                  <select
+                  <Select
                     value={form.values.user_id}
-                    onChange={(e) => form.set("user_id", e.target.value)}
+                    onChange={(value) => form.set("user_id", value)}
                   >
                     <option value="">不关联账号</option>
                     {users.map((account) => (
@@ -446,7 +447,7 @@ export default function ContactDrawer({
                         {account.real_name || account.username} · {account.username}
                       </option>
                     ))}
-                  </select>
+                  </Select>
                 </Field>
                 <Field label="姓名" required error={form.errors.real_name}>
                   <input
@@ -463,10 +464,10 @@ export default function ContactDrawer({
                   />
                 </Field>
                 <Field label="所属部门">
-                  <select value={form.values.dept_id} onChange={(e) => form.set("dept_id", e.target.value)}>
+                  <Select value={form.values.dept_id} onChange={(value) => form.set("dept_id", value)}>
                     <option value="">未设置</option>
                     {depts.map((dept) => <option key={dept.id} value={dept.id}>{dept.name}</option>)}
-                  </select>
+                  </Select>
                 </Field>
                 <Field label="工号" error={form.errors.employee_no}>
                   <input
@@ -476,12 +477,12 @@ export default function ContactDrawer({
                   />
                 </Field>
                 <Field label="性别">
-                  <select value={form.values.gender} onChange={(e) => form.set("gender", e.target.value)}>
+                  <Select value={form.values.gender} onChange={(value) => form.set("gender", value)}>
                     <option value="">未填写</option>
                     <option value="男">男</option>
                     <option value="女">女</option>
                     <option value="未填写">其他/不便说明</option>
-                  </select>
+                  </Select>
                 </Field>
                 <Field label="出生日期">
                   <input type="date" value={form.values.birth_date} onChange={(e) => form.set("birth_date", e.target.value)} />
@@ -521,22 +522,22 @@ export default function ContactDrawer({
                   <input value={form.values.position} onChange={(e) => form.set("position", e.target.value)} />
                 </Field>
                 <Field label="直属上级">
-                  <select value={form.values.manager_id} onChange={(e) => form.set("manager_id", e.target.value)}>
+                  <Select value={form.values.manager_id} onChange={(value) => form.set("manager_id", value)}>
                     <option value="">未设置</option>
                     {managerChoices.map((item) => (
                       <option key={item.id} value={item.id}>{item.name}</option>
                     ))}
-                  </select>
+                  </Select>
                 </Field>
                 <Field label="用工类型">
-                  <select value={form.values.employment_type} onChange={(e) => form.set("employment_type", e.target.value)}>
+                  <Select value={form.values.employment_type} onChange={(value) => form.set("employment_type", value)}>
                     {EMPLOYMENT_TYPES.map((value) => <option key={value} value={value}>{value}</option>)}
-                  </select>
+                  </Select>
                 </Field>
                 <Field label="任职状态">
-                  <select value={form.values.employment_status} onChange={(e) => form.set("employment_status", e.target.value)}>
+                  <Select value={form.values.employment_status} onChange={(value) => form.set("employment_status", value)}>
                     {EMPLOYMENT_STATUS.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
-                  </select>
+                  </Select>
                 </Field>
                 <Field label="入职日期">
                   <input type="date" value={form.values.hire_date} onChange={(e) => form.set("hire_date", e.target.value)} />
@@ -561,10 +562,10 @@ export default function ContactDrawer({
                   <input value={form.values.work_location} onChange={(e) => form.set("work_location", e.target.value)} />
                 </Field>
                 <Field label="合同类型">
-                  <select value={form.values.contract_type} onChange={(e) => form.set("contract_type", e.target.value)}>
+                  <Select value={form.values.contract_type} onChange={(value) => form.set("contract_type", value)}>
                     <option value="">未填写</option>
                     {CONTRACT_TYPES.map((value) => <option key={value} value={value}>{value}</option>)}
-                  </select>
+                  </Select>
                 </Field>
                 <Field label="合同开始">
                   <input type="date" value={form.values.contract_start} onChange={(e) => form.set("contract_start", e.target.value)} />
@@ -633,16 +634,17 @@ export default function ContactDrawer({
               ) : (
                 <>
                   <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 12, flexWrap: "wrap" }}>
-                    <select
-                      value={category}
-                      onChange={(e) => setCategory(e.target.value as ContactAttachmentCategory)}
-                      style={{ width: 170 }}
-                      aria-label="附件分类"
-                    >
-                      {Object.entries(CATEGORY_LABELS).map(([value, label]) => (
-                        <option key={value} value={value}>{label}</option>
-                      ))}
-                    </select>
+                    <span style={{ width: 170 }}>
+                      <Select
+                        value={category}
+                        onChange={(value) => setCategory(value as ContactAttachmentCategory)}
+                        aria-label="附件分类"
+                      >
+                        {Object.entries(CATEGORY_LABELS).map(([value, label]) => (
+                          <option key={value} value={value}>{label}</option>
+                        ))}
+                      </Select>
+                    </span>
                     <FileDropZone
                       variant="button"
                       extensions={CONTACT_ATTACHMENT_EXTENSIONS}

@@ -13,6 +13,7 @@ import Empty from "@/components/ui/Empty";
 import Pagination from "@/components/ui/Pagination";
 import ProjectPicker from "@/components/ui/ProjectPicker";
 import PageHeader from "@/components/ui/PageHeader";
+import Select from "@/components/ui/Select";
 import { CardItem, CardList, DesktopTable } from "@/components/ui/CardList";
 import { LoadingBlock, LoadFailed } from "@/components/ui/PageState";
 import ProgressBar from "@/components/ui/ProgressBar";
@@ -159,14 +160,14 @@ function ReportsInner() {
               ariaLabel="按项目筛选报表"
               className="picker-grow filter-span-2 reports-project-filter"
             />
-            <select value={url.dept} onChange={(e) => setUrl({ dept: e.target.value })} aria-label="按部门筛选">
+            <Select value={url.dept} onChange={(value) => setUrl({ dept: value })} aria-label="按部门筛选">
               <option value="">全部</option>
               {depts.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
-            </select>
-            <select value={url.subject} onChange={(e) => setUrl({ subject: e.target.value })} aria-label="按人员筛选">
+            </Select>
+            <Select value={url.subject} onChange={(value) => setUrl({ subject: value })} aria-label="按人员筛选">
               <option value="">全部</option>
               {peopleOptions.map((s) => <option key={s} value={s}>{s}</option>)}
-            </select>
+            </Select>
             <input type="month" value={url.month} onChange={(e) => setUrl({ month: e.target.value })} aria-label="按月份筛选" />
             {hasFilter && (
               <button

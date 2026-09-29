@@ -6,6 +6,7 @@ import { useMeta } from "@/lib/useMeta";
 import { useForm } from "@/lib/useForm";
 import { Dialog } from "@/components/ui/Modal";
 import Field from "@/components/ui/Field";
+import Select from "@/components/ui/Select";
 
 interface Values {
   username: string;
@@ -139,10 +140,10 @@ export default function UserDialog({
           <input value={form.values.real_name} onChange={(e) => form.set("real_name", e.target.value)} placeholder="显示名称" />
         </Field>
         <Field label="所属部门">
-          <select value={form.values.dept_id} onChange={(e) => form.set("dept_id", e.target.value)}>
+          <Select value={form.values.dept_id} onChange={(value) => form.set("dept_id", value)}>
             <option value="">未设置</option>
             {depts.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
-          </select>
+          </Select>
         </Field>
         <Field label={isEdit ? "重置密码" : "初始密码"} error={form.errors.password} hint={isEdit ? "重置后用户下次登录必须改密" : "用户首次登录必须修改密码"}>
           <input

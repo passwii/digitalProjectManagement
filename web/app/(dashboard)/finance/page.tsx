@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useMemo, useState } from "react";
+import { Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import {
   errText,
   financeApi,
@@ -18,6 +18,7 @@ import PageHeader from "@/components/ui/PageHeader";
 import { CardItem, CardList, DesktopTable } from "@/components/ui/CardList";
 import MotionTabs from "@/components/motion/MotionTabs";
 import { Confirm, Dialog } from "@/components/ui/Modal";
+import Select from "@/components/ui/Select";
 import { useToast } from "@/components/ui/Toast";
 import ArapPanel from "./ArapPanel";
 import ProjectExpensePanel from "./ProjectExpensePanel";
@@ -27,6 +28,7 @@ import fm from "./finance.module.css";
 
 const TABS = ["账套概览", "基础设置", "凭证", "项目支出入账", "应收应付", "出纳与对账", "固定资产", "账簿与报表", "期末结账"] as const;
 type Tab = (typeof TABS)[number];
+type MenuPosition = { top: number; left: number; width: number; maxHeight: number };
 
 function money(value: string | number) {
   return Number(value || 0).toLocaleString("zh-CN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -43,6 +45,68 @@ function FinanceInner() {
   const [recycleBinOpen, setRecycleBinOpen] = useState(false);
   const [deleteBookOpen, setDeleteBookOpen] = useState(false);
   const [bookMembersOpen, setBookMembersOpen] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [menuPosition, setMenuPosition] = useState<MenuPosition | null>(null);
+  const menuTriggerRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    if (!mobileMenuOpen) {
+      setMenuPosition(null);
+      return;
+    }
+    let frame = 0;
+    const positionMenu = () => {
+      const trigger = menuTriggerRef.current;
+      const menu = menuRef.current;
+      if (!trigger || !menu) return;
+      const rect = trigger.getBoundingClientRect();
+      const viewport = window.visualViewport;
+      const edgeLeft = viewport?.offsetLeft ?? 0;
+      const edgeTop = viewport?.offsetTop ?? 0;
+      const edgeRight = edgeLeft + (viewport?.width ?? window.innerWidth);
+      const edgeBottom = edgeTop + (viewport?.height ?? window.innerHeight);
+      const gap = 4;
+      const inset = 8;
+      const width = Math.min(rect.width, Math.max(0, edgeRight - edgeLeft - inset * 2));
+      menu.style.width = `${width}px`;
+      const above = Math.max(0, rect.top - edgeTop - gap - inset);
+      const below = Math.max(0, edgeBottom - rect.bottom - gap - inset);
+      const flipAbove = below < menu.scrollHeight && above > below;
+      const maxHeight = flipAbove ? above : below;
+      const renderedHeight = Math.min(menu.scrollHeight, maxHeight);
+      const left = Math.max(edgeLeft + inset, Math.min(rect.left, edgeRight - inset - width));
+      const top = flipAbove
+        ? Math.max(edgeTop + inset, rect.top - gap - renderedHeight)
+        : Math.min(rect.bottom + gap, edgeBottom - inset - maxHeight);
+      setMenuPosition({ top, left, width, maxHeight });
+    };
+    const schedulePosition = () => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(positionMenu);
+    };
+    positionMenu();
+    window.addEventListener("resize", schedulePosition);
+    window.addEventListener("scroll", schedulePosition, true);
+    window.visualViewport?.addEventListener("resize", schedulePosition);
+    window.visualViewport?.addEventListener("scroll", schedulePosition);
+    return () => {
+      cancelAnimationFrame(frame);
+      window.removeEventListener("resize", schedulePosition);
+      window.removeEventListener("scroll", schedulePosition, true);
+      window.visualViewport?.removeEventListener("resize", schedulePosition);
+      window.visualViewport?.removeEventListener("scroll", schedulePosition);
+    };
+  }, [mobileMenuOpen]);
+  useEffect(() => {
+    if (!mobileMenuOpen) return;
+    menuRef.current?.querySelector<HTMLButtonElement>("[role=menuitem]")?.focus();
+    const closeOutside = (event: PointerEvent) => {
+      const target = event.target as Node;
+      if (!menuRef.current?.contains(target) && !menuTriggerRef.current?.contains(target)) setMobileMenuOpen(false);
+    };
+    document.addEventListener("pointerdown", closeOutside, true);
+    return () => document.removeEventListener("pointerdown", closeOutside, true);
+  }, [mobileMenuOpen]);
 
   const books = useAsyncData((signal) => financeApi.books.list(signal), [], { resetOnDepChange: true });
   const book = books.data?.find((item) => item.code === bookCode) ?? books.data?.[0] ?? null;
@@ -105,6 +169,32 @@ function FinanceInner() {
     {isAdmin && book && <button className="btn-ghost" onClick={() => setBookMembersOpen(true)}>成员与权限</button>}
     {isAdmin && book && <button className="btn-danger-outline" onClick={() => setDeleteBookOpen(true)}>移入回收站</button>}
   </>;
+  const mobileBookActions = [
+    { label: "刷新", className: "btn-ghost", onClick: refreshAll },
+    ...(isAdmin ? [{ label: "+ 新建账套", className: "btn-ghost", onClick: () => setBookOpen(true) }] : []),
+    ...(isAdmin ? [{ label: "账套回收站", className: "btn-ghost", onClick: () => setRecycleBinOpen(true) }] : []),
+    ...(isAdmin && book ? [{ label: "成员与权限", className: "btn-ghost", onClick: () => setBookMembersOpen(true) }] : []),
+    ...(isAdmin && book ? [{ label: "移入回收站", className: "btn-danger-outline", onClick: () => setDeleteBookOpen(true) }] : []),
+  ];
+  function handleMobileMenuKeyDown(event: KeyboardEvent<HTMLDivElement>) {
+    const items = Array.from(menuRef.current?.querySelectorAll<HTMLButtonElement>("[role=menuitem]") ?? []);
+    const index = items.indexOf(document.activeElement as HTMLButtonElement);
+    if (event.key === "Escape") {
+      event.preventDefault();
+      setMobileMenuOpen(false);
+      menuTriggerRef.current?.focus();
+    } else if (event.key === "Tab") {
+      // Keep the browser's normal Tab destination; the blur handler closes
+      // the menu once focus has actually left its items.
+      requestAnimationFrame(() => {
+        if (!menuRef.current?.contains(document.activeElement)) setMobileMenuOpen(false);
+      });
+    } else if (items.length && ["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) {
+      event.preventDefault();
+      const next = event.key === "Home" ? 0 : event.key === "End" ? items.length - 1 : (index + (event.key === "ArrowDown" ? 1 : -1) + items.length) % items.length;
+      items[next]?.focus();
+    }
+  }
   const voucherAction = activeBook && currentPeriod
     ? <button className="btn-primary" onClick={() => setVoucherOpen(true)}>+ 凭证</button>
     : null;
@@ -117,10 +207,10 @@ function FinanceInner() {
           <>
             <label className="toolbar-field">
               <span>当前账套</span>
-              <select value={activeBook} onChange={(event) => setBookCode(event.target.value)} aria-label="选择财务账套">
+              <Select value={activeBook} onChange={setBookCode} aria-label="选择财务账套">
                 {!books.data?.length && <option value="">暂无账套</option>}
                 {books.data?.map((item) => <option key={item.code} value={item.code}>{item.name} · {item.code}</option>)}
-              </select>
+              </Select>
             </label>
             <span className="tiny muted">项目成本与财务账独立；已审批支出可在“项目支出入账”逐笔生成草稿凭证。</span>
           </>
@@ -130,10 +220,17 @@ function FinanceInner() {
             <div className={fm.desktopActions}>{bookActions}{voucherAction}</div>
             <div className={fm.mobileActions}>
               {voucherAction}
-              <details className={fm.moreActions}>
-                <summary>账套操作</summary>
-                <div className={fm.moreBody}>{bookActions}</div>
-              </details>
+              <div className={fm.moreActions}>
+                <button ref={menuTriggerRef} type="button" className={fm.menuTrigger} aria-haspopup="menu" aria-expanded={mobileMenuOpen} onClick={() => setMobileMenuOpen((open) => !open)} onKeyDown={(event) => {
+                  if (event.key === "ArrowDown" && !mobileMenuOpen) { event.preventDefault(); setMobileMenuOpen(true); }
+                  if (event.key === "Escape" && mobileMenuOpen) { event.preventDefault(); setMobileMenuOpen(false); }
+                }}>账套操作<span className={fm.menuChevron} aria-hidden="true" /></button>
+                {mobileMenuOpen && <div ref={menuRef} className={fm.moreBody} role="menu" aria-label="账套操作" style={menuPosition ?? undefined} onKeyDown={handleMobileMenuKeyDown} onBlur={(event) => {
+                  if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setMobileMenuOpen(false);
+                }}>
+                  {mobileBookActions.map((action) => <button key={action.label} type="button" role="menuitem" className={action.className} onClick={() => { setMobileMenuOpen(false); action.onClick(); }}>{action.label}</button>)}
+                </div>}
+              </div>
             </div>
           </>
         }
@@ -383,7 +480,7 @@ function VoucherDialog({ open, book, period, accounts, onClose, onSaved }: { ope
       onSaved();
     } catch (e) { setError(errText(e)); } finally { setSaving(false); }
   }
-  return <Dialog open={open} onClose={onClose} title="新建凭证" size="md" footer={<><button className="btn-ghost" onClick={onClose}>取消</button><button className="btn-primary" disabled={saving} onClick={save}>{saving ? "保存中…" : "保存草稿"}</button></>}><div className="form-grid"><label className="field span-2"><span className="field-label">摘要</span><input value={summary} onChange={(event) => setSummary(event.target.value)} placeholder="例如：办公费" /></label><label className="field"><span className="field-label">借方科目</span><select value={debitAccount} onChange={(event) => setDebitAccount(event.target.value)}><option value="">请选择</option>{leaves.map((item) => <option key={item.id} value={item.id}>{item.code} {item.name}</option>)}</select></label><label className="field"><span className="field-label">贷方科目</span><select value={creditAccount} onChange={(event) => setCreditAccount(event.target.value)}><option value="">请选择</option>{leaves.map((item) => <option key={item.id} value={item.id}>{item.code} {item.name}</option>)}</select></label><label className="field"><span className="field-label">金额</span><input inputMode="decimal" value={amount} onChange={(event) => setAmount(event.target.value)} placeholder="0.00" /></label></div>{error && <div className="field-err" role="alert">{error}</div>}<p className="tiny muted">当前首期只提供手工草稿录入；凭证审核、过账和账簿取数由后端状态机控制。</p></Dialog>;
+  return <Dialog open={open} onClose={onClose} title="新建凭证" size="md" footer={<><button className="btn-ghost" onClick={onClose}>取消</button><button className="btn-primary" disabled={saving} onClick={save}>{saving ? "保存中…" : "保存草稿"}</button></>}><div className="form-grid"><label className="field span-2"><span className="field-label">摘要</span><input value={summary} onChange={(event) => setSummary(event.target.value)} placeholder="例如：办公费" /></label><label className="field"><span className="field-label">借方科目</span><Select value={debitAccount} onChange={setDebitAccount}><option value="">请选择</option>{leaves.map((item) => <option key={item.id} value={item.id}>{item.code} {item.name}</option>)}</Select></label><label className="field"><span className="field-label">贷方科目</span><Select value={creditAccount} onChange={setCreditAccount}><option value="">请选择</option>{leaves.map((item) => <option key={item.id} value={item.id}>{item.code} {item.name}</option>)}</Select></label><label className="field"><span className="field-label">金额</span><input inputMode="decimal" value={amount} onChange={(event) => setAmount(event.target.value)} placeholder="0.00" /></label></div>{error && <div className="field-err" role="alert">{error}</div>}<p className="tiny muted">当前首期只提供手工草稿录入；凭证审核、过账和账簿取数由后端状态机控制。</p></Dialog>;
 }
 
 function BookDialog({ open, onClose, onSaved }: { open: boolean; onClose: () => void; onSaved: () => void }) {
@@ -416,7 +513,7 @@ function TemplateDialog({ open, book, period, accounts, templates, onClose, onSa
     setSaving(true); setError("");
     try { await financeApi.fromTemplate(book, { template_id: Number(selected), period_id: period.id, voucher_no: `记-${String(Date.now()).slice(-4)}`, voucher_date: period.start_date, summary: "按模板生成" }); onGenerated(); } catch (e) { setError(errText(e)); } finally { setSaving(false); }
   }
-  return <Dialog open={open} onClose={onClose} title="凭证模板" size="md" footer={<><button className="btn-ghost" onClick={onClose}>关闭</button><button className="btn-ghost" disabled={saving} onClick={create}>保存当前科目模板</button><button className="btn-primary" disabled={saving} onClick={generate}>生成草稿凭证</button></>}><div className="form-grid"><label className="field"><span className="field-label">模板</span><select value={selected} onChange={(event) => setSelected(event.target.value)}><option value="">请选择模板</option>{templates.map((template) => <option key={template.id} value={template.id}>{template.code} · {template.name}</option>)}</select></label><label className="field"><span className="field-label">新模板编码</span><input value={code} onChange={(event) => setCode(event.target.value)} placeholder="OFFICE" /></label><label className="field span-2"><span className="field-label">新模板名称</span><input value={name} onChange={(event) => setName(event.target.value)} placeholder="办公费模板" /></label></div>{error && <div className="field-err" role="alert">{error}</div>}<p className="tiny muted">模板保存当前科目树的首个借贷科目组合；Excel 导入适合批量凭证，导出会记录审计。</p></Dialog>;
+  return <Dialog open={open} onClose={onClose} title="凭证模板" size="md" footer={<><button className="btn-ghost" onClick={onClose}>关闭</button><button className="btn-ghost" disabled={saving} onClick={create}>保存当前科目模板</button><button className="btn-primary" disabled={saving} onClick={generate}>生成草稿凭证</button></>}><div className="form-grid"><label className="field"><span className="field-label">模板</span><Select value={selected} onChange={setSelected}><option value="">请选择模板</option>{templates.map((template) => <option key={template.id} value={template.id}>{template.code} · {template.name}</option>)}</Select></label><label className="field"><span className="field-label">新模板编码</span><input value={code} onChange={(event) => setCode(event.target.value)} placeholder="OFFICE" /></label><label className="field span-2"><span className="field-label">新模板名称</span><input value={name} onChange={(event) => setName(event.target.value)} placeholder="办公费模板" /></label></div>{error && <div className="field-err" role="alert">{error}</div>}<p className="tiny muted">模板保存当前科目树的首个借贷科目组合；Excel 导入适合批量凭证，导出会记录审计。</p></Dialog>;
 }
 
 export default function FinancePage() {

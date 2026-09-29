@@ -37,6 +37,23 @@ function stubDownloadResponse(
   return fetchMock;
 }
 
+/**
+ * 跨 realm 的 Blob 判定。
+ *
+ * 不能用 `instanceof`：判定结果取决于「全局 `Blob`」和「`Response.blob()` 产出的 Blob」
+ * 是否来自同一个 realm，这在不同 node 版本下并不一致。
+ */
+function isBlobLike(value: unknown): value is Blob {
+  if (typeof value !== "object" || value === null) return false;
+  const candidate = value as Partial<Blob>;
+  // MediaSource 只有 readyState / sourceBuffers / duration，三个成员一个都不满足
+  return (
+    typeof candidate.size === "number" &&
+    typeof candidate.type === "string" &&
+    typeof candidate.slice === "function"
+  );
+}
+
 /** 记录真实 createObjectURL 收到的每一个 blob，供断言其 type。 */
 function spyOnCreateObjectURL() {
   const seen: Blob[] = [];
@@ -44,9 +61,19 @@ function spyOnCreateObjectURL() {
   URL.createObjectURL = () => "blob:stub";
   vi.spyOn(URL, "createObjectURL").mockImplementation(
     (obj: Blob | MediaSource) => {
-      // 本用例只走 blob 分支（`fetchObjectUrl` 只可能传 blob）；MediaSource 走到这里即前提已被破坏
-      if (!(obj instanceof Blob))
+      // 本用例只走 blob 分支（`fetchObjectUrl` 只可能传 blob）；MediaSource 走到这里即前提已被破坏。
+      //
+      // 这里**不能**写 `obj instanceof Blob`：`Response.blob()` 返回的 Blob 属于「造出这个
+      // Response 的那个 realm」，而测试里的全局 `Blob` 来自 jsdom。两者是否为同一个构造器
+      // 取决于 node 版本如何接线全局对象——node 26 上恰好是同一个（断言通过），node 20 上
+      // 不是同一个构造器就直接失败。同一份代码在开发机和生产镜像上给出相反结果，
+      // 正是加 CI 跑 node 20 才发现的。
+      //
+      // 改用结构判定：`size` / `type` / `slice` 三者齐全即 Blob，MediaSource 一个都没有。
+      // 守卫的本意是「确认走的是 blob 分支而非 MediaSource 分支」，这一点完整保留。
+      if (!isBlobLike(obj)) {
         throw new Error("createObjectURL 收到的不是 Blob");
+      }
       seen.push(obj);
       return `blob:stub-${seen.length}`;
     },
@@ -60,19 +87,42 @@ function spyOnCreateObjectURL() {
 /**
  * 按字节读回 blob 的文本。
  *
- * **不要**用 `blob.text()`：jsdom 25 未实现它（`Blob.prototype.text === undefined`），
- * 断言会直接抛 `TypeError: ... is not a function`。
- * **更不要**用 `new Response(blob).text()`：undici 不认 jsdom 的 `Blob`，会把整个对象
+ * 逐级降级，因为**能用哪条路取决于 blob 属于哪个 realm**（见 `isBlobLike` 的说明）：
+ *   1. `blob.text()`         —— 真实 Blob（浏览器 / node 内置）有；jsdom 25 的 Blob 没有
+ *   2. `FileReader`          —— jsdom 的 Blob 只能这么读，是 jsdom 25 下唯一可行的一条
+ *   3. `blob.arrayBuffer()`  —— 兜底
+ *
+ * **不要**只写 `new Response(blob).text()`：undici 不认 jsdom 的 `Blob`，会把整个对象
  * 字符串化成 `"[object Blob]"` —— 断言「看似通过」实则读的是垃圾，比红灯更危险。
- * `FileReader` 是这两个 runner 下唯一真的按字节解码的读法（BLF-1135 复验结论）。
+ * 三条路都不可用时直接抛错，绝不静默返回一个假结果。
  */
-function readBlobAsText(blob: Blob): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result));
-    reader.onerror = () => reject(reader.error);
-    reader.readAsText(blob);
-  });
+async function readBlobAsText(blob: Blob): Promise<string> {
+  const candidate = blob as unknown as {
+    text?: () => Promise<string>;
+    arrayBuffer?: () => Promise<ArrayBuffer>;
+  };
+  if (typeof candidate.text === "function") {
+    return candidate.text();
+  }
+  if (typeof FileReader === "function") {
+    return new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result));
+      reader.onerror = () => reject(reader.error);
+      try {
+        reader.readAsText(blob);
+      } catch (error) {
+        reject(error);
+      }
+    });
+  }
+  if (typeof candidate.arrayBuffer === "function") {
+    return new TextDecoder().decode(await candidate.arrayBuffer());
+  }
+  throw new Error(
+    "无法按字节读取 blob：text / FileReader / arrayBuffer 三条路都不可用，" +
+      '拒绝用 new Response(blob) 兜底（会把对象读成 "[object Blob]"）',
+  );
 }
 
 beforeEach(() => {
@@ -148,6 +198,18 @@ describe("内联预览：blob 类型由扩展名定，不听响应头", () => {
 
     // 未传类型 = 未走内联预览的定权路径，行为与改动前一致
     expect(seen[0].type).toBe("image/png");
+  });
+
+  it("守卫仍然拦得住 MediaSource：结构判定不是把断言放水", () => {
+    // 上面那些用例换成结构判定（而非 instanceof）之后，这条锁住守卫的本意：
+    // 非 Blob 对象进到 createObjectURL 必须被拒。
+    // MediaSource 形状（readyState / sourceBuffers / duration，三个判定字段一个都没有）。
+    const mediaSourceLike = { readyState: "open", sourceBuffers: [], duration: 0 };
+    expect(isBlobLike(mediaSourceLike)).toBe(false);
+
+    spyOnCreateObjectURL();
+    // @ts-expect-error 故意传入非 Blob，复现「前提被破坏」这条分支
+    expect(() => URL.createObjectURL(mediaSourceLike)).toThrow(/不是 Blob/);
   });
 
   it("不可内联预览的扩展名定权为 null，调用方给不出 type 时也不会误判成 HTML 预览", () => {

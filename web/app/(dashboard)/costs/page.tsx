@@ -21,6 +21,7 @@ import ProgressBar from "@/components/ui/ProgressBar";
 import { Confirm, Dialog } from "@/components/ui/Modal";
 import { useToast } from "@/components/ui/Toast";
 import PageHeader from "@/components/ui/PageHeader";
+import Select from "@/components/ui/Select";
 import { CardItem, CardList, DesktopTable, useVisibleTargetScroll } from "@/components/ui/CardList";
 import CountUp from "@/components/motion/CountUp";
 import MotionReveal from "@/components/motion/MotionReveal";
@@ -163,16 +164,16 @@ function CostsInner() {
               placeholder="搜索项目名称或编号"
               className="picker-grow filter-span-2"
             />
-            <select
+            <Select
               aria-label="按支出状态筛选"
               value={url.status}
-              onChange={(e) => setUrl({ status: e.target.value }, { history: "push" })}
+              onChange={(value) => setUrl({ status: value }, { history: "push" })}
             >
               <option value="">全部状态</option>
               {Object.entries(EXPENSE_STATUS).map(([code, label]) => (
                 <option key={code} value={code}>{label}</option>
               ))}
-            </select>
+            </Select>
           </>
         }
         actions={

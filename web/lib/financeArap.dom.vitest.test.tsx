@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import ArapPanel from "../app/(dashboard)/finance/ArapPanel";
 import { ArapSettlementDialog } from "../app/(dashboard)/finance/ArapDialogs";
 import { financeApi, type FinanceAccount, type FinanceARAPItem, type FinancePeriod } from "./api";
+import { selectOption } from "./testing/selectDriver";
 
 const period: FinancePeriod = {
   id: 3,
@@ -72,7 +73,9 @@ function renderSettlement(items: FinanceARAPItem[] = settlementItems) {
 
 function fillPayment(amount: string) {
   fireEvent.change(screen.getByLabelText("金额"), { target: { value: amount } });
-  fireEvent.change(screen.getByLabelText("现金/银行科目"), { target: { value: "22" } });
+  // 自绘下拉：点开再选，不能再用原生 change
+  // 结算科目是 id=22 / 100101 · 库存现金，选项文案为「编码 · 名称」
+  selectOption("现金/银行科目", "100101 · 库存现金");
 }
 
 describe("往来指定单据核销", () => {

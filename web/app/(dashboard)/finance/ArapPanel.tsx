@@ -5,6 +5,7 @@ import Empty from "@/components/ui/Empty";
 import { CardItem, CardList, DesktopTable } from "@/components/ui/CardList";
 import { LoadFailed, LoadingBlock } from "@/components/ui/PageState";
 import { useToast } from "@/components/ui/Toast";
+import Select from "@/components/ui/Select";
 import { useAsyncData } from "@/lib/useAsyncData";
 import {
   financeApi,
@@ -263,11 +264,11 @@ export default function ArapPanel({
             <>
               <label className="toolbar-field">
                 <span>辅助资料</span>
-                <select value={auxiliaryKind} onChange={(event) => setAuxiliaryKind(event.target.value as FinanceAuxiliaryKind)}>
+                <Select value={auxiliaryKind} onChange={(value) => setAuxiliaryKind(value as FinanceAuxiliaryKind)}>
                   <option value="customer">客户</option>
                   <option value="vendor">供应商</option>
                   <option value="cashflow">现金流项目</option>
-                </select>
+                </Select>
               </label>
               <button className="btn-ghost" onClick={() => setDialog({ type: "auxiliary", kind: auxiliaryKind })}>新增资料</button>
             </>

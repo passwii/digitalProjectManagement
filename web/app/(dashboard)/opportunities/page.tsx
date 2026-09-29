@@ -14,6 +14,7 @@ import { useToast } from "@/components/ui/Toast";
 import { CardItem, CardList } from "@/components/ui/CardList";
 import { DesktopTableFrame, ListPageLayout, ListViewport } from "@/components/ui/ListPageLayout";
 import PageHeader from "@/components/ui/PageHeader";
+import Select from "@/components/ui/Select";
 import MotionReveal from "@/components/motion/MotionReveal";
 import { useMenus } from "@/lib/useMeta";
 
@@ -141,16 +142,16 @@ function OpportunitiesInner() {
             placeholder="搜索名称 / 编号 / 客户…"
             aria-label="搜索商机"
           />
-          <select
+          <Select
             value={url.stage}
-            onChange={(event) => setUrl({ stage: event.target.value })}
+            onChange={(value) => setUrl({ stage: value })}
             aria-label="按商机阶段筛选"
           >
             <option value="">全部阶段</option>
             {stageOptions.map(([value, label]) => (
               <option key={value} value={value}>{label}</option>
             ))}
-          </select>
+          </Select>
           {hasFilter && (
             <button type="button" className="btn-ghost" style={{ height: 32, lineHeight: "30px", width: "auto" }} onClick={() => setUrl({ q: "", stage: "" })}>
               清除筛选
@@ -344,7 +345,7 @@ function OpportunityDrawer({
         <label><span>客户</span><input value={draft.client} onChange={(e) => setField("client", e.target.value)} /></label>
         <label><span>负责人</span><input value={draft.owner_name} onChange={(e) => setField("owner_name", e.target.value)} /></label>
         <label><span>预计金额（元）</span><input type="number" min="0" step="0.01" value={draft.budget_total} onChange={(e) => setField("budget_total", e.target.value)} /></label>
-        <label><span>商机阶段</span><select value={draft.stage} onChange={(e) => setField("stage", e.target.value)}>{Object.entries(STAGES).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
+        <label><span>商机阶段</span><Select value={draft.stage} onChange={(value) => setField("stage", value)}>{Object.entries(STAGES).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</Select></label>
         <label><span>预计签约日期</span><input type="date" value={draft.expected_close} onChange={(e) => setField("expected_close", e.target.value)} /></label>
         <label className="full"><span>备注</span><textarea rows={5} value={draft.description} onChange={(e) => setField("description", e.target.value)} /></label>
       </div>

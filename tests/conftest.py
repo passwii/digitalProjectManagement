@@ -28,6 +28,16 @@ os.environ.setdefault(
 )
 
 if not TEST_DATABASE_URL:
+    if os.getenv("CI"):
+        # CI 里缺这个变量必须**响亮地失败**，不能往下走。
+        # 往下走的后果实测过：`pytest tests -q` 输出 52 passed / 230 skipped、
+        # 耗时 0.31s、退出码 0 —— 282 个用例里 82% 根本没执行，套件却判绿。
+        # 本地随手跑（没配库就跳过）仍然方便，但 CI 上「跳过」和「通过」必须区分开，
+        # 否则这条 CI 守的就不是门，是空气。
+        raise RuntimeError(
+            "CI 环境下必须设置 TEST_DATABASE_URL。未设置时 conftest 的 db fixture "
+            "会静默跳过依赖数据库的用例（约 82%），导致套件在几乎没跑的情况下判绿。"
+        )
     # api.main imports the database module at collection time. Keep that import
     # non-connecting; fixtures below skip when no real test database is set.
     os.environ.setdefault("DATABASE_URL", "postgresql+psycopg://test:test@localhost/test")

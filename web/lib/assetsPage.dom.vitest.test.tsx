@@ -15,19 +15,24 @@ const { api, me, users, isAdmin } = vi.hoisted(() => ({
   isAdmin: vi.fn(() => true),
 }));
 
-vi.mock("@/lib/api", () => ({
-  equipmentAssetsApi: api,
-  authApi: { me },
-  errText: (error: unknown) => error instanceof Error ? error.message : String(error),
-  equipmentAssetActions: (asset: { status: string; holder_id: number | null }, isAdmin: boolean, currentUser?: number) => ({
-    canClaim: asset.status === "available" && !isAdmin,
-    canBorrow: asset.status === "available" && !isAdmin,
-    canReturn: asset.status === "borrowed" && (isAdmin || asset.holder_id === currentUser),
-  }),
-}));
+vi.mock("@/lib/api", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/api")>();
+  return {
+    ...actual,
+    equipmentAssetsApi: api,
+    authApi: { me },
+    errText: (error: unknown) => error instanceof Error ? error.message : String(error),
+    equipmentAssetActions: (asset: { status: string; holder_id: number | null }, isAdmin: boolean, currentUser?: number) => ({
+      canClaim: asset.status === "available" && !isAdmin,
+      canBorrow: asset.status === "available" && !isAdmin,
+      canReturn: asset.status === "borrowed" && (isAdmin || asset.holder_id === currentUser),
+    }),
+  };
+});
 vi.mock("@/lib/useMeta", () => ({ useMenus: () => ({ isAdmin: isAdmin() }), useMeta: () => ({ users: [{ id: 42, real_name: "张三" }, ...users.filter((user) => user.id !== 42)] }) }));
 
 import AssetsPage from "../app/(dashboard)/assets/page";
+import { openSelect, selectOption } from "./testing/selectDriver";
 
 const asset = (overrides: Record<string, unknown> = {}) => ({
   id: 1, code: "EQ-001", name: "测试笔记本", category_code: "computer", serial_number: null,
@@ -64,9 +69,8 @@ afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 
 describe("资产页面分页和刷新", () => {
   it("使用项目详情页共享标签控件并同步移动端分区选择", async () => {
-    const mobileSection = await screen.findByLabelText("选择页面分区");
-
-    fireEvent.change(mobileSection, { target: { value: "ledger" } });
+    // 移动端分区选择器是自绘下拉（MotionTabs 内部的 Select），不能对原生 select 做 change
+    selectOption("选择页面分区", "设备台账");
 
     expect(screen.getByRole("tab", { name: "设备台账" }).getAttribute("aria-selected")).toBe("true");
     expect(await screen.findByPlaceholderText("编号、名称、序列号…")).toBeTruthy();
@@ -93,9 +97,11 @@ describe("资产页面分页和刷新", () => {
     setup();
     api.upload.mockResolvedValue({ batch_id: 10, batch_name: "9月设备批次", created: 2 });
     fireEvent.click(await screen.findByRole("button", { name: "导入台账" }));
-    fireEvent.change(screen.getByLabelText("导入批次方式"), { target: { value: "existing" } });
+    selectOption("导入批次方式", "加入已有批次");
     fireEvent.change(screen.getByLabelText("搜索导入目标批次"), { target: { value: "9月" } });
-    fireEvent.change(await screen.findByLabelText("选择导入批次"), { target: { value: "10" } });
+    const batchListbox = openSelect("选择导入批次");
+    await waitFor(() => expect(within(batchListbox).getByRole("option", { name: /9月设备批次 · 批次 #10/ })).toBeTruthy());
+    fireEvent.click(within(batchListbox).getByRole("option", { name: /9月设备批次 · 批次 #10/ }));
     const file = new File(["设备名称,设备分类\n电脑,电脑"], "devices.csv", { type: "text/csv" });
     fireEvent.change(screen.getByLabelText("选择 CSV 或 Excel 台账文件"), { target: { files: [file] } });
 
@@ -201,14 +207,18 @@ describe("资产页面分页和刷新", () => {
     cleanup();
     setup();
     fireEvent.click(await screen.findByRole("tab", { name: "入库" }));
-    fireEvent.change(screen.getByLabelText("批次录入方式"), { target: { value: "existing" } });
+    selectOption("批次录入方式", "加入已有批次");
 
     fireEvent.change(screen.getByLabelText("搜索并选择已有批次"), { target: { value: "9月设备" } });
-    fireEvent.change(await screen.findByLabelText("选择入库批次"), { target: { value: "10" } });
+    const firstBatchListbox = openSelect("选择入库批次");
+    await waitFor(() => expect(within(firstBatchListbox).getByRole("option", { name: /9月设备批次 · 批次 #10/ })).toBeTruthy());
+    fireEvent.click(within(firstBatchListbox).getByRole("option", { name: /9月设备批次 · 批次 #10/ }));
     fireEvent.change(screen.getByLabelText("搜索并选择已有批次"), { target: { value: "其他批次" } });
     expect(screen.getByRole("button", { name: "登记 1 件设备" }).hasAttribute("disabled")).toBe(true);
     fireEvent.change(screen.getByLabelText("搜索并选择已有批次"), { target: { value: "9月设备" } });
-    fireEvent.change(await screen.findByLabelText("选择入库批次"), { target: { value: "10" } });
+    const secondBatchListbox = openSelect("选择入库批次");
+    await waitFor(() => expect(within(secondBatchListbox).getByRole("option", { name: /9月设备批次 · 批次 #10/ })).toBeTruthy());
+    fireEvent.click(within(secondBatchListbox).getByRole("option", { name: /9月设备批次 · 批次 #10/ }));
     fireEvent.change(screen.getByLabelText("设备件数"), { target: { value: "1" } });
     fireEvent.change(screen.getByLabelText("名称", { selector: "input" }), { target: { value: "新设备" } });
     fireEvent.click(screen.getByRole("button", { name: "登记 1 件设备" }));
@@ -235,10 +245,10 @@ describe("资产页面分页和刷新", () => {
     fireEvent.click(screen.getByRole("button", { name: "登记 1 件设备" }));
     await waitFor(() => expect(api.inbound).toHaveBeenCalled());
 
-    fireEvent.change(screen.getByLabelText("批次录入方式"), { target: { value: "existing" } });
+    selectOption("批次录入方式", "加入已有批次");
     fireEvent.change(screen.getByLabelText("搜索并选择已有批次"), { target: { value: "刚创建" } });
-    const option = await screen.findByRole("option", { name: /刚创建批次 · 批次 #12/ });
-    expect(option).toBeTruthy();
+    const refreshedBatchListbox = openSelect("选择入库批次");
+    await waitFor(() => expect(within(refreshedBatchListbox).getByRole("option", { name: /刚创建批次 · 批次 #12/ })).toBeTruthy());
   });
 
   it("成功借用后重新加载台账并显示更新的持有人、状态和到期日", async () => {
@@ -456,5 +466,52 @@ describe("资产页面分页和刷新", () => {
     await waitFor(() => expect(api.get).toHaveBeenCalledWith(1));
     expect(screen.queryByText("危险操作")).toBeNull();
     expect(api.deleteCheck).not.toHaveBeenCalled();
+  });
+});
+
+describe("设备流水中文展示", () => {
+  const ACTION_CASES: [string, string][] = [
+    ["create", "建档"], ["inbound", "入库"], ["import", "批量导入"], ["acceptance", "验收通过"],
+    ["update", "档案更新"], ["claim", "领用"], ["borrow", "借用"], ["return", "归还"],
+    ["maintenance", "送修"], ["restore", "恢复可用"], ["scrap", "报废"], ["void", "作废"],
+  ];
+
+  const event = (id: number, action: string) => ({
+    id, asset_id: 1, batch_id: 10, action, from_status: null, to_status: null,
+    actor_id: 42, holder_id: null, due_date: null, note: null, created_at: "2026-01-01T00:00:00Z",
+  });
+
+  it("后端写入的每个 action 都渲染为中文，不把英文值直接暴露给用户", async () => {
+    api.events.mockResolvedValue(page(ACTION_CASES.map(([action], index) => event(index + 1, action))));
+    fireEvent.click(await screen.findByRole("tab", { name: "设备台账" }));
+    fireEvent.click(await screen.findByRole("button", { name: "查看" }));
+
+    const list = (await screen.findByText("设备流水")).closest("section") as HTMLElement;
+    for (const [action, label] of ACTION_CASES) {
+      expect(within(list).getByText(label), `action=${action} 应显示为「${label}」`).toBeTruthy();
+    }
+    // 流水区里不能再出现任何一个后端英文 action 值
+    for (const [action] of ACTION_CASES) {
+      expect(within(list).queryByText(action), `不应残留英文 ${action}`).toBeNull();
+    }
+  });
+
+  it("未知 action 保留原值兜底，不显示成空白", async () => {
+    api.events.mockResolvedValue(page([event(1, "future_action")]));
+    fireEvent.click(await screen.findByRole("tab", { name: "设备台账" }));
+    fireEvent.click(await screen.findByRole("button", { name: "查看" }));
+
+    expect(await screen.findByText("future_action")).toBeTruthy();
+  });
+
+  it("状态流转与动作一起以中文呈现", async () => {
+    api.events.mockResolvedValue(page([{
+      ...event(1, "claim"), from_status: "available", to_status: "claimed",
+    }]));
+    fireEvent.click(await screen.findByRole("tab", { name: "设备台账" }));
+    fireEvent.click(await screen.findByRole("button", { name: "查看" }));
+
+    expect(await screen.findByText("领用")).toBeTruthy();
+    expect(await screen.findByText("可用 → 已领用")).toBeTruthy();
   });
 });

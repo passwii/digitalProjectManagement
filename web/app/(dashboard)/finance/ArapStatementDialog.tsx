@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Dialog } from "@/components/ui/Modal";
+import Select from "@/components/ui/Select";
 import { financeApi, errText, type FinanceAccount, type FinanceARAPStatement, type FinanceAuxiliaryItem } from "@/lib/api";
 import type { ArapDocumentKind } from "./ArapDialogs";
 
@@ -146,12 +147,12 @@ export default function ArapStatementDialog({
       <div className="form-grid">
         <label className="field span-2">
           <span className="field-label">往来科目</span>
-          <select value={accountId} onChange={(event) => changeAccount(event.target.value)}>
+          <Select value={accountId} onChange={changeAccount}>
             <option value="">全部往来科目</option>
             {accountsForKind.map((account) => (
               <option key={account.id} value={account.id}>{account.code} · {account.name}</option>
             ))}
-          </select>
+          </Select>
         </label>
         <label className="field">
           <span className="field-label">开始日期</span>

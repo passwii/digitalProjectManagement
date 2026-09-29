@@ -6,6 +6,7 @@ import { SUBJECTS } from "@/lib/labels";
 import { useForm } from "@/lib/useForm";
 import { Dialog } from "@/components/ui/Modal";
 import Field from "@/components/ui/Field";
+import Select from "@/components/ui/Select";
 
 interface Values {
   subject: string;
@@ -101,9 +102,9 @@ export default function BudgetDialog({
     >
       <div className="form-grid">
         <Field label="科目" required>
-          <select value={form.values.subject} disabled={isAdjust} onChange={(e) => form.set("subject", e.target.value)}>
+          <Select value={form.values.subject} disabled={isAdjust} onChange={(value) => form.set("subject", value)}>
             {SUBJECTS.map((s) => <option key={s} value={s}>{s}</option>)}
-          </select>
+          </Select>
         </Field>
         <Field label="预算金额（元）" required error={form.errors.amount}>
           <input

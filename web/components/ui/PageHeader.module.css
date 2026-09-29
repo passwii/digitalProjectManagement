@@ -49,6 +49,7 @@
 
 .filters > input,
 .filters > select,
+.filters > [data-select-root="true"],
 .filters > :global(.toolbar-field) {
   flex: 1 1 0;
   min-width: 0;
@@ -124,7 +125,8 @@
     flex: 1 1 100%;
   }
   .filters > input { flex: 1 1 100%; min-width: 0; width: 100%; }
-  .filters > select { flex: 1 1 calc(50% - 4px); min-width: 140px; width: auto; }
+  .filters > select,
+  .filters > [data-select-root="true"] { flex: 1 1 calc(50% - 4px); min-width: 140px; width: auto; }
   .actions { margin-left: 0; }
   .actions {
     padding-left: 0;

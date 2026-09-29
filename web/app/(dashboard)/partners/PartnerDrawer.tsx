@@ -34,6 +34,7 @@ import {
 import { useUploadQueue } from "@/lib/useUploadQueue";
 import { Confirm, Drawer } from "@/components/ui/Modal";
 import Field from "@/components/ui/Field";
+import Select from "@/components/ui/Select";
 import FileDropZone from "@/components/ui/FileDropZone";
 import { useToast } from "@/components/ui/Toast";
 import AttachmentPreviewDialog from "@/components/ui/AttachmentPreviewDialog";
@@ -635,18 +636,19 @@ export default function PartnerDrawer({
               ) : (
                 <>
                   <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 12, flexWrap: "wrap" }}>
-                    <select
-                      value={category}
-                      onChange={(e) => setCategory(e.target.value as PartnerAttachmentCategory)}
-                      style={{ width: 170 }}
-                      aria-label="附件分类"
-                    >
-                      {(Object.keys(PARTNER_ATTACHMENT_CATEGORY_LABELS) as PartnerAttachmentCategory[])
-                        .filter((value) => value !== "contract")
-                        .map((value) => (
-                          <option key={value} value={value}>{PARTNER_ATTACHMENT_CATEGORY_LABELS[value]}</option>
-                        ))}
-                    </select>
+                    <span style={{ width: 170 }}>
+                      <Select
+                        value={category}
+                        onChange={(value) => setCategory(value as PartnerAttachmentCategory)}
+                        aria-label="附件分类"
+                      >
+                        {(Object.keys(PARTNER_ATTACHMENT_CATEGORY_LABELS) as PartnerAttachmentCategory[])
+                          .filter((value) => value !== "contract")
+                          .map((value) => (
+                            <option key={value} value={value}>{PARTNER_ATTACHMENT_CATEGORY_LABELS[value]}</option>
+                          ))}
+                      </Select>
+                    </span>
                     <FileDropZone
                       variant="button"
                       extensions={PARTNER_ATTACHMENT_EXTENSIONS}

@@ -5,13 +5,6 @@
   color: var(--ink);
 }
 
-.asset-intro {
-  margin: -10px 0 18px;
-  color: var(--ink-2);
-  font-size: 13px;
-  line-height: 1.55;
-}
-
 .asset-import-button {
   position: relative;
   min-height: 38px;
@@ -225,7 +218,7 @@
   min-width: 160px;
 }
 
-.asset-filters select {
+.asset-filters [data-select-root="true"] {
   flex: 0 1 180px;
   min-width: 140px;
 }
@@ -934,10 +927,6 @@
     padding-bottom: 28px;
   }
 
-  .asset-intro {
-    margin: -8px 0 14px;
-  }
-
   .asset-module [data-page-header-actions] > * {
     min-height: var(--m-tap);
   }
@@ -960,7 +949,7 @@
     flex-basis: 100%;
   }
 
-  .asset-filters select {
+  .asset-filters [data-select-root="true"] {
     flex: 1 1 calc(50% - 4px);
     min-width: 0;
   }

@@ -16,6 +16,7 @@ import { useForm } from "@/lib/useForm";
 import { useUploadQueue } from "@/lib/useUploadQueue";
 import { Dialog } from "@/components/ui/Modal";
 import Field from "@/components/ui/Field";
+import Select from "@/components/ui/Select";
 import FileDropZone from "@/components/ui/FileDropZone";
 import AttachmentPreviewDialog from "@/components/ui/AttachmentPreviewDialog";
 
@@ -275,10 +276,10 @@ export default function ProjectFormDialog({
             />
           </Field>
           <Field label="项目负责人" required>
-            <select value={form.values.owner_name} onChange={(e) => form.set("owner_name", e.target.value)}>
+            <Select value={form.values.owner_name} onChange={(value) => form.set("owner_name", value)}>
               <option value="">请选择负责人</option>
               {PROJECT_OWNERS.map((name) => <option key={name} value={name}>{name}</option>)}
-            </select>
+            </Select>
           </Field>
           <Field label="合同金额（元）" error={form.errors.budget_total}>
             <input
@@ -315,9 +316,9 @@ export default function ProjectFormDialog({
         </div>
         <div className="form-grid">
           <Field label="合同状态" required>
-            <select
+            <Select
               value={form.values.contract_status}
-              onChange={(e) => form.set("contract_status", e.target.value)}
+              onChange={(value) => form.set("contract_status", value)}
             >
               {!isKnownContractStatus(form.values.contract_status) && (
                 <option value={form.values.contract_status} disabled>
@@ -329,7 +330,7 @@ export default function ProjectFormDialog({
                   {v}
                 </option>
               ))}
-            </select>
+            </Select>
             {!isKnownContractStatus(form.values.contract_status) && (
               <span className="field-hint">
                 该历史值无法直接提交，请选择一个有效合同状态。

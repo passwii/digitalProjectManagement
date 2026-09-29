@@ -1800,6 +1800,15 @@ export interface EquipmentEvent {
   to_status: string | null; actor_id: number | null; holder_id: number | null; due_date: string | null;
   note: string | null; created_at: string;
 }
+/** 设备流水动作（后端 EquipmentEvent.action 英文值）的中文名。
+ *  覆盖 api/routers/equipment_assets.py 写入的全部 action：_add_asset 的 create / inbound / import、
+ *  批次验收的 acceptance、档案编辑的 update，以及 _change 的 claim / borrow / return /
+ *  maintenance / restore / scrap / void。 */
+export const EQUIPMENT_ACTION_LABELS: Record<string, string> = {
+  create: "建档", inbound: "入库", import: "批量导入", acceptance: "验收通过", update: "档案更新",
+  claim: "领用", borrow: "借用", return: "归还", maintenance: "送修", restore: "恢复可用",
+  scrap: "报废", void: "作废",
+};
 export interface EquipmentCategory { code: string; label: string; sort: number }
 export interface EquipmentOverview { total: number; by_status: Record<string, number>; overdue: number }
 export interface EquipmentStatistics {
