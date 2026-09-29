@@ -10,8 +10,10 @@ depends_on = None
 
 
 def upgrade():
+    bind = op.get_bind()
+
     def has_column(table: str, column: str) -> bool:
-        return column in {item["name"] for item in sa.inspect(op.get_bind()).get_columns(table)}
+        return column in {item["name"] for item in sa.inspect(bind).get_columns(table)}
 
     if not has_column("project_receivables", "updated_by"):
         op.add_column(
@@ -26,7 +28,7 @@ def upgrade():
     fk_names = {
         fk["name"]
         for table in ("project_receivables", "project_receivable_payments")
-        for fk in sa.inspect(op.get_bind()).get_foreign_keys(table)
+        for fk in sa.inspect(bind).get_foreign_keys(table)
     }
     if "fk_project_receivables_updated_by_users" not in fk_names:
         op.create_foreign_key(
@@ -40,8 +42,12 @@ def upgrade():
         )
     op.execute("UPDATE project_receivables SET updated_by = created_by")
     op.execute("UPDATE project_receivable_payments SET updated_by = created_by")
-    op.alter_column("project_receivables", "updated_by", nullable=False)
-    op.alter_column("project_receivable_payments", "updated_by", nullable=False)
+    op.alter_column(
+        "project_receivables", "updated_by", existing_type=sa.Integer(), nullable=False,
+    )
+    op.alter_column(
+        "project_receivable_payments", "updated_by", existing_type=sa.Integer(), nullable=False,
+    )
 
 
 def downgrade():
