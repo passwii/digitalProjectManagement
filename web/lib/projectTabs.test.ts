@@ -8,10 +8,26 @@ import {
 } from "./projectTabs";
 
 describe("档案页 Tab 解析", () => {
+  it("现行页签为文档、合同、进度、成本、应收、日志", () => {
+    assert.deepEqual([...PROJECT_TABS], [
+      "文档",
+      "合同",
+      "进度",
+      "成本",
+      "应收",
+      "日志",
+    ]);
+  });
+
   it("现行 Tab 名原样返回", () => {
     for (const tab of PROJECT_TABS) {
       assert.equal(parseProjectTab(tab), tab);
     }
+  });
+
+  it("「支出」与「变更」改名为「成本」与「日志」后旧深链仍然可用", () => {
+    assert.equal(parseProjectTab("支出"), "成本");
+    assert.equal(parseProjectTab("变更"), "日志");
   });
 
   it("「白板」改名为「文档」后旧深链仍然可用", () => {

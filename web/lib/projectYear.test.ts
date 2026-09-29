@@ -2,7 +2,6 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import {
-  MIN_YEAR_OPTION,
   buildYearOptions,
   extractProjectYear,
   parseYearParam,
@@ -35,11 +34,13 @@ describe("编号派生年份", () => {
 });
 
 describe("URL year 参数解析", () => {
-  it("合法 4 位年份原样返回", () => {
-    assert.equal(parseYearParam("2026"), "2026");
+  it("仅接受固定的五个年份", () => {
+    for (const year of ["2027", "2026", "2025", "2024", "2023"]) {
+      assert.equal(parseYearParam(year), year);
+    }
   });
 
-  it("缺失与非法取值回落全部年份", () => {
+  it("缺失、范围外与非法取值回落全部年份", () => {
     assert.equal(parseYearParam(""), "");
     assert.equal(parseYearParam(null), "");
     assert.equal(parseYearParam(undefined), "");
@@ -47,6 +48,8 @@ describe("URL year 参数解析", () => {
     assert.equal(parseYearParam("2026-01"), "");
     assert.equal(parseYearParam("abcd"), "");
     assert.equal(parseYearParam("  "), "");
+    assert.equal(parseYearParam("2028"), "");
+    assert.equal(parseYearParam("2022"), "");
   });
 });
 
@@ -65,20 +68,14 @@ describe("年份转后端 code 过滤", () => {
 describe("年度下拉选项", () => {
   const fakeNow = new Date("2026-09-18T00:00:00Z").getTime();
 
-  it("倒序且覆盖 当年+1 … 最早年份", () => {
+  it("固定返回 2027 到 2023 的倒序选项", () => {
     const opts = buildYearOptions(fakeNow);
-    assert.equal(opts[0], "2027");
-    assert.equal(opts[opts.length - 1], String(MIN_YEAR_OPTION));
-    assert.ok(opts.includes("2026"));
-    // 严格倒序
-    const nums = opts.map(Number);
-    assert.deepEqual([...nums].sort((a, b) => b - a), nums);
+    assert.deepEqual(opts, ["2027", "2026", "2025", "2024", "2023"]);
   });
 
-  it("范围外的已选年份追加到末尾（刷新/分享链接选中态不丢）", () => {
+  it("范围外的已选年份不追加", () => {
     const opts = buildYearOptions(fakeNow, "2018");
-    assert.ok(opts.includes("2018"));
-    assert.equal(opts[opts.length - 1], "2018");
+    assert.deepEqual(opts, ["2027", "2026", "2025", "2024", "2023"]);
   });
 
   it("范围内已选年份不重复", () => {
