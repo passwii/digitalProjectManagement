@@ -8,11 +8,12 @@ from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
 from urllib.parse import quote
 
-from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
 from fastapi.responses import StreamingResponse
 from openpyxl import Workbook, load_workbook
 from pydantic import BaseModel
 from sqlalchemy import case, func, or_, text
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from ..core.audit import commit_audited, write_audit
@@ -165,7 +166,13 @@ class AssetIn(BaseModel):
     purchase_price: Decimal | None = None
 
 
+class AssetCreateIn(AssetIn):
+    batch_id: int | None = None
+
+
 class BatchIn(BaseModel):
+    name: str = ""
+    batch_id: int | None = None
     source: str = ""
     supplier: str = ""
     purchase_order_no: str = ""
@@ -194,6 +201,10 @@ class CategoryIn(BaseModel):
 class CategoryPatch(BaseModel):
     label: str
     sort: int | None = None
+
+
+class EquipmentBatchPatch(BaseModel):
+    name: str
 
 
 def _asset(a: EquipmentAsset) -> dict:
@@ -239,14 +250,62 @@ def _event(e: EquipmentEvent) -> dict:
             "note": e.note, "created_at": e.created_at}
 
 
-def _batch(b: EquipmentBatch, items=None) -> dict:
-    result = {"id": b.id, "source": b.source, "supplier": b.supplier,
+def _batch(b: EquipmentBatch, items=None, asset_count=None) -> dict:
+    result = {"id": b.id, "name": b.name, "source": b.source, "supplier": b.supplier,
               "purchase_order_no": b.purchase_order_no, "invoice_no": b.invoice_no,
               "acceptance_status": b.acceptance_status, "note": b.note,
               "created_by": b.created_by, "created_at": b.created_at}
     if items is not None:
         result["items"] = [_asset(a) for a in items]
+    if asset_count is not None:
+        result["asset_count"] = asset_count
+    elif items is not None:
+        result["asset_count"] = len(items)
     return result
+
+
+def _normalize_batch_name(name: str) -> str:
+    normalized = name.strip()
+    if not normalized:
+        raise HTTPException(400, "批次名称必填")
+    if len(normalized) > 128:
+        raise HTTPException(400, "批次名称不能超过 128 个字符")
+    return normalized
+
+
+def _check_batch_name_available(db: Session, name: str, exclude_id: int | None = None):
+    q = db.query(EquipmentBatch).filter(func.lower(EquipmentBatch.name) == name.lower())
+    if exclude_id is not None:
+        q = q.filter(EquipmentBatch.id != exclude_id)
+    if q.first():
+        raise HTTPException(400, "批次名称已存在，请选择已有批次或更换名称")
+
+
+def _create_batch(db: Session, actor_id: int, *, name: str, source: str = "", supplier: str = "",
+                  purchase_order_no: str = "", invoice_no: str = "", acceptance_status: str = "accepted",
+                  note: str = "") -> EquipmentBatch:
+    if acceptance_status not in {"pending_acceptance", "accepted"}:
+        raise HTTPException(400, "验收状态只能为 pending_acceptance 或 accepted")
+    normalized = _normalize_batch_name(name)
+    _check_batch_name_available(db, normalized)
+    batch = EquipmentBatch(name=normalized, source=source.strip(), supplier=supplier.strip(),
+                            purchase_order_no=purchase_order_no.strip(), invoice_no=invoice_no.strip(),
+                            acceptance_status=acceptance_status, note=note.strip(), created_by=actor_id)
+    db.add(batch)
+    try:
+        db.flush()
+    except IntegrityError as exc:
+        db.rollback()
+        raise HTTPException(400, "批次名称已存在，请选择已有批次或更换名称") from exc
+    return batch
+
+
+def _get_batch(db: Session, batch_id: int, lock: bool = True) -> EquipmentBatch:
+    q = db.query(EquipmentBatch).filter_by(id=batch_id)
+    batch = (q.with_for_update() if lock else q).first()
+    if not batch:
+        raise HTTPException(404, "入库批次不存在")
+    return batch
 
 
 def _category(db, code):
@@ -422,6 +481,8 @@ def inbound(body: BatchIn, db: Session = Depends(get_db), user: User = Depends(g
     require_admin(user)
     if not body.items:
         raise HTTPException(400, "入库设备不能为空")
+    if (body.batch_id is not None and bool(body.name.strip())) or (body.batch_id is None and not body.name.strip()):
+        raise HTTPException(400, "请选择已有批次，或填写新批次名称")
     serials = [item.serial_number.strip() for item in body.items if item.serial_number.strip()]
     if len(serials) != len(set(serials)):
         raise HTTPException(400, "入库文件中设备序列号重复")
@@ -429,24 +490,71 @@ def inbound(body: BatchIn, db: Session = Depends(get_db), user: User = Depends(g
         raise HTTPException(400, "验收状态只能为 pending_acceptance 或 accepted")
     for item in body.items:
         _validate(db, item)
-    batch = EquipmentBatch(source=body.source.strip(), supplier=body.supplier.strip(),
-                           purchase_order_no=body.purchase_order_no.strip(), invoice_no=body.invoice_no.strip(),
-                           acceptance_status=body.acceptance_status, note=body.note.strip(), created_by=user.id)
-    db.add(batch)
-    db.flush()
-    asset_status = "pending_acceptance" if body.acceptance_status == "pending_acceptance" else "available"
+
+    if body.batch_id is not None:
+        batch = _get_batch(db, body.batch_id)
+        action = "add_equipment_to_batch"
+    else:
+        batch = _create_batch(db, user.id, name=body.name, source=body.source, supplier=body.supplier,
+                              purchase_order_no=body.purchase_order_no, invoice_no=body.invoice_no,
+                              acceptance_status=body.acceptance_status, note=body.note)
+        action = "inbound_equipment"
+    asset_status = "pending_acceptance" if batch.acceptance_status == "pending_acceptance" else "available"
     items = [_add_asset(db, item, user.id, batch.id, "inbound", asset_status) for item in body.items]
-    commit_audited(db, user.id, "inbound_equipment", "equipment_batches", batch.id, f"count={len(items)}")
-    return {"batch_id": batch.id, **_batch(batch, items)}
+    commit_audited(db, user.id, action, "equipment_batches", batch.id, f"count={len(items)}")
+    asset_count = db.query(EquipmentAsset).filter_by(batch_id=batch.id).count()
+    return {"batch_id": batch.id, **_batch(batch, items, asset_count=asset_count)}
 
 
 @router.get("/batches")
-def list_batches(page: int = Query(1, ge=1), size: int = Query(20, ge=1, le=100),
+def list_batches(keyword: str = "", page: int = Query(1, ge=1), size: int = Query(20, ge=1, le=100),
                  db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    q = db.query(EquipmentBatch)
-    return {"total": q.count(), "page": page, "size": size,
-            "items": [_batch(b) for b in q.order_by(EquipmentBatch.id.desc())
-                      .offset((page-1)*size).limit(size).all()]}
+    q = db.query(EquipmentBatch, func.count(EquipmentAsset.id).label("asset_count"))\
+        .outerjoin(EquipmentAsset, EquipmentAsset.batch_id == EquipmentBatch.id).group_by(EquipmentBatch.id)
+    text_keyword = keyword.strip()
+    if text_keyword:
+        pattern = f"%{text_keyword}%"
+        filters = [EquipmentBatch.name.ilike(pattern), EquipmentBatch.source.ilike(pattern)]
+        batch_id = text_keyword.removeprefix("#")
+        if batch_id.isdigit():
+            filters.append(EquipmentBatch.id == int(batch_id))
+        q = q.filter(or_(*filters))
+    total = q.count()
+    rows = q.order_by(EquipmentBatch.id.desc()).offset((page-1)*size).limit(size).all()
+    return {"total": total, "page": page, "size": size,
+            "items": [_batch(batch, asset_count=count) for batch, count in rows]}
+
+
+@router.patch("/batches/{batch_id}")
+def rename_batch(batch_id: int, body: EquipmentBatchPatch, db: Session = Depends(get_db),
+                 user: User = Depends(get_current_user)):
+    require_admin(user)
+    batch = _get_batch(db, batch_id)
+    name = _normalize_batch_name(body.name)
+    _check_batch_name_available(db, name, exclude_id=batch_id)
+    batch.name = name
+    try:
+        db.flush()
+    except IntegrityError as exc:
+        db.rollback()
+        raise HTTPException(400, "批次名称已存在，请选择已有批次或更换名称") from exc
+    commit_audited(db, user.id, "rename_equipment_batch", "equipment_batches", batch.id, name)
+    return _batch(batch, asset_count=db.query(EquipmentAsset).filter_by(batch_id=batch.id).count())
+
+
+@router.delete("/batches/{batch_id}")
+def delete_batch(batch_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    require_admin(user)
+    batch = _get_batch(db, batch_id)
+    has_assets = db.query(EquipmentAsset.id).filter_by(batch_id=batch.id).first()
+    has_events = db.query(EquipmentEvent.id).filter_by(batch_id=batch.id).first()
+    if has_assets or has_events:
+        raise HTTPException(409, "批次仍有关联设备或流水，不能删除")
+    name = batch.name
+    db.delete(batch)
+    commit_audited(db, user.id, "delete_equipment_batch", "equipment_batches", batch_id,
+                   json.dumps({"name": name}, ensure_ascii=False))
+    return {"ok": True, "id": batch_id}
 
 
 @router.get("/batches/{batch_id}")
@@ -481,10 +589,12 @@ def accept_batch(batch_id: int, body: TransitionIn = TransitionIn(),
 
 
 @router.post("")
-def create_asset(body: AssetIn, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+def create_asset(body: AssetCreateIn, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     require_admin(user)
     _validate(db, body)
-    a = _add_asset(db, body, user.id)
+    batch = _get_batch(db, body.batch_id) if body.batch_id is not None else None
+    status = "pending_acceptance" if batch and batch.acceptance_status == "pending_acceptance" else "available"
+    a = _add_asset(db, body, user.id, batch.id if batch else None, status=status)
     commit_audited(db, user.id, "create_equipment", "equipment_assets", a.id, a.code)
     return _asset(a)
 
@@ -500,7 +610,7 @@ def export_assets(format: str = "csv", db: Session = Depends(get_db), user: User
     user_names = {u.id: u.real_name for u in
                   db.query(User).filter(User.id.in_(holder_ids))} if holder_ids else {}
     batch_ids = {a.batch_id for a in records if a.batch_id is not None}
-    batches = {b.id: (f"{b.source}（批次 #{b.id}）" if b.source else f"批次 #{b.id}")
+    batches = {b.id: f"{b.name} · 批次 #{b.id}"
                for b in db.query(EquipmentBatch).filter(EquipmentBatch.id.in_(batch_ids))} if batch_ids else {}
     rows = [_export_row(a, categories, user_names, batches) for a in records]
     if format == "csv":
@@ -593,7 +703,11 @@ def _resolve_category(value: str, categories: dict) -> str:
 
 
 @router.post("/import")
-def import_assets(file: UploadFile = File(...), db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+def import_assets(file: UploadFile = File(...), batch_id: int | None = Form(None),
+                 batch_name: str = Form(""), source: str = Form(""), supplier: str = Form(""),
+                 purchase_order_no: str = Form(""), invoice_no: str = Form(""),
+                 acceptance_status: str = Form("accepted"), note: str = Form(""),
+                 db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     require_admin(user)
     raw = file.file.read(5_000_001)
     if len(raw) > 5_000_000:
@@ -668,13 +782,21 @@ def import_assets(file: UploadFile = File(...), db: Session = Depends(get_db), u
                            "message": exc.detail if isinstance(exc, HTTPException) else "日期或金额格式错误"})
     if errors:
         raise HTTPException(400, {"errors": errors, "message": f"共 {len(errors)} 行导入失败，请修正后重新导入"})
-    batch = EquipmentBatch(source=f"导入 {file.filename}", note="", created_by=user.id)
-    db.add(batch)
-    db.flush()
+    if not parsed:
+        raise HTTPException(400, "文件中没有可导入的设备行")
+    if (batch_id is not None and bool(batch_name.strip())) or (batch_id is None and not batch_name.strip()):
+        raise HTTPException(400, "请选择已有批次，或填写新批次名称")
+    if batch_id is not None:
+        batch = _get_batch(db, batch_id)
+    else:
+        batch = _create_batch(db, user.id, name=batch_name, source=source.strip() or f"导入 {file.filename}",
+                              supplier=supplier, purchase_order_no=purchase_order_no,
+                              invoice_no=invoice_no, acceptance_status=acceptance_status, note=note)
+    asset_status = "pending_acceptance" if batch.acceptance_status == "pending_acceptance" else "available"
     for body in parsed:
-        _add_asset(db, body, user.id, batch.id, "import")
+        _add_asset(db, body, user.id, batch.id, "import", asset_status)
     commit_audited(db, user.id, "import_equipment", "equipment_batches", batch.id, f"count={len(parsed)}")
-    result = {"batch_id": batch.id, "created": len(parsed)}
+    result = {"batch_id": batch.id, "batch_name": batch.name, "created": len(parsed)}
     ignored = [FIELD_LABELS[f] for f in IMPORT_IGNORED if f in columns]
     if unknown or ignored:
         result["ignored_columns"] = {"未识别": unknown, "仅导出用(导入时忽略)": ignored}

@@ -38,13 +38,56 @@ describe("equipmentAssetsApi", () => {
     expect(JSON.parse((fetch.mock.calls[1][1] as RequestInit).body as string)).toEqual({ confirm_code: "EQ-12", reason: "重复录入" });
   });
 
+  it("uploads a file with either a new-batch selection or an existing batch id", async () => {
+    const requests: { url: string; body: FormData }[] = [];
+    vi.stubGlobal("XMLHttpRequest", class {
+      static latest: InstanceType<typeof this>;
+      upload = {};
+      status = 200;
+      statusText = "";
+      responseText = JSON.stringify({ batch_id: 5, batch_name: "九月入库", created: 1 });
+      onload?: () => void;
+      onerror?: () => void;
+      onabort?: () => void;
+      open(_method: string, url: string) { (this as unknown as { url: string }).url = url; }
+      setRequestHeader() {}
+      send(body: FormData) {
+        const url = (this as unknown as { url: string }).url;
+        requests.push({ url, body });
+        this.onload?.();
+      }
+      constructor() { (this.constructor as typeof XMLHttpRequest & { latest: unknown }).latest = this; }
+    });
+    const file = new File(["data"], "assets.csv", { type: "text/csv" });
+    await equipmentAssetsApi.upload(file, { batch_id: 5 });
+    await equipmentAssetsApi.upload(file, { name: "九月入库", acceptance_status: "pending_acceptance" });
+
+    expect(requests[0].url).toContain("/equipment-assets/import");
+    expect(requests[0].body.get("batch_id")).toBe("5");
+    expect(requests[0].body.get("batch_name")).toBeNull();
+    expect(requests[1].body.get("batch_name")).toBe("九月入库");
+    expect(requests[1].body.get("acceptance_status")).toBe("pending_acceptance");
+  });
+
   it("exposes batch acceptance, category maintenance, and import/export routes", async () => {
     const fetch = vi.fn().mockImplementation(() => Promise.resolve(new Response(JSON.stringify({})))) as ReturnType<typeof vi.fn>;
     vi.stubGlobal("fetch", fetch);
     await equipmentAssetsApi.acceptBatch(5, { note: "核验完成" });
     await equipmentAssetsApi.createCategory({ code: "tool", label: "工具仪器" });
+    await equipmentAssetsApi.batches({ keyword: "9月", page: 2, size: 20 });
+    await equipmentAssetsApi.renameBatch(5, { name: "九月入库" });
+    await equipmentAssetsApi.removeBatch(6);
+    await equipmentAssetsApi.inbound({ name: "新批次", items: [{ name: "电脑", category_code: "computer" }] });
+    await equipmentAssetsApi.inbound({ batch_id: 5, items: [{ name: "显示器", category_code: "monitor" }] });
     expect(fetch.mock.calls[0][0]).toContain("/equipment-assets/batches/5/accept");
     expect(fetch.mock.calls[1][0]).toContain("/equipment-assets/categories");
+    expect(String(fetch.mock.calls[2][0])).toContain("keyword=9%E6%9C%88&page=2&size=20");
+    expect(String(fetch.mock.calls[3][0])).toContain("/equipment-assets/batches/5");
+    expect(JSON.parse((fetch.mock.calls[3][1] as RequestInit).body as string)).toEqual({ name: "九月入库" });
+    expect(String(fetch.mock.calls[4][0])).toContain("/equipment-assets/batches/6");
+    expect((fetch.mock.calls[4][1] as RequestInit).method).toBe("DELETE");
+    expect(JSON.parse((fetch.mock.calls[5][1] as RequestInit).body as string)).toMatchObject({ name: "新批次" });
+    expect(JSON.parse((fetch.mock.calls[6][1] as RequestInit).body as string)).toMatchObject({ batch_id: 5 });
     expect(equipmentAssetsApi.upload).toBeTypeOf("function");
     expect(equipmentAssetsApi.export).toBeTypeOf("function");
   });

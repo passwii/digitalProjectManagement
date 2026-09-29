@@ -447,7 +447,15 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
       <aside className={s.sidebar} data-shell="sidebar">
         <div className={s.ws}>
           <div className={s.wsName} title="数科云办公">
-            <span className={s.brandSeal}>SHZK</span>
+            {/*
+              侧栏印章与 PWA 图标（app/icon.svg）同源：双层细框 + 加粗字标 +
+              字下一根短线。图标里的深色大底和底部小字在 34px 下会糊成一团，
+              这里只取三处识别特征，字标右侧仍由 .brandText 承担。
+            */}
+            <span className={s.brandSeal} aria-hidden="true">
+              <span className={s.brandSealWord}>SHZK</span>
+              <span className={s.brandSealBar} />
+            </span>
             <span className={s.brandText}>
               <b>数科云办公</b>
             </span>

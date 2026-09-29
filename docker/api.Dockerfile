@@ -1,4 +1,9 @@
-FROM python:3.12-slim
+# 与本机开发环境（3.14.7）和 CI（api.yml 里钉的 "3.14"）统一。
+# 之前这里是 3.12，于是生产跑的是 CI 从没验证过的版本 —— CI 刚建立时
+# 只能二选一，本地能实测的那个才是当初唯一有证据的选择；现在把生产也拉到 3.14，
+# 三端就完全一致了。仍在 3.14 内浮动（沿用 3.12 时的写法，也与 web.Dockerfile 的
+# node:20-alpine 一致），补丁版本随重建自动跟进。
+FROM python:3.14-slim
 
 ARG PIP_INDEX_URL=https://pypi.org/simple
 

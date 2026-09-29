@@ -19,6 +19,7 @@ from sqlalchemy import (
   ForeignKeyConstraint,
   Index,
   Integer,
+  func,
   Numeric,
   String,
   Text,
@@ -963,6 +964,7 @@ class EquipmentBatch(Base):
   """公司设备入库批次，与财务固定资产和项目均无关联。"""
   __tablename__ = "equipment_batches"
   id = Column(Integer, primary_key=True)
+  name = Column(String(128), nullable=False)
   source = Column(String(255), nullable=False, default="")
   supplier = Column(String(255), nullable=False, default="")
   purchase_order_no = Column(String(128), nullable=False, default="")
@@ -971,6 +973,7 @@ class EquipmentBatch(Base):
   note = Column(Text, nullable=False, default="")
   created_by = Column(Integer, ForeignKey("users.id"), nullable=False)
   created_at = Column(DateTime, default=_now, nullable=False)
+  __table_args__ = (Index("uq_equipment_batches_name_lower", func.lower(name), unique=True),)
 
 
 class EquipmentAsset(Base):
