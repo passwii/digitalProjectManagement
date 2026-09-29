@@ -9,7 +9,7 @@ import MotionTabs from "@/components/motion/MotionTabs";
 import { LoadingBlock, LoadFailed } from "@/components/ui/PageState";
 import { useAsyncData } from "@/lib/useAsyncData";
 import { useMenus, useMeta } from "@/lib/useMeta";
-import { authApi, errDetail, errText, equipmentAssetActions, equipmentAssetsApi as api, type EquipmentAsset, type EquipmentBatch, type EquipmentCategory, type EquipmentDeleteCheck, type EquipmentEvent, type EquipmentImportError, type EquipmentStatistics, type EquipmentWrite } from "@/lib/api";
+import { authApi, errDetail, errText, EQUIPMENT_ACTION_LABELS, equipmentAssetActions, equipmentAssetsApi as api, type EquipmentAsset, type EquipmentBatch, type EquipmentCategory, type EquipmentDeleteCheck, type EquipmentEvent, type EquipmentImportError, type EquipmentStatistics, type EquipmentWrite } from "@/lib/api";
 import "./assets.css";
 
 type Section = "overview" | "ledger" | "inbound" | "batches" | "overdue" | "statistics" | "categories";
@@ -431,7 +431,7 @@ function AssetDetail({ asset, categories, batch, events, deleteCheck, userName, 
 
       <section className="asset-detail-section asset-event-section">
         <div className="asset-section-heading"><div><h3>设备流水</h3><p>记录入库、领用、借用、归还和状态变化</p></div><span className="asset-event-count">{events.length} 条</span></div>
-        {events.length ? <ol className="asset-events">{events.map((event) => <li key={event.id}><b>{event.action}</b><span>{event.from_status ? `${STATUS[event.from_status] ?? event.from_status} → ` : ""}{STATUS[event.to_status ?? ""] ?? event.to_status ?? ""}</span><time>{new Date(event.created_at).toLocaleString("zh-CN")}</time>{event.note && <small>{event.note}</small>}</li>)}</ol> : <p className="asset-empty asset-empty-inline">暂无流水记录</p>}
+        {events.length ? <ol className="asset-events">{events.map((event) => <li key={event.id}><b>{EQUIPMENT_ACTION_LABELS[event.action] ?? event.action}</b><span>{event.from_status ? `${STATUS[event.from_status] ?? event.from_status} → ` : ""}{STATUS[event.to_status ?? ""] ?? event.to_status ?? ""}</span><time>{new Date(event.created_at).toLocaleString("zh-CN")}</time>{event.note && <small>{event.note}</small>}</li>)}</ol> : <p className="asset-empty asset-empty-inline">暂无流水记录</p>}
       </section>
 
       {isAdmin && <section className="asset-detail-section asset-delete-zone">
