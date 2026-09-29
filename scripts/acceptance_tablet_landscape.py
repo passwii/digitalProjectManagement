@@ -181,7 +181,11 @@ def _is_spark(path: str) -> bool:
 
 def route_main_visible(route: str, state: dict[str, Any]) -> bool:
     shell = state["shell"]
-    return bool(shell.get("sparkMain")) if _is_spark(route) else _visible(shell.get("main"))
+    element = shell.get("sparkMain") if _is_spark(route) else shell.get("main")
+    viewport_width = state.get("viewport", {}).get("width")
+    if viewport_width is None:
+        return _visible(element)
+    return shell_element_visible_in_viewport(element, viewport_width)
 
 
 def page_header_overlap_passes(route: str, state: dict[str, Any]) -> bool:
@@ -196,14 +200,18 @@ def tablet_filter_layout_valid(fields: list[dict[str, Any]]) -> bool:
     return not any(rects_overlap(label, control) for label in labels for control in controls)
 
 
-def topbar_within_viewport(topbar: dict[str, Any] | None, width: int) -> bool:
-    if not _visible(topbar):
+def shell_element_visible_in_viewport(element: dict[str, Any] | None, width: int) -> bool:
+    if not _visible(element):
         return False
-    style = topbar.get("style") or {}
+    style = element.get("style") or {}
     if float(style.get("opacity", "1")) <= 0:
         return False
-    rect = topbar["rect"]
-    return rect.get("left", 0) >= -1 and rect["right"] <= width + 1
+    rect = element["rect"]
+    return rect.get("left", 0) >= -1 and rect["right"] >= -1 and rect.get("left", 0) <= width + 1
+
+
+def topbar_within_viewport(topbar: dict[str, Any] | None, width: int) -> bool:
+    return shell_element_visible_in_viewport(topbar, width) and topbar["rect"]["right"] <= width + 1
 
 
 def internal_table_scroll_valid(table: dict[str, Any]) -> bool:
@@ -237,7 +245,7 @@ def measure_page(page: Page) -> dict[str, Any]:
           const visible = (element) => {
             if (!element) return null;
             const style = getComputedStyle(element);
-            return { rect: rect(element), style: { display: style.display, visibility: style.visibility } };
+            return { rect: rect(element), style: { display: style.display, visibility: style.visibility, opacity: style.opacity } };
           };
           const elements = {};
           for (const selector of selectors) {
@@ -342,8 +350,8 @@ def _route_checks(page: Page, route: str, width: int, height: int) -> tuple[int,
     checks.append(("宽表格仅在自身容器内横向滚动", not invalid_tables, json.dumps(invalid_tables, ensure_ascii=False)[:240]))
     if not _is_spark(route):
         shown, hidden = shell_expectation(width)
-        visible_pair = _visible(state["shell"].get(shown)) and not _visible(state["shell"].get(hidden))
-        checks.append(("业务侧栏可见且 Dock 隐藏" if shown == "sidebar" else "手机 Dock 可见且侧栏隐藏", visible_pair, "检查导航外壳"))
+        visible_pair = shell_element_visible_in_viewport(state["shell"].get(shown), width) and not _visible(state["shell"].get(hidden))
+        checks.append(("业务侧栏可见且 Dock 隐藏" if shown == "sidebar" else "手机 Dock 可见且侧栏隐藏", visible_pair, "检查导航外壳可见性与视口交集"))
         checks.append(("顶栏可见且位于视口内", topbar_within_viewport(state["shell"].get("topbar"), width), "检查 topbar visibility/bounds"))
     if (width, height) == (1180, 820) and not _is_spark(route):
         if state["shell"]["pageHeader"]:

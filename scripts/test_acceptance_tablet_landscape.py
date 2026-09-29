@@ -17,6 +17,7 @@ from scripts.acceptance_tablet_landscape import (
     rects_overlap,
     route_main_visible,
     routes_for_viewport,
+    shell_element_visible_in_viewport,
     shell_expectation,
     tablet_filter_layout_valid,
 )
@@ -79,6 +80,14 @@ class TabletLandscapeAcceptanceHelpersTest(unittest.TestCase):
         self.assertFalse(topbar_within_viewport({"rect": {"width": 100, "height": 40, "left": 0, "right": 1182}, "style": visible}, 1180))
         self.assertFalse(topbar_within_viewport({"rect": {"width": 100, "height": 40, "left": -101, "right": -1}, "style": visible}, 1180))
         self.assertFalse(topbar_within_viewport({"rect": {"width": 100, "height": 40, "left": 0, "right": 100}, "style": {**visible, "opacity": "0"}}, 1180))
+
+    def test_shell_visible_elements_must_intersect_horizontal_viewport(self):
+        visible = {"rect": {"width": 100, "height": 40, "left": 0, "right": 100}, "style": {"display": "block", "visibility": "visible", "opacity": "1"}}
+        off_left = {"rect": {"width": 100, "height": 40, "left": -101, "right": -1}, "style": visible["style"]}
+        transparent = {"rect": visible["rect"], "style": {**visible["style"], "opacity": "0"}}
+        self.assertTrue(shell_element_visible_in_viewport(visible, 1180))
+        self.assertFalse(shell_element_visible_in_viewport(off_left, 1180))
+        self.assertFalse(shell_element_visible_in_viewport(transparent, 1180))
 
     def test_wide_table_requires_its_own_scroll_frame(self):
         wide_table = {"tableScrollWidth": 1400, "frameClientWidth": 1100, "frameScrollWidth": 1400, "frame": {"width": 1100}, "frameOverflowX": "auto"}
