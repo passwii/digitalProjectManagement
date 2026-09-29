@@ -1,0 +1,285 @@
+/*
+ * 样式化日期组件。
+ *
+ * 全部颜色走 `var(--x)` token —— 浅色主题只覆盖颜色、不覆盖 `--radius` / `--motion`，
+ * 所以这里只写一套几何，深浅模式自动成立，**不要写 [data-theme] 分支**。
+ * 弹层的定位、`z-index: 45`、月份导航条底色刻意与 ProjectPicker 保持一致，
+ * 两类弹层叠放时观感统一。
+ */
+
+.root {
+  position: relative;
+  display: inline-block;
+  min-width: 0;
+  vertical-align: middle;
+}
+/* 传入 className 时让外部的宽度契约（如 `.toolbar-field` 的 min-width:120px）生效 */
+.rootHost {
+  width: 100%;
+}
+
+/* ---------- 触发器 ---------- */
+.trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+  height: 38px;
+  padding: 0 8px 0 11px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--card);
+  color: var(--ink);
+  font-size: 14px;
+  text-align: left;
+  /* 日期/编号在设计规范里统一用等宽字体 */
+  font-family: var(--font-mono);
+}
+.triggerToolbar { height: 32px; font-size: 13px; }
+.trigger:hover:not(:disabled) { border-color: var(--brand); }
+.trigger:disabled {
+  background: var(--th-bg);
+  color: var(--ink-3);
+  cursor: not-allowed;
+}
+/* 焦点环必须自己写：`globals.css` 的那条只作用于原生 input/select/textarea */
+.trigger:focus-visible {
+  border-color: var(--brand);
+  box-shadow: 0 0 0 2px var(--brand-soft), 0 0 18px var(--signal-glow);
+  outline: none;
+}
+/* className 落在触发器上时，外层 .root 不该再抢宽度 */
+.triggerHost { display: flex; }
+
+.triggerText {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.placeholder { color: var(--ink-3); }
+.caret { flex: none; color: var(--ink-3); font-size: 11px; }
+
+/*
+ * 错误态：抄 `globals.css` 里 `.field [aria-invalid="true"]` 的那组值。
+ * 那条规则选择的是原生元素，`<button>` 触发器吃不到，不补就是视觉回归。
+ * （181,60,53 是设计里刻意保持两主题一致的硬编码 rgba）
+ */
+.triggerInvalid { border-color: var(--danger); }
+.triggerInvalid:focus-visible {
+  border-color: var(--danger);
+  box-shadow: 0 0 0 3px rgba(181, 60, 53, 0.12);
+}
+
+/* ---------- 弹层 ---------- */
+.pop {
+  position: absolute;
+  z-index: 45;
+  top: calc(100% + 4px);
+  left: 0;
+  width: min(300px, 92vw);
+  max-width: 100%;
+  display: flex;
+  flex-direction: column;
+  padding: 8px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-float);
+  animation: popIn var(--motion) var(--ease-console);
+}
+.popMonth { width: min(260px, 90vw); }
+
+@keyframes popIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pop { animation: none; }
+}
+
+.hint {
+  margin: 0;
+  padding: 0 2px 6px;
+  color: var(--ink-3);
+  font-size: 12px;
+}
+
+/* ---------- 月份导航 ---------- */
+.nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+  margin-bottom: 6px;
+}
+.navTitle {
+  flex: 1 1 auto;
+  text-align: center;
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 600;
+}
+.navBtn {
+  flex: none;
+  min-width: 26px;
+  height: 26px;
+  padding: 0 6px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--card);
+  color: var(--ink-2);
+  font-size: 13px;
+  line-height: 1;
+}
+.navBtn:hover:not(:disabled) { border-color: var(--brand); color: var(--brand); }
+.navBtn:disabled { color: var(--ink-3); cursor: not-allowed; }
+
+/* ---------- 日历网格 ---------- */
+.weekRow {
+  display: grid;
+  /* `1fr` 等于 `minmax(auto, 1fr)`，min-content 会把 .day 的 44px 触控高度
+     经 aspect-ratio 传染成 44px 最小列宽，窄屏下第 7 列就顶出弹层边框。
+     显式 minmax(0, 1fr) 才允许列收缩。 */
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 2px;
+  margin-bottom: 2px;
+}
+.weekCell {
+  padding: 4px 0;
+  text-align: center;
+  color: var(--ink-3);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 2px;
+}
+.grid:focus-visible { outline: none; }
+
+.day {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  aspect-ratio: 1 / 1;
+  min-height: 32px;
+  /* 必须显式清零：下面的 aspect-ratio 会把 min-height 传染成 44px 的
+     min-content 宽度，网格项默认 min-width:auto 就再也压不回列宽里。 */
+  min-width: 0;
+  overflow: hidden;
+  /* <button> 的 UA 默认样式（灰底、居中粗体、系统字体）要一条条抹掉 */
+  margin: 0;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--ink);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  cursor: pointer;
+  user-select: none;
+}
+.day:hover:not(.dayDisabled) { background: var(--row-hover); }
+
+/* 上下月补白：靠降透明度表达，不能只靠颜色（浅色主题规范 L26） */
+.dayMuted { color: var(--ink-3); }
+
+/* 今天：加边框而不是只染背景，保证两种主题下都读得出来 */
+.dayToday { border-color: var(--line-blue); font-weight: 600; }
+
+/* 选中：同时用底色 + 字重，不让背景色成为唯一状态信号 */
+.daySelected {
+  background: var(--brand);
+  border-color: var(--brand);
+  color: var(--on-brand);
+  font-weight: 600;
+}
+.daySelected:hover { background: var(--brand-hover); border-color: var(--brand-hover); }
+
+/* 区间中段 */
+.dayInRange { background: var(--brand-soft); }
+
+/* 越界：降透明度 + 禁用光标，配合 aria-disabled 双保险 */
+.dayDisabled {
+  color: var(--ink-3);
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* ---------- 月份网格 ---------- */
+.monthGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 4px;
+}
+.monthCell {
+  padding: 9px 4px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--card);
+  color: var(--ink);
+  font-size: 13px;
+  cursor: pointer;
+}
+.monthCell:hover:not(:disabled) { border-color: var(--brand); color: var(--brand); }
+.monthCell:disabled { color: var(--ink-3); opacity: 0.4; cursor: not-allowed; }
+.monthOn {
+  border-color: var(--brand);
+  background: var(--brand);
+  color: var(--on-brand);
+  font-weight: 600;
+}
+
+/* ---------- 快捷选择 ---------- */
+.quick {
+  display: flex;
+  gap: 4px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--line-soft);
+}
+.quickBtn {
+  flex: 1 1 0;
+  min-width: 0;
+  padding: 5px 4px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--card);
+  color: var(--ink-2);
+  font-size: 12px;
+}
+.quickBtn:hover:not(:disabled) { border-color: var(--brand); color: var(--brand); }
+.quickBtn:disabled { color: var(--ink-3); cursor: not-allowed; opacity: 0.6; }
+
+/* 移动窄屏：弹层不横向溢出 */
+@media (max-width: 640px) {
+  .pop {
+    left: 0;
+    right: 0;
+    width: auto;
+  }
+}
+
+/* 触控目标不小于 44px（对齐全局 `--m-tap` 契约） */
+@media (max-width: 767px) {
+  .trigger,
+  .navBtn,
+  .quickBtn {
+    min-height: var(--m-tap);
+  }
+  /*
+   * 这里必须把 aspect-ratio 关掉：它会拿 min-height 当高、再按比例反推宽度，
+   * 窄屏下列宽本来就只有 ~34px，于是每个格子把自己撑到 44px 并溢出弹层。
+   * 关掉后宽度交给 stretch，高度仍由 min-height 保证 44px 触控目标。
+   */
+  .day { min-height: var(--m-tap); aspect-ratio: auto; }
+}
+@media (pointer: coarse) {
+  .day, .navBtn, .quickBtn, .monthCell { touch-action: manipulation; }
+}
