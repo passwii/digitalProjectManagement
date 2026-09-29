@@ -146,9 +146,56 @@ describe("DashboardPage 刷新状态", () => {
     expect(screen.getByTestId("dashboard-zone-pulse")).not.toBeNull();
     expect(screen.getAllByTestId("dashboard-readout")).toHaveLength(4);
     expect(screen.getByTestId("dashboard-route-list")).not.toBeNull();
+    expect(screen.queryByRole("button", { name: /展开其余项目/ })).toBeNull();
     expect(screen.getByText("智慧展厅交付")).not.toBeNull();
     expect(screen.getByText("上线联调")).not.toBeNull();
     expect(screen.getByText("待我审批")).not.toBeNull();
+  });
+
+  it("项目航迹默认显示三项，展开后可查看其余项目并收起", async () => {
+    const base = summary();
+    const projects = ["智慧展厅交付", "办公区改造", "数据中台升级", "园区网络迁移"];
+    mocks.summary.mockResolvedValueOnce({
+      ...base,
+      health: projects.map((name, index) => ({
+        ...base.health[0],
+        id: index + 12,
+        code: `PJ-2026-00${index + 1}`,
+        name,
+      })),
+    });
+
+    render(<DashboardPage />);
+
+    const list = await screen.findByTestId("dashboard-route-list");
+    expect(list.querySelectorAll("[data-dashboard-route]")).toHaveLength(3);
+    expect(screen.queryByText("园区网络迁移")).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "展开其余项目（1）" }));
+    expect(list.querySelectorAll("[data-dashboard-route]")).toHaveLength(4);
+    expect(screen.getByText("园区网络迁移")).not.toBeNull();
+    expect(screen.getByTestId("dashboard-intervention-list").querySelectorAll("li > a")).toHaveLength(3);
+    expect(screen.getByRole("button", { name: "展开其余事项（1）" }).getAttribute("aria-expanded")).toBe("false");
+
+    fireEvent.click(screen.getByRole("button", { name: "收起项目航迹" }));
+    expect(list.querySelectorAll("[data-dashboard-route]")).toHaveLength(3);
+  });
+
+  it("需要介入默认显示三项，且可独立展开和收起", async () => {
+    mocks.summary.mockResolvedValueOnce(summary());
+
+    render(<DashboardPage />);
+
+    const list = await screen.findByTestId("dashboard-intervention-list");
+    expect(list.querySelectorAll("li > a")).toHaveLength(3);
+    expect(screen.queryByText("任务 #7 已填报 68%")).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "展开其余事项（1）" }));
+    expect(list.querySelectorAll("li > a")).toHaveLength(4);
+    expect(screen.getByText("任务 #7 已填报 68%")).not.toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "收起介入事项" }));
+    expect(list.querySelectorAll("li > a")).toHaveLength(3);
   });
 
   it("刷新时保留上一份成功数据，并在完成后结束忙碌状态", async () => {

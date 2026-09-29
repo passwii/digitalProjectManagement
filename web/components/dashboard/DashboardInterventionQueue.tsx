@@ -1,9 +1,12 @@
 import type { CSSProperties } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import type { DashboardKpi, Weekly } from "@/lib/api";
 import { fmtDate, fmtDateTime } from "@/lib/labels";
 import Empty from "@/components/ui/Empty";
 import s from "./DashboardInterventionQueue.module.css";
+
+const PREVIEW_LIMIT = 3;
 
 type QueueTone = "signal" | "warn" | "danger" | "neutral";
 
@@ -95,6 +98,7 @@ export default function DashboardInterventionQueue({
   isAdmin: boolean;
   userName?: (id: number | null) => string;
 }) {
+  const [expanded, setExpanded] = useState(false);
   const items = buildQueue(weekly, kpi, isAdmin, userName);
 
   if (items.length === 0) {
@@ -105,27 +109,43 @@ export default function DashboardInterventionQueue({
     );
   }
 
+  const visibleItems = expanded ? items : items.slice(0, PREVIEW_LIMIT);
+
   return (
-    <ol className={s.list} data-testid="dashboard-intervention-list" data-dashboard-intervention="true">
-      {items.map((item, index) => (
-        <li
-          className={`${s.item} ${s[item.tone]}`}
-          key={item.id}
-          style={{ "--queue-delay": `${index * 55}ms` } as CSSProperties}
+    <div className={s.queue} id="dashboard-intervention-queue">
+      <ol className={s.list} id="dashboard-intervention-list" data-testid="dashboard-intervention-list" data-dashboard-intervention="true">
+        {visibleItems.map((item, index) => (
+          <li
+            className={`${s.item} ${s[item.tone]}`}
+            key={item.id}
+            style={{ "--queue-delay": `${index * 55}ms` } as CSSProperties}
+          >
+            <span className={s.pin} aria-hidden="true" />
+            <Link className={s.link} href={item.href} aria-label={`${item.kind}：${item.title}`}>
+              <span className={s.kind}>{item.kind}</span>
+              <span className={s.title}>{item.title}</span>
+              <span className={s.meta}>{item.meta}</span>
+              <span className={s.arrow} aria-hidden="true">
+                <svg viewBox="0 0 16 16" fill="none">
+                  <path d="M3 13 13 3M6 3h7v7" />
+                </svg>
+              </span>
+            </Link>
+          </li>
+        ))}
+      </ol>
+      {items.length > PREVIEW_LIMIT && (
+        <button
+          className={s.expand}
+          type="button"
+          aria-expanded={expanded}
+          aria-controls="dashboard-intervention-list"
+          onClick={() => setExpanded((value) => !value)}
         >
-          <span className={s.pin} aria-hidden="true" />
-          <Link className={s.link} href={item.href} aria-label={`${item.kind}：${item.title}`}>
-            <span className={s.kind}>{item.kind}</span>
-            <span className={s.title}>{item.title}</span>
-            <span className={s.meta}>{item.meta}</span>
-            <span className={s.arrow} aria-hidden="true">
-              <svg viewBox="0 0 16 16" fill="none">
-                <path d="M3 13 13 3M6 3h7v7" />
-              </svg>
-            </span>
-          </Link>
-        </li>
-      ))}
-    </ol>
+          <span>{expanded ? "收起介入事项" : `展开其余事项（${items.length - PREVIEW_LIMIT}）`}</span>
+          <span className={`${s.expandIcon} ${expanded ? s.expandIconOpen : ""}`} aria-hidden="true" />
+        </button>
+      )}
+    </div>
   );
 }
