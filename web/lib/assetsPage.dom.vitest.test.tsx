@@ -15,16 +15,20 @@ const { api, me, users, isAdmin } = vi.hoisted(() => ({
   isAdmin: vi.fn(() => true),
 }));
 
-vi.mock("@/lib/api", () => ({
-  equipmentAssetsApi: api,
-  authApi: { me },
-  errText: (error: unknown) => error instanceof Error ? error.message : String(error),
-  equipmentAssetActions: (asset: { status: string; holder_id: number | null }, isAdmin: boolean, currentUser?: number) => ({
-    canClaim: asset.status === "available" && !isAdmin,
-    canBorrow: asset.status === "available" && !isAdmin,
-    canReturn: asset.status === "borrowed" && (isAdmin || asset.holder_id === currentUser),
-  }),
-}));
+vi.mock("@/lib/api", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/api")>();
+  return {
+    ...actual,
+    equipmentAssetsApi: api,
+    authApi: { me },
+    errText: (error: unknown) => error instanceof Error ? error.message : String(error),
+    equipmentAssetActions: (asset: { status: string; holder_id: number | null }, isAdmin: boolean, currentUser?: number) => ({
+      canClaim: asset.status === "available" && !isAdmin,
+      canBorrow: asset.status === "available" && !isAdmin,
+      canReturn: asset.status === "borrowed" && (isAdmin || asset.holder_id === currentUser),
+    }),
+  };
+});
 vi.mock("@/lib/useMeta", () => ({ useMenus: () => ({ isAdmin: isAdmin() }), useMeta: () => ({ users: [{ id: 42, real_name: "张三" }, ...users.filter((user) => user.id !== 42)] }) }));
 
 import AssetsPage from "../app/(dashboard)/assets/page";
@@ -303,5 +307,52 @@ describe("资产页面分页和刷新", () => {
     await waitFor(() => expect(api.get).toHaveBeenCalledWith(1));
     expect(screen.queryByText("危险操作")).toBeNull();
     expect(api.deleteCheck).not.toHaveBeenCalled();
+  });
+});
+
+describe("设备流水中文展示", () => {
+  const ACTION_CASES: [string, string][] = [
+    ["create", "建档"], ["inbound", "入库"], ["import", "批量导入"], ["acceptance", "验收通过"],
+    ["update", "档案更新"], ["claim", "领用"], ["borrow", "借用"], ["return", "归还"],
+    ["maintenance", "送修"], ["restore", "恢复可用"], ["scrap", "报废"], ["void", "作废"],
+  ];
+
+  const event = (id: number, action: string) => ({
+    id, asset_id: 1, batch_id: 10, action, from_status: null, to_status: null,
+    actor_id: 42, holder_id: null, due_date: null, note: null, created_at: "2026-01-01T00:00:00Z",
+  });
+
+  it("后端写入的每个 action 都渲染为中文，不把英文值直接暴露给用户", async () => {
+    api.events.mockResolvedValue(page(ACTION_CASES.map(([action], index) => event(index + 1, action))));
+    fireEvent.click(await screen.findByRole("tab", { name: "设备台账" }));
+    fireEvent.click(await screen.findByRole("button", { name: "查看" }));
+
+    const list = (await screen.findByText("设备流水")).closest("section") as HTMLElement;
+    for (const [action, label] of ACTION_CASES) {
+      expect(within(list).getByText(label), `action=${action} 应显示为「${label}」`).toBeTruthy();
+    }
+    // 流水区里不能再出现任何一个后端英文 action 值
+    for (const [action] of ACTION_CASES) {
+      expect(within(list).queryByText(action), `不应残留英文 ${action}`).toBeNull();
+    }
+  });
+
+  it("未知 action 保留原值兜底，不显示成空白", async () => {
+    api.events.mockResolvedValue(page([event(1, "future_action")]));
+    fireEvent.click(await screen.findByRole("tab", { name: "设备台账" }));
+    fireEvent.click(await screen.findByRole("button", { name: "查看" }));
+
+    expect(await screen.findByText("future_action")).toBeTruthy();
+  });
+
+  it("状态流转与动作一起以中文呈现", async () => {
+    api.events.mockResolvedValue(page([{
+      ...event(1, "claim"), from_status: "available", to_status: "claimed",
+    }]));
+    fireEvent.click(await screen.findByRole("tab", { name: "设备台账" }));
+    fireEvent.click(await screen.findByRole("button", { name: "查看" }));
+
+    expect(await screen.findByText("领用")).toBeTruthy();
+    expect(await screen.findByText("可用 → 已领用")).toBeTruthy();
   });
 });
