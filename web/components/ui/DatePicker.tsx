@@ -382,6 +382,7 @@ function QuickBar({
 function Trigger({
   label,
   placeholder,
+  submittedValue,
   ariaLabel,
   disabled,
   invalid,
@@ -395,6 +396,8 @@ function Trigger({
 }: {
   label: string;
   placeholder: string;
+  /** 随表单提交的值（ISO），与展示用的 `label` 分开。 */
+  submittedValue: string;
   ariaLabel: string;
   disabled?: boolean;
   invalid?: boolean;
@@ -408,7 +411,9 @@ function Trigger({
 }) {
   return (
     <>
-      {name ? <input type="hidden" name={name} value={label === placeholder ? "" : label} readOnly /> : null}
+      {/* 触发器是 button，不参与原生表单提交；配一个 hidden 顶替原来的 input。
+          值必须是 ISO —— 写 label 会让后端收到 "2026 年 9 月 29 日"。 */}
+      {name ? <input type="hidden" name={name} value={submittedValue} readOnly /> : null}
       <button
         type="button"
         ref={triggerRef}
@@ -487,6 +492,7 @@ export function DatePicker({
       <Trigger
         label={label}
         placeholder={placeholder}
+        submittedValue={value}
         ariaLabel={ariaLabel}
         disabled={disabled}
         invalid={invalid}
@@ -601,7 +607,9 @@ export function DateRangePicker({
     <div className={`${st.root}${className ? ` ${st.rootHost}` : ""}`} ref={boxRef}>
       <Trigger
         label={label}
+        // 区间没有「一个」标量值；映射回原生语义就是起始日期。
         placeholder={placeholder}
+        submittedValue={value.from || ""}
         ariaLabel={ariaLabel}
         disabled={disabled}
         invalid={invalid}
@@ -714,6 +722,7 @@ function isMonthDisabled(key: string) {
       <Trigger
         label={label}
         placeholder={placeholder}
+        submittedValue={value}
         ariaLabel={ariaLabel}
         disabled={disabled}
         invalid={invalid}

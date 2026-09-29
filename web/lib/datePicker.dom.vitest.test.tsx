@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { useState } from "react";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -21,6 +22,50 @@ function openTrigger(name: string) {
 function days() {
   return screen.getAllByRole("gridcell");
 }
+
+describe("随表单提交（name）", () => {
+  it("单选提交的必须是 ISO 值，不能是展示用的中文", () => {
+    render(<DatePicker name="purchase_date" value="2026-09-29" onChange={() => {}} />);
+    const hidden = document.querySelector('input[type="hidden"][name="purchase_date"]') as HTMLInputElement;
+    expect(hidden.value).toBe("2026-09-29");
+  });
+
+  it("未选择时提交空串，而不是占位文案", () => {
+    render(<DatePicker name="purchase_date" value="" onChange={() => {}} />);
+    const hidden = document.querySelector('input[type="hidden"][name="purchase_date"]') as HTMLInputElement;
+    expect(hidden.value).toBe("");
+  });
+
+  it("选完新日期后 hidden 跟着变", () => {
+    const Wrapper = () => {
+      const [v, setV] = useState("2026-09-29");
+      return <DatePicker name="d" value={v} onChange={setV} />;
+    };
+    render(<Wrapper />);
+    openTrigger("选择日期");
+    fireEvent.click(days()[9]);
+    const hidden = document.querySelector('input[type="hidden"][name="d"]') as HTMLInputElement;
+    expect(hidden.value).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    expect(hidden.value).not.toBe("2026 年 9 月 29 日");
+  });
+
+  it("月份提交 YYYY-MM", () => {
+    render(<MonthPicker name="m" value="2026-09" onChange={() => {}} />);
+    const hidden = document.querySelector('input[type="hidden"][name="m"]') as HTMLInputElement;
+    expect(hidden.value).toBe("2026-09");
+  });
+
+  it("区间映射回原生的起始日期语义", () => {
+    render(<DateRangePicker name="from" value={{ from: "2026-09-01", to: "2026-09-30" }} onChange={() => {}} />);
+    const hidden = document.querySelector('input[type="hidden"][name="from"]') as HTMLInputElement;
+    expect(hidden.value).toBe("2026-09-01");
+  });
+
+  it("不传 name 就不渲染 hidden", () => {
+    render(<DatePicker value="2026-09-29" onChange={() => {}} />);
+    expect(document.querySelector('input[type="hidden"]')).toBeNull();
+  });
+});
 
 describe("单选日期", () => {
   it("默认展示占位文案，不显示任何假日期", () => {
