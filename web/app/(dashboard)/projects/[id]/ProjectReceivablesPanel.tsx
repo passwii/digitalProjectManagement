@@ -24,9 +24,10 @@ import {
 } from "./ProjectReceivableDialogs";
 import styles from "./ProjectReceivables.module.css";
 
-type Expanded = { id: number; items: ProjectReceivablePayment[]; loading: boolean; error: string } | null;
+type Expanded = { id: number; items: ProjectReceivablePayment[]; page: number; total: number; loading: boolean; error: string } | null;
 type DeleteTarget = { kind: "receivable"; receivable: ProjectReceivable } | { kind: "payment"; receivable: ProjectReceivable; payment: ProjectReceivablePayment } | null;
 const PAGE_SIZE = 20;
+const PAYMENT_PAGE_SIZE = 20;
 
 function money(value: string | number | null | undefined): string {
   const raw = String(value ?? "0").trim();
@@ -71,6 +72,7 @@ export default function ProjectReceivablesPanel({
     payment?: ProjectReceivablePayment;
   } | null>(null);
   const [expanded, setExpanded] = useState<Expanded>(null);
+  const [paymentsRevision, setPaymentsRevision] = useState(0);
   const [deleteTarget, setDeleteTarget] = useState<DeleteTarget>(null);
   const [deleting, setDeleting] = useState(false);
 
@@ -98,26 +100,46 @@ export default function ProjectReceivablesPanel({
       setExpanded(null);
       return;
     }
-    setExpanded({ id: receivable.id, items: [], loading: true, error: "" });
+    setExpanded({ id: receivable.id, items: [], page: 1, total: 0, loading: true, error: "" });
+    setPaymentsRevision((revision) => revision + 1);
   }, [expanded?.id]);
 
   useEffect(() => {
     if (!expanded?.loading) return;
     const controller = new AbortController();
     const receivableId = expanded.id;
-    projectsApi.receivablePayments(projectId, receivableId, controller.signal)
+    projectsApi.receivablePayments(
+      projectId,
+      receivableId,
+      { page: expanded.page, size: PAYMENT_PAGE_SIZE },
+      controller.signal,
+    )
       .then((response) => {
         if (!controller.signal.aborted) {
-          setExpanded({ id: receivableId, items: response.items, loading: false, error: "" });
+          setExpanded({
+            id: receivableId,
+            items: response.items,
+            page: response.page,
+            total: response.total,
+            loading: false,
+            error: "",
+          });
         }
       })
       .catch((cause) => {
         if (!controller.signal.aborted) {
-          setExpanded({ id: receivableId, items: [], loading: false, error: errText(cause) });
+          setExpanded({ id: receivableId, items: [], page: expanded.page, total: 0, loading: false, error: errText(cause) });
         }
       });
     return () => controller.abort();
-  }, [expanded?.id, expanded?.loading, projectId]);
+  }, [expanded?.id, expanded?.loading, expanded?.page, paymentsRevision, projectId]);
+
+  function changePaymentPage(page: number) {
+    if (expanded) {
+      setExpanded({ ...expanded, page, items: [], loading: true, error: "" });
+      setPaymentsRevision((revision) => revision + 1);
+    }
+  }
 
   async function saveReceivable(body: ProjectReceivableInput) {
     if (editing) {
@@ -147,7 +169,8 @@ export default function ProjectReceivablesPanel({
     }
     setPaymentTarget(null);
     reload();
-    setExpanded({ id: paymentTarget.receivable.id, items: [], loading: true, error: "" });
+    setExpanded({ id: paymentTarget.receivable.id, items: [], page: 1, total: 0, loading: true, error: "" });
+    setPaymentsRevision((revision) => revision + 1);
   }
 
   async function confirmDelete() {
@@ -260,6 +283,7 @@ export default function ProjectReceivablesPanel({
                           expanded={expanded}
                           canWrite={canWrite}
                           canDelete={canDelete}
+                          onPageChange={changePaymentPage}
                           onEdit={(payment) => setPaymentTarget({ receivable: item, payment })}
                           onDelete={(payment) => setDeleteTarget({ kind: "payment", receivable: item, payment })}
                         />
@@ -278,6 +302,7 @@ export default function ProjectReceivablesPanel({
                 canWrite={canWrite}
                 canDelete={canDelete}
                 mobile
+                onPageChange={changePaymentPage}
                 onEdit={(payment) => setPaymentTarget({ receivable: item, payment })}
                 onDelete={(payment) => setDeleteTarget({ kind: "payment", receivable: item, payment })}
               />
@@ -327,11 +352,13 @@ function PaymentsDetail({
   canDelete,
   onEdit,
   onDelete,
+  onPageChange,
   mobile = false,
 }: {
   expanded: Exclude<Expanded, null>;
   canWrite: boolean;
   canDelete: boolean;
+  onPageChange: (page: number) => void;
   onEdit: (payment: ProjectReceivablePayment) => void;
   onDelete: (payment: ProjectReceivablePayment) => void;
   mobile?: boolean;
@@ -371,6 +398,16 @@ function PaymentsDetail({
           </tr>)}</tbody>
         </table>
       </DesktopTable>
+      {expanded.total > PAYMENT_PAGE_SIZE && (
+        <Pagination
+          page={expanded.page}
+          size={PAYMENT_PAGE_SIZE}
+          total={expanded.total}
+          sizeOptions={[PAYMENT_PAGE_SIZE]}
+          ariaLabel="项目回款分页"
+          onChange={(next) => onPageChange(next.page)}
+        />
+      )}
     </>
   );
 }

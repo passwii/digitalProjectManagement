@@ -1,7 +1,11 @@
 from datetime import datetime
 from decimal import Decimal
+from concurrent.futures import ThreadPoolExecutor
+import importlib.util
+from threading import Barrier
+from pathlib import Path
 
-from api.models import AuditLog, Project
+from api.models import AuditLog, Project, ProjectReceivable, ProjectReceivablePayment, User
 from sqlalchemy import event, inspect, text
 
 
@@ -167,6 +171,17 @@ def test_project_receivable_permissions_and_soft_delete_keep_payment_history(cli
         json={"note": "补充合同口径"},
     )
     assert updated_receivable.status_code == 200, updated_receivable.text
+    session = db()
+    try:
+        pm_id = session.query(User.id).filter_by(username="pm").scalar()
+        assert session.execute(text(
+            "SELECT updated_by FROM project_receivables WHERE id = :id"
+        ), {"id": receivable["id"]}).scalar_one() == pm_id
+        assert session.execute(text(
+            "SELECT updated_by FROM project_receivable_payments WHERE id = :id"
+        ), {"id": payment["id"]}).scalar_one() == pm_id
+    finally:
+        session.close()
     outsider = login(client, "outsider")
     administrator = login(client, "admin")
 
@@ -204,10 +219,10 @@ def test_project_receivable_permissions_and_soft_delete_keep_payment_history(cli
     session = db()
     try:
         stored_receivable = session.execute(text(
-            "SELECT deleted_at FROM project_receivables WHERE id = :id"
+            "SELECT deleted_at, updated_by FROM project_receivables WHERE id = :id"
         ), {"id": receivable["id"]}).one()
         stored_payment = session.execute(text(
-            "SELECT deleted_at FROM project_receivable_payments WHERE id = :id"
+            "SELECT deleted_at, updated_by FROM project_receivable_payments WHERE id = :id"
         ), {"id": payment["id"]}).one()
         actions = {
             row.action for row in session.query(AuditLog)
@@ -216,6 +231,9 @@ def test_project_receivable_permissions_and_soft_delete_keep_payment_history(cli
         }
         assert stored_receivable.deleted_at is not None
         assert stored_payment.deleted_at is not None
+        admin_id = session.query(User.id).filter_by(username="admin").scalar()
+        assert stored_receivable.updated_by == admin_id
+        assert stored_payment.updated_by == admin_id
         assert {
             "create_project_receivable",
             "create_project_receivable_payment",
@@ -254,6 +272,12 @@ def test_project_receivable_rejects_invalid_amount_and_due_date(client):
         "receivable_date": "not-a-date", "due_date": "2026-02-01",
     })
     assert invalid_date.status_code == 400, invalid_date.text
+
+    non_calendar_date = client.post(endpoint, headers=user, json={
+        "name": "非 YYYY-MM-DD 日期", "amount": "1.00",
+        "receivable_date": "2026-W05-1", "due_date": "2026-02-01",
+    })
+    assert non_calendar_date.status_code == 400, non_calendar_date.text
 
 
 def test_project_receivable_status_uses_due_date(client):
@@ -311,6 +335,14 @@ def test_project_receivable_and_payment_updates_support_ui_fields_and_pagination
     assert set(payment_page) >= {"total", "page", "size", "items"}
     assert (payment_page["total"], payment_page["page"], payment_page["size"]) == (2, 1, 1)
     assert set(payment_page["items"][0]) >= {"id", "amount", "payment_date", "note"}
+    next_page = client.get(
+        f"/api/v1/projects/{project['id']}/receivables/{receivable['id']}/payments"
+        "?page=2&size=1",
+        headers=user,
+    )
+    assert next_page.status_code == 200, next_page.text
+    assert next_page.json()["page"] == 2
+    assert next_page.json()["items"][0]["amount"] == "40.00"
 
     patched_payment = client.patch(
         f"/api/v1/projects/{project['id']}/receivables/{receivable['id']}/payments/{first_id}",
@@ -360,6 +392,38 @@ def test_project_receivable_rejects_invalid_payment_amount_and_date(client):
         "amount": "1.00", "payment_date": "not-a-date",
     })
     assert invalid_date.status_code == 400, invalid_date.text
+
+    non_calendar_date = client.post(endpoint, headers=user, json={
+        "amount": "1.00", "payment_date": "2026-W05-1",
+    })
+    assert non_calendar_date.status_code == 400, non_calendar_date.text
+
+
+def test_project_receivable_concurrent_payments_cannot_overpay(client):
+    user = login(client, "pm")
+    project = create_project(client, user, name="并发防超收项目")
+    receivable = create_receivable(client, user, project["id"], amount="100.00")
+    barrier = Barrier(2)
+
+    def send_payment(amount):
+        barrier.wait(timeout=5)
+        return client.post(
+            f"/api/v1/projects/{project['id']}/receivables/{receivable['id']}/payments",
+            headers=user,
+            json={"amount": amount, "payment_date": "2026-02-01", "note": "并发到账"},
+        )
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        first = pool.submit(send_payment, "60.00")
+        second = pool.submit(send_payment, "60.00")
+        responses = [first.result(timeout=15), second.result(timeout=15)]
+
+    assert sorted(response.status_code for response in responses) == [200, 400]
+    listed = client.get(
+        f"/api/v1/projects/{project['id']}/receivables", headers=user,
+    ).json()["items"][0]
+    assert listed["received_amount"] == "60.00"
+    assert listed["payment_count"] == 1
 
 
 def test_project_receivable_cannot_cross_project_paths_or_access_deleted_rows(client):
@@ -510,6 +574,14 @@ def test_project_receivable_schema_uses_restrict_fks_and_project_indexes(db):
         }
         assert receivable_columns["amount"]["type"].precision == 18
         assert receivable_columns["amount"]["type"].scale == 2
+        assert "updated_by" in receivable_columns
+        assert receivable_columns["updated_by"]["nullable"] is False
+        payment_columns = {
+            column["name"]: column
+            for column in inspector.get_columns("project_receivable_payments")
+        }
+        assert "updated_by" in payment_columns
+        assert payment_columns["updated_by"]["nullable"] is False
 
         receivable_fks = inspector.get_foreign_keys("project_receivables")
         assert any(
@@ -529,6 +601,80 @@ def test_project_receivable_schema_uses_restrict_fks_and_project_indexes(db):
             and fk["constrained_columns"] == ["project_id", "receivable_id"]
             for fk in payment_fks
         )
+    finally:
+        session.close()
+
+
+def test_project_receivable_updater_migration_backfills_creator(db):
+    session = db()
+    try:
+        user_id = session.query(User.id).filter_by(username="pm").scalar()
+        project = Project(
+            code="MIG-2026-1",
+            name="修改人迁移回填项目",
+            owner_id=user_id,
+            owner_name="pm",
+            created_by=user_id,
+        )
+        session.add(project)
+        session.flush()
+        receivable = ProjectReceivable(
+            project_id=project.id,
+            name="迁移回填应收",
+            amount=Decimal("100.00"),
+            receivable_date=datetime(2026, 1, 1).date(),
+            due_date=datetime(2026, 2, 1).date(),
+            created_by=user_id,
+            updated_by=user_id,
+        )
+        session.add(receivable)
+        session.flush()
+        payment = ProjectReceivablePayment(
+            project_id=project.id,
+            receivable_id=receivable.id,
+            amount=Decimal("10.00"),
+            payment_date=datetime(2026, 1, 15).date(),
+            created_by=user_id,
+            updated_by=user_id,
+        )
+        session.add(payment)
+        session.commit()
+        from alembic.migration import MigrationContext
+        from alembic.operations import Operations
+
+        path = Path(__file__).parents[1] / "api/alembic/versions/0033_project_receivable_updaters.py"
+        spec = importlib.util.spec_from_file_location("project_receivable_updaters_migration", path)
+        assert spec and spec.loader
+        migration = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(migration)
+
+        previous_op = migration.op
+        bind = session.get_bind()
+        with bind.begin() as connection:
+            connection.execute(text(
+                "ALTER TABLE project_receivables DROP COLUMN updated_by CASCADE"
+            ))
+            connection.execute(text(
+                "ALTER TABLE project_receivable_payments DROP COLUMN updated_by CASCADE"
+            ))
+            migration.op = Operations(MigrationContext.configure(connection))
+            try:
+                migration.upgrade()
+            finally:
+                migration.op = previous_op
+
+        inspector = inspect(bind)
+        columns = {item["name"] for item in inspector.get_columns("project_receivables")}
+        assert "updated_by" in columns
+        assert "updated_by" in {item["name"] for item in inspector.get_columns("project_receivable_payments")}
+        updated_receivable = session.execute(text(
+            "SELECT created_by, updated_by FROM project_receivables WHERE id = :id"
+        ), {"id": receivable.id}).one()
+        updated_payment = session.execute(text(
+            "SELECT created_by, updated_by FROM project_receivable_payments WHERE id = :id"
+        ), {"id": payment.id}).one()
+        assert updated_receivable.updated_by == updated_receivable.created_by == user_id
+        assert updated_payment.updated_by == updated_payment.created_by == user_id
     finally:
         session.close()
 

@@ -488,7 +488,7 @@ function ProjectDetail({ pid }: { pid: number }) {
         <div className="actions no-print">
           <button className="btn-ghost" onClick={() => setEditOpen(true)}>编辑项目</button>
           <Link className="btn-ghost" href={`/progress?project_id=${pid}`}>进度跟踪</Link>
-          <Link className="btn-ghost" href={`/costs?project_id=${pid}`}>支出记录</Link>
+          <Link className="btn-ghost" href={`/costs?project_id=${pid}`}>成本记录</Link>
           <Link className="btn-ghost" href="/projects">返回台账</Link>
         </div>
       </div>

@@ -19,6 +19,8 @@ describe("档案页 Tab 解析", () => {
       assert.match(source, new RegExp(`tab === "${tab}"`), `详情页缺少「${tab}」内容区`);
     }
     assert.doesNotMatch(source, /tab === "支出"|tab === "变更"/);
+    assert.match(source, /成本记录/);
+    assert.doesNotMatch(source, /支出记录/);
   });
 
   it("现行页签为文档、合同、进度、成本、应收、日志", () => {

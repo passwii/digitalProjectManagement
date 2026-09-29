@@ -114,7 +114,12 @@ describe("项目应收面板", () => {
 
     fireEvent.click(within(cards).getByRole("button", { name: "回款记录" }));
     expect(await screen.findAllByText("首笔到账")).toHaveLength(4);
-    expect(mocks.payments).toHaveBeenCalledWith(projectId, receivable.id, expect.any(AbortSignal));
+    expect(mocks.payments).toHaveBeenCalledWith(
+      projectId,
+      receivable.id,
+      { page: 1, size: 20 },
+      expect.any(AbortSignal),
+    );
   });
 
   it("新增应收时提交日期、金额和说明", async () => {
@@ -155,6 +160,51 @@ describe("项目应收面板", () => {
       payment_date: "2026-03-02",
       note: "第二笔到账",
     }));
+  });
+
+  it("超过 20 笔回款时提供分页并读取下一页", async () => {
+    readyPanel();
+    mocks.payments.mockResolvedValue({
+      total: 25,
+      page: 1,
+      size: 20,
+      items: Array.from({ length: 20 }, (_, index) => ({
+        id: index + 1,
+        project_id: projectId,
+        receivable_id: receivable.id,
+        amount: "1.00",
+        payment_date: "2026-02-01",
+        note: `回款 ${index + 1}`,
+        created_at: null,
+      })),
+    });
+    const cards = await getReceivableCards();
+    fireEvent.click(within(cards).getByRole("button", { name: "回款记录" }));
+    await screen.findAllByText("回款 20");
+
+    mocks.payments.mockResolvedValue({
+      total: 25,
+      page: 2,
+      size: 20,
+      items: [{
+        id: 21,
+        project_id: projectId,
+        receivable_id: receivable.id,
+        amount: "5.00",
+        payment_date: "2026-01-31",
+        note: "最早一笔回款",
+        created_at: null,
+      }],
+    });
+    const pagination = document.querySelector('td nav[aria-label="项目回款分页"]') as HTMLElement;
+    fireEvent.click(within(pagination).getByRole("button", { name: "下一页" }));
+    await waitFor(() => expect(mocks.payments).toHaveBeenLastCalledWith(
+      projectId,
+      receivable.id,
+      { page: 2, size: 20 },
+      expect.any(AbortSignal),
+    ));
+    expect((await screen.findAllByText("最早一笔回款")).length).toBeGreaterThanOrEqual(2);
   });
 
   it("普通成员可录入但不能删除，且无写权限时隐藏录入操作", async () => {

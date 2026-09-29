@@ -26,6 +26,7 @@
 **文件：**
 - 修改：`api/models/__init__.py`
 - 新建：`api/alembic/versions/0032_project_receivables.py`
+- 新建：`api/alembic/versions/0033_project_receivable_updaters.py`
 - 新建：`api/routers/project_receivables.py`
 - 修改：`api/main.py`
 - 测试：`tests/test_project_receivables.py`
@@ -40,9 +41,9 @@
 
 - [x] **步骤 1：先写 API 失败测试**。覆盖应收新增/分页/修改、逐笔部分回款和汇总状态、足额后禁止超收、应收金额不得低于已收、管理员软删除与非管理员 403、非项目成员 403、归档项目只读、软删除回款不计入余额、软删除项目不可读取、金额/日期非法、审计日志产生；另加列表回款汇总查询次数回归。
 - [x] **步骤 2：确认测试因端点不存在而失败**。隔离 PostgreSQL 临时 schema 中，首轮新增的 5 项按预期因 `/projects/{pid}/receivables` 尚不存在而返回 404。
-- [x] **步骤 3：实现模型与迁移**。新增应收/回款表及约束、索引，外键使用 RESTRICT 保留业务历史；迁移 revision `0032_project_receivables` 下接 `0031_equipment_batch_names`，独立 schema 执行 upgrade 成功。
-- [x] **步骤 4：实现路由与事务校验**。使用 `check_project_access`，拒绝已归档项目写入；写操作先锁项目行 `SELECT … FOR UPDATE`，再校验有效回款；使用 `Decimal` 与 `app_today()`。回款分页汇总改为一次 `GROUP BY receivable_id`，防止列表 N+1 查询。
-- [x] **步骤 5：重新运行后端定向测试**。使用本机 Unix socket PostgreSQL 执行 `pytest tests/test_project_receivables.py -q`，结果 13 passed。
+- [x] **步骤 3：实现模型与迁移**。新增应收/回款表及约束、索引，外键使用 RESTRICT 保留业务历史；revision `0032_project_receivables` 下接 `0031_equipment_batch_names`；revision `0033_project_receivable_updaters` 增加非空修改人字段并将历史行回填为创建人。独立 schema 执行迁移成功。
+- [x] **步骤 4：实现路由与事务校验**。使用 `check_project_access`，拒绝已归档项目写入；写操作先锁项目行 `SELECT … FOR UPDATE`，再校验有效回款；使用 `Decimal` 与 `app_today()`；日期严格限制 `YYYY-MM-DD`；新增/修改/软删除均记录 `updated_by`。回款分页汇总改为一次 `GROUP BY receivable_id`，防止列表 N+1 查询。
+- [x] **步骤 5：重新运行后端定向测试**。使用本机 Unix socket PostgreSQL 执行 `pytest tests/test_project_receivables.py -q`，结果 15 passed，覆盖修改人迁移回填、严格日期、超收并发及按 ID 区分的批量汇总。
 - [x] **步骤 6：静态检查**。`python -m compileall -q api`、`git diff --check` 通过。
 
 ### Task 2：年份筛选与页签深链
@@ -74,9 +75,9 @@
 
 **接口：**
 - `projectsApi.receivables(id, signal?)`、`createReceivable(id, body)`、`updateReceivable(id, rid, body)`、`deleteReceivable(id, rid)`、`receivablePayments(id, rid, signal?)`、`createReceivablePayment(id, rid, body)`、`updateReceivablePayment(id, rid, paymentId, body)`、`deleteReceivablePayment(id, rid, paymentId)`。
-- 独立面板接收 `projectId`、`canWrite`、`canDelete`；面板在保存后刷新自己的应收/回款数据并显示操作反馈。
+- 独立面板接收 `projectId`、`canWrite`、`canDelete`；面板在保存后刷新自己的应收/回款数据并显示操作反馈；回款历史按每页 20 条分页，不能静默截断。
 
-- [x] **步骤 1：先写面板 DOM 测试**，覆盖汇总字段/状态、应收与回款 payload、逐笔历史和新增/删除权限。
+- [x] **步骤 1：先写面板 DOM 测试**，覆盖汇总字段/状态、应收与回款 payload、逐笔历史和新增/删除权限；再加入 25 笔夹具验证回款可以翻到第 2 页。
 - [x] **步骤 2：运行定向 Vitest**，初始因面板模块未创建而按预期失败。
 - [x] **步骤 3：实现 API 类型与客户端方法**，金额为十进制字符串，URL/字段与后端契约一致。
 - [x] **步骤 4：实现应收与回款弹窗/面板**，复用现有 UI 组件，含 loading、error、empty 与成功提示。
@@ -92,5 +93,5 @@
 - [x] 运行 `python -m compileall -q api`。
 - [x] 运行 `pytest -q`；全套报告为 333 passed / 87 failed，失败均集中于平板浏览器 fixture：默认端口 3017 未服务或与并行 Next build 争用 `.next` 后静态资源 404。改用隔离 fixture 对应项目表格的两个浏览器用例重跑为 2 passed；后续单独服务检查应收页面桌面/移动布局、页签、汇总、按钮和页面错误无误。
 - [x] 运行 `cd web && npm test`（235 unit + 297 Vitest）、`npm run lint`、`npm run build`。lint 仅有仓库既有警告；build 最终单独重跑通过。
-- [x] 检查迁移链：`0032_project_receivables (head)`；`git diff --check` 通过；旧年份回落与旧页签兼容有测试保护。
+- [x] 检查迁移链：`0033_project_receivable_updaters (head)`；`git diff --check` 通过；旧年份回落与旧页签兼容有测试保护。
 - [x] 审阅最终 diff，确认无财务 ARAP 写入、无历史应收导入、无全局支出文案范围外更改。

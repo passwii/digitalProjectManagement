@@ -1390,9 +1390,18 @@ export const projectsApi = {
     apiPatch<ProjectReceivable>(`/projects/${id}/receivables/${receivableId}`, body),
   deleteReceivable: (id: number, receivableId: number) =>
     apiDelete<{ ok: boolean }>(`/projects/${id}/receivables/${receivableId}`),
-  receivablePayments: (id: number, receivableId: number, signal?: AbortSignal) =>
+  receivablePayments: (
+    id: number,
+    receivableId: number,
+    params: { page?: number; size?: number } = {},
+    signal?: AbortSignal,
+  ) =>
     apiGet<Paged<ProjectReceivablePayment>>(
-      `/projects/${id}/receivables/${receivableId}/payments?page=1&size=100&sort=-payment_date`,
+      `/projects/${id}/receivables/${receivableId}/payments${buildQuery({
+        page: params.page ?? 1,
+        size: params.size ?? DEFAULT_PAGE_SIZE,
+        sort: "-payment_date",
+      })}`,
       signal,
     ),
   createReceivablePayment: (id: number, receivableId: number, body: ProjectReceivablePaymentInput) =>

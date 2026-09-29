@@ -2,6 +2,7 @@
 
 from datetime import date
 from decimal import Decimal, InvalidOperation
+import re
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import func
@@ -24,6 +25,7 @@ router = APIRouter(prefix="/projects", tags=["project-receivables"])
 
 MONEY = Decimal("0.01")
 MAX_MONEY = Decimal("10000000000000000")
+ISO_DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 RECEIVABLE_SORTS = {
     "id": ProjectReceivable.id,
     "name": ProjectReceivable.name,
@@ -90,8 +92,11 @@ def _date(value, field: str) -> date:
         return value
     if not isinstance(value, str) or not value.strip():
         raise HTTPException(400, f"{field}必填")
+    raw = value.strip()
+    if not ISO_DATE_RE.fullmatch(raw):
+        raise HTTPException(400, f"{field}须为 YYYY-MM-DD 格式")
     try:
-        return date.fromisoformat(value.strip())
+        return date.fromisoformat(raw)
     except ValueError:
         raise HTTPException(400, f"{field}须为 YYYY-MM-DD 格式")
 
@@ -346,6 +351,7 @@ def create_receivable(
         due_date=due_date,
         note=_note(payload.get("note")),
         created_by=user.id,
+        updated_by=user.id,
         created_at=app_now(),
         updated_at=app_now(),
     )
@@ -400,6 +406,7 @@ def update_receivable(
     receivable.due_date = due_date
     if "note" in payload:
         receivable.note = _note(payload["note"])
+    receivable.updated_by = user.id
     db.flush()
     commit_audited(
         db,
@@ -425,6 +432,7 @@ def delete_receivable(
     receivable = _receivable(db, pid, rid, lock=True)
     receivable.deleted_at = app_now()
     receivable.deleted_by = user.id
+    receivable.updated_by = user.id
     db.flush()
     commit_audited(
         db,
@@ -488,6 +496,7 @@ def create_payment(
         payment_date=payment_date,
         note=_note(payload.get("note")),
         created_by=user.id,
+        updated_by=user.id,
         created_at=app_now(),
         updated_at=app_now(),
     )
@@ -537,6 +546,7 @@ def update_payment(
     payment.payment_date = payment_date
     if "note" in payload:
         payment.note = _note(payload["note"])
+    payment.updated_by = user.id
     db.flush()
     commit_audited(
         db,
@@ -564,6 +574,7 @@ def delete_payment(
     payment = _payment(db, pid, rid, payment_id, lock=True)
     payment.deleted_at = app_now()
     payment.deleted_by = user.id
+    payment.updated_by = user.id
     db.flush()
     commit_audited(
         db,
