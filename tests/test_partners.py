@@ -273,12 +273,20 @@ def test_partner_attachment_flow(client, db):
     dl = client.get(f"/api/v1/partners/{pid}/attachments/{att['id']}/download", headers=h)
     assert dl.status_code == 200 and dl.content == b"%PDF-1.4 fake"
 
-    # 详情附件计数同步
-    assert client.get(f"/api/v1/partners/{pid}", headers=h).json()["attachment_count"] == 1
+    # 详情附件计数同步：_attachment_count（partners.py）只按 ref_type/ref_id 过滤，
+    # 不按 category 收窄，所以上面挂的 qual_cert + contract 两份都要计入。
+    assert client.get(f"/api/v1/partners/{pid}", headers=h).json()["attachment_count"] == 2
 
     assert client.delete(f"/api/v1/partners/{pid}/attachments/{att['id']}",
                          headers=h).status_code == 200
-    assert client.get(f"/api/v1/partners/{pid}/attachments", headers=h).json() == []
+    # 删掉的只是 qual_cert 那份：裸列表接口不带 category 参数时返回全部分类
+    # （list_partner_attachments 里 `if category:` 是短路判断），contract 那份仍在。
+    assert [r["id"] for r in client.get(
+        f"/api/v1/partners/{pid}/attachments", headers=h
+    ).json()] == [contract.json()["id"]]
+    # 计数跟着删除回落，形成 2 → 1 的前后对照：证明它真在数 DB 行，
+    # 而不是返回写死的常数或被缓存的旧值。
+    assert client.get(f"/api/v1/partners/{pid}", headers=h).json()["attachment_count"] == 1
 
 
 def test_partner_attachment_over_limit_rejected(client, db, monkeypatch):
