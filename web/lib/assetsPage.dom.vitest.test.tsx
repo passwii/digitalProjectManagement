@@ -69,6 +69,18 @@ beforeEach(() => {
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 
 describe("资产页面分页和刷新", () => {
+  it("保留分区标题与批次搜索，同时隐藏复述列表用途的说明", async () => {
+    fireEvent.click(await screen.findByRole("tab", { name: "入库批次" }));
+
+    expect(screen.getByRole("heading", { name: "入库批次" })).toBeTruthy();
+    expect(screen.getByLabelText("搜索批次列表")).toBeTruthy();
+    expect(screen.queryByText("按名称查找批次，查看设备数量、来源、验收情况和设备明细")).toBeNull();
+
+    fireEvent.click(screen.getByRole("tab", { name: "逾期借用" }));
+    expect(screen.getByRole("heading", { name: "逾期借用" })).toBeTruthy();
+    expect(screen.queryByText("仅展示超过归还日期的设备")).toBeNull();
+  });
+
   it("使用项目详情页共享标签控件并同步移动端分区选择", async () => {
     // 移动端分区选择器是自绘下拉（MotionTabs 内部的 Select），不能对原生 select 做 change
     selectOption("选择页面分区", "设备台账");

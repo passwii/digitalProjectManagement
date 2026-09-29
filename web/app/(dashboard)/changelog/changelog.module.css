@@ -4,9 +4,9 @@
 }
 
 .hero {
-  min-height: 132px;
+  min-height: 96px;
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   gap: 28px;
   padding: 0 0 24px;
@@ -14,30 +14,12 @@
 }
 
 .hero h1 {
-  margin: 0 0 8px;
+  margin: 0;
   color: var(--ink);
   font-size: 38px;
   font-weight: 750;
   letter-spacing: -.035em;
   line-height: 1.2;
-}
-
-.lede,
-.sublede {
-  margin: 0;
-  line-height: 1.7;
-}
-
-.lede {
-  color: var(--ink);
-  font-size: 15px;
-  font-weight: 600;
-}
-
-.sublede {
-  margin-top: 3px;
-  color: var(--ink-3);
-  font-size: 13px;
 }
 
 .currentMark {
@@ -290,9 +272,6 @@
   .currentMark { min-width: 92px; padding: 10px 11px; }
   .currentMark strong { font-size: 16px; }
   .hero h1 { font-size: 30px; }
-  .lede { font-size: 14px; }
-  .sublede { max-width: 230px; }
-
   .tabs { margin-top: 18px; }
   .tab { flex-basis: 190px; }
 

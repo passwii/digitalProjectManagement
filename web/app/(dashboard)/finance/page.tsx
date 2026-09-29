@@ -204,16 +204,13 @@ function FinanceInner() {
       <PageHeader
         title="财务管理"
         filters={
-          <>
-            <label className="toolbar-field">
-              <span>当前账套</span>
-              <Select value={activeBook} onChange={setBookCode} aria-label="选择财务账套">
-                {!books.data?.length && <option value="">暂无账套</option>}
-                {books.data?.map((item) => <option key={item.code} value={item.code}>{item.name} · {item.code}</option>)}
-              </Select>
-            </label>
-            <span className="tiny muted">项目成本与财务账独立；已审批支出可在“项目支出入账”逐笔生成草稿凭证。</span>
-          </>
+          <label className="toolbar-field">
+            <span>当前账套</span>
+            <Select value={activeBook} onChange={setBookCode} aria-label="选择财务账套">
+              {!books.data?.length && <option value="">暂无账套</option>}
+              {books.data?.map((item) => <option key={item.code} value={item.code}>{item.name} · {item.code}</option>)}
+            </Select>
+          </label>
         }
         actions={
           <>
@@ -310,7 +307,7 @@ function Foundation({ accounts, loading, error, onRetry }: { accounts: FinanceAc
   if (loading) return <LoadingBlock kpis={0} label="加载科目体系…" />;
   if (error) return <LoadFailed message={error} onRetry={onRetry} />;
   return <>
-    <div className="section-head"><div><h2>基础设置</h2><p>2022 版企业会计准则科目树，停用和辅助核算由后端规则控制。</p></div><span className="tiny muted">{accounts.length} 个科目</span></div>
+    <div className="section-head"><div><h2>基础设置</h2><p>2022 版企业会计准则科目树。</p></div><span className="tiny muted">{accounts.length} 个科目</span></div>
     <div className="table-scroll"><table className="grid"><thead><tr><th>编码</th><th>科目名称</th><th>类别</th><th>方向</th><th>辅助核算</th><th>状态</th></tr></thead><tbody>{accounts.slice(0, 120).map((account) => <tr key={account.id}><td className="mono">{account.code}</td><td style={{ paddingLeft: Math.max(12, account.level * 18) }}>{account.name}</td><td>{account.category}</td><td>{account.direction === "D" ? "借" : "贷"}</td><td>{Object.entries(account.aux_flags ?? {}).filter(([, enabled]) => enabled).map(([key]) => key).join("、") || "-"}</td><td><span className={`badge ${account.is_active ? "done" : "muted"}`}>{account.is_active ? "启用" : "停用"}</span></td></tr>)}</tbody></table></div>
   </>;
 }
@@ -360,7 +357,7 @@ function VoucherList({ book, period, templates, data, loading, error, onRetry, o
   if (loading) return <LoadingBlock kpis={0} label="加载凭证…" />;
   if (error) return <LoadFailed message={error} onRetry={onRetry} />;
   return <>
-    <div className="section-head"><div><h2>凭证</h2><p>当前期间的凭证流水，草稿、待审核和已过账状态由后端控制。</p></div><div className="row-actions"><button className="btn-ghost" onClick={onTemplate}>模板</button><button className="btn-ghost" onClick={() => document.getElementById("finance-voucher-import")?.click()}>导入 Excel</button><input id="finance-voucher-import" type="file" accept=".xlsx" hidden onChange={async (event) => { const file = event.target.files?.[0]; if (file && period) { await financeApi.importVouchers(book, period.id, file); window.location.reload(); } }} /><button className="btn-ghost" disabled={!period} onClick={() => period && financeApi.exportVouchers(book, period.id)}>导出 Excel</button><button className="btn-primary" onClick={onCreate}>+ 新建凭证</button></div></div>
+    <div className="section-head"><div><h2>凭证</h2></div><div className="row-actions"><button className="btn-ghost" onClick={onTemplate}>模板</button><button className="btn-ghost" onClick={() => document.getElementById("finance-voucher-import")?.click()}>导入 Excel</button><input id="finance-voucher-import" type="file" accept=".xlsx" hidden onChange={async (event) => { const file = event.target.files?.[0]; if (file && period) { await financeApi.importVouchers(book, period.id, file); window.location.reload(); } }} /><button className="btn-ghost" disabled={!period} onClick={() => period && financeApi.exportVouchers(book, period.id)}>导出 Excel</button><button className="btn-primary" onClick={onCreate}>+ 新建凭证</button></div></div>
     {!data.length ? <div className="card"><Empty title="当前期间还没有凭证" hint="从一张手工凭证开始建立财务事实。" /></div> : <>
       <CardList label="财务凭证">
         {data.map((voucher) => (
@@ -480,7 +477,7 @@ function VoucherDialog({ open, book, period, accounts, onClose, onSaved }: { ope
       onSaved();
     } catch (e) { setError(errText(e)); } finally { setSaving(false); }
   }
-  return <Dialog open={open} onClose={onClose} title="新建凭证" size="md" footer={<><button className="btn-ghost" onClick={onClose}>取消</button><button className="btn-primary" disabled={saving} onClick={save}>{saving ? "保存中…" : "保存草稿"}</button></>}><div className="form-grid"><label className="field span-2"><span className="field-label">摘要</span><input value={summary} onChange={(event) => setSummary(event.target.value)} placeholder="例如：办公费" /></label><label className="field"><span className="field-label">借方科目</span><Select value={debitAccount} onChange={setDebitAccount}><option value="">请选择</option>{leaves.map((item) => <option key={item.id} value={item.id}>{item.code} {item.name}</option>)}</Select></label><label className="field"><span className="field-label">贷方科目</span><Select value={creditAccount} onChange={setCreditAccount}><option value="">请选择</option>{leaves.map((item) => <option key={item.id} value={item.id}>{item.code} {item.name}</option>)}</Select></label><label className="field"><span className="field-label">金额</span><input inputMode="decimal" value={amount} onChange={(event) => setAmount(event.target.value)} placeholder="0.00" /></label></div>{error && <div className="field-err" role="alert">{error}</div>}<p className="tiny muted">当前首期只提供手工草稿录入；凭证审核、过账和账簿取数由后端状态机控制。</p></Dialog>;
+  return <Dialog open={open} onClose={onClose} title="新建凭证" size="md" footer={<><button className="btn-ghost" onClick={onClose}>取消</button><button className="btn-primary" disabled={saving} onClick={save}>{saving ? "保存中…" : "保存草稿"}</button></>}><div className="form-grid"><label className="field span-2"><span className="field-label">摘要</span><input value={summary} onChange={(event) => setSummary(event.target.value)} placeholder="例如：办公费" /></label><label className="field"><span className="field-label">借方科目</span><Select value={debitAccount} onChange={setDebitAccount}><option value="">请选择</option>{leaves.map((item) => <option key={item.id} value={item.id}>{item.code} {item.name}</option>)}</Select></label><label className="field"><span className="field-label">贷方科目</span><Select value={creditAccount} onChange={setCreditAccount}><option value="">请选择</option>{leaves.map((item) => <option key={item.id} value={item.id}>{item.code} {item.name}</option>)}</Select></label><label className="field"><span className="field-label">金额</span><input inputMode="decimal" value={amount} onChange={(event) => setAmount(event.target.value)} placeholder="0.00" /></label></div>{error && <div className="field-err" role="alert">{error}</div>}</Dialog>;
 }
 
 function BookDialog({ open, onClose, onSaved }: { open: boolean; onClose: () => void; onSaved: () => void }) {

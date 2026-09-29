@@ -189,8 +189,8 @@ function AssetsInner() {
       {section === "overview" && <Overview overview={data.overview} stats={data.stats} categories={categories} onSection={setSection} />}
       {section === "ledger" && <section className="asset-panel"><div className="asset-filters"><input aria-label="搜索设备" placeholder="编号、名称、序列号…" value={filters.keyword} onChange={(e) => setFilters({ ...filters, keyword: e.target.value })} /><Select aria-label="设备分类" value={filters.category_code} onChange={(value) => setFilters({ ...filters, category_code: value })}><option value="">全部分类</option>{categories.map((c) => <option key={c.code} value={c.code}>{c.label}</option>)}</Select><Select aria-label="设备状态" value={filters.status} onChange={(value) => setFilters({ ...filters, status: value })}><option value="">全部状态</option>{Object.entries(STATUS).map(([v, label]) => <option key={v} value={v}>{label}</option>)}</Select>{filters.holder_id && <button className="btn-ghost" onClick={() => setFilters({ ...filters, holder_id: "" })}>清除使用人筛选</button>}</div>{ledgerLoading && !ledgerData ? <LoadingBlock label="读取设备台账…" /> : <><AssetRows rows={visibleRows} categories={categories} onOpen={openAsset} userName={userName} /><div className="asset-pagination"><span>第 {page} 页 · 共 {ledgerData?.total ?? 0} 件</span><button className="btn-ghost" disabled={page <= 1 || ledgerLoading} onClick={() => setPage(page - 1)}>上一页</button><button className="btn-ghost" disabled={page * 20 >= (ledgerData?.total ?? 0) || ledgerLoading} onClick={() => setPage(page + 1)}>下一页</button></div></>}</section>}
       {section === "inbound" && isAdmin && <InboundForm categories={categories} busy={busy} refreshKey={batchPickerRefreshKey} onSubmit={(body) => perform(() => api.inbound(body), (result) => { const batch = result as EquipmentBatch; return `已登记设备到「${batch.name} · 批次 #${batch.id}」`; })} />}
-      {section === "batches" && <section className="asset-panel"><div className="asset-panel-heading"><div><h2>入库批次</h2><p>按名称查找批次，查看设备数量、来源、验收情况和设备明细</p></div><input aria-label="搜索批次列表" placeholder="批次名、编号或来源…" value={batchSearch} onChange={(e) => { setBatchSearch(e.target.value); setBatchPage(1); }} /></div>{batchesLoading && !batchesData ? <LoadingBlock label="读取入库批次…" /> : batchesData && <>{batchesData.items.length ? <div className="asset-batch-list">{batchesData.items.map((b) => <article key={b.id}><div><b>{b.name} · 批次 #{b.id}</b><span>{b.source || "未填写来源"} · {b.supplier || "未填写供应商"}</span><small>采购单 {b.purchase_order_no || "—"} · 发票 {b.invoice_no || "—"} · {b.asset_count ? `${b.asset_count} 件设备` : "空批次"}</small></div><span className={`asset-status ${b.acceptance_status}`}>{b.acceptance_status === "accepted" ? "已验收" : "待验收"}</span>{b.acceptance_status === "pending_acceptance" && isAdmin && <button disabled={busy} className="btn-primary" onClick={() => perform(() => api.acceptBatch(b.id), "批次验收完成")}>确认验收</button>}<button className="btn-ghost" disabled={batchLoadingId === b.id} onClick={() => void loadBatch(b.id)}>{batchLoadingId === b.id ? "读取中…" : "查看设备"}</button>{isAdmin && <button className="btn-ghost" onClick={() => { setBatchEdit(b); setBatchEditName(b.name); setBatchEditError(""); }}>重命名</button>}{isAdmin && b.asset_count === 0 && <button className="btn-ghost asset-danger" onClick={() => { setBatchDelete(b); setBatchDeleteError(""); }}>删除空批次</button>}{batch?.id === b.id && <div className="asset-batch-assets">{batch.items?.map((a) => <button key={a.id} onClick={() => openAsset(a)}>{a.code} · {a.name}</button>)}</div>}</article>)}</div> : <div className="asset-empty">暂无入库批次</div>}<div className="asset-pagination"><span>第 {batchesData.page} 页 · 共 {batchesData.total} 批</span><button className="btn-ghost" disabled={batchesData.page <= 1 || batchesLoading} onClick={() => setBatchPage(batchesData.page - 1)}>上一页批次</button><button className="btn-ghost" disabled={batchesData.page * batchesData.size >= batchesData.total || batchesLoading} onClick={() => setBatchPage(batchesData.page + 1)}>下一页批次</button></div></>}</section>}
-      {section === "overdue" && <section className="asset-panel"><div className="asset-panel-heading"><div><h2>逾期借用</h2><p>仅展示超过归还日期的设备</p></div><span className="asset-count">{overdueData?.total ?? 0} 件</span></div>{overdueLoading && !overdueData ? <LoadingBlock label="读取逾期借用…" /> : overdueData && <>{overdueData.items.length ? <AssetRows rows={overdueData.items} categories={categories} onOpen={openAsset} userName={userName} /> : <div className="asset-empty">当前没有逾期设备</div>}<div className="asset-pagination"><span>第 {overdueData.page} 页 · 共 {overdueData.total} 件</span><button className="btn-ghost" disabled={overdueData.page <= 1 || overdueLoading} onClick={() => setOverduePage(overdueData.page - 1)}>上一页逾期</button><button className="btn-ghost" disabled={overdueData.page * overdueData.size >= overdueData.total || overdueLoading} onClick={() => setOverduePage(overdueData.page + 1)}>下一页逾期</button></div></>}</section>}
+      {section === "batches" && <section className="asset-panel"><div className="asset-panel-heading"><div><h2>入库批次</h2></div><input aria-label="搜索批次列表" placeholder="批次名、编号或来源…" value={batchSearch} onChange={(e) => { setBatchSearch(e.target.value); setBatchPage(1); }} /></div>{batchesLoading && !batchesData ? <LoadingBlock label="读取入库批次…" /> : batchesData && <>{batchesData.items.length ? <div className="asset-batch-list">{batchesData.items.map((b) => <article key={b.id}><div><b>{b.name} · 批次 #{b.id}</b><span>{b.source || "未填写来源"} · {b.supplier || "未填写供应商"}</span><small>采购单 {b.purchase_order_no || "—"} · 发票 {b.invoice_no || "—"} · {b.asset_count ? `${b.asset_count} 件设备` : "空批次"}</small></div><span className={`asset-status ${b.acceptance_status}`}>{b.acceptance_status === "accepted" ? "已验收" : "待验收"}</span>{b.acceptance_status === "pending_acceptance" && isAdmin && <button disabled={busy} className="btn-primary" onClick={() => perform(() => api.acceptBatch(b.id), "批次验收完成")}>确认验收</button>}<button className="btn-ghost" disabled={batchLoadingId === b.id} onClick={() => void loadBatch(b.id)}>{batchLoadingId === b.id ? "读取中…" : "查看设备"}</button>{isAdmin && <button className="btn-ghost" onClick={() => { setBatchEdit(b); setBatchEditName(b.name); setBatchEditError(""); }}>重命名</button>}{isAdmin && b.asset_count === 0 && <button className="btn-ghost asset-danger" onClick={() => { setBatchDelete(b); setBatchDeleteError(""); }}>删除空批次</button>}{batch?.id === b.id && <div className="asset-batch-assets">{batch.items?.map((a) => <button key={a.id} onClick={() => openAsset(a)}>{a.code} · {a.name}</button>)}</div>}</article>)}</div> : <div className="asset-empty">暂无入库批次</div>}<div className="asset-pagination"><span>第 {batchesData.page} 页 · 共 {batchesData.total} 批</span><button className="btn-ghost" disabled={batchesData.page <= 1 || batchesLoading} onClick={() => setBatchPage(batchesData.page - 1)}>上一页批次</button><button className="btn-ghost" disabled={batchesData.page * batchesData.size >= batchesData.total || batchesLoading} onClick={() => setBatchPage(batchesData.page + 1)}>下一页批次</button></div></>}</section>}
+      {section === "overdue" && <section className="asset-panel"><div className="asset-panel-heading"><div><h2>逾期借用</h2></div><span className="asset-count">{overdueData?.total ?? 0} 件</span></div>{overdueLoading && !overdueData ? <LoadingBlock label="读取逾期借用…" /> : overdueData && <>{overdueData.items.length ? <AssetRows rows={overdueData.items} categories={categories} onOpen={openAsset} userName={userName} /> : <div className="asset-empty">当前没有逾期设备</div>}<div className="asset-pagination"><span>第 {overdueData.page} 页 · 共 {overdueData.total} 件</span><button className="btn-ghost" disabled={overdueData.page <= 1 || overdueLoading} onClick={() => setOverduePage(overdueData.page - 1)}>上一页逾期</button><button className="btn-ghost" disabled={overdueData.page * overdueData.size >= overdueData.total || overdueLoading} onClick={() => setOverduePage(overdueData.page + 1)}>下一页逾期</button></div></>}</section>}
       {section === "statistics" && <Statistics stats={data.stats} categories={categories} onHolder={(id) => { setFilters({ ...filters, holder_id: String(id) }); setSection("ledger"); }} />}
       {section === "categories" && isAdmin && <CategoryManager categories={categories} busy={busy} onChange={async () => { await refresh(); }} onError={(e) => setError(errText(e))} onToast={notify} />}
     </>}
@@ -211,13 +211,13 @@ function Overview({ overview, stats, categories, onSection }: { overview: { tota
     </div>
     <section className="asset-panel">
       <div className="asset-panel-heading">
-        <div><h2>设备状态</h2><p>按当前台账状态汇总</p></div>
+        <div><h2>设备状态</h2></div>
         <button type="button" className="btn-ghost" onClick={() => onSection("statistics")}>查看统计</button>
       </div>
       <div className="asset-status-grid">
         {Object.entries(STATUS).map(([key, label]) => <div key={key}><span>{label}</span><b>{overview.by_status[key] ?? 0}</b></div>)}
       </div>
-      <div className="asset-panel-heading asset-category-heading"><div><h3>分类分布</h3><p>当前台账中的设备分类</p></div></div>
+      <div className="asset-panel-heading asset-category-heading"><div><h3>分类分布</h3></div></div>
       {stats.by_category.length ? <div className="asset-status-grid">
         {stats.by_category.map((category) => <div key={category.category_code}><span>{categories.find((item) => item.code === category.category_code)?.label ?? category.category_code}</span><b>{category.count}</b></div>)}
       </div> : <p className="asset-empty asset-empty-inline">暂无分类数据</p>}
@@ -411,7 +411,7 @@ function Statistics({ stats, categories, onHolder }: { stats: EquipmentStatistic
   const categoryTotal = stats.by_category.reduce((total, row) => total + row.count, 0);
   return <div className="asset-stat-columns">
     <section className="asset-panel">
-      <div className="asset-panel-heading"><div><h2>分类占比</h2><p>按当前设备总数计算</p></div></div>
+      <div className="asset-panel-heading"><div><h2>分类占比</h2></div></div>
       {stats.by_category.length ? stats.by_category.map((row) => {
         const percent = categoryTotal ? (row.count / categoryTotal) * 100 : 0;
         const name = categories.find((category) => category.code === row.category_code)?.label ?? row.category_code;
@@ -422,15 +422,15 @@ function Statistics({ stats, categories, onHolder }: { stats: EquipmentStatistic
       }) : <p className="asset-empty asset-empty-inline">暂无分类数据</p>}
     </section>
     <section className="asset-panel">
-      <div className="asset-panel-heading"><div><h2>状态数量</h2><p>按当前设备状态统计</p></div></div>
+      <div className="asset-panel-heading"><div><h2>状态数量</h2></div></div>
       {stats.by_status.length ? stats.by_status.map((row) => <div className="asset-stat-row asset-stat-count" key={row.status}><span>{STATUS[row.status] ?? row.status}</span><b>{row.count}</b></div>) : <p className="asset-empty asset-empty-inline">暂无状态数据</p>}
     </section>
     <section className="asset-panel asset-wide">
-      <div className="asset-panel-heading"><div><h2>月度出入库</h2><p>入库与出库记录按月份汇总</p></div></div>
+      <div className="asset-panel-heading"><div><h2>月度出入库</h2></div></div>
       {stats.by_month.length ? <div className="asset-months">{stats.by_month.map((row) => <div key={row.month}><b>{row.month}</b><span>入库 <strong>{row.inbound}</strong></span><span>出库 <strong>{row.outbound}</strong></span></div>)}</div> : <p className="asset-empty asset-empty-inline">暂无出入库记录</p>}
     </section>
     <section className="asset-panel asset-wide">
-      <div className="asset-panel-heading"><div><h2>使用人设备清单</h2><p>选择使用人查看其设备台账</p></div></div>
+      <div className="asset-panel-heading"><div><h2>使用人设备清单</h2></div></div>
       {stats.by_holder.length ? <div className="asset-holder-list">{stats.by_holder.map((row) => <button type="button" key={row.user_id} onClick={() => onHolder(row.user_id)}><span>{row.name || `用户 ${row.user_id}`}</span><b>{row.count} 件</b><small>查看设备明细 <span aria-hidden="true">→</span></small></button>)}</div> : <p className="asset-empty asset-empty-inline">暂无使用人设备数据</p>}
     </section>
   </div>;
@@ -503,12 +503,12 @@ function AssetDetail({ asset, categories, batch, events, deleteCheck, userName, 
       </div>
 
       {batch && <section className="asset-detail-batch">
-        <div className="asset-section-heading"><div><h3>入库批次 #{batch.id}</h3><p>批次来源及验收信息</p></div><span className={`asset-status ${batch.acceptance_status}`}>{batch.acceptance_status === "accepted" ? "已验收" : "待验收"}</span></div>
+        <div className="asset-section-heading"><div><h3>入库批次 #{batch.id}</h3></div><span className={`asset-status ${batch.acceptance_status}`}>{batch.acceptance_status === "accepted" ? "已验收" : "待验收"}</span></div>
         <dl><div><dt>来源 / 供应商</dt><dd>{batch.source || "—"} / {batch.supplier || "—"}</dd></div><div><dt>采购单 / 发票</dt><dd>{batch.purchase_order_no || "—"} / {batch.invoice_no || "—"}</dd></div></dl>
       </section>}
 
       {isAdmin && <section className="asset-detail-section">
-        <div className="asset-section-heading"><div><h3>设备操作</h3><p>状态变更会记录在设备流水中</p></div></div>
+        <div className="asset-section-heading"><div><h3>设备操作</h3></div></div>
         <div className="asset-detail-actions">
           {asset.status === "pending_acceptance" && <span className="asset-muted">待验收设备请在入库批次中完成验收。</span>}
           {!(["void", "scrapped", "pending_acceptance"].includes(asset.status)) && <button type="button" className="btn-ghost" disabled={busy} onClick={() => setEditing(!editing)}>{editing ? "取消编辑" : "编辑档案"}</button>}
@@ -532,7 +532,7 @@ function AssetDetail({ asset, categories, batch, events, deleteCheck, userName, 
       </section>}
 
       {(canClaim || canBorrow || canReturn) && <section className="asset-detail-section">
-        <div className="asset-section-heading"><div><h3>领用与借用</h3><p>领用或借用后，设备将记录当前使用人</p></div></div>
+        <div className="asset-section-heading"><div><h3>领用与借用</h3></div></div>
         <div className="asset-detail-actions">
           {(canClaim || canBorrow) && <label>借用到期日<DatePicker value={due} onChange={(v) => setDue(v)} ariaLabel="借用到期日" quick={false} /></label>}
           {canClaim && <button type="button" disabled={busy} className="btn-primary" onClick={() => onAction("claim", { note })}>领用</button>}
@@ -544,7 +544,7 @@ function AssetDetail({ asset, categories, batch, events, deleteCheck, userName, 
       {(isAdmin || canReturn || asset.status === "available") && <label className="asset-note">操作备注<input value={note} onChange={(event) => setNote(event.target.value)} placeholder="可选" /></label>}
 
       <section className="asset-detail-section asset-event-section">
-        <div className="asset-section-heading"><div><h3>设备流水</h3><p>记录入库、领用、借用、归还和状态变化</p></div><span className="asset-event-count">{events.length} 条</span></div>
+        <div className="asset-section-heading"><div><h3>设备流水</h3></div><span className="asset-event-count">{events.length} 条</span></div>
         {events.length ? <ol className="asset-events">{events.map((event) => <li key={event.id}><b>{EQUIPMENT_ACTION_LABELS[event.action] ?? event.action}</b><span>{event.from_status ? `${STATUS[event.from_status] ?? event.from_status} → ` : ""}{STATUS[event.to_status ?? ""] ?? event.to_status ?? ""}</span><time>{new Date(event.created_at).toLocaleString("zh-CN")}</time>{event.note && <small>{event.note}</small>}</li>)}</ol> : <p className="asset-empty asset-empty-inline">暂无流水记录</p>}
       </section>
 

@@ -189,11 +189,6 @@ export default function DashboardPage() {
       <PageHeader
         title="交付坐标盘"
         className={s.commandHeader}
-        filters={
-          <div className={s.headerCluster}>
-            <p className={s.pageIntro}>把项目状态、介入事项与资金脉冲收束在同一张工作面上。</p>
-          </div>
-        }
         actions={
           <>
             <span className={s.headerState}><i aria-hidden="true" />节点 / {actionState}</span>

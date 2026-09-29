@@ -203,7 +203,7 @@ export default function ProjectExpensePanel({ book, periods, accounts, onVoucher
   }
 
   return <>
-    <div className="section-head"><div><h2>项目支出入账</h2><p>选择已审批项目支出，逐笔生成当前账套的草稿凭证。</p></div><button className="btn-ghost" onClick={expenses.reload}>刷新</button></div>
+    <div className="section-head"><div><h2>项目支出入账</h2></div><button className="btn-ghost" onClick={expenses.reload}>刷新</button></div>
     {notice && <div className="card" role="status">{notice}</div>}
     <div className="filter-row">
       <label className="toolbar-field"><span>搜索项目</span><input value={projectSearch} onChange={(event) => { setProjectSearch(event.target.value); setProjectPage(1); }} placeholder="项目名称或编号" /></label>

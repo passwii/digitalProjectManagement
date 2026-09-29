@@ -40,16 +40,6 @@
   font-size: clamp(24px, 2.1vw, 32px);
 }
 
-.headerCluster { min-width: 0; }
-
-.pageIntro {
-  max-width: 62ch;
-  margin: 0;
-  color: var(--dash-muted);
-  font-size: 13px;
-  line-height: 1.7;
-}
-
 .headerState {
   display: inline-flex;
   align-items: center;
@@ -395,7 +385,6 @@
   .headerButton,
   .approvalButton { min-height: 44px; }
   .headerState { margin-right: auto; }
-  .pageIntro { margin-left: 24px; font-size: 12px; }
   .readoutRail { gap: 10px; }
   .zoneHeader { padding: 15px 14px 13px; }
   .zoneHeader h2 { font-size: 16px; }
