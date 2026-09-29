@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { useState } from "react";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
@@ -20,6 +20,8 @@ const css = readFileSync(
   ),
   "utf8",
 ).replace(/\/\*[\s\S]*?\*\//g, "");
+
+const webRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
 afterEach(() => {
   cleanup();
@@ -433,5 +435,49 @@ describe("月份选择", () => {
     fireEvent.keyDown(screen.getByRole("dialog", { name: "月份选择" }), { key: "Escape" });
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(document.activeElement).toBe(trigger);
+  });
+});
+
+/*
+ * 迁移完整性。
+ *
+ * 31 处原生 date / month 输入全部换成了 DatePicker 之后，浏览器原生控件的观感
+ * （日历图标、等宽数字、地区格式）就整体消失了。这条断言防止有人又写回一个
+ * `type="date"`，让同一屏里出现两种日期外观。
+ *
+ * 参考页 `/dev/date-picker` 故意留了一个原生输入做并排对比，是唯一豁免。
+ */
+describe("迁移完整性", () => {
+  function walk(dir: string): string[] {
+    return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) return walk(full);
+      return entry.isFile() && /\.tsx?$/.test(entry.name) ? [full] : [];
+    });
+  }
+
+  const offenders = ["app", "components"]
+    .flatMap((dir) => walk(path.join(webRoot, dir)))
+    // 参考页故意留原生输入做并排对比；组件自身只在注释里提到这两个类型名
+    .filter((file) => !file.includes(`${path.sep}dev${path.sep}`))
+    .filter((file) => !file.endsWith(path.join("components", "ui", "DatePicker.tsx")))
+    .filter((file) => /type="(date|month)"/.test(readFileSync(file, "utf8")))
+    .map((file) => path.relative(webRoot, file));
+
+  it("app / components 下不再有原生 date / month 输入", () => {
+    expect(offenders).toEqual([]);
+  });
+
+  it("globals.css 里配套的原生日期样式规则也已删除", () => {
+    const globals = readFileSync(path.join(webRoot, "app/globals.css"), "utf8");
+    expect(globals).not.toMatch(/input\[type="date"\]/);
+    expect(globals).not.toMatch(/calendar-picker-indicator/);
+  });
+
+  it("DatePicker's own data-value carries the ISO value, not the display label", () => {
+    render(<DatePicker value="2026-09-29" onChange={() => {}} />);
+    const trigger = screen.getByRole("button", { name: "选择日期" });
+    expect(trigger.getAttribute("data-value")).toBe("2026-09-29");
+    expect(trigger.textContent).toContain("2026 年 9 月 29 日");
   });
 });

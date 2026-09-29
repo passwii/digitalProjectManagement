@@ -33,6 +33,7 @@ vi.mock("@/lib/useMeta", () => ({ useMenus: () => ({ isAdmin: isAdmin() }), useM
 
 import AssetsPage from "../app/(dashboard)/assets/page";
 import { selectOption } from "./testing/selectDriver";
+import { dateValue, setDate } from "./testing/dateDriver";
 
 const asset = (overrides: Record<string, unknown> = {}) => ({
   id: 1, code: "EQ-001", name: "测试笔记本", category_code: "computer", serial_number: null,
@@ -101,7 +102,7 @@ describe("资产页面分页和刷新", () => {
     api.borrow.mockImplementation(async () => { current = asset({ status: "borrowed", holder_id: 42, due_date: "2026-12-31" }); });
     fireEvent.click(await screen.findByRole("tab", { name: "设备台账" }));
     fireEvent.click(await screen.findByRole("button", { name: "查看" }));
-    fireEvent.change(screen.getByLabelText("借用到期日"), { target: { value: "2026-12-31" } });
+    setDate("借用到期日", "2026-12-31");
     fireEvent.click(screen.getByRole("button", { name: "借用" }));
     await waitFor(() => expect(api.list).toHaveBeenCalledTimes(2));
     await waitFor(() => expect(api.get).toHaveBeenCalledTimes(2));
@@ -307,6 +308,38 @@ describe("资产页面分页和刷新", () => {
     await waitFor(() => expect(api.get).toHaveBeenCalledWith(1));
     expect(screen.queryByText("危险操作")).toBeNull();
     expect(api.deleteCheck).not.toHaveBeenCalled();
+  });
+});
+
+/*
+ * 入库表单是全站唯一一处「非受控原生 form + FormData」的地方，也是 DatePicker
+ * 唯一依赖 `name` 隐藏域的调用点。触发器是 button，不参与原生提交，所以这条路径
+ * 必须单独钉住 —— 否则 hidden 里写错值（比如写成展示文案「2026 年 9 月 18 日」）
+ * 不会有任何测试报警，后端只会收到一个解析不了的日期。
+ */
+describe("入库表单的购置日期随 FormData 提交", () => {
+  it("提交的是 ISO 原值，不是 DatePicker 展示用的中文文案", async () => {
+    api.inbound.mockResolvedValue({ id: 10, acceptance_status: "accepted", items: [asset()] });
+    selectOption("选择页面分区", "入库");
+    fireEvent.change((await screen.findByText("登记设备入库")).closest("form")!.querySelector("input[name=\"name-0\"]")!, { target: { value: "测试笔记本" } });
+    setDate("设备 1 购置日期", "2026-09-18");
+    expect(dateValue("设备 1 购置日期")).toBe("2026-09-18");
+
+    fireEvent.click(screen.getByRole("button", { name: "登记 1 件设备" }));
+    await waitFor(() => expect(api.inbound).toHaveBeenCalledOnce());
+    expect(api.inbound.mock.calls[0][0]).toMatchObject({
+      items: [{ name: "测试笔记本", purchase_date: "2026-09-18" }],
+    });
+  });
+
+  it("没选日期时 purchase_date 为 undefined，而不是空串", async () => {
+    api.inbound.mockResolvedValue({ id: 10, acceptance_status: "accepted", items: [asset()] });
+    selectOption("选择页面分区", "入库");
+    fireEvent.change((await screen.findByText("登记设备入库")).closest("form")!.querySelector("input[name=\"name-0\"]")!, { target: { value: "测试笔记本" } });
+
+    fireEvent.click(screen.getByRole("button", { name: "登记 1 件设备" }));
+    await waitFor(() => expect(api.inbound).toHaveBeenCalledOnce());
+    expect(api.inbound.mock.calls[0][0].items[0].purchase_date).toBeUndefined();
   });
 });
 

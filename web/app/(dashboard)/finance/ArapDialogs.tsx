@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { DatePicker } from "@/components/ui/DatePicker";
 import { Dialog } from "@/components/ui/Modal";
 import Select from "@/components/ui/Select";
 import {
@@ -218,12 +219,12 @@ export function ArapDocumentDialog({
         </label>
         <label className="field">
           <span className="field-label">交易日期</span>
-          <input
-            type="date"
+          <DatePicker
+            value={date}
+            onChange={(v) => setDate(v)}
+            ariaLabel="交易日期"
             min={period?.start_date}
             max={period?.end_date}
-            value={date}
-            onChange={(event) => setDate(event.target.value)}
           />
         </label>
         <label className="field">
@@ -421,12 +422,12 @@ export function ArapSettlementDialog({
       <div className="form-grid" style={{ marginTop: 16 }}>
         <label className="field">
           <span className="field-label">交易日期</span>
-          <input
-            type="date"
+          <DatePicker
+            value={date}
+            onChange={(v) => { setDate(v); setAllocationAmounts({}); }}
+            ariaLabel="交易日期"
             min={period?.start_date}
             max={period?.end_date}
-            value={date}
-            onChange={(event) => { setDate(event.target.value); setAllocationAmounts({}); }}
           />
         </label>
         <label className="field">
