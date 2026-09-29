@@ -1,4 +1,6 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { describe, it } from "node:test";
 
 import {
@@ -8,10 +10,39 @@ import {
 } from "./projectTabs";
 
 describe("档案页 Tab 解析", () => {
+  it("每个现行项目 Tab 都由详情页渲染对应内容", () => {
+    const source = readFileSync(
+      resolve(process.cwd(), 'app/(dashboard)/projects/[id]/page.tsx'),
+      "utf8",
+    );
+    for (const tab of PROJECT_TABS) {
+      assert.match(source, new RegExp(`tab === "${tab}"`), `详情页缺少「${tab}」内容区`);
+    }
+    assert.doesNotMatch(source, /tab === "支出"|tab === "变更"/);
+    assert.match(source, /成本记录/);
+    assert.doesNotMatch(source, /支出记录/);
+  });
+
+  it("现行页签为文档、合同、进度、成本、应收、日志", () => {
+    assert.deepEqual([...PROJECT_TABS], [
+      "文档",
+      "合同",
+      "进度",
+      "成本",
+      "应收",
+      "日志",
+    ]);
+  });
+
   it("现行 Tab 名原样返回", () => {
     for (const tab of PROJECT_TABS) {
       assert.equal(parseProjectTab(tab), tab);
     }
+  });
+
+  it("「支出」与「变更」改名为「成本」与「日志」后旧深链仍然可用", () => {
+    assert.equal(parseProjectTab("支出"), "成本");
+    assert.equal(parseProjectTab("变更"), "日志");
   });
 
   it("「白板」改名为「文档」后旧深链仍然可用", () => {

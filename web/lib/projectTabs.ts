@@ -8,7 +8,7 @@
  */
 
 /** 档案页全部 Tab（顺序即展示顺序）。 */
-export const PROJECT_TABS = ["文档", "合同", "进度", "支出", "变更"] as const;
+export const PROJECT_TABS = ["文档", "合同", "进度", "成本", "应收", "日志"] as const;
 
 export type ProjectTab = (typeof PROJECT_TABS)[number];
 
@@ -17,18 +17,21 @@ export type ProjectTab = (typeof PROJECT_TABS)[number];
  *
  *   · 白板 / 基本 / 附件 —— 同一块内容的历史名字，现名「文档」；
  *   · 跟进 —— 跟进表单已下线，其信息落在文档正文，深链回落到「文档」。
+ *   · 支出 / 变更 —— 栏目改名后的历史深链，分别回落到「成本」/「日志」。
  */
 export const LEGACY_PROJECT_TABS: Readonly<Record<string, ProjectTab>> = {
   白板: "文档",
   基本: "文档",
   附件: "文档",
   跟进: "文档",
+  支出: "成本",
+  变更: "日志",
 };
 
 /**
  * 解析 `?tab=` 参数。
  *
- * 缺失、无法识别、或旧名都落到 `文档`（档案页主 Tab），
+ * 缺失/无法识别落到 `文档`（档案页主 Tab）；旧名称按映射进入现行 Tab，
  * 因此改名不会让任何一个旧链接落到空白页。
  *
  * ⚠️ 折叠表用 `Object.hasOwn` 而不是 `raw in ...`：`in` 会命中原型链，

@@ -14,7 +14,7 @@ import {
   failureToast,
   type TransferFailure,
 } from "@/lib/uploadErrors";
-import { useMeta } from "@/lib/useMeta";
+import { useMe, useMenus, useMeta } from "@/lib/useMeta";
 import {
   contractStatusLabel,
   expenseStatusLabel,
@@ -48,6 +48,7 @@ import ProjectFormDialog from "../ProjectFormDialog";
 import AttachmentPreviewDialog from "@/components/ui/AttachmentPreviewDialog";
 import ProgressNodeDialog from "../../progress/ProgressNodeDialog";
 import ExpenseDialog from "../../costs/ExpenseDialog";
+import ProjectReceivablesPanel from "./ProjectReceivablesPanel";
 
 /** Tab 定义与 `?tab=` 兼容规则在 `@/lib/projectTabs`（纯逻辑、有单测）。 */
 const TABS = PROJECT_TABS;
@@ -65,6 +66,8 @@ function ProjectDetail({ pid }: { pid: number }) {
   const router = useRouter();
   const search = useSearchParams();
   const { userName } = useMeta();
+  const { me } = useMe();
+  const { isAdmin } = useMenus();
   const toast = useToast();
   const { beginActivity } = useActivity();
   const [tab, setTab] = useState<Tab>(() => parseProjectTab(search.get("tab")));
@@ -461,6 +464,9 @@ function ProjectDetail({ pid }: { pid: number }) {
   if (!project) return <Empty title="项目不存在" hint="项目可能已删除，或当前账号无权访问。" />;
 
   const owner = project.owner_name || userName(project.owner_id);
+  const canWriteProject = Boolean(
+    isAdmin || (me && (me.id === project.owner_id || project.member_ids.includes(me.id))),
+  );
   const spent = expenses
     .filter((x) => ["approved", "exception"].includes(x.status))
     .reduce((sum, x) => sum + x.amount, 0);
@@ -482,7 +488,7 @@ function ProjectDetail({ pid }: { pid: number }) {
         <div className="actions no-print">
           <button className="btn-ghost" onClick={() => setEditOpen(true)}>编辑项目</button>
           <Link className="btn-ghost" href={`/progress?project_id=${pid}`}>进度跟踪</Link>
-          <Link className="btn-ghost" href={`/costs?project_id=${pid}`}>支出记录</Link>
+          <Link className="btn-ghost" href={`/costs?project_id=${pid}`}>成本记录</Link>
           <Link className="btn-ghost" href="/projects">返回台账</Link>
         </div>
       </div>
@@ -714,20 +720,20 @@ function ProjectDetail({ pid }: { pid: number }) {
         </section>
       )}
 
-      {tab === "支出" && (
+      {tab === "成本" && (
         <section className="card detail-section">
           <div className="section-head">
             <div>
-              <h2>项目支出</h2>
-              <p>合同金额 {fmtMoney(project.budget_total)} 元 · 已登记支出 {fmtMoney(spent)} 元</p>
+              <h2>项目成本</h2>
+              <p>合同金额 {fmtMoney(project.budget_total)} 元 · 已登记成本 {fmtMoney(spent)} 元</p>
             </div>
-            <button className="btn-primary" onClick={() => setExpenseOpen(true)}>+ 支出</button>
+            <button className="btn-primary" onClick={() => setExpenseOpen(true)}>+ 成本</button>
           </div>
           {expenses.length === 0 ? (
-            <Empty title="暂无支出" hint="点击「+ 支出」登记项目关联费用。" />
+            <Empty title="暂无成本记录" hint="点击「+ 成本」登记项目关联费用。" />
           ) : (
             <>
-            <CardList label="项目支出">
+            <CardList label="项目成本">
               {expenses.map((x) => (
                 <CardItem
                   key={x.id}
@@ -762,11 +768,20 @@ function ProjectDetail({ pid }: { pid: number }) {
         </section>
       )}
 
-      {tab === "变更" && (
+      {tab === "应收" && (
+        <ProjectReceivablesPanel
+          key={pid}
+          projectId={pid}
+          canWrite={canWriteProject && project.status !== "archived"}
+          canDelete={isAdmin && project.status !== "archived"}
+        />
+      )}
+
+      {tab === "日志" && (
         <section className="card detail-section">
           <div className="section-head">
             <div>
-              <h2>操作记录</h2>
+              <h2>项目变更日志</h2>
             </div>
           </div>
           {changes.length === 0 ? (

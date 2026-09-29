@@ -13,11 +13,10 @@
 /** 编号中年份的形状：任意前缀 + `-2026-` 年份段 + 后续编号。 */
 const CODE_YEAR_RE = /(?:^|-)(\d{4})-/;
 
-/** URL `?year=` 的合法形状：裸 4 位年份。 */
-const YEAR_PARAM_RE = /^\d{4}$/;
+/** 项目年度筛选固定的可选项与合法 URL 参数。 */
+export const PROJECT_YEAR_OPTIONS = ["2027", "2026", "2025", "2024", "2023"] as const;
 
-/** 年度下拉最早回溯到哪一年；超出范围的已选年份仍会被保留。 */
-export const MIN_YEAR_OPTION = 2020;
+const PROJECT_YEAR_SET: ReadonlySet<string> = new Set(PROJECT_YEAR_OPTIONS);
 
 /**
  * 从合同编号派生年份：`SHZK-2026-009` → `"2026"`。
@@ -30,14 +29,12 @@ export function extractProjectYear(code: string | null | undefined): string {
 }
 
 /**
- * 解析 URL 中的 `?year=`：合法 4 位年份原样返回，其余一律回落 `""`（全部年份）。
- * 年份不存在于下拉选项不算非法——数据年份可能超出下拉回溯范围，照常向后端
- * 发 `code` 过滤，由服务端 total 说了算。
+ * 解析 URL 中的 `?year=`：只接受固定的五个年度，其余一律回落 `""`（全部年份）。
  */
 export function parseYearParam(raw: string | null | undefined): string {
   if (raw == null) return "";
   const v = String(raw).trim();
-  return YEAR_PARAM_RE.test(v) ? v : "";
+  return PROJECT_YEAR_SET.has(v) ? v : "";
 }
 
 /**
@@ -51,20 +48,12 @@ export function yearToCodeFilter(year: string | null | undefined): string {
   return y ? `-${y}-` : "";
 }
 
-/**
- * 年度下拉选项（倒序：最新年份在前，与列表默认倒序一致）。
- * 范围为 `当年+1 … MIN_YEAR_OPTION`（+1 容纳跨年立项的次年编号）；
- * 当前 URL 选中的合法年份若落在范围外，追加到末尾，保证刷新/分享链接
- * 的选中态不丢（选中项不在选项里时 `<select>` 会回落显示第一项）。
- */
+/** 年度下拉选项（固定倒序：最新年份在前，与列表默认倒序一致）。 */
 export function buildYearOptions(
   now: Date | number = Date.now(),
   selectedYear = "",
 ): string[] {
-  const current = now instanceof Date ? now.getFullYear() : new Date(now).getFullYear();
-  const years: string[] = [];
-  for (let y = current + 1; y >= MIN_YEAR_OPTION; y--) years.push(String(y));
-  const sel = parseYearParam(selectedYear);
-  if (sel && !years.includes(sel)) years.push(sel);
-  return years;
+  void now;
+  void selectedYear;
+  return [...PROJECT_YEAR_OPTIONS];
 }
