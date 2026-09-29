@@ -32,6 +32,7 @@ vi.mock("@/lib/api", async (importOriginal) => {
 vi.mock("@/lib/useMeta", () => ({ useMenus: () => ({ isAdmin: isAdmin() }), useMeta: () => ({ users: [{ id: 42, real_name: "张三" }, ...users.filter((user) => user.id !== 42)] }) }));
 
 import AssetsPage from "../app/(dashboard)/assets/page";
+import { selectOption } from "./testing/selectDriver";
 
 const asset = (overrides: Record<string, unknown> = {}) => ({
   id: 1, code: "EQ-001", name: "测试笔记本", category_code: "computer", serial_number: null,
@@ -68,9 +69,8 @@ afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 
 describe("资产页面分页和刷新", () => {
   it("使用项目详情页共享标签控件并同步移动端分区选择", async () => {
-    const mobileSection = await screen.findByLabelText("选择页面分区");
-
-    fireEvent.change(mobileSection, { target: { value: "ledger" } });
+    // 移动端分区选择器是自绘下拉（MotionTabs 内部的 Select），不能对原生 select 做 change
+    selectOption("选择页面分区", "设备台账");
 
     expect(screen.getByRole("tab", { name: "设备台账" }).getAttribute("aria-selected")).toBe("true");
     expect(await screen.findByPlaceholderText("编号、名称、序列号…")).toBeTruthy();
