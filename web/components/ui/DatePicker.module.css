@@ -81,7 +81,9 @@
   top: calc(100% + 4px);
   left: 0;
   width: min(300px, 92vw);
-  max-width: 100%;
+  /* 不能写 max-width: 100% —— 绝对定位元素的包含块是触发器，写了会把弹层
+     夹到触发器宽度上（行内 140px 的合同行会变成 140px 宽的月历）。
+     视口溢出已经由上面的 min(300px, 92vw) 兜住。 */
   display: flex;
   flex-direction: column;
   padding: 8px;

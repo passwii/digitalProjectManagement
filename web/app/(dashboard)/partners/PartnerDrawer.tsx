@@ -34,6 +34,7 @@ import {
 import { useUploadQueue } from "@/lib/useUploadQueue";
 import { Confirm, Drawer } from "@/components/ui/Modal";
 import Field from "@/components/ui/Field";
+import { DatePicker } from "@/components/ui/DatePicker";
 import Select from "@/components/ui/Select";
 import FileDropZone from "@/components/ui/FileDropZone";
 import { useToast } from "@/components/ui/Toast";
@@ -532,12 +533,12 @@ export default function PartnerDrawer({
                                 onChange={(e) => setEditingContract({ id: item.id, draft: { ...editingContract.draft, amount: e.target.value } })}
                                 placeholder="金额（元）"
                               />
-                              <input
+                              <DatePicker
                                 style={{ width: 140 }}
-                                type="date"
                                 value={editingContract.draft.signed_date}
-                                aria-label="签订日期"
-                                onChange={(e) => setEditingContract({ id: item.id, draft: { ...editingContract.draft, signed_date: e.target.value } })}
+                                ariaLabel="签订日期"
+                                quick={false}
+                                onChange={(v) => setEditingContract({ id: item.id, draft: { ...editingContract.draft, signed_date: v } })}
                               />
                               <button type="button" className="linklike" disabled={contractBusy} onClick={() => void saveContractEdit()}>
                                 保存
@@ -599,12 +600,12 @@ export default function PartnerDrawer({
                       onChange={(e) => setContractDraft({ ...contractDraft, amount: e.target.value })}
                       placeholder="金额（元）"
                     />
-                    <input
+                    <DatePicker
                       style={{ width: 140 }}
-                      type="date"
                       value={contractDraft.signed_date}
-                      aria-label="新增签订日期"
-                      onChange={(e) => setContractDraft({ ...contractDraft, signed_date: e.target.value })}
+                      ariaLabel="新增签订日期"
+                      quick={false}
+                      onChange={(v) => setContractDraft({ ...contractDraft, signed_date: v })}
                     />
                     <button type="button" className="btn-ghost" style={{ width: "auto" }} disabled={contractBusy} onClick={() => void addContract()}>
                       {contractBusy ? "添加中…" : "+ 添加业绩"}

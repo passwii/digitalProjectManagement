@@ -87,6 +87,7 @@ export default function DatePickerReferencePage() {
   const [range, setRange] = useState<{ from?: string | null; to?: string | null }>({ from: "", to: "" });
   const [month, setMonth] = useState("2026-09");
   const [inDialog, setInDialog] = useState(false);
+  const [inline, setInline] = useState("");
 
   return (
     <div className={s.page}>
@@ -175,6 +176,29 @@ export default function DatePickerReferencePage() {
         <button type="button" className="btn-ghost" onClick={() => setInDialog(true)}>
           打开弹窗试一下
         </button>
+      </Row>
+
+      <Row title="行内" note="抽屉里的合同行是一排横向控件，宽度要压到 140px —— 对应迁移前的 style={{ width: 140 }}。">
+        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+          <input
+            style={{ width: 110 }}
+            inputMode="decimal"
+            value=""
+            readOnly
+            aria-label="合同金额（占位）"
+            placeholder="金额（元）"
+          />
+          <DatePicker
+            style={{ width: 140 }}
+            value={inline}
+            onChange={setInline}
+            ariaLabel="签订日期"
+            quick={false}
+          />
+          <button type="button" className="linklike" disabled>
+            保存
+          </button>
+        </div>
       </Row>
 
       {inDialog ? <DialogHost onClose={() => setInDialog(false)} /> : null}
