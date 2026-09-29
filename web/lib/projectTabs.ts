@@ -31,7 +31,7 @@ export const LEGACY_PROJECT_TABS: Readonly<Record<string, ProjectTab>> = {
 /**
  * 解析 `?tab=` 参数。
  *
- * 缺失、无法识别、或旧名都落到 `文档`（档案页主 Tab），
+ * 缺失/无法识别落到 `文档`（档案页主 Tab）；旧名称按映射进入现行 Tab，
  * 因此改名不会让任何一个旧链接落到空白页。
  *
  * ⚠️ 折叠表用 `Object.hasOwn` 而不是 `raw in ...`：`in` 会命中原型链，

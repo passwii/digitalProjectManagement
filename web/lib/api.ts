@@ -1074,6 +1074,53 @@ export interface ProjectChange {
   by_id: number | null;
   at: string | null;
 }
+export type ProjectReceivableStatus = "unpaid" | "partial" | "overdue" | "paid";
+export interface ProjectReceivable {
+  id: number;
+  project_id: number;
+  name: string;
+  amount: string;
+  received_amount: string;
+  outstanding_amount: string;
+  receivable_date: string;
+  due_date: string;
+  note: string;
+  status: ProjectReceivableStatus;
+  payment_count: number;
+}
+export interface ProjectReceivablePayment {
+  id: number;
+  project_id: number;
+  receivable_id: number;
+  amount: string;
+  payment_date: string;
+  note: string;
+  created_at: string | null;
+}
+export interface ProjectReceivableSummary {
+  amount: string;
+  received_amount: string;
+  outstanding_amount: string;
+}
+export interface ProjectReceivableList {
+  total: number;
+  page: number;
+  size: number;
+  items: ProjectReceivable[];
+  summary: ProjectReceivableSummary;
+}
+export interface ProjectReceivableInput {
+  name: string;
+  amount: string;
+  receivable_date: string;
+  due_date: string;
+  note: string;
+}
+export interface ProjectReceivablePaymentInput {
+  amount: string;
+  payment_date: string;
+  note: string;
+}
 export interface Attachment {
   id: number;
   filename: string;
@@ -1335,6 +1382,32 @@ export const projectsApi = {
   status: (id: number, status: string, reason = "") =>
     apiPost<Project>(`/projects/${id}/status`, { status, reason }),
   changes: (id: number, signal?: AbortSignal) => apiGet<ProjectChange[]>(`/projects/${id}/changes`, signal),
+  receivables: (id: number, params: { page?: number; size?: number } = {}, signal?: AbortSignal) =>
+    apiGet<ProjectReceivableList>(`/projects/${id}/receivables${buildQuery(params)}`, signal),
+  createReceivable: (id: number, body: ProjectReceivableInput) =>
+    apiPost<ProjectReceivable>(`/projects/${id}/receivables`, body),
+  updateReceivable: (id: number, receivableId: number, body: Partial<ProjectReceivableInput>) =>
+    apiPatch<ProjectReceivable>(`/projects/${id}/receivables/${receivableId}`, body),
+  deleteReceivable: (id: number, receivableId: number) =>
+    apiDelete<{ ok: boolean }>(`/projects/${id}/receivables/${receivableId}`),
+  receivablePayments: (id: number, receivableId: number, signal?: AbortSignal) =>
+    apiGet<Paged<ProjectReceivablePayment>>(
+      `/projects/${id}/receivables/${receivableId}/payments?page=1&size=100&sort=-payment_date`,
+      signal,
+    ),
+  createReceivablePayment: (id: number, receivableId: number, body: ProjectReceivablePaymentInput) =>
+    apiPost<ProjectReceivablePayment>(`/projects/${id}/receivables/${receivableId}/payments`, body),
+  updateReceivablePayment: (
+    id: number,
+    receivableId: number,
+    paymentId: number,
+    body: Partial<ProjectReceivablePaymentInput>,
+  ) => apiPatch<ProjectReceivablePayment>(
+    `/projects/${id}/receivables/${receivableId}/payments/${paymentId}`,
+    body,
+  ),
+  deleteReceivablePayment: (id: number, receivableId: number, paymentId: number) =>
+    apiDelete<{ ok: boolean }>(`/projects/${id}/receivables/${receivableId}/payments/${paymentId}`),
   attachments: (id: number, refType = "", signal?: AbortSignal) =>
     apiGet<Attachment[]>(
       `/projects/${id}/attachments${refType ? `?ref_type=${encodeURIComponent(refType)}` : ""}`,

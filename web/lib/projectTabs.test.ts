@@ -1,4 +1,6 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { describe, it } from "node:test";
 
 import {
@@ -8,6 +10,17 @@ import {
 } from "./projectTabs";
 
 describe("档案页 Tab 解析", () => {
+  it("每个现行项目 Tab 都由详情页渲染对应内容", () => {
+    const source = readFileSync(
+      resolve(process.cwd(), 'app/(dashboard)/projects/[id]/page.tsx'),
+      "utf8",
+    );
+    for (const tab of PROJECT_TABS) {
+      assert.match(source, new RegExp(`tab === "${tab}"`), `详情页缺少「${tab}」内容区`);
+    }
+    assert.doesNotMatch(source, /tab === "支出"|tab === "变更"/);
+  });
+
   it("现行页签为文档、合同、进度、成本、应收、日志", () => {
     assert.deepEqual([...PROJECT_TABS], [
       "文档",
