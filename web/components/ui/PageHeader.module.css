@@ -89,6 +89,64 @@
   max-width: min(50%, 540px);
 }
 
+@media (min-width: 1180px) and (max-width: 1366px) {
+  .pageHeader {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: start;
+    gap: 12px 18px;
+  }
+
+  .titleWrap {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  .filters {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    align-items: flex-start;
+    width: 100%;
+    max-width: none;
+    flex: none;
+  }
+
+  .filters > :global(.toolbar-field) {
+    width: 240px;
+    flex: 0 1 240px;
+  }
+
+  .filters > :global(.toolbar-field) > input,
+  .filters > :global(.toolbar-field) > select,
+  .filters > :global(.toolbar-field) :global(.picker-grow) {
+    width: 100%;
+    min-width: 0;
+    min-height: 44px;
+  }
+
+  .actions {
+    grid-column: 2;
+    grid-row: 1;
+    min-height: 44px;
+    margin-left: 0;
+  }
+
+  .actions :global(button),
+  .actions :global(a),
+  .filters > :global(button),
+  .filters > :global(a),
+  .filters > :global(.toolbar-field) > :global(input),
+  .filters > :global(.toolbar-field) > :global(select),
+  .filters > :global(input),
+  .filters > :global(select) {
+    min-height: 44px;
+  }
+
+  .filters > :global(.toolbar-field) > :global(span) {
+    white-space: nowrap;
+  }
+}
+
 @media (max-width: 900px) {
   .pageHeader { align-items: flex-start; }
   .filters { width: auto; flex-basis: auto; }
