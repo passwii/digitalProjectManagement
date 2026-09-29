@@ -27,6 +27,7 @@ import Badge from "@/components/ui/Badge";
 import Avatar from "@/components/ui/Avatar";
 import Empty from "@/components/ui/Empty";
 import Pagination from "@/components/ui/Pagination";
+import Select from "@/components/ui/Select";
 import { LoadingBlock, LoadFailed } from "@/components/ui/PageState";
 import { Confirm, Drawer } from "@/components/ui/Modal";
 import { useToast } from "@/components/ui/Toast";
@@ -194,9 +195,9 @@ function ProjectsInner() {
             placeholder="搜索名称 / 编号 / 客户…"
             aria-label="搜索项目"
           />
-          <select
+          <Select
             value={url.status}
-            onChange={(e) => setUrl({ status: e.target.value })}
+            onChange={(value) => setUrl({ status: value })}
             aria-label="按状态筛选"
           >
             <option value="">全部状态</option>
@@ -205,10 +206,10 @@ function ProjectsInner() {
                 {s.label}
               </option>
             ))}
-          </select>
-          <select
+          </Select>
+          <Select
             value={url.owner}
-            onChange={(e) => setUrl({ owner: e.target.value })}
+            onChange={(value) => setUrl({ owner: value })}
             aria-label="按负责人筛选"
             title="按负责人姓名筛选（与列表里显示的负责人一致）"
           >
@@ -222,10 +223,10 @@ function ProjectsInner() {
                 {o.count > 0 ? `${o.name}（${o.count}）` : o.name}
               </option>
             ))}
-          </select>
-          <select
+          </Select>
+          <Select
             value={year}
-            onChange={(e) => setUrl({ year: e.target.value })}
+            onChange={(value) => setUrl({ year: value })}
             aria-label="按年度筛选"
           >
             <option value="">全部年份</option>
@@ -234,7 +235,7 @@ function ProjectsInner() {
                 {y}年
               </option>
             ))}
-          </select>
+          </Select>
           {hasFilter && (
             <button
               type="button"

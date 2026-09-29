@@ -5,6 +5,7 @@ import { Confirm, Dialog } from "@/components/ui/Modal";
 import Empty from "@/components/ui/Empty";
 import { LoadFailed, LoadingBlock } from "@/components/ui/PageState";
 import { useToast } from "@/components/ui/Toast";
+import Select from "@/components/ui/Select";
 import {
   errText,
   financeApi,
@@ -197,9 +198,9 @@ export default function BookMembersDialog({
             </label>
             <label className="toolbar-field">
               <span>选择用户</span>
-              <select
-                value={selectedUserId ?? ""}
-                onChange={(event) => setSelectedUserId(event.target.value ? Number(event.target.value) : null)}
+              <Select
+                value={selectedUserId == null ? "" : String(selectedUserId)}
+                onChange={(value) => setSelectedUserId(value ? Number(value) : null)}
                 aria-label="选择需要授权的用户"
                 disabled={users.loading || userOptions.length === 0 || !!busyKey}
               >
@@ -209,13 +210,13 @@ export default function BookMembersDialog({
                 {userOptions.map((user) => (
                   <option key={user.id} value={user.id}>{user.real_name} · {user.username}</option>
                 ))}
-              </select>
+              </Select>
             </label>
             <label className="toolbar-field">
               <span>财务角色</span>
-              <select value={newRole} onChange={(event) => setNewRole(event.target.value as FinanceRole)} disabled={!!busyKey}>
+              <Select value={newRole} onChange={(value) => setNewRole(value as FinanceRole)} disabled={!!busyKey}>
                 {FINANCE_ROLE_OPTIONS.map((role) => <option key={role.value} value={role.value}>{role.label}</option>)}
-              </select>
+              </Select>
             </label>
             <button className="btn-primary" onClick={() => void grantMember()} disabled={!book || !selectedUser || !members.data || members.loading || !!busyKey}>
               {busyKey === "grant" ? "授权中…" : "授予角色"}
@@ -260,15 +261,15 @@ export default function BookMembersDialog({
                       <td>{member.real_name || member.username}</td>
                       <td className="mono tiny">{member.username}</td>
                       <td>
-                        <select
+                        <Select
                           value={role}
                           aria-label={`${member.username}的财务角色`}
-                          onChange={(event) => setDraftRoles((current) => ({ ...current, [member.user_id]: event.target.value as FinanceRole }))}
+                          onChange={(value) => setDraftRoles((current) => ({ ...current, [member.user_id]: value as FinanceRole }))}
                           disabled={!!busyKey}
                         >
                           {!isFinanceRole(role) && <option value={role}>{roleLabel(role)}</option>}
                           {FINANCE_ROLE_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-                        </select>
+                        </Select>
                       </td>
                       <td className="no-print">
                         <span className="table-actions">

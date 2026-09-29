@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Select from "@/components/ui/Select";
 import {
   BILLING_CAMPAIGNS,
   BILLING_MEMBER_TIERS,
@@ -146,9 +147,9 @@ function CashierTab() {
       <SparkPanel title="快速收银" subtitle="苏州全域统一收银 · 本地交互演示">
         <div className={s.formStack}>
           <label className={s.fieldLabel}>所属门店
-            <select className={s.select} value={store} onChange={(event) => setStore(event.target.value)}>
-              {BILLING_STORES.map((name) => <option key={name}>{name}</option>)}
-            </select>
+            <Select className={p.sparkSelect} surface="spark" value={store} onChange={setStore} aria-label="所属门店">
+              {BILLING_STORES.map((name) => <option key={name} value={name}>{name}</option>)}
+            </Select>
           </label>
           <fieldset className={s.fieldset}>
             <legend>收银类型</legend>

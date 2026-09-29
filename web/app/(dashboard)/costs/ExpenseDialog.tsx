@@ -13,6 +13,7 @@ import { useUploadQueue } from "@/lib/useUploadQueue";
 import { Dialog } from "@/components/ui/Modal";
 import { useToast } from "@/components/ui/Toast";
 import Field from "@/components/ui/Field";
+import Select from "@/components/ui/Select";
 import FileDropZone from "@/components/ui/FileDropZone";
 
 interface Values {
@@ -186,9 +187,9 @@ export default function ExpenseDialog({
     >
       <div className="form-grid">
         <Field label="人员" required>
-          <select value={form.values.subject} onChange={(e) => form.set("subject", e.target.value)}>
+          <Select value={form.values.subject} onChange={(value) => form.set("subject", value)}>
             {EXPENSE_PEOPLE.map((s) => <option key={s} value={s}>{s}</option>)}
-          </select>
+          </Select>
         </Field>
         <Field label="支出金额（元）" required error={form.errors.amount}>
           <input

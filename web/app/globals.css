@@ -259,14 +259,12 @@ a.btn-danger-outline:hover {
 
 /* ---------- form ---------- */
 input,
-select,
 textarea,
 button {
  font-family: var(--font-body);
  font-size: 14px;
 }
 input,
-select,
 textarea {
  width: 100%;
  height: 38px;
@@ -326,27 +324,10 @@ textarea::placeholder {
  color: var(--ink-2);
 }
 input:focus,
-select:focus,
 textarea:focus {
  border-color: var(--brand);
  box-shadow: 0 0 0 2px var(--brand-soft), 0 0 18px var(--signal-glow);
 }
-select {
- appearance: none;
- cursor: pointer;
- padding-right: 32px;
- background-image:
-  linear-gradient(45deg, transparent 50%, var(--ink-3) 50%),
-  linear-gradient(135deg, var(--ink-3) 50%, transparent 50%);
- background-position:
-  calc(100% - 15px) 16px,
-  calc(100% - 11px) 16px;
- background-size:
-  4px 4px,
-  4px 4px;
- background-repeat: no-repeat;
-}
-select:disabled,
 input:disabled,
 textarea:disabled {
  color: var(--ink-3);
@@ -358,7 +339,6 @@ label {
  color: var(--ink-2);
 }
 label > input,
-label > select,
 label > textarea {
  margin-top: 4px;
  color: var(--ink);
@@ -377,9 +357,8 @@ button {
 /* ---------- 键盘可达性：统一焦点环（鼠标点击不触发） ---------- */
 a:focus-visible,
 button:focus-visible,
-select:focus-visible,
-[tabindex]:focus-visible,
-summary:focus-visible {
+summary:focus-visible,
+[tabindex]:focus-visible {
  outline: 2px solid var(--brand);
  outline-offset: 2px;
  border-radius: var(--radius);
@@ -836,17 +815,14 @@ th.num {
  line-height: 1.4;
 }
 .field input,
-.field select,
 .field textarea {
  color: var(--ink);
 }
 .field input[aria-invalid="true"],
-.field select[aria-invalid="true"],
 .field textarea[aria-invalid="true"] {
  border-color: var(--danger);
 }
 .field input[aria-invalid="true"]:focus,
-.field select[aria-invalid="true"]:focus,
 .field textarea[aria-invalid="true"]:focus {
  box-shadow: 0 0 0 3px rgba(181, 60, 53, 0.12);
 }
@@ -1182,7 +1158,7 @@ th.num {
  font-weight: 600;
 }
 .toolbar-field input,
-.toolbar-field select {
+.toolbar-field [data-select-root="true"] {
  width: auto;
  min-width: 120px;
 }
@@ -1205,7 +1181,7 @@ th.num {
  color: var(--ink-3);
  font-size: 12px;
 }
-.section-head select {
+.section-head [data-select-root="true"] {
  width: 150px;
 }
 
@@ -1305,6 +1281,12 @@ th.num {
 }
 .danger-link {
  color: var(--danger) !important;
+}
+.btn-ghost.danger-link:hover,
+.btn-ghost.danger-link:focus-visible {
+ border-color: var(--danger);
+ background: var(--danger-bg);
+ color: var(--danger);
 }
 
 .inline-person {
@@ -1925,7 +1907,7 @@ th.num {
   align-items: stretch;
   gap: 6px;
  }
- .section-head select {
+ .section-head [data-select-root="true"] {
   width: 100%;
  }
  .project-detail-head h1 {
@@ -1962,7 +1944,6 @@ th.num {
  }
  a,
  button,
- select,
  input {
   touch-action: manipulation;
  }
@@ -2333,15 +2314,13 @@ body {
 
 /*
  * 点击延迟：双击缩放带来约 300ms 延迟。(pointer: coarse) 段里已经盖了
- * a / button / select / input；这里补到其余可交互角色（桌面触屏同样中招）。
+ * a / button / input；这里补到其余可交互角色（桌面触屏同样中招）。
  * 桌面鼠标无影响（manipulation 只关双击缩放，不断其它手势）。
  */
 a,
 button,
-select,
 input,
 textarea,
-summary,
 [role="button"],
 [role="tab"],
 [role="menuitem"] {
@@ -2495,7 +2474,6 @@ summary,
  /* 手机表单在 iOS 上以 16px 排版，避免聚焦时 Safari 自动放大页面；
     44px 高度与 --m-tap 同步，复用同一套 PWA 触控尺度。 */
  input:not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not([type="hidden"]),
- select,
  textarea {
   min-height: var(--m-tap);
   font-size: 16px;

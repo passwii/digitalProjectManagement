@@ -50,6 +50,8 @@
 .searchInput { width: min(300px, 100%); min-width: 180px; height: 32px; padding: 0 10px; border: 1px solid rgba(194, 211, 239, .14); border-radius: 6px; outline: none; color: #dbe5f2; background: rgba(5, 9, 17, .42); font-size: 10px; }
 .searchInput::placeholder { color: #69768b; }
 .searchInput:focus { border-color: rgba(34,211,238,.6); box-shadow: 0 0 0 3px rgba(34,211,238,.09); }
+.sparkSelect { display: block; width: 100%; }
+:global(label) > .sparkSelect { margin-top: 0; }
 .tabs { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 2px; padding: 3px; border: 1px solid rgba(194, 211, 239, .08); border-radius: 7px; background: rgba(26, 33, 49, .84); }
 .tab { display: inline-flex; min-height: 26px; align-items: center; gap: 5px; padding: 0 9px; border: 1px solid transparent; border-radius: 5px; color: #8793a7; background: transparent; font-size: 10px; cursor: pointer; }
 .tab small { color: #657188; font: 9px "JetBrains Mono", monospace; }

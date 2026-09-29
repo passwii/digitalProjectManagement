@@ -6,6 +6,7 @@ import { useMeta } from "@/lib/useMeta";
 import { useForm } from "@/lib/useForm";
 import { Dialog } from "@/components/ui/Modal";
 import Field from "@/components/ui/Field";
+import Select from "@/components/ui/Select";
 
 interface Values {
   name: string;
@@ -111,10 +112,10 @@ export default function MilestoneDialog({
           <input type="date" value={form.values.actual_date} onChange={(e) => form.set("actual_date", e.target.value)} />
         </Field>
         <Field label="负责人" span>
-          <select value={form.values.owner_id} onChange={(e) => form.set("owner_id", e.target.value)}>
+          <Select value={form.values.owner_id} onChange={(value) => form.set("owner_id", value)}>
             <option value="">未指定</option>
             {users.map((u) => <option key={u.id} value={u.id}>{u.real_name}</option>)}
-          </select>
+          </Select>
         </Field>
       </div>
       {formErr && <div className="err-banner" style={{ marginTop: 10, marginBottom: 0 }} role="alert">{formErr}</div>}

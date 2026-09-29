@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Dialog } from "@/components/ui/Modal";
+import Select from "@/components/ui/Select";
 import {
   errText,
   financeApi,
@@ -196,24 +197,24 @@ export function ArapDocumentDialog({
       <div className="form-grid">
         <label className="field span-2">
           <span className="field-label">{partyLabel}</span>
-          <select value={partyId} onChange={(event) => setPartyId(event.target.value)}>
+          <Select value={partyId} onChange={setPartyId}>
             <option value="">请选择{partyLabel}</option>
             {parties.map((party) => <option key={party.id} value={party.id}>{party.code} · {party.name}</option>)}
-          </select>
+          </Select>
         </label>
         <label className="field">
           <span className="field-label">{isReceivable ? "应收科目" : "应付科目"}</span>
-          <select value={accountId} onChange={(event) => setAccountId(event.target.value)}>
+          <Select value={accountId} onChange={setAccountId}>
             <option value="">请选择</option>
             {partyAccounts.map((account) => <option key={account.id} value={account.id}>{accountLabel(account)}</option>)}
-          </select>
+          </Select>
         </label>
         <label className="field">
           <span className="field-label">{isReceivable ? "收入科目" : "费用科目"}</span>
-          <select value={offsetAccountId} onChange={(event) => setOffsetAccountId(event.target.value)}>
+          <Select value={offsetAccountId} onChange={setOffsetAccountId}>
             <option value="">请选择</option>
             {offsetAccounts.map((account) => <option key={account.id} value={account.id}>{accountLabel(account)}</option>)}
-          </select>
+          </Select>
         </label>
         <label className="field">
           <span className="field-label">交易日期</span>
@@ -434,18 +435,18 @@ export function ArapSettlementDialog({
         </label>
         <label className="field span-2">
           <span className="field-label">现金/银行科目</span>
-          <select value={cashAccountId} onChange={(event) => { setCashAccountId(event.target.value); setCashflowCode(""); }}>
+          <Select value={cashAccountId} onChange={(value) => { setCashAccountId(value); setCashflowCode(""); }}>
             <option value="">请选择</option>
             {cashAccounts.map((account) => <option key={account.id} value={account.id}>{accountLabel(account)}</option>)}
-          </select>
+          </Select>
         </label>
         {requiresCashflow && (
           <label className="field span-2">
             <span className="field-label">现金流项目</span>
-            <select value={cashflowCode} onChange={(event) => setCashflowCode(event.target.value)}>
+            <Select value={cashflowCode} onChange={setCashflowCode}>
               <option value="">请选择</option>
               {cashflows.map((item) => <option key={item.id} value={item.code}>{item.code} · {item.name}</option>)}
-            </select>
+            </Select>
           </label>
         )}
         <label className="field span-2">

@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState, type FormEvent } from "react";
+import Select from "@/components/ui/Select";
 import { PERMISSION_AUDIT_LOGS, PERMISSION_MEMBERS, PERMISSION_MODULES, PERMISSION_ROLES, ROLE_PERMISSION_MATRIX, type SparkMember, type SparkRoleName } from "@/lib/spark/permission";
 import { SparkBadge, SparkButton, SparkPageHeader, SparkPanel, SparkTabs } from "../SparkUI";
 import p from "../SparkPages.module.css";
@@ -134,7 +135,7 @@ export default function PermissionPage() {
             <h2 id="spark-add-member-title">添加成员</h2>
             <form className={s.modalForm} onSubmit={handleAddMember}>
               <label>成员姓名<input autoFocus value={draftName} onChange={(event) => setDraftName(event.target.value)} placeholder="请输入成员姓名" required /></label>
-              <label>角色<select value={draftRole} onChange={(event) => setDraftRole(event.target.value as SparkRoleName)}>{PERMISSION_ROLES.map((role) => <option key={role.name}>{role.name}</option>)}</select></label>
+              <label>角色<Select className={p.sparkSelect} surface="spark" value={draftRole} onChange={(value) => setDraftRole(value as SparkRoleName)} aria-label="角色">{PERMISSION_ROLES.map((role) => <option key={role.name} value={role.name}>{role.name}</option>)}</Select></label>
               <label>所属门店 / 团队<input value={draftStore} onChange={(event) => setDraftStore(event.target.value)} placeholder="默认：苏州总部" /></label>
               <div className={s.modalActions}><SparkButton onClick={() => setAddOpen(false)}>取消</SparkButton><SparkButton type="submit" variant="primary">添加到演示列表</SparkButton></div>
             </form>

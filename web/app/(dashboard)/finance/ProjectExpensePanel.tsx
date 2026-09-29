@@ -5,6 +5,7 @@ import { Dialog } from "@/components/ui/Modal";
 import Empty from "@/components/ui/Empty";
 import { LoadingBlock, LoadFailed } from "@/components/ui/PageState";
 import { useToast } from "@/components/ui/Toast";
+import Select from "@/components/ui/Select";
 import {
   errText, financeApi, HttpError, projectsApi,
   type FinanceAccount, type FinanceAuxiliaryItem, type FinanceAuxiliaryKind,
@@ -116,17 +117,17 @@ function ConversionDialog({ expense, book, periods, accounts, onClose, onSaved }
     return <>
       {auxFields.filter(({ flag }) => account.aux_flags?.[flag]).map(({ flag, kind, label: kindLabel }) => (
         <label className="field" key={`${side}.${flag}`}><span className="field-label">{label}{kindLabel}</span>
-          <select value={auxValues[`${side}.${flag}`] || ""} onChange={(event) => setAuxValues((values) => ({ ...values, [`${side}.${flag}`]: event.target.value }))}>
+          <Select value={auxValues[`${side}.${flag}`] || ""} onChange={(value) => setAuxValues((values) => ({ ...values, [`${side}.${flag}`]: value }))}>
             <option value="">请选择{kindLabel}</option>
             {(auxiliaries.data?.[kind] ?? []).filter((item) => item.is_active !== false).map((item) => <option key={item.id} value={item.id}>{item.code} · {item.name}</option>)}
-          </select>
+          </Select>
         </label>
       ))}
       {account.aux_flags?.cashflow && <label className="field"><span className="field-label">{label}现金流项目</span>
-        <select value={auxValues[`${side}.cashflow`] || ""} onChange={(event) => setAuxValues((values) => ({ ...values, [`${side}.cashflow`]: event.target.value }))}>
+        <Select value={auxValues[`${side}.cashflow`] || ""} onChange={(value) => setAuxValues((values) => ({ ...values, [`${side}.cashflow`]: value }))}>
           <option value="">请选择现金流项目</option>
           {(auxiliaries.data?.cashflow ?? []).filter((item) => item.is_active !== false).map((item) => <option key={item.id} value={item.code}>{item.code} · {item.name}</option>)}
-        </select>
+        </Select>
       </label>}
     </>;
   }
@@ -143,12 +144,12 @@ function ConversionDialog({ expense, book, periods, accounts, onClose, onSaved }
       <div className="field"><span className="field-label">审批状态</span><span>{expense.status === "approved" ? "已审批" : "异常审批"}</span></div>
       <div className="field span-2"><span className="field-label">支出说明</span><span>{expense.note || "-"}</span></div>
       <label className="field"><span className="field-label">来源金额</span><input value={money(expense.amount)} readOnly /></label>
-      <label className="field"><span className="field-label">会计期间</span><select value={periodId} onChange={(event) => { const next = openPeriods.find((item) => String(item.id) === event.target.value); setPeriodId(event.target.value); setDate(next && sourceDateInPeriod(expense, next) ? expense.exp_date ?? "" : ""); }}><option value="">请选择开放期间</option>{openPeriods.map((item) => <option key={item.id} value={item.id}>{item.period}</option>)}</select></label>
+      <label className="field"><span className="field-label">会计期间</span><Select value={periodId} onChange={(value) => { const next = openPeriods.find((item) => String(item.id) === value); setPeriodId(value); setDate(next && sourceDateInPeriod(expense, next) ? expense.exp_date ?? "" : ""); }}><option value="">请选择开放期间</option>{openPeriods.map((item) => <option key={item.id} value={item.id}>{item.period}</option>)}</Select></label>
       <label className="field"><span className="field-label">凭证日期</span><input type="date" min={period?.start_date} max={period?.end_date} value={date} onChange={(event) => setDate(event.target.value)} /></label>
       {date && expense.exp_date && date !== expense.exp_date && <p className="tiny muted span-2" role="status">凭证日期与原支出日期不一致，请按会计判断确认。</p>}
       <label className="field span-2"><span className="field-label">摘要</span><input value={summary} maxLength={255} onChange={(event) => setSummary(event.target.value)} /></label>
       {(["debit", "credit"] as const).map((side) => <div className="span-2 form-grid" key={side}>
-        <label className="field span-2"><span className="field-label">{side === "debit" ? "借方科目" : "贷方科目"}</span><select value={side === "debit" ? debitId : creditId} onChange={(event) => { (side === "debit" ? setDebitId : setCreditId)(event.target.value); setAuxValues((values) => Object.fromEntries(Object.entries(values).filter(([key]) => !key.startsWith(`${side}.`)))); }}><option value="">请选择启用末级科目</option>{leaves.map((item) => <option key={item.id} value={item.id}>{item.code} · {item.name}</option>)}</select></label>
+        <label className="field span-2"><span className="field-label">{side === "debit" ? "借方科目" : "贷方科目"}</span><Select value={side === "debit" ? debitId : creditId} onChange={(value) => { (side === "debit" ? setDebitId : setCreditId)(value); setAuxValues((values) => Object.fromEntries(Object.entries(values).filter(([key]) => !key.startsWith(`${side}.`)))); }}><option value="">请选择启用末级科目</option>{leaves.map((item) => <option key={item.id} value={item.id}>{item.code} · {item.name}</option>)}</Select></label>
         {auxiliaryControls(side)}
       </div>)}
     </div>
@@ -205,10 +206,10 @@ export default function ProjectExpensePanel({ book, periods, accounts, onVoucher
     {notice && <div className="card" role="status">{notice}</div>}
     <div className="filter-row">
       <label className="toolbar-field"><span>搜索项目</span><input value={projectSearch} onChange={(event) => { setProjectSearch(event.target.value); setProjectPage(1); }} placeholder="项目名称或编号" /></label>
-      <label className="toolbar-field"><span>项目</span><select value={projectId} onChange={(event) => { setProjectId(event.target.value); setChosenProject(projectOptions.find((item) => String(item.id) === event.target.value) ?? null); setPage(1); }}><option value="">全部项目</option>{projectOptions.map((project) => <option key={project.id} value={project.id}>{project.code} · {project.name}</option>)}</select></label>
+      <label className="toolbar-field"><span>项目</span><Select value={projectId} onChange={(value) => { setProjectId(value); setChosenProject(projectOptions.find((item) => String(item.id) === value) ?? null); setPage(1); }}><option value="">全部项目</option>{projectOptions.map((project) => <option key={project.id} value={project.id}>{project.code} · {project.name}</option>)}</Select></label>
       <div className="row-actions"><span className="tiny muted">项目 {projectPage}/{projectTotalPages} 页</span><button className="btn-ghost" disabled={projectPage <= 1 || projects.loading} onClick={() => setProjectPage((current) => current - 1)}>上一页项目</button><button className="btn-ghost" disabled={projectPage >= projectTotalPages || projects.loading} onClick={() => setProjectPage((current) => current + 1)}>下一页项目</button></div>
       {projects.error && <LoadFailed message={projects.error} onRetry={projects.reload} />}
-      <label className="toolbar-field"><span>审批状态</span><select value={status} onChange={(event) => { setStatus(event.target.value); setPage(1); }}><option value="">全部状态</option><option value="approved">已审批</option><option value="exception">异常审批</option></select></label>
+      <label className="toolbar-field"><span>审批状态</span><Select value={status} onChange={(value) => { setStatus(value); setPage(1); }}><option value="">全部状态</option><option value="approved">已审批</option><option value="exception">异常审批</option></Select></label>
       <label className="toolbar-field"><span>开始日期</span><input type="date" value={dateFrom} max={dateTo || undefined} onChange={(event) => { setDateFrom(event.target.value); setPage(1); }} /></label>
       <label className="toolbar-field"><span>结束日期</span><input type="date" value={dateTo} min={dateFrom || undefined} onChange={(event) => { setDateTo(event.target.value); setPage(1); }} /></label>
     </div>

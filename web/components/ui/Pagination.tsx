@@ -3,6 +3,7 @@
 // 并在组件内部保证「每页条数变化 → 回到第 1 页」「总数变小 → 页码收敛到末页」
 // 等边界行为一致（BLF-1095）。服务端 size 上限默认 100。
 import { useEffect, useRef } from "react";
+import Select from "./Select";
 import st from "./Pagination.module.css";
 
 export interface PaginationChange {
@@ -67,16 +68,16 @@ export default function Pagination({
       </span>
       <div className={st.right}>
         {showSize && (
-          <select
+          <Select
             className={st.size}
-            value={size}
-            onChange={(e) => onChange({ page: 1, size: Number(e.target.value) })}
+            value={String(size)}
+            onChange={(value) => onChange({ page: 1, size: Number(value) })}
             aria-label="每页条数"
           >
-            {options.map((s) => (
-              <option key={s} value={s}>{s} 条/页</option>
+            {options.map((optionSize) => (
+              <option key={optionSize} value={String(optionSize)}>{optionSize} 条/页</option>
             ))}
-          </select>
+          </Select>
         )}
         <button
           type="button"

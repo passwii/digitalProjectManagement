@@ -6,6 +6,7 @@ import { FOLLOWUP_METHODS } from "@/lib/labels";
 import { useForm } from "@/lib/useForm";
 import { Dialog } from "@/components/ui/Modal";
 import Field from "@/components/ui/Field";
+import Select from "@/components/ui/Select";
 
 interface Values {
   method: string;
@@ -98,9 +99,9 @@ export default function FollowupDialog({
     >
       <div className="form-grid">
         <Field label="跟进方式">
-          <select value={form.values.method} onChange={(e) => form.set("method", e.target.value)}>
+          <Select value={form.values.method} onChange={(value) => form.set("method", value)}>
             {FOLLOWUP_METHODS.map((m) => <option key={m} value={m}>{m}</option>)}
-          </select>
+          </Select>
         </Field>
         <Field label="跟进时间" hint="留空取当前时间">
           <input type="date" value={form.values.happened_at} onChange={(e) => form.set("happened_at", e.target.value)} />
