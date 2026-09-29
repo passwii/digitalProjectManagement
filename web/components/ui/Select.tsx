@@ -242,9 +242,9 @@ export default function Select({
 
   useEffect(() => {
     if (open && activeIndex >= 0) {
-      document.getElementById(optionId(activeIndex))?.scrollIntoView({ block: "nearest" });
+      document.getElementById(`select-option-${id}-${activeIndex}`)?.scrollIntoView({ block: "nearest" });
     }
-  }, [activeIndex, open]);
+  }, [activeIndex, id, open]);
 
   useEffect(() => {
     if (disabled) close();
