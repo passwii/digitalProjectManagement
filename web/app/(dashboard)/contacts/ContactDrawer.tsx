@@ -21,6 +21,7 @@ import { useForm } from "@/lib/useForm";
 import { ATTACHMENT_HINT, CONTACT_ATTACHMENT_EXTENSIONS } from "@/lib/uploadLimits";
 import { Confirm, Drawer } from "@/components/ui/Modal";
 import Field from "@/components/ui/Field";
+import { DatePicker } from "@/components/ui/DatePicker";
 import Select from "@/components/ui/Select";
 import FileDropZone from "@/components/ui/FileDropZone";
 import { useToast } from "@/components/ui/Toast";
@@ -485,7 +486,7 @@ export default function ContactDrawer({
                   </Select>
                 </Field>
                 <Field label="出生日期">
-                  <input type="date" value={form.values.birth_date} onChange={(e) => form.set("birth_date", e.target.value)} />
+                  <DatePicker value={form.values.birth_date} onChange={(v) => form.set("birth_date", v)} ariaLabel="出生日期" />
                 </Field>
                 <Field label="身份证号" error={form.errors.id_card_no}>
                   <input
@@ -540,13 +541,13 @@ export default function ContactDrawer({
                   </Select>
                 </Field>
                 <Field label="入职日期">
-                  <input type="date" value={form.values.hire_date} onChange={(e) => form.set("hire_date", e.target.value)} />
+                  <DatePicker value={form.values.hire_date} onChange={(v) => form.set("hire_date", v)} ariaLabel="入职日期" />
                 </Field>
                 <Field label="转正日期">
-                  <input type="date" value={form.values.regular_date} onChange={(e) => form.set("regular_date", e.target.value)} />
+                  <DatePicker value={form.values.regular_date} onChange={(v) => form.set("regular_date", v)} ariaLabel="转正日期" />
                 </Field>
                 <Field label="离职日期">
-                  <input type="date" value={form.values.leave_date} onChange={(e) => form.set("leave_date", e.target.value)} />
+                  <DatePicker value={form.values.leave_date} onChange={(v) => form.set("leave_date", v)} ariaLabel="离职日期" />
                 </Field>
                 <Field label="工作邮箱" error={form.errors.work_email}>
                   <input
@@ -568,10 +569,10 @@ export default function ContactDrawer({
                   </Select>
                 </Field>
                 <Field label="合同开始">
-                  <input type="date" value={form.values.contract_start} onChange={(e) => form.set("contract_start", e.target.value)} />
+                  <DatePicker value={form.values.contract_start} onChange={(v) => form.set("contract_start", v)} ariaLabel="合同开始" />
                 </Field>
                 <Field label="合同结束">
-                  <input type="date" value={form.values.contract_end} onChange={(e) => form.set("contract_end", e.target.value)} />
+                  <DatePicker value={form.values.contract_end} onChange={(v) => form.set("contract_end", v)} ariaLabel="合同结束" />
                 </Field>
               </div>
             </div>
@@ -597,7 +598,7 @@ export default function ContactDrawer({
                   <input value={form.values.major} onChange={(e) => form.set("major", e.target.value)} />
                 </Field>
                 <Field label="毕业日期">
-                  <input type="date" value={form.values.graduation_date} onChange={(e) => form.set("graduation_date", e.target.value)} />
+                  <DatePicker value={form.values.graduation_date} onChange={(v) => form.set("graduation_date", v)} ariaLabel="毕业日期" />
                 </Field>
               </div>
             </div>

@@ -65,6 +65,8 @@ interface BaseProps {
   invalid?: boolean;
   name?: string;
   className?: string;
+  /** 行内排布时的宽度契约（迁移自原生 input 的 `style={{ width: 140 }}`）。 */
+  style?: React.CSSProperties;
   /** 是否显示底部快捷选择条（今天 / 本周 / 本月 / 清除）。 */
   quick?: boolean;
   min?: string;
@@ -460,6 +462,7 @@ export function DatePicker({
   quick = true,
   name,
   className,
+  style,
   popoverLabel = "日期选择",
 }: BaseProps & {
   value: string;
@@ -487,6 +490,7 @@ export function DatePicker({
   return (
     <div
       className={`${st.root}${className ? ` ${st.rootHost}` : ""}`}
+      style={style}
       ref={boxRef}
     >
       <Trigger
@@ -557,6 +561,7 @@ export function DateRangePicker({
   quick = false,
   name,
   className,
+  style,
   popoverLabel = "日期区间选择",
 }: BaseProps & {
   value: DateRange;
@@ -604,7 +609,11 @@ export function DateRangePicker({
       : placeholder;
 
   return (
-    <div className={`${st.root}${className ? ` ${st.rootHost}` : ""}`} ref={boxRef}>
+    <div
+      className={`${st.root}${className ? ` ${st.rootHost}` : ""}`}
+      style={style}
+      ref={boxRef}
+    >
       <Trigger
         label={label}
         // 区间没有「一个」标量值；映射回原生语义就是起始日期。
@@ -670,6 +679,7 @@ export function MonthPicker({
   quick = true,
   name,
   className,
+  style,
   popoverLabel = "月份选择",
 }: BaseProps & {
   value: string;
@@ -718,7 +728,11 @@ function isMonthDisabled(key: string) {
 }
 
   return (
-    <div className={`${st.root}${className ? ` ${st.rootHost}` : ""}`} ref={boxRef}>
+    <div
+      className={`${st.root}${className ? ` ${st.rootHost}` : ""}`}
+      style={style}
+      ref={boxRef}
+    >
       <Trigger
         label={label}
         placeholder={placeholder}

@@ -1,5 +1,8 @@
 // @vitest-environment jsdom
 import { useState } from "react";
+import { readFileSync } from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -9,6 +12,14 @@ import {
   MonthPicker,
 } from "../components/ui/DatePicker";
 import Field from "../components/ui/Field";
+
+const css = readFileSync(
+  path.resolve(
+    path.dirname(fileURLToPath(import.meta.url)),
+    "../components/ui/DatePicker.module.css",
+  ),
+  "utf8",
+).replace(/\/\*[\s\S]*?\*\//g, "");
 
 afterEach(() => {
   cleanup();
@@ -64,6 +75,34 @@ describe("随表单提交（name）", () => {
   it("不传 name 就不渲染 hidden", () => {
     render(<DatePicker value="2026-09-29" onChange={() => {}} />);
     expect(document.querySelector('input[type="hidden"]')).toBeNull();
+  });
+
+  it("style 落在外层 root 上（行内排布的宽度契约）", () => {
+    render(<DatePicker value="2026-09-29" onChange={() => {}} style={{ width: 140 }} />);
+    const btn = screen.getByRole("button", { name: "选择日期" });
+    const root = btn.closest("div");
+    expect((root as HTMLElement).style.width).toBe("140px");
+  });
+});
+
+/*
+ * 弹层宽度不能被触发器宽度夹住。
+ *
+ * `.pop` 是 `position: absolute`，包含块就是触发器所在的 `.root`。一旦给 root
+ * 设了显式宽度（行内 140px 的合同行），`max-width: 100%` 就会把弹层压成
+ * 140px 宽的月历，日期格全部挤烂。
+ *
+ * jsdom 没有布局引擎，写多少 render 用例都测不出来；这条钉在 CSS 声明上。
+ */
+describe("弹层宽度", () => {
+  const popRule = css.match(/\.pop\s*\{([^}]*)\}/)?.[1] ?? "";
+
+  it("弹层不声明 max-width: 100%（否则被触发器宽度夹住）", () => {
+    expect(popRule).not.toMatch(/max-width:\s*100%/);
+  });
+
+  it("宽度由视口决定，与触发器宽度无关", () => {
+    expect(popRule).toMatch(/width:\s*min\(300px,\s*92vw\)/);
   });
 });
 
