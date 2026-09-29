@@ -8,7 +8,7 @@ import pytest
 from openpyxl import Workbook
 from sqlalchemy import text
 
-from api.models import AuditLog, Dict, EquipmentAsset, EquipmentEvent, EquipmentBatch
+from api.models import AuditLog, Dict, EquipmentAsset, EquipmentEvent, EquipmentBatch, User
 from test_mvp import login
 
 
@@ -152,7 +152,7 @@ def test_admin_can_permanently_delete_only_correction_only_assets(client, db):
 def test_acceptance_does_not_block_delete_and_batch_is_preserved(client, db):
     admin = login(client, "admin")
     inbound = client.post(f"{ROOT}/inbound", headers=admin, json={
-        "supplier": "录入测试供应商", "acceptance_status": "pending_acceptance",
+        "name": "验收后删除批次", "supplier": "录入测试供应商", "acceptance_status": "pending_acceptance",
         "items": [{"name": "误录显示器", "category_code": "monitor"}],
     })
     assert inbound.status_code == 200, inbound.text
@@ -265,15 +265,161 @@ def test_force_delete_of_clean_asset_is_not_flagged_in_audit(client, db, locked_
 def test_batch_and_unique_codes(client, db):
     admin = login(client, "admin")
     response = client.post(f"{ROOT}/inbound", headers=admin, json={
-        "source": "采购单 1", "items": [{"name": "显示器", "category_code": "monitor"}, {"name": "显示器", "category_code": "monitor"}]
+        "name": "采购批次 A", "source": "采购单 1", "items": [{"name": "显示器", "category_code": "monitor"}, {"name": "显示器", "category_code": "monitor"}]
     })
     assert response.status_code == 200, response.text
     items = response.json()["items"]
     assert len(items) == 2 and len({item["code"] for item in items}) == 2
     assert all(item["batch_id"] == response.json()["batch_id"] for item in items)
     assert response.json()["acceptance_status"] == "accepted"
+    assert response.json()["name"] == "采购批次 A"
     assert all(item["status"] == "available" for item in items)
     assert client.post(f"{ROOT}/inbound", headers=login(client, "pm"), json={"items": []}).status_code == 403
+
+
+def test_inbound_does_not_treat_zero_batch_id_as_create_new_batch(client, db):
+    admin = login(client, "admin")
+    response = client.post(f"{ROOT}/inbound", headers=admin, json={
+        "batch_id": 0, "name": "错误地提交的新批次", "items": [{"name": "设备", "category_code": "computer"}],
+    })
+    assert response.status_code == 400
+    assert "请选择已有批次" in response.json()["detail"]
+    with db() as session:
+        assert session.query(EquipmentBatch).count() == 0
+        assert session.query(EquipmentAsset).count() == 0
+
+
+def test_inbound_can_reuse_batch_without_overwriting_metadata_and_inherits_acceptance(client, db):
+    admin = login(client, "admin")
+    created = client.post(f"{ROOT}/inbound", headers=admin, json={
+        "name": "可复用设备批次", "source": "供应商送货", "supplier": "甲供应商",
+        "acceptance_status": "pending_acceptance", "note": "原始备注",
+        "items": [{"name": "第一台", "category_code": "computer"}],
+    })
+    assert created.status_code == 200, created.text
+    batch_id = created.json()["batch_id"]
+
+    appended = client.post(f"{ROOT}/inbound", headers=admin, json={
+        "batch_id": batch_id, "items": [{"name": "第二台", "category_code": "computer"}],
+    })
+    assert appended.status_code == 200, appended.text
+    assert appended.json()["batch_id"] == batch_id
+    assert appended.json()["name"] == "可复用设备批次"
+    assert appended.json()["asset_count"] == 2
+    assert appended.json()["source"] == "供应商送货"
+    assert appended.json()["supplier"] == "甲供应商"
+    assert appended.json()["note"] == "原始备注"
+    assert all(item["status"] == "pending_acceptance" for item in appended.json()["items"])
+
+    with db() as session:
+        assert session.query(EquipmentBatch).count() == 1
+        assert session.query(EquipmentAsset).filter_by(batch_id=batch_id).count() == 2
+
+
+def test_batch_admin_rename_search_and_delete_empty_batch(client, db):
+    admin, pm = login(client, "admin"), login(client, "pm")
+    created = client.post(f"{ROOT}/inbound", headers=admin, json={
+        "name": "待整理批次", "items": [{"name": "临时设备", "category_code": "computer"}],
+    })
+    assert created.status_code == 200, created.text
+    batch_id = created.json()["batch_id"]
+    asset = created.json()["items"][0]
+
+    assert client.patch(f"{ROOT}/batches/{batch_id}", headers=pm, json={"name": "无权更名"}).status_code == 403
+    renamed = client.patch(f"{ROOT}/batches/{batch_id}", headers=admin, json={"name": "  设备批次·9月  "})
+    assert renamed.status_code == 200, renamed.text
+    assert renamed.json()["name"] == "设备批次·9月"
+    assert client.get(f"{ROOT}/batches?keyword=设备批次", headers=pm).json()["items"][0]["asset_count"] == 1
+    duplicate_name = client.post(f"{ROOT}/inbound", headers=admin, json={
+        "name": "另一个批次", "items": [{"name": "另一台设备", "category_code": "computer"}],
+    }).json()
+    conflict = client.patch(f"{ROOT}/batches/{duplicate_name['batch_id']}", headers=admin,
+                            json={"name": "设备批次·9月"})
+    assert conflict.status_code == 400
+    assert "批次名称已存在" in conflict.json()["detail"]
+
+    assert client.delete(f"{ROOT}/batches/{batch_id}", headers=pm).status_code == 403
+    assert client.delete(f"{ROOT}/batches/{batch_id}", headers=admin).status_code == 409
+    removed = client.request("DELETE", f"{ROOT}/{asset['id']}", headers=admin,
+                             json={"confirm_code": asset["code"], "reason": "清理测试设备"})
+    assert removed.status_code == 200, removed.text
+
+    empty = client.get(f"{ROOT}/batches?keyword=设备批次", headers=admin).json()["items"][0]
+    assert empty["asset_count"] == 0
+    deleted = client.delete(f"{ROOT}/batches/{batch_id}", headers=admin)
+    assert deleted.status_code == 200, deleted.text
+    assert deleted.json() == {"ok": True, "id": batch_id}
+    with db() as session:
+        assert session.get(EquipmentBatch, batch_id) is None
+        assert session.query(AuditLog).filter_by(action="rename_equipment_batch", resource_id=str(batch_id)).count() == 1
+        assert session.query(AuditLog).filter_by(action="delete_equipment_batch", resource_id=str(batch_id)).count() == 1
+
+
+def test_batch_delete_rejects_orphan_event_reference(client, db):
+    admin = login(client, "admin")
+    batch = client.post(f"{ROOT}/inbound", headers=admin, json={
+        "name": "遗留流水批次", "items": [{"name": "设备", "category_code": "computer"}],
+    })
+    assert batch.status_code == 200, batch.text
+    batch_id = batch.json()["batch_id"]
+    asset = batch.json()["items"][0]
+
+    deleted = client.request("DELETE", f"{ROOT}/{asset['id']}", headers=admin,
+                             json={"confirm_code": asset["code"], "reason": "清理测试设备"})
+    assert deleted.status_code == 200, deleted.text
+    standalone = _create(client, admin, name="批次外设备")
+    with db() as session:
+        session.execute(text("DROP TRIGGER equipment_events_immutable ON equipment_events"))
+        session.add(EquipmentEvent(
+            asset_id=standalone["id"], batch_id=batch_id, action="legacy", to_status="available",
+            actor_id=session.query(User.id).filter_by(username="admin").scalar(), note="orphan guard",
+        ))
+        session.commit()
+        session.execute(text(IMMUTABLE_TRIGGER))
+        session.commit()
+
+    removed = client.delete(f"{ROOT}/batches/{batch_id}", headers=admin)
+    assert removed.status_code == 409
+    assert "流水" in removed.json()["detail"]
+    with db() as session:
+        assert session.get(EquipmentBatch, batch_id) is not None
+        assert session.query(EquipmentEvent).filter_by(batch_id=batch_id).count() == 1
+
+
+def test_single_asset_creation_can_join_batch_and_inherits_acceptance_state(client):
+    admin = login(client, "admin")
+    created = client.post(f"{ROOT}/inbound", headers=admin, json={
+        "name": "单件复用待验收", "acceptance_status": "pending_acceptance",
+        "items": [{"name": "先录入", "category_code": "computer"}],
+    })
+    assert created.status_code == 200, created.text
+    batch_id = created.json()["batch_id"]
+
+    joined = client.post(ROOT, headers=admin, json={
+        "name": "后录入单件", "category_code": "computer", "batch_id": batch_id,
+    })
+    assert joined.status_code == 200, joined.text
+    assert joined.json()["batch_id"] == batch_id
+    assert joined.json()["status"] == "pending_acceptance"
+
+
+def test_batch_name_is_required_trimmed_and_case_insensitively_unique(client, db):
+    admin = login(client, "admin")
+    items = [{"name": "路由器", "category_code": "network"}]
+
+    for invalid in ("", "   ", "x" * 129):
+        response = client.post(f"{ROOT}/inbound", headers=admin, json={"name": invalid, "items": items})
+        assert response.status_code == 400, response.text
+
+    created = client.post(f"{ROOT}/inbound", headers=admin, json={"name": "  Lab Batch  ", "items": items})
+    assert created.status_code == 200, created.text
+    assert created.json()["name"] == "Lab Batch"
+
+    duplicate = client.post(f"{ROOT}/inbound", headers=admin, json={"name": "lab batch", "items": items})
+    assert duplicate.status_code == 400, duplicate.text
+    assert "批次名称已存在" in duplicate.json()["detail"]
+    with db() as session:
+        assert session.query(EquipmentBatch).count() == 1
 
 
 def test_export_neutralizes_formula_strings_in_csv_and_xlsx(client, db):
@@ -305,7 +451,7 @@ def test_export_neutralizes_formula_strings_in_csv_and_xlsx(client, db):
 def test_pending_batch_metadata_is_readable_and_assets_cannot_be_claimed(client, db):
     admin, pm = login(client, "admin"), login(client, "pm")
     response = client.post(f"{ROOT}/inbound", headers=admin, json={
-        "source": "供应商送货", "supplier": "星河设备有限公司", "purchase_order_no": "PO-2026-018",
+        "name": "待验收批次", "source": "供应商送货", "supplier": "星河设备有限公司", "purchase_order_no": "PO-2026-018",
         "invoice_no": "INV-2026-88", "acceptance_status": "pending_acceptance", "note": "待清点",
         "items": [{"name": "待验收电脑", "category_code": "computer", "serial_number": "PENDING-1"}],
     })
@@ -334,7 +480,7 @@ def test_pending_batch_metadata_is_readable_and_assets_cannot_be_claimed(client,
 def test_admin_acceptance_updates_batch_assets_events_and_audit_atomically(client, db, monkeypatch):
     admin, pm = login(client, "admin"), login(client, "pm")
     response = client.post(f"{ROOT}/inbound", headers=admin, json={
-        "supplier": "Acme", "acceptance_status": "pending_acceptance", "items": [
+        "name": "验收审计回滚批次", "supplier": "Acme", "acceptance_status": "pending_acceptance", "items": [
             {"name": "电脑甲", "category_code": "computer"},
             {"name": "电脑乙", "category_code": "computer"},
         ],
@@ -351,7 +497,7 @@ def test_admin_acceptance_updates_batch_assets_events_and_audit_atomically(clien
         assert session.query(AuditLog).filter_by(resource="equipment_batches", resource_id=str(batch_id)).count() == 2
 
     pending = client.post(f"{ROOT}/inbound", headers=admin, json={
-        "acceptance_status": "pending_acceptance", "items": [{"name": "电脑丙", "category_code": "computer"}],
+        "name": "二号验收批次", "acceptance_status": "pending_acceptance", "items": [{"name": "电脑丙", "category_code": "computer"}],
     }).json()
     second_batch_id = pending["batch_id"]
     import api.core.audit as audit
@@ -367,6 +513,60 @@ def test_admin_acceptance_updates_batch_assets_events_and_audit_atomically(clien
         assert session.query(EquipmentEvent).filter_by(asset_id=second_asset.id).count() == 1
 
 
+@pytest.mark.parametrize("extension,payload,content_type", [
+    ("csv", "name,category_code\nImported,computer\nOther,monitor\n".encode(), "text/csv"),
+    ("xlsx", None, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"),
+])
+def test_import_can_reuse_selected_batch_atomically(client, db, extension, payload, content_type):
+    admin = login(client, "admin")
+    pending = client.post(f"{ROOT}/inbound", headers=admin, json={
+        "name": f"待导入批次-{extension}", "source": "既有来源", "supplier": "既有供应商",
+        "acceptance_status": "pending_acceptance", "note": "不可覆盖",
+        "items": [{"name": "先前设备", "category_code": "computer"}],
+    })
+    assert pending.status_code == 200, pending.text
+    batch_id = pending.json()["batch_id"]
+    if payload is None:
+        book = Workbook()
+        sheet = book.active
+        sheet.append(["name", "category_code"])
+        sheet.append(["Imported", "computer"])
+        sheet.append(["Other", "monitor"])
+        from io import BytesIO
+        stream = BytesIO()
+        book.save(stream)
+        payload = stream.getvalue()
+    response = client.post(f"{ROOT}/import", headers=admin, data={"batch_id": str(batch_id)},
+                           files={"file": (f"assets.{extension}", payload, content_type)})
+    assert response.status_code == 200, response.text
+    assert response.json()["batch_id"] == batch_id
+    assert response.json()["created"] == 2
+    assert response.json()["batch_name"] == f"待导入批次-{extension}"
+    with db() as session:
+        batch = session.get(EquipmentBatch, batch_id)
+        assert batch.source == "既有来源"
+        assert batch.supplier == "既有供应商"
+        assert batch.note == "不可覆盖"
+        imported = session.query(EquipmentAsset).filter_by(batch_id=batch_id).order_by(EquipmentAsset.id).all()
+        assert len(imported) == 3
+        assert {asset.status for asset in imported} == {"pending_acceptance"}
+        assert session.query(EquipmentEvent).filter_by(batch_id=batch_id).count() == 3
+
+
+def test_import_creates_named_batch_after_row_prevalidation(client, db):
+    admin = login(client, "admin")
+    payload = "name,category_code\nImported,computer\n".encode()
+    response = client.post(f"{ROOT}/import", headers=admin,
+                           data={"batch_name": "台账导入批次", "acceptance_status": "accepted"},
+                           files={"file": ("assets.csv", payload, "text/csv")})
+    assert response.status_code == 200, response.text
+    assert response.json()["batch_name"] == "台账导入批次"
+    batches = client.get(f"{ROOT}/batches?keyword=台账导入批次", headers=admin).json()["items"]
+    assert len(batches) == 1
+    assert batches[0]["source"] == "导入 assets.csv"
+    assert batches[0]["asset_count"] == 1
+
+
 def test_import_prevalidation_is_atomic(client, db):
     admin = login(client, "admin")
     payload = b"name,category_code,serial_number\nGood,computer,S1\nBad,unknown,S2\n"
@@ -375,12 +575,20 @@ def test_import_prevalidation_is_atomic(client, db):
     assert response.json()["detail"]["errors"][0]["row"] == 3
     with db() as session:
         assert session.query(EquipmentAsset).count() == 0
+        assert session.query(EquipmentBatch).count() == 0
+        assert session.query(EquipmentEvent).count() == 0
     good = b"name,category_code,serial_number\nGood,computer,S1\nOther,monitor,S2\n"
-    response = client.post(f"{ROOT}/import", headers=admin, files={"file": ("assets.csv", good, "text/csv")})
+    response = client.post(f"{ROOT}/import", headers=admin, data={"batch_name": "有效导入批次"},
+                           files={"file": ("assets.csv", good, "text/csv")})
     assert response.status_code == 200, response.text
     assert response.json()["created"] == 2
-    assert client.post(f"{ROOT}/import", headers=admin, files={"file": ("assets.csv", good, "text/csv")}).status_code == 400
-    assert client.get(f"{ROOT}/export?format=csv", headers=admin).status_code == 200
+    duplicate_import = client.post(f"{ROOT}/import", headers=admin, data={"batch_name": "重复导入批次"},
+                                  files={"file": ("assets.csv", good, "text/csv")})
+    assert duplicate_import.status_code == 400
+    csv_response = client.get(f"{ROOT}/export?format=csv", headers=admin)
+    assert csv_response.status_code == 200
+    exported = list(csv.DictReader(io.StringIO(csv_response.content.decode("utf-8-sig"))))
+    assert all(row["所属批次"].startswith("有效导入批次 · 批次 #") for row in exported)
     assert client.get(f"{ROOT}/export?format=xlsx", headers=admin).status_code == 200
     assert client.get(f"{ROOT}/export?format=csv", headers=login(client, "pm")).status_code == 403
 
@@ -464,12 +672,12 @@ def test_category_admin_crud_and_referenced_category_cannot_be_deleted(client):
 def test_statistics_monthly_inbound_and_outbound_count_equipment_events(client):
     admin, pm = login(client, "admin"), login(client, "pm")
     created = _create(client, admin, name="新建资产")
-    inbound = client.post(f"{ROOT}/inbound", headers=admin, json={"items": [
+    inbound = client.post(f"{ROOT}/inbound", headers=admin, json={"name": "统计入库批次", "items": [
         {"name": "入库资产", "category_code": "computer"},
     ]})
     assert inbound.status_code == 200, inbound.text
     pending = client.post(f"{ROOT}/inbound", headers=admin, json={
-        "acceptance_status": "pending_acceptance",
+        "name": "统计待验收批次", "acceptance_status": "pending_acceptance",
         "items": [{"name": "验收资产", "category_code": "monitor"}],
     })
     assert pending.status_code == 200, pending.text

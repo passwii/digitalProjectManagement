@@ -9,7 +9,7 @@ import MotionTabs from "@/components/motion/MotionTabs";
 import { LoadingBlock, LoadFailed } from "@/components/ui/PageState";
 import { useAsyncData } from "@/lib/useAsyncData";
 import { useMenus, useMeta } from "@/lib/useMeta";
-import { authApi, errDetail, errText, EQUIPMENT_ACTION_LABELS, equipmentAssetActions, equipmentAssetsApi as api, type EquipmentAsset, type EquipmentBatch, type EquipmentCategory, type EquipmentDeleteCheck, type EquipmentEvent, type EquipmentImportError, type EquipmentStatistics, type EquipmentWrite } from "@/lib/api";
+import { authApi, errDetail, errText, EQUIPMENT_ACTION_LABELS, equipmentAssetActions, equipmentAssetsApi as api, type EquipmentAsset, type EquipmentBatch, type EquipmentBatchSelection, type EquipmentCategory, type EquipmentDeleteCheck, type EquipmentEvent, type EquipmentImportError, type EquipmentImportResult, type EquipmentStatistics, type EquipmentWrite } from "@/lib/api";
 import "./assets.css";
 
 type Section = "overview" | "ledger" | "inbound" | "batches" | "overdue" | "statistics" | "categories";
@@ -44,8 +44,11 @@ function AssetsInner() {
   const [filters, setFilters] = useState({ keyword: "", category_code: "", status: "", holder_id: "" });
   const [page, setPage] = useState(1);
   const [batchPage, setBatchPage] = useState(1);
+  const [batchSearch, setBatchSearch] = useState("");
+  const [batchKeyword, setBatchKeyword] = useState("");
   const [overduePage, setOverduePage] = useState(1);
   const [batchLoadingId, setBatchLoadingId] = useState<number | null>(null);
+  const [batchPickerRefreshKey, setBatchPickerRefreshKey] = useState(0);
   const [toast, setToast] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -62,9 +65,19 @@ function AssetsInner() {
     [filters.keyword, filters.category_code, filters.status, filters.holder_id, page],
     { resetOnDepChange: true },
   );
-  const { data: batchesData, loading: batchesLoading, reload: reloadBatches } = useAsyncData(
-    (signal) => api.batches(batchPage, 100, signal), [batchPage], { resetOnDepChange: true },
+  useEffect(() => {
+    const timer = window.setTimeout(() => setBatchKeyword(batchSearch.trim()), 250);
+    return () => window.clearTimeout(timer);
+  }, [batchSearch]);
+  const { data: batchesData, loading: batchesLoading, reload: reloadBatches, setData: setBatchesData } = useAsyncData(
+    (signal) => api.batches({ keyword: batchKeyword, page: batchPage, size: 100 }, signal),
+    [batchKeyword, batchPage], { resetOnDepChange: true },
   );
+  const [batchEdit, setBatchEdit] = useState<EquipmentBatch | null>(null);
+  const [batchEditName, setBatchEditName] = useState("");
+  const [batchEditError, setBatchEditError] = useState("");
+  const [batchDelete, setBatchDelete] = useState<EquipmentBatch | null>(null);
+  const [batchDeleteError, setBatchDeleteError] = useState("");
   const { data: overdueData, loading: overdueLoading, reload: reloadOverdue } = useAsyncData(
     (signal) => api.overdue(overduePage, 100, signal), [overduePage], { resetOnDepChange: true },
   );
@@ -93,11 +106,40 @@ function AssetsInner() {
       if (detail.batch_id) setBatch(await api.batch(detail.batch_id));
     } catch (e) { setError(errText(e)); }
   };
-  const perform = async (action: () => Promise<unknown>, success = "操作完成") => {
+  const perform = async (action: () => Promise<unknown>, success: string | ((result: unknown) => string) = "操作完成") => {
     setBusy(true); setError("");
-    try { await action(); notify(success); await refresh(); reloadLedger(); reloadBatches(); reloadOverdue(); if (selected) await openAsset(selected); }
-    catch (e) { setError(errText(e)); }
+    try {
+      const result = await action();
+      notify(typeof success === "function" ? success(result) : success);
+      setBatchPickerRefreshKey((key) => key + 1);
+      await refresh(); reloadLedger(); reloadBatches(); reloadOverdue();
+      if (selected) await openAsset(selected);
+    } catch (e) { setError(errText(e)); }
     finally { setBusy(false); }
+  };
+  const changeBatch = async (action: "rename" | "delete", target: EquipmentBatch, name?: string) => {
+    setBusy(true); setError("");
+    if (action === "rename") setBatchEditError("");
+    else setBatchDeleteError("");
+    try {
+      if (action === "rename") await api.renameBatch(target.id, { name: name?.trim() ?? "" });
+      else await api.removeBatch(target.id);
+      if (batch?.id === target.id) setBatch(null);
+      setBatchEdit(null); setBatchDelete(null);
+      if (action === "rename") {
+        const renamed = { ...target, name: name?.trim() ?? target.name };
+        setBatchesData(batchesData ? { ...batchesData, items: batchesData.items.map((item) => item.id === target.id ? renamed : item) } : null);
+      } else {
+        setBatchesData(batchesData ? { ...batchesData, total: Math.max(0, batchesData.total - 1), items: batchesData.items.filter((item) => item.id !== target.id) } : null);
+      }
+      notify(action === "rename" ? "批次名称已更新" : `空批次「${target.name}」已删除`);
+      setBatchPickerRefreshKey((key) => key + 1);
+      reloadBatches();
+    } catch (e) {
+      const message = errText(e);
+      if (action === "rename") setBatchEditError(message);
+      else setBatchDeleteError(message);
+    } finally { setBusy(false); }
   };
   const deleteAsset = async (asset: EquipmentAsset, reason: string) => {
     setBusy(true); setError("");
@@ -128,10 +170,12 @@ function AssetsInner() {
     <PageHeader title="公司设备资产" actions={isAdmin ? <><button className="btn-ghost" onClick={() => setImportOpen(true)}>导入台账</button><button className="btn-ghost" onClick={() => void exportAssets("csv")}>导出 CSV</button><button className="btn-ghost" onClick={() => void exportAssets("xlsx")}>导出 Excel</button></> : null} />
     {importOpen && <ImportDialog
       categories={categories}
+      batchPickerRefreshKey={batchPickerRefreshKey}
       onClose={() => setImportOpen(false)}
       onImported={(result) => {
         setImportOpen(false);
-        notify(`已导入 ${result.created} 件设备，归入入库批次 #${result.batch_id}`);
+        notify(`已导入 ${result.created} 件设备，归入「${result.batch_name} · 批次 #${result.batch_id}」`);
+        setBatchPickerRefreshKey((key) => key + 1);
         void refresh();
         reloadLedger();
         reloadBatches();
@@ -143,13 +187,15 @@ function AssetsInner() {
     {loading && !data ? <LoadingBlock label="正在读取设备资产…" /> : data && <>
       {section === "overview" && <Overview overview={data.overview} stats={data.stats} categories={categories} onSection={setSection} />}
       {section === "ledger" && <section className="asset-panel"><div className="asset-filters"><input aria-label="搜索设备" placeholder="编号、名称、序列号…" value={filters.keyword} onChange={(e) => setFilters({ ...filters, keyword: e.target.value })} /><Select aria-label="设备分类" value={filters.category_code} onChange={(value) => setFilters({ ...filters, category_code: value })}><option value="">全部分类</option>{categories.map((c) => <option key={c.code} value={c.code}>{c.label}</option>)}</Select><Select aria-label="设备状态" value={filters.status} onChange={(value) => setFilters({ ...filters, status: value })}><option value="">全部状态</option>{Object.entries(STATUS).map(([v, label]) => <option key={v} value={v}>{label}</option>)}</Select>{filters.holder_id && <button className="btn-ghost" onClick={() => setFilters({ ...filters, holder_id: "" })}>清除使用人筛选</button>}</div>{ledgerLoading && !ledgerData ? <LoadingBlock label="读取设备台账…" /> : <><AssetRows rows={visibleRows} categories={categories} onOpen={openAsset} userName={userName} /><div className="asset-pagination"><span>第 {page} 页 · 共 {ledgerData?.total ?? 0} 件</span><button className="btn-ghost" disabled={page <= 1 || ledgerLoading} onClick={() => setPage(page - 1)}>上一页</button><button className="btn-ghost" disabled={page * 20 >= (ledgerData?.total ?? 0) || ledgerLoading} onClick={() => setPage(page + 1)}>下一页</button></div></>}</section>}
-      {section === "inbound" && isAdmin && <InboundForm categories={categories} busy={busy} onSubmit={(body) => perform(() => api.inbound(body), "已建立入库批次")} />}
-      {section === "batches" && <section className="asset-panel"><div className="asset-panel-heading"><div><h2>入库批次</h2><p>按批次查看来源、验收情况和设备明细</p></div></div>{batchesLoading && !batchesData ? <LoadingBlock label="读取入库批次…" /> : batchesData && <>{batchesData.items.length ? <div className="asset-batch-list">{batchesData.items.map((b) => <article key={b.id}><div><b>批次 #{b.id}</b><span>{b.source || "未填写来源"} · {b.supplier || "未填写供应商"}</span><small>采购单 {b.purchase_order_no || "—"} · 发票 {b.invoice_no || "—"}</small></div><span className={`asset-status ${b.acceptance_status}`}>{b.acceptance_status === "accepted" ? "已验收" : "待验收"}</span>{b.acceptance_status === "pending_acceptance" && isAdmin && <button disabled={busy} className="btn-primary" onClick={() => perform(() => api.acceptBatch(b.id), "批次验收完成")}>确认验收</button>}<button className="btn-ghost" disabled={batchLoadingId === b.id} onClick={() => void loadBatch(b.id)}>{batchLoadingId === b.id ? "读取中…" : "查看设备"}</button>{batch?.id === b.id && <div className="asset-batch-assets">{batch.items?.map((a) => <button key={a.id} onClick={() => openAsset(a)}>{a.code} · {a.name}</button>)}</div>}</article>)}</div> : <div className="asset-empty">暂无入库批次</div>}<div className="asset-pagination"><span>第 {batchesData.page} 页 · 共 {batchesData.total} 批</span><button className="btn-ghost" disabled={batchesData.page <= 1 || batchesLoading} onClick={() => setBatchPage(batchesData.page - 1)}>上一页批次</button><button className="btn-ghost" disabled={batchesData.page * batchesData.size >= batchesData.total || batchesLoading} onClick={() => setBatchPage(batchesData.page + 1)}>下一页批次</button></div></>}</section>}
+      {section === "inbound" && isAdmin && <InboundForm categories={categories} busy={busy} refreshKey={batchPickerRefreshKey} onSubmit={(body) => perform(() => api.inbound(body), (result) => { const batch = result as EquipmentBatch; return `已登记设备到「${batch.name} · 批次 #${batch.id}」`; })} />}
+      {section === "batches" && <section className="asset-panel"><div className="asset-panel-heading"><div><h2>入库批次</h2><p>按名称查找批次，查看设备数量、来源、验收情况和设备明细</p></div><input aria-label="搜索批次列表" placeholder="批次名、编号或来源…" value={batchSearch} onChange={(e) => { setBatchSearch(e.target.value); setBatchPage(1); }} /></div>{batchesLoading && !batchesData ? <LoadingBlock label="读取入库批次…" /> : batchesData && <>{batchesData.items.length ? <div className="asset-batch-list">{batchesData.items.map((b) => <article key={b.id}><div><b>{b.name} · 批次 #{b.id}</b><span>{b.source || "未填写来源"} · {b.supplier || "未填写供应商"}</span><small>采购单 {b.purchase_order_no || "—"} · 发票 {b.invoice_no || "—"} · {b.asset_count ? `${b.asset_count} 件设备` : "空批次"}</small></div><span className={`asset-status ${b.acceptance_status}`}>{b.acceptance_status === "accepted" ? "已验收" : "待验收"}</span>{b.acceptance_status === "pending_acceptance" && isAdmin && <button disabled={busy} className="btn-primary" onClick={() => perform(() => api.acceptBatch(b.id), "批次验收完成")}>确认验收</button>}<button className="btn-ghost" disabled={batchLoadingId === b.id} onClick={() => void loadBatch(b.id)}>{batchLoadingId === b.id ? "读取中…" : "查看设备"}</button>{isAdmin && <button className="btn-ghost" onClick={() => { setBatchEdit(b); setBatchEditName(b.name); setBatchEditError(""); }}>重命名</button>}{isAdmin && b.asset_count === 0 && <button className="btn-ghost asset-danger" onClick={() => { setBatchDelete(b); setBatchDeleteError(""); }}>删除空批次</button>}{batch?.id === b.id && <div className="asset-batch-assets">{batch.items?.map((a) => <button key={a.id} onClick={() => openAsset(a)}>{a.code} · {a.name}</button>)}</div>}</article>)}</div> : <div className="asset-empty">暂无入库批次</div>}<div className="asset-pagination"><span>第 {batchesData.page} 页 · 共 {batchesData.total} 批</span><button className="btn-ghost" disabled={batchesData.page <= 1 || batchesLoading} onClick={() => setBatchPage(batchesData.page - 1)}>上一页批次</button><button className="btn-ghost" disabled={batchesData.page * batchesData.size >= batchesData.total || batchesLoading} onClick={() => setBatchPage(batchesData.page + 1)}>下一页批次</button></div></>}</section>}
       {section === "overdue" && <section className="asset-panel"><div className="asset-panel-heading"><div><h2>逾期借用</h2><p>仅展示超过归还日期的设备</p></div><span className="asset-count">{overdueData?.total ?? 0} 件</span></div>{overdueLoading && !overdueData ? <LoadingBlock label="读取逾期借用…" /> : overdueData && <>{overdueData.items.length ? <AssetRows rows={overdueData.items} categories={categories} onOpen={openAsset} userName={userName} /> : <div className="asset-empty">当前没有逾期设备</div>}<div className="asset-pagination"><span>第 {overdueData.page} 页 · 共 {overdueData.total} 件</span><button className="btn-ghost" disabled={overdueData.page <= 1 || overdueLoading} onClick={() => setOverduePage(overdueData.page - 1)}>上一页逾期</button><button className="btn-ghost" disabled={overdueData.page * overdueData.size >= overdueData.total || overdueLoading} onClick={() => setOverduePage(overdueData.page + 1)}>下一页逾期</button></div></>}</section>}
       {section === "statistics" && <Statistics stats={data.stats} categories={categories} onHolder={(id) => { setFilters({ ...filters, holder_id: String(id) }); setSection("ledger"); }} />}
       {section === "categories" && isAdmin && <CategoryManager categories={categories} busy={busy} onChange={async () => { await refresh(); }} onError={(e) => setError(errText(e))} onToast={notify} />}
     </>}
     </MotionTabs>
+    {batchEdit && <Dialog open onClose={() => { if (!busy) setBatchEdit(null); }} title="重命名批次" size="sm" maskClosable={!busy} footer={<><button className="btn-ghost" disabled={busy} onClick={() => setBatchEdit(null)}>取消</button><button className="btn-primary" disabled={busy || !batchEditName.trim()} onClick={() => void changeBatch("rename", batchEdit, batchEditName)}>{busy ? "保存中…" : "保存名称"}</button></>}><label>批次名称<input aria-label="修改批次名称" value={batchEditName} onChange={(e) => { setBatchEditName(e.target.value); setBatchEditError(""); }} /></label>{batchEditError && <div className="asset-error" role="alert">{batchEditError}</div>}</Dialog>}
+    {batchDelete && <Dialog open onClose={() => { if (!busy) setBatchDelete(null); }} title="删除空批次" size="sm" maskClosable={!busy} footer={<><button className="btn-ghost" disabled={busy} onClick={() => setBatchDelete(null)}>取消</button><button className="btn-danger" disabled={busy} onClick={() => void changeBatch("delete", batchDelete)}>{busy ? "删除中…" : "确认删除"}</button></>}><p>将永久删除批次「<b>{batchDelete.name}</b> · 批次 #{batchDelete.id}」。当前没有设备，删除后无法恢复。</p>{batchDeleteError && <div className="asset-error" role="alert">{batchDeleteError}</div>}</Dialog>}
     {selected && <AssetDetail asset={selected} categories={categories} batch={batch} events={events} deleteCheck={deleteCheck} userName={userName} isAdmin={isAdmin} currentUser={data?.me.id} busy={busy} onClose={() => setSelected(null)} onEdit={(body) => perform(() => api.update(selected.id, body), "档案已更新")} onAction={(action, body) => perform(() => action === "claim" ? api.claim(selected.id, body) : action === "borrow" ? api.borrow(selected.id, body) : action === "return" ? api.return(selected.id, body) : api.transition(selected.id, action, body), "设备状态已更新")} onDelete={(reason) => deleteAsset(selected, reason)} />}
   </main>;
 }
@@ -198,16 +244,36 @@ function AssetRows({ rows, categories, onOpen, userName }: { rows: EquipmentAsse
  * 导入台账弹层：把「该填什么列」直接写在界面上，而不是让用户猜英文列名。
  * 上传与逐行报错都留在弹层内，用户改完文件可直接重试，不用关掉再打开。
  */
-function ImportDialog({ categories, onClose, onImported }: {
+function ImportDialog({ categories, onClose, onImported, batchPickerRefreshKey }: {
   categories: EquipmentCategory[];
   onClose: () => void;
-  onImported: (result: { batch_id: number; created: number; ignored_columns?: Record<string, string[]> }) => void;
+  onImported: (result: EquipmentImportResult) => void;
+  batchPickerRefreshKey: number;
 }) {
   const [busy, setBusy] = useState(false);
   const [rows, setRows] = useState<EquipmentImportError[]>([]);
   const [summary, setSummary] = useState("");
   const [ignored, setIgnored] = useState<Record<string, string[]>>({});
   const [fileName, setFileName] = useState("");
+  const [mode, setMode] = useState<"new" | "existing">("new");
+  const [batchName, setBatchName] = useState("");
+  const [acceptance, setAcceptance] = useState<"pending_acceptance" | "accepted">("accepted");
+  const [source, setSource] = useState("");
+  const [supplier, setSupplier] = useState("");
+  const [purchaseOrderNo, setPurchaseOrderNo] = useState("");
+  const [invoiceNo, setInvoiceNo] = useState("");
+  const [batchNote, setBatchNote] = useState("");
+  const [batchSearch, setBatchSearch] = useState("");
+  const [selectedBatchId, setSelectedBatchId] = useState("");
+  const [searchKeyword, setSearchKeyword] = useState("");
+  useEffect(() => {
+    const timer = window.setTimeout(() => setSearchKeyword(batchSearch.trim()), 250);
+    return () => window.clearTimeout(timer);
+  }, [batchSearch]);
+  const { data: batches, loading: batchesLoading, error: batchesError } = useAsyncData(
+    (signal) => api.batches({ keyword: searchKeyword, page: 1, size: 20 }, signal),
+    [searchKeyword, batchPickerRefreshKey], { resetOnDepChange: true },
+  );
 
   const reset = () => { setRows([]); setSummary(""); setIgnored({}); };
   const upload = async (file: File) => {
@@ -215,7 +281,10 @@ function ImportDialog({ categories, onClose, onImported }: {
     reset();
     setFileName(file.name);
     try {
-      const result = await api.upload(file);
+      const selection: EquipmentBatchSelection = mode === "existing"
+        ? { batch_id: Number(selectedBatchId) }
+        : { name: batchName.trim(), source: source.trim() || `导入 ${file.name}`, supplier, purchase_order_no: purchaseOrderNo, invoice_no: invoiceNo, acceptance_status: acceptance, note: batchNote };
+      const result = await api.upload(file, selection);
       onImported(result);
     } catch (e) {
       // 批量导入的 detail 是 { errors, message } 结构，errText 会退化成整段 JSON，必须单独取。
@@ -233,7 +302,7 @@ function ImportDialog({ categories, onClose, onImported }: {
   const onPick = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     event.target.value = "";
-    if (file) void upload(file);
+    if (file && (mode === "new" ? batchName.trim() : selectedBatchId)) void upload(file);
   };
   const ignoredNotes = Object.entries(ignored).filter(([, values]) => values.length > 0);
 
@@ -247,11 +316,16 @@ function ImportDialog({ categories, onClose, onImported }: {
       <button className="btn-ghost" onClick={() => void api.importTemplate("xlsx")}>下载 Excel 模板</button>
       <label className={`btn-primary asset-import-button${busy ? " is-busy" : ""}`}>
         {busy ? "导入中…" : fileName ? "重新选择文件" : "选择文件导入"}
-        <input type="file" accept=".csv,.xlsx" aria-label="选择 CSV 或 Excel 台账文件" disabled={busy} onChange={onPick} />
+        <input type="file" accept=".csv,.xlsx" aria-label="选择 CSV 或 Excel 台账文件" disabled={busy || (mode === "new" ? !batchName.trim() : !selectedBatchId)} onChange={onPick} />
       </label>
     </>}
   >
     <div className="asset-import">
+      <div className="asset-form-grid">
+        <label>导入批次方式<Select aria-label="导入批次方式" value={mode} onChange={(value) => { setMode(value as typeof mode); setSelectedBatchId(""); }}><option value="new">新建批次</option><option value="existing">加入已有批次</option></Select></label>
+        {mode === "new" ? <><label>批次名称<input aria-label="导入新批次名称" value={batchName} onChange={(event) => setBatchName(event.target.value)} required /></label><label>来源<input aria-label="导入批次来源" value={source} onChange={(event) => setSource(event.target.value)} placeholder={fileName ? `导入 ${fileName}` : "选择文件后默认使用文件名"} /></label><label>供应商<input value={supplier} onChange={(event) => setSupplier(event.target.value)} /></label><label>采购单号<input value={purchaseOrderNo} onChange={(event) => setPurchaseOrderNo(event.target.value)} /></label><label>发票号<input value={invoiceNo} onChange={(event) => setInvoiceNo(event.target.value)} /></label><label>验收状态<Select aria-label="导入新批次验收状态" value={acceptance} onChange={(value) => setAcceptance(value as typeof acceptance)}><option value="accepted">已验收</option><option value="pending_acceptance">待验收</option></Select></label><label>批次备注<input value={batchNote} onChange={(event) => setBatchNote(event.target.value)} /></label></> : <><label>搜索批次<input aria-label="搜索导入目标批次" value={batchSearch} onChange={(event) => { setBatchSearch(event.target.value); setSelectedBatchId(""); }} placeholder="批次名、编号或来源" /></label><label>选择批次<Select aria-label="选择导入批次" value={selectedBatchId} onChange={setSelectedBatchId} required><option value="">{batchesLoading ? "正在读取…" : "请选择已有批次"}</option>{batches?.items.map((item) => <option key={item.id} value={item.id}>{item.name} · 批次 #{item.id} · {item.source || "未填写来源"} · {item.acceptance_status === "accepted" ? "已验收" : "待验收"}</option>)}</Select></label>{batchesError && <span className="asset-error" role="alert">{batchesError}</span>}</>}
+      </div>
+      <p className="tiny muted">整份文件中的设备会归入同一个批次；加入已有批次时，新设备会继承该批次当前的验收状态。</p>
       <p className="tiny muted">
         支持 CSV 与 Excel（.xlsx），单文件不超过 5 MB。表头请用下面的中文列名，列顺序随意，多余的列会被忽略。
         建议先下载模板，模板里带示例行和填写说明。
@@ -273,7 +347,7 @@ function ImportDialog({ categories, onClose, onImported }: {
         {categories.length ? categories.map((category) => category.label).join("、") : "暂无，请先到「分类维护」创建"}
         {categories.length ? "" : "（导入前请先创建分类）"}
       </p>
-      <p className="tiny muted">导入只为设备建档，状态一律为「可用」；资产编号、状态、使用人等列即使存在也会被忽略。</p>
+      <p className="tiny muted">设备初始状态由批次验收状态决定；文件中的资产编号、状态、使用人等列即使存在也会被忽略。</p>
 
       {summary && <div className="asset-error" role="alert">{summary}</div>}
       {!!rows.length && <ol className="asset-import-errors" aria-label="导入失败明细">
@@ -286,10 +360,47 @@ function ImportDialog({ categories, onClose, onImported }: {
   </Dialog>;
 }
 
-function InboundForm({ categories, busy, onSubmit }: { categories: EquipmentCategory[]; busy: boolean; onSubmit: (body: { source?: string; supplier?: string; purchase_order_no?: string; invoice_no?: string; acceptance_status: "pending_acceptance" | "accepted"; note?: string; items: EquipmentWrite[] }) => void }) {
-  const [count, setCount] = useState(1); const [acceptance, setAcceptance] = useState<"pending_acceptance" | "accepted">("accepted");
-  const submit = (e: React.FormEvent<HTMLFormElement>) => { e.preventDefault(); const fd = new FormData(e.currentTarget); const items = Array.from({ length: count }, (_, i) => ({ name: String(fd.get(`name-${i}`) || "").trim(), category_code: String(fd.get(`category-${i}`) || ""), serial_number: String(fd.get(`serial-${i}`) || "").trim() || undefined, brand: String(fd.get(`brand-${i}`) || "").trim() || undefined, model: String(fd.get(`model-${i}`) || "").trim() || undefined, location: String(fd.get(`location-${i}`) || "").trim() || undefined, purchase_date: String(fd.get(`purchase_date-${i}`) || "") || undefined, purchase_price: fd.get(`purchase_price-${i}`) ? Number(fd.get(`purchase_price-${i}`)) : undefined })); onSubmit({ source: String(fd.get("source") || ""), supplier: String(fd.get("supplier") || ""), purchase_order_no: String(fd.get("purchase_order_no") || ""), invoice_no: String(fd.get("invoice_no") || ""), acceptance_status: acceptance, note: String(fd.get("note") || ""), items }); };
-  return <form className="asset-panel asset-form" onSubmit={submit}><div className="asset-panel-heading"><div><h2>登记设备入库</h2><p>同一批次可录入多件设备；待验收设备验收后才可领用或借用。</p></div><label>设备件数 <input type="number" min={1} max={30} value={count} onChange={(e) => setCount(Math.max(1, Math.min(30, Number(e.target.value))))} /></label></div><div className="asset-form-grid"><label>来源<input name="source" placeholder="采购 / 调拨 / 捐赠" /></label><label>供应商<input name="supplier" /></label><label>采购单号<input name="purchase_order_no" /></label><label>发票号<input name="invoice_no" /></label><label>验收状态<Select surface="console" value={acceptance} onChange={(value) => setAcceptance(value as typeof acceptance)}><option value="accepted">已验收</option><option value="pending_acceptance">待验收</option></Select></label><label className="wide">批次备注<input name="note" /></label></div>{Array.from({ length: count }, (_, i) => <fieldset key={i} className="asset-item-form"><legend>设备 {i + 1}</legend><div className="asset-form-grid"><label>名称<input name={`name-${i}`} required /></label><label>分类<Select key={categories[0]?.code ?? ""} surface="console" name={`category-${i}`} required defaultValue={categories[0]?.code ?? ""}>{categories.map((c) => <option key={c.code} value={c.code}>{c.label}</option>)}</Select></label><label>序列号<input name={`serial-${i}`} /></label><label>品牌<input name={`brand-${i}`} /></label><label>型号<input name={`model-${i}`} /></label><label>存放位置<input name={`location-${i}`} /></label><label>购置日期<input type="date" name={`purchase_date-${i}`} /></label><label>购置金额<input type="number" step="0.01" min="0" name={`purchase_price-${i}`} /></label></div></fieldset>)}<button className="btn-primary" disabled={busy}>{busy ? "提交中…" : `登记 ${count} 件设备`}</button></form>;
+function InboundForm({ categories, busy, refreshKey, onSubmit }: { categories: EquipmentCategory[]; busy: boolean; refreshKey: number; onSubmit: (body: EquipmentBatchSelection & { items: EquipmentWrite[] }) => void }) {
+  const [count, setCount] = useState(1);
+  const [mode, setMode] = useState<"new" | "existing">("new");
+  const [acceptance, setAcceptance] = useState<"pending_acceptance" | "accepted">("accepted");
+  const [batchName, setBatchName] = useState("");
+  const [batchSearch, setBatchSearch] = useState("");
+  const [selectedBatchId, setSelectedBatchId] = useState("");
+  const [searchKeyword, setSearchKeyword] = useState("");
+  useEffect(() => {
+    const timer = window.setTimeout(() => setSearchKeyword(batchSearch.trim()), 250);
+    return () => window.clearTimeout(timer);
+  }, [batchSearch]);
+  const { data: batches, loading: batchesLoading, error: batchesError } = useAsyncData(
+    (signal) => api.batches({ keyword: searchKeyword, page: 1, size: 20 }, signal),
+    [searchKeyword, refreshKey], { resetOnDepChange: true },
+  );
+  const selectedBatch = batches?.items.find((item) => String(item.id) === selectedBatchId);
+  const submit = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (mode === "new" && !batchName.trim()) return;
+    if (mode === "existing" && !selectedBatchId) return;
+    const fd = new FormData(e.currentTarget);
+    const items = Array.from({ length: count }, (_, i) => ({ name: String(fd.get(`name-${i}`) || "").trim(), category_code: String(fd.get(`category-${i}`) || ""), serial_number: String(fd.get(`serial-${i}`) || "").trim() || undefined, brand: String(fd.get(`brand-${i}`) || "").trim() || undefined, model: String(fd.get(`model-${i}`) || "").trim() || undefined, location: String(fd.get(`location-${i}`) || "").trim() || undefined, purchase_date: String(fd.get(`purchase_date-${i}`) || "") || undefined, purchase_price: fd.get(`purchase_price-${i}`) ? Number(fd.get(`purchase_price-${i}`)) : undefined }));
+    const selection: EquipmentBatchSelection = mode === "existing"
+      ? { batch_id: Number(selectedBatchId) }
+      : { name: batchName.trim(), source: String(fd.get("source") || ""), supplier: String(fd.get("supplier") || ""), purchase_order_no: String(fd.get("purchase_order_no") || ""), invoice_no: String(fd.get("invoice_no") || ""), acceptance_status: acceptance, note: String(fd.get("note") || "") };
+    onSubmit({ ...selection, items });
+  };
+  return <form className="asset-panel asset-form" onSubmit={submit}>
+    <div className="asset-panel-heading"><div><h2>登记设备入库</h2><p>可登记单件或多件设备；选择已有批次可分次归入同一批次。</p></div><label>设备件数 <input aria-label="设备件数" type="number" min={1} max={30} value={count} onChange={(e) => setCount(Math.max(1, Math.min(30, Number(e.target.value))))} /></label></div>
+    <div className="asset-form-grid"><label>批次录入方式<Select aria-label="批次录入方式" value={mode} onChange={(value) => { setMode(value as typeof mode); setSelectedBatchId(""); }}><option value="new">新建批次</option><option value="existing">加入已有批次</option></Select></label>
+      {mode === "new" ? <label>批次名称<input aria-label="新批次名称" value={batchName} onChange={(e) => setBatchName(e.target.value)} required /></label> : <>
+        <label>搜索批次<input aria-label="搜索并选择已有批次" value={batchSearch} onChange={(e) => { setBatchSearch(e.target.value); setSelectedBatchId(""); }} placeholder="批次名、编号或来源" /></label>
+        <label>选择批次<Select aria-label="选择入库批次" value={selectedBatchId} onChange={setSelectedBatchId} required><option value="">{batchesLoading ? "正在读取…" : "请选择已有批次"}</option>{batches?.items.map((item) => <option key={item.id} value={item.id}>{item.name} · 批次 #{item.id} · {item.source || "未填写来源"} · {item.acceptance_status === "accepted" ? "已验收" : "待验收"}</option>)}</Select></label>
+        {batchesError && <span className="asset-error" role="alert">{batchesError}</span>}{selectedBatch && <p className="tiny muted">新设备将加入「{selectedBatch.name} · 批次 #{selectedBatch.id}」，状态继承为{selectedBatch.acceptance_status === "accepted" ? "已验收 / 可用" : "待验收"}。</p>}
+      </>}
+    </div>
+    {mode === "new" && <div className="asset-form-grid"><label>来源<input name="source" placeholder="采购 / 调拨 / 捐赠" /></label><label>供应商<input name="supplier" /></label><label>采购单号<input name="purchase_order_no" /></label><label>发票号<input name="invoice_no" /></label><label>验收状态<Select aria-label="新批次验收状态" value={acceptance} onChange={(value) => setAcceptance(value as typeof acceptance)}><option value="accepted">已验收</option><option value="pending_acceptance">待验收</option></Select></label><label className="wide">批次备注<input name="note" /></label></div>}
+    {Array.from({ length: count }, (_, i) => <fieldset key={i} className="asset-item-form"><legend>设备 {i + 1}</legend><div className="asset-form-grid"><label>名称<input name={`name-${i}`} required /></label><label>分类<Select key={categories[0]?.code ?? ""} surface="console" name={`category-${i}`} required defaultValue={categories[0]?.code ?? ""}>{categories.map((c) => <option key={c.code} value={c.code}>{c.label}</option>)}</Select></label><label>序列号<input name={`serial-${i}`} /></label><label>品牌<input name={`brand-${i}`} /></label><label>型号<input name={`model-${i}`} /></label><label>存放位置<input name={`location-${i}`} /></label><label>购置日期<input type="date" name={`purchase_date-${i}`} /></label><label>购置金额<input type="number" step="0.01" min="0" name={`purchase_price-${i}`} /></label></div></fieldset>)}
+    <button className="btn-primary" disabled={busy || (mode === "new" ? !batchName.trim() : !selectedBatchId)}>{busy ? "提交中…" : `登记 ${count} 件设备`}</button>
+  </form>;
 }
 
 function Statistics({ stats, categories, onHolder }: { stats: EquipmentStatistics; categories: EquipmentCategory[]; onHolder: (id: number) => void }) {

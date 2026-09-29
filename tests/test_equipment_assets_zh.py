@@ -23,7 +23,10 @@ def categories(db):
 
 
 def _upload(client, headers, filename, payload):
-    return client.post(f"{ROOT}/import", headers=headers, files={"file": (filename, payload)})
+    return client.post(
+        f"{ROOT}/import", headers=headers, data={"batch_name": f"导入 {filename}"},
+        files={"file": (filename, payload)},
+    )
 
 
 def _filename(response) -> str:
@@ -95,7 +98,7 @@ def test_import_reports_ignored_export_only_and_unknown_columns(client):
 def test_export_uses_chinese_headers_and_chinese_values(client):
     admin, pm = login(client, "admin"), login(client, "pm")
     created = client.post(f"{ROOT}/inbound", headers=admin, json={
-        "source": "采购单 1", "items": [{"name": "导出测试电脑", "category_code": "computer",
+        "name": "导出测试批次", "source": "采购单 1", "items": [{"name": "导出测试电脑", "category_code": "computer",
                                         "serial_number": "EXP-1", "purchase_price": 1234.5}],
     })
     batch_id = created.json()["batch_id"]
@@ -113,7 +116,7 @@ def test_export_uses_chinese_headers_and_chinese_values(client):
     assert row["设备状态"] == "借用中"
     assert row["使用人"] == "pm"
     assert row["归还日期"] == "2099-01-01"
-    assert "采购单 1" in row["所属批次"] and f"#{batch_id}" in row["所属批次"]
+    assert "导出测试批次" in row["所属批次"] and f"#{batch_id}" in row["所属批次"]
     assert float(row["采购金额"]) == 1234.5
     assert row["设备名称"] == "导出测试电脑"
     assert _filename(response) == "设备台账.csv"
