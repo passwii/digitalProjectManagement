@@ -1,0 +1,95 @@
+/* 日期组件参考页。只用全局 token 之外的少量排版，组件本身的样式都在 DatePicker.module.css。 */
+
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  padding: 20px 24px 40px;
+  max-width: 1080px;
+}
+
+.pageHead h1 {
+  margin: 0 0 6px;
+  font-size: 20px;
+  color: var(--ink);
+}
+.lede {
+  margin: 0;
+  max-width: 72ch;
+  color: var(--ink-2);
+  font-size: 13px;
+  line-height: 1.6;
+}
+.lede code {
+  padding: 1px 4px;
+  background: var(--th-bg);
+  color: var(--ink);
+  font-size: 12px;
+}
+
+/* 与原生输入并排对一眼 */
+.compare {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  background: var(--card);
+}
+.compareCol {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+.compareTag {
+  align-self: flex-start;
+  padding: 2px 6px;
+  border: 1px solid var(--line);
+  color: var(--ink-3);
+  font-size: 11px;
+}
+.compareTagNew {
+  border-color: var(--line-blue);
+  color: var(--brand);
+}
+
+.row {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  background: var(--card);
+}
+.rowHead h2 {
+  margin: 0 0 4px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink);
+}
+.rowHead p {
+  margin: 0;
+  color: var(--ink-3);
+  font-size: 12px;
+  line-height: 1.6;
+}
+.rowBody { min-width: 0; }
+
+.formGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px 16px;
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+@media (max-width: 900px) {
+  .formGrid { grid-template-columns: 1fr; }
+  .compare { grid-template-columns: 1fr; }
+}

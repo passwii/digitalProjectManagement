@@ -108,6 +108,7 @@ const LABEL: Record<string, string> = {
   "/changelog": "功能更新",
   "/admin": "系统管理",
   "/finance": "财务管理",
+  "/dev/date-picker": "日期组件",
   "/spark": "NebulaCloud 演示站",
 };
 
