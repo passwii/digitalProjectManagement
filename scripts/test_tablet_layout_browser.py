@@ -407,14 +407,20 @@ class TabletLandscapeBrowserTest(unittest.TestCase):
                           const main=document.querySelector('#spark-main'),topbar=document.querySelector('header'),root=document.querySelector('main');
                           const grids=[...document.querySelectorAll('[class*=metricGrid],[class*=splitGrid],[class*=balancedGrid],[class*=threeGrid],[class*=fourGrid],[class*=fiveGrid]')]
                             .map(grid=>({rect:rect(grid),children:[...grid.children].map(rect)}));
-                          const tableFrames=[...document.querySelectorAll('[class*=tableWrap]')].map(rect);
+                          const tables=[...document.querySelectorAll('table[class*=dataTable]')].map(table=>{
+                            const frame=table.closest('[class*=tableWrap]');
+                            return {tableScrollWidth:table.scrollWidth,frame:rect(frame),frameClientWidth:frame?.clientWidth??null,
+                              frameScrollWidth:frame?.scrollWidth??null,frameOverflowX:frame?getComputedStyle(frame).overflowX:null};
+                          });
                           const farthest=[main,topbar,root].filter(Boolean).map(rect).filter(Boolean).reduce((m,r)=>Math.max(m,r.right),0);
-                          return {innerWidth,documentWidth:document.documentElement.scrollWidth,farthest,sidebar:rect(document.querySelector('aside')),main:rect(main),topbar:rect(topbar),grids,tableFrames};
+                          return {innerWidth,documentWidth:document.documentElement.scrollWidth,farthest,sidebar:rect(document.querySelector('aside')),main:rect(main),topbar:rect(topbar),grids,tables};
                         }"""
                     )
                     self.assertFalse(has_page_overflow(geometry["documentWidth"], width), json.dumps(geometry, ensure_ascii=False))
                     self.assertLessEqual(geometry["farthest"], width + 1, json.dumps(geometry, ensure_ascii=False))
                     self.assertTrue(geometry["sidebar"] and geometry["main"])
+                    for table in geometry["tables"]:
+                        self.assertTrue(internal_table_scroll_valid(table), f"Spark table overflow must stay in its tableWrap: {width}px {route}: {geometry}")
                     for grid in geometry["grids"]:
                         for i, first in enumerate(grid["children"]):
                             for second in grid["children"][i + 1:]:

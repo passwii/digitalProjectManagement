@@ -226,8 +226,7 @@ python3 scripts/acceptance_tablet_landscape.py
 - [x] **Step 3：** 1179/1367 边界、390×844 手机、1440×900 Dashboard/项目/审批/资产/财务/报表/管理/Spark 代表页均通过；手机 Dock 与 tablet/desktop 侧栏壳未泄漏，CardList 断点保持 767px。
 - [x] **Step 4：** `cd web && npm test`：unit 195 项通过，Vitest 38 files / 227 tests 通过；`python3 -m unittest scripts.test_acceptance_tablet_landscape -v`：21 项通过；`python3 -m unittest scripts.test_tablet_layout_browser -v`：12 项通过；`cd web && npm run build` 成功。构建输出了既有 hooks/`<img>` lint warnings，非本轮 TSX。
 - [x] **Step 5：** 本地空态全路由验收通过；浏览器内容态测试全部使用隔离内存 fixture，写请求被阻断。项目 Drawer 内容态视口测试通过；截图仅存于系统临时目录。生产产物的跨路由 SPA RSC 导航在自动化环境偶发 fallback，因此测试使用完整文档导航并记录此限制。
-- [x] **Step 6：** `git diff --check` 通过；`git status --short --branch` 确认仍在 `feat/tablet-landscape-adaptation`，待提交范围仅有本计划、本次两份验收脚本和共享 UI CSS。当前未暂存任何文件，未夹带其它用户改动。
-- [ ] **Step 7：** 等待用户选择后再提交、推送、合并或保留本分支；本轮尚未提交代码。
+- [x] **Step 6：** `git diff --check` 通过；本次适配、验收脚本与设计/计划文档已提交到 `feat/tablet-landscape-adaptation`。提交记录：规划 `49ec389`、实现 `217e4be`、审查修正 `3d4bf8a`、验收加固 `46edf31`。PR 与合并状态由最终 GitHub 流程跟踪。
 
 最终浏览器验收命令：
 

@@ -72,10 +72,13 @@ class TabletLandscapeAcceptanceHelpersTest(unittest.TestCase):
         self.assertFalse(is_safe_fixture_browser_request("GET", "https://localhost/projects", fe_base))
         self.assertFalse(is_safe_fixture_browser_request("POST", fe_base + "/api/v1/projects", fe_base))
 
-    def test_topbar_must_be_visible_and_fit_within_viewport(self):
-        self.assertTrue(topbar_within_viewport({"rect": {"width": 100, "height": 40, "right": 1180}, "style": {"display": "block"}}, 1180))
-        self.assertFalse(topbar_within_viewport({"rect": {"width": 0, "height": 0, "right": 0}, "style": {"display": "none"}}, 1180))
-        self.assertFalse(topbar_within_viewport({"rect": {"width": 100, "height": 40, "right": 1182}, "style": {"display": "block"}}, 1180))
+    def test_topbar_must_be_effectively_visible_and_fit_within_viewport(self):
+        visible = {"display": "block", "visibility": "visible", "opacity": "1"}
+        self.assertTrue(topbar_within_viewport({"rect": {"width": 100, "height": 40, "left": 0, "right": 1180}, "style": visible}, 1180))
+        self.assertFalse(topbar_within_viewport({"rect": {"width": 0, "height": 0, "left": 0, "right": 0}, "style": {"display": "none"}}, 1180))
+        self.assertFalse(topbar_within_viewport({"rect": {"width": 100, "height": 40, "left": 0, "right": 1182}, "style": visible}, 1180))
+        self.assertFalse(topbar_within_viewport({"rect": {"width": 100, "height": 40, "left": -101, "right": -1}, "style": visible}, 1180))
+        self.assertFalse(topbar_within_viewport({"rect": {"width": 100, "height": 40, "left": 0, "right": 100}, "style": {**visible, "opacity": "0"}}, 1180))
 
     def test_wide_table_requires_its_own_scroll_frame(self):
         wide_table = {"tableScrollWidth": 1400, "frameClientWidth": 1100, "frameScrollWidth": 1400, "frame": {"width": 1100}, "frameOverflowX": "auto"}

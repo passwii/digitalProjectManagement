@@ -199,7 +199,11 @@ def tablet_filter_layout_valid(fields: list[dict[str, Any]]) -> bool:
 def topbar_within_viewport(topbar: dict[str, Any] | None, width: int) -> bool:
     if not _visible(topbar):
         return False
-    return topbar["rect"]["right"] <= width + 1
+    style = topbar.get("style") or {}
+    if float(style.get("opacity", "1")) <= 0:
+        return False
+    rect = topbar["rect"]
+    return rect.get("left", 0) >= -1 and rect["right"] <= width + 1
 
 
 def internal_table_scroll_valid(table: dict[str, Any]) -> bool:
