@@ -6,10 +6,13 @@ from scripts.acceptance_tablet_landscape import (
     VIEWPORTS,
     FixtureRouter,
     _fixture_response,
+    guarded_route,
     has_page_overflow,
     is_fixture_api_request,
     is_local_fixture_origin,
     is_safe_fixture_browser_request,
+    internal_table_scroll_valid,
+    topbar_within_viewport,
     page_header_overlap_passes,
     rects_overlap,
     route_main_visible,
@@ -68,6 +71,41 @@ class TabletLandscapeAcceptanceHelpersTest(unittest.TestCase):
         self.assertFalse(is_safe_fixture_browser_request("GET", "http://example.com/api/v1/projects", fe_base))
         self.assertFalse(is_safe_fixture_browser_request("GET", "https://localhost/projects", fe_base))
         self.assertFalse(is_safe_fixture_browser_request("POST", fe_base + "/api/v1/projects", fe_base))
+
+    def test_topbar_must_be_visible_and_fit_within_viewport(self):
+        self.assertTrue(topbar_within_viewport({"rect": {"width": 100, "height": 40, "right": 1180}, "style": {"display": "block"}}, 1180))
+        self.assertFalse(topbar_within_viewport({"rect": {"width": 0, "height": 0, "right": 0}, "style": {"display": "none"}}, 1180))
+        self.assertFalse(topbar_within_viewport({"rect": {"width": 100, "height": 40, "right": 1182}, "style": {"display": "block"}}, 1180))
+
+    def test_wide_table_requires_its_own_scroll_frame(self):
+        wide_table = {"tableScrollWidth": 1400, "frameClientWidth": 1100, "frameScrollWidth": 1400, "frame": {"width": 1100}, "frameOverflowX": "auto"}
+        fitting_table = {"tableScrollWidth": 1000, "frameClientWidth": 1100, "frameScrollWidth": 1000, "frame": {"width": 1100}, "frameOverflowX": "auto"}
+        no_scroll_frame = {"tableScrollWidth": 1400, "frameClientWidth": None, "frameScrollWidth": None, "frame": None, "frameOverflowX": None}
+        self.assertTrue(internal_table_scroll_valid(wide_table))
+        self.assertTrue(internal_table_scroll_valid(fitting_table))
+        self.assertFalse(internal_table_scroll_valid(no_scroll_frame))
+
+    def test_fixture_router_aborts_unsafe_browser_requests(self):
+        class Request:
+            def __init__(self, method: str, url: str): self.method, self.url = method, url
+        class Route:
+            def __init__(self, method: str, url: str): self.request = Request(method, url); self.action = None
+            def abort(self, reason: str): self.action = ("abort", reason)
+            def continue_(self): self.action = ("continue",)
+            def fulfill(self, **kwargs): self.action = ("fulfill", kwargs)
+        fe_base = "http://localhost:3021"
+        for method, url, expected in (
+            ("GET", fe_base + "/_next/static/app.js", "continue"),
+            ("GET", "http://127.0.0.1:8001/api/v1/projects", "fulfill"),
+            ("GET", "http://localhost:8001/api/v2/projects", "abort"),
+            ("POST", "http://localhost:8001/api/v1/projects", "abort"),
+            ("GET", "http://example.com/api/v1/projects", "abort"),
+            ("POST", fe_base + "/anything", "abort"),
+        ):
+            with self.subTest(method=method, url=url):
+                route = Route(method, url)
+                guarded_route(route, FixtureRouter(), fe_base)
+                self.assertEqual(route.action[0], expected)
 
     def test_root_horizontal_overflow_uses_one_pixel_tolerance(self):
         self.assertFalse(has_page_overflow(1181, 1180))

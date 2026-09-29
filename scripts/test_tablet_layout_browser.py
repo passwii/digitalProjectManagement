@@ -6,7 +6,7 @@ from urllib.parse import urlparse
 
 from playwright.sync_api import sync_playwright
 
-from scripts.acceptance_tablet_landscape import FE_BASE, _fixture_response, has_page_overflow, is_fixture_api_request, is_local_fixture_origin, is_safe_fixture_browser_request, tablet_filter_layout_valid
+from scripts.acceptance_tablet_landscape import FE_BASE, _fixture_response, has_page_overflow, internal_table_scroll_valid, is_fixture_api_request, is_local_fixture_origin, is_safe_fixture_browser_request, tablet_filter_layout_valid
 
 
 FINANCE_BOOK = {
@@ -368,12 +368,16 @@ class TabletLandscapeBrowserTest(unittest.TestCase):
             """() => {
               const root=document.documentElement;
               const table=document.querySelector('table.grid');
+              const frame=table?.closest('.table-scroll,[data-desktop-table-frame="true"]');
               return {theme:root.dataset.theme,background:getComputedStyle(root).backgroundColor,
                 documentWidth:root.scrollWidth,tableWidth:table?.getBoundingClientRect().width||0,
-                tableScrollWidth:table?.scrollWidth||0,frameWidth:table?.closest('.table-scroll,[data-desktop-table-frame="true"]')?.clientWidth||0};
+                tableScrollWidth:table?.scrollWidth||0,frame:frame?{width:frame.getBoundingClientRect().width}:null,
+                frameClientWidth:frame?.clientWidth??null,frameScrollWidth:frame?.scrollWidth??null,
+                frameOverflowX:frame?getComputedStyle(frame).overflowX:null};
             }"""
         )
         self.assertLessEqual(projects["documentWidth"], 1181, json.dumps(projects, ensure_ascii=False))
+        self.assertTrue(internal_table_scroll_valid({key: projects[key] for key in ("tableScrollWidth", "frame", "frameClientWidth", "frameScrollWidth", "frameOverflowX")}), json.dumps(projects, ensure_ascii=False))
         self.assertTrue(projects["background"])
         self.page.evaluate("localStorage.setItem('shuzhi-theme-mode','light')")
         self.page.reload(wait_until="domcontentloaded")

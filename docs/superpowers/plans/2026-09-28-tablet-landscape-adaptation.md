@@ -143,7 +143,7 @@ python3 scripts/acceptance_tablet_landscape.py
 - [x] **Step 3：** 检查全局 `.table-scroll` 与项目表格：1066px 表格在 905px/961px/1047px 容器内部横向滚动，document 宽度未扩出视口；不需修改 `globals.css`。
 - [x] **Step 4：** `ListPageLayout.module.css`、`Modal.module.css` 无复现缺陷，不做改动；手机 CardList 仍只在 767px 断点切换，完整保留列与操作。
 - [x] **Step 5：** 共享组件 DOM 契约未变；增加 Python Chromium 几何回归，覆盖页头标签/控件交叉、页头动作与标题布局、触控高度以及 767/768/900/901/1179/1180/1366/1367 边界。
-- [x] **Step 6：** `cd web && npx vitest run lib/pageHeader.dom.vitest.test.tsx lib/listPageLayout.dom.vitest.test.tsx`（14 项通过）、`python3 -m unittest scripts.test_tablet_layout_browser -v`（3 项通过）和空态全路由浏览器基线通过。
+- [x] **Step 6：** `cd web && npx vitest run lib/pageHeader.dom.vitest.test.tsx lib/listPageLayout.dom.vitest.test.tsx`（14 项通过）、`python3 -m unittest scripts.test_tablet_layout_browser -v`（12 项通过）和空态全路由浏览器基线通过。
 
 ---
 
@@ -224,7 +224,7 @@ python3 scripts/acceptance_tablet_landscape.py
 - [x] **Step 1：** 三档 tablet 全路由只读验收通过：无页面横向溢出、壳可见、标题筛选/表格容器几何有效；弹层与触控目标由独立内容态浏览器测试验证。
 - [x] **Step 2：** 在 1180×820 对项目列表深色/浅色、Dashboard 浅色及 `prefers-reduced-motion: reduce` 完成浏览器检查；无页面溢出，视口和主题状态正确。
 - [x] **Step 3：** 1179/1367 边界、390×844 手机、1440×900 Dashboard/项目/审批/资产/财务/报表/管理/Spark 代表页均通过；手机 Dock 与 tablet/desktop 侧栏壳未泄漏，CardList 断点保持 767px。
-- [x] **Step 4：** `cd web && npm test`：unit 195 项通过，Vitest 38 files / 223 tests 通过；`cd web && npm run build` 成功。构建输出了既有 hooks/`<img>` lint warnings，非本轮 TSX。
+- [x] **Step 4：** `cd web && npm test`：unit 195 项通过，Vitest 38 files / 227 tests 通过；`python3 -m unittest scripts.test_acceptance_tablet_landscape -v`：21 项通过；`python3 -m unittest scripts.test_tablet_layout_browser -v`：12 项通过；`cd web && npm run build` 成功。构建输出了既有 hooks/`<img>` lint warnings，非本轮 TSX。
 - [x] **Step 5：** 本地空态全路由验收通过；浏览器内容态测试全部使用隔离内存 fixture，写请求被阻断。项目 Drawer 内容态视口测试通过；截图仅存于系统临时目录。生产产物的跨路由 SPA RSC 导航在自动化环境偶发 fallback，因此测试使用完整文档导航并记录此限制。
 - [x] **Step 6：** `git diff --check` 通过；`git status --short --branch` 确认仍在 `feat/tablet-landscape-adaptation`，待提交范围仅有本计划、本次两份验收脚本和共享 UI CSS。当前未暂存任何文件，未夹带其它用户改动。
 - [ ] **Step 7：** 等待用户选择后再提交、推送、合并或保留本分支；本轮尚未提交代码。

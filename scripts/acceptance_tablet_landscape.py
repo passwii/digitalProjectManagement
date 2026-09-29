@@ -196,6 +196,25 @@ def tablet_filter_layout_valid(fields: list[dict[str, Any]]) -> bool:
     return not any(rects_overlap(label, control) for label in labels for control in controls)
 
 
+def topbar_within_viewport(topbar: dict[str, Any] | None, width: int) -> bool:
+    if not _visible(topbar):
+        return False
+    return topbar["rect"]["right"] <= width + 1
+
+
+def internal_table_scroll_valid(table: dict[str, Any]) -> bool:
+    frame_width = table.get("frameClientWidth")
+    if frame_width is not None and table.get("tableScrollWidth", 0) <= frame_width + 1:
+        return True
+    frame = table.get("frame")
+    return bool(
+        frame
+        and table.get("frameOverflowX") in {"auto", "scroll"}
+        and table.get("frameScrollWidth", 0) >= table.get("tableScrollWidth", 0)
+        and table.get("frameClientWidth", 0) < table.get("tableScrollWidth", 0)
+    )
+
+
 def _visible(element: dict[str, Any] | None) -> bool:
     if not element:
         return False
@@ -231,7 +250,7 @@ def measure_page(page: Page) -> dict[str, Any]:
             .map((node) => ({ selector: node.tagName.toLowerCase() + (typeof node.className === 'string' && node.className.trim() ? '.' + node.className.trim().split(/\\s+/).join('.') : ''), scrollWidth: node.scrollWidth, clientWidth: node.clientWidth, rect: rect(node) }));
           const tables = [...document.querySelectorAll('table.grid')].slice(0, 8).map((table) => {
             const frame = table.closest('.table-scroll, [data-desktop-table-frame="true"]');
-            return { table: rect(table), tableScrollWidth: table.scrollWidth, frame: rect(frame), frameClientWidth: frame?.clientWidth ?? null, frameScrollWidth: frame?.scrollWidth ?? null };
+            return { table: rect(table), tableScrollWidth: table.scrollWidth, frame: rect(frame), frameClientWidth: frame?.clientWidth ?? null, frameScrollWidth: frame?.scrollWidth ?? null, frameOverflowX: frame ? getComputedStyle(frame).overflowX : null };
           });
           const filters = [...document.querySelectorAll('[data-page-header-filters="true"] > *')].map((field) => {
             const root = field.matches('.toolbar-field') ? field : (field.querySelector('.toolbar-field') || field);
@@ -263,18 +282,16 @@ def is_fixture_api_request(method: str, url: str) -> bool:
     parsed = urlparse(url)
     safe_method = method.upper() in {"GET", "HEAD", "OPTIONS"}
     local_host = parsed.hostname in {"localhost", "127.0.0.1"}
-    api_path = parsed.path.startswith("/api/")
+    api_path = parsed.path == "/api/v1" or parsed.path.startswith("/api/v1/")
     return safe_method and local_host and api_path
 
 
 def is_safe_fixture_browser_request(method: str, url: str, fe_base: str) -> bool:
     parsed = urlparse(url)
     frontend = urlparse(fe_base)
-    if method.upper() not in {"GET", "HEAD", "OPTIONS"}:
-        return False
     if parsed.path.startswith("/api/"):
         return is_fixture_api_request(method, url)
-    return parsed.scheme == frontend.scheme == "http" and parsed.netloc == frontend.netloc
+    return method.upper() in {"GET", "HEAD", "OPTIONS"} and parsed.scheme == frontend.scheme == "http" and parsed.netloc == frontend.netloc
 
 
 def _require_configuration() -> bool:
@@ -317,11 +334,13 @@ def _route_checks(page: Page, route: str, width: int, height: int) -> tuple[int,
         ("页面级无横向溢出", not has_page_overflow(state["viewport"]["documentWidth"], width), f"documentWidth={state['viewport']['documentWidth']} viewport={width}"),
         ("内容主区可见", route_main_visible(route, state), "主内容区域"),
     ]
+    invalid_tables = [table for table in state.get("tables", []) if not internal_table_scroll_valid(table)]
+    checks.append(("宽表格仅在自身容器内横向滚动", not invalid_tables, json.dumps(invalid_tables, ensure_ascii=False)[:240]))
     if not _is_spark(route):
         shown, hidden = shell_expectation(width)
         visible_pair = _visible(state["shell"].get(shown)) and not _visible(state["shell"].get(hidden))
         checks.append(("业务侧栏可见且 Dock 隐藏" if shown == "sidebar" else "手机 Dock 可见且侧栏隐藏", visible_pair, "检查导航外壳"))
-        checks.append(("顶栏位于视口内", bool(state["shell"]["topbar"] and state["shell"]["topbar"]["rect"]["right"] <= width + 1), "检查 topbar bounds"))
+        checks.append(("顶栏可见且位于视口内", topbar_within_viewport(state["shell"].get("topbar"), width), "检查 topbar visibility/bounds"))
     if (width, height) == (1180, 820) and not _is_spark(route):
         if state["shell"]["pageHeader"]:
             checks.append(("页面标题与首个主操作不相交", page_header_overlap_passes(route, state), "标题/操作矩形"))
@@ -344,11 +363,25 @@ def _save_failure(page: Page, width: int, height: int, route: str) -> None:
         print(f"截图失败 {width}x{height} {route}: {type(error).__name__}: {error}", file=sys.stderr)
 
 
+def guarded_route(route: Route, fixture: FixtureRouter, fe_base: str) -> None:
+    method, request_url = route.request.method, route.request.url
+    parsed = urlparse(request_url)
+    if parsed.path.startswith("/api/"):
+        if is_fixture_api_request(method, request_url):
+            fixture(route)
+        else:
+            route.abort("blockedbyclient")
+    elif is_safe_fixture_browser_request(method, request_url, fe_base):
+        route.continue_()
+    else:
+        route.abort("blockedbyclient")
+
+
 def _run(browser: Browser) -> int:
     failures = 0
     context = browser.new_context(viewport={"width": 1180, "height": 820}, device_scale_factor=1)
     fixture = FixtureRouter()
-    context.route("**/api/v1/**", fixture)
+    context.route("**/*", lambda route: guarded_route(route, fixture, FE_BASE))
     page = context.new_page()
     if not _enter_fixture_session(page, context):
         context.close()
