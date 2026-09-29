@@ -63,6 +63,7 @@ function ContactsInner() {
         buildQuery({
           page,
           size,
+          sort: "employee_no",
           keyword: url.q.trim(),
           dept_id: url.dept,
           employment_status: url.employment_status,

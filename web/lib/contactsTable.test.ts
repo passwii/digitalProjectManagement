@@ -20,6 +20,10 @@ describe("通讯录花名册列契约", () => {
     assert.doesNotMatch(src, /attachment_count/);
   });
 
+  it("列表请求固定按工号升序，分页沿用同一排序", () => {
+    assert.match(page(), /sort: "employee_no"/);
+  });
+
   it("工号列有最起码宽度（SHZK-002 完整可读）且不折行", () => {
     const src = page();
     const widths = Array.from(src.matchAll(/<col style=\{\{ width: (\d+) \}\} \/>/g)).map((m) =>
