@@ -2,10 +2,11 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
+from urllib.parse import urlparse
 
 from playwright.sync_api import sync_playwright
 
-from scripts.acceptance_tablet_landscape import FE_BASE, _fixture_response, has_page_overflow, tablet_filter_layout_valid
+from scripts.acceptance_tablet_landscape import FE_BASE, _fixture_response, has_page_overflow, is_fixture_api_request, is_local_fixture_origin, is_safe_fixture_browser_request, tablet_filter_layout_valid
 
 
 FINANCE_BOOK = {
@@ -120,6 +121,8 @@ TABLET_VIEWPORTS = [(1180, 820), (1280, 800), (1366, 900)]
 
 class TabletLandscapeBrowserTest(unittest.TestCase):
     def setUp(self):
+        if not is_local_fixture_origin(FE_BASE):
+            raise unittest.SkipTest("安全限制：FE_BASE 必须是 localhost / 127.0.0.1 的 http URL。")
         self.playwright = sync_playwright().start()
         self.browser = self.playwright.chromium.launch(channel="chrome", headless=True)
         self.context = self.browser.new_context(viewport={"width": 1180, "height": 820}, device_scale_factor=1)
@@ -128,10 +131,22 @@ class TabletLandscapeBrowserTest(unittest.TestCase):
         self.dashboard_data = False
 
         def fixture(route):
-            if route.request.method.upper() not in {"GET", "HEAD", "OPTIONS"}:
+            request_url = urlparse(route.request.url)
+            if request_url.path.startswith("/api/"):
+                if not is_fixture_api_request(route.request.method, route.request.url):
+                    route.abort("blockedbyclient")
+                    return
+            elif not is_safe_fixture_browser_request(route.request.method, route.request.url, FE_BASE):
                 route.abort("blockedbyclient")
                 return
-            path = route.request.url.split("/api/v1")[-1].split("?")[0]
+            path = request_url.path
+            if not path.startswith("/api/"):
+                route.continue_()
+                return
+            if path.startswith("/api/v1/"):
+                path = path[len("/api/v1"):]
+            else:
+                path = path[len("/api"):]
             response = _fixture_response(path, route.request.method)
             if path.endswith("/auth/me"):
                 response = TABLET_USER_FIXTURE
@@ -157,7 +172,7 @@ class TabletLandscapeBrowserTest(unittest.TestCase):
                 response = WEEKLY_DATA
             route.fulfill(status=200, content_type="application/json", body=json.dumps(response, ensure_ascii=False))
 
-        self.context.route("**/api/v1/**", fixture)
+        self.context.route("**/*", fixture)
         self.page = self.context.new_page()
         self.page.on("console", lambda message: print(f"[browser:{message.type}] {message.text}") if message.type == "error" else None)
         self.page.on("pageerror", lambda error: print(f"[browser:pageerror] {error}"))
@@ -216,7 +231,7 @@ class TabletLandscapeBrowserTest(unittest.TestCase):
 
     def test_tablet_header_controls_meet_touch_height_target(self):
         undersized = []
-        for route in ("/projects", "/finance"):
+        for route in ("/projects", "/finance", "/reports", "/progress"):
             self._open(route, 1180, 820)
             controls = self.page.locator('[data-page-header="true"] button, [data-page-header="true"] a, [data-page-header="true"] input, [data-page-header="true"] select').evaluate_all(
                 "nodes => nodes.filter(e => {const r=e.getBoundingClientRect(),s=getComputedStyle(e);return s.display!=='none'&&r.width>0&&r.height>0}).map(e=>({tag:e.tagName,text:(e.innerText||e.getAttribute('aria-label')||'').trim(),height:e.getBoundingClientRect().height}))"

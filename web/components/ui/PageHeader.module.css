@@ -135,6 +135,8 @@
   .actions :global(a),
   .filters > :global(button),
   .filters > :global(a),
+  .filters :global([data-select-root="true"] > button),
+  .filters :global(.picker-grow > button),
   .filters > :global(.toolbar-field) > :global(input),
   .filters > :global(.toolbar-field) > :global(select),
   .filters > :global(input),

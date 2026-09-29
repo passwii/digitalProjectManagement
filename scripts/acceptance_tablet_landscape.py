@@ -254,9 +254,32 @@ def _emit(name: str, passed: bool, extra: str = "") -> bool:
     return passed
 
 
+def is_local_fixture_origin(origin: str) -> bool:
+    parsed = urlparse(origin)
+    return parsed.scheme == "http" and parsed.hostname in {"localhost", "127.0.0.1"}
+
+
+def is_fixture_api_request(method: str, url: str) -> bool:
+    parsed = urlparse(url)
+    safe_method = method.upper() in {"GET", "HEAD", "OPTIONS"}
+    local_host = parsed.hostname in {"localhost", "127.0.0.1"}
+    api_path = parsed.path.startswith("/api/")
+    return safe_method and local_host and api_path
+
+
+def is_safe_fixture_browser_request(method: str, url: str, fe_base: str) -> bool:
+    parsed = urlparse(url)
+    frontend = urlparse(fe_base)
+    if method.upper() not in {"GET", "HEAD", "OPTIONS"}:
+        return False
+    if parsed.path.startswith("/api/"):
+        return is_fixture_api_request(method, url)
+    return parsed.scheme == frontend.scheme == "http" and parsed.netloc == frontend.netloc
+
+
 def _require_configuration() -> bool:
-    if not FE_BASE.startswith(("http://", "https://")) or urlparse(FE_BASE).hostname not in {"localhost", "127.0.0.1"}:
-        print("安全限制：FE_BASE 必须是 localhost / 127.0.0.1 的 http(s) URL。", file=sys.stderr)
+    if not is_local_fixture_origin(FE_BASE):
+        print("安全限制：FE_BASE 必须是 localhost / 127.0.0.1 的 http URL。", file=sys.stderr)
         return False
     return True
 

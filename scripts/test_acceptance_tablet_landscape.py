@@ -7,6 +7,9 @@ from scripts.acceptance_tablet_landscape import (
     FixtureRouter,
     _fixture_response,
     has_page_overflow,
+    is_fixture_api_request,
+    is_local_fixture_origin,
+    is_safe_fixture_browser_request,
     page_header_overlap_passes,
     rects_overlap,
     route_main_visible,
@@ -39,6 +42,32 @@ class TabletLandscapeAcceptanceHelpersTest(unittest.TestCase):
         self.assertEqual(shell_expectation(767), ("dock", "sidebar"))
         self.assertEqual(shell_expectation(768), ("sidebar", "dock"))
         self.assertEqual(shell_expectation(1180), ("sidebar", "dock"))
+
+    def test_local_fixture_origin_allows_only_loopback_http_origins(self):
+        self.assertTrue(is_local_fixture_origin("http://localhost:3021"))
+        self.assertTrue(is_local_fixture_origin("http://127.0.0.1:3021/path"))
+        for origin in ("https://localhost", "http://example.com", "http://192.168.1.2:3021", "not a url"):
+            with self.subTest(origin=origin):
+                self.assertFalse(is_local_fixture_origin(origin))
+
+    def test_browser_fixture_router_only_allows_safe_local_api_requests(self):
+        self.assertTrue(is_fixture_api_request("GET", "http://localhost:8001/api/v1/projects?page=1"))
+        self.assertTrue(is_fixture_api_request("OPTIONS", "http://127.0.0.1:8017/api/v1/projects"))
+        for method, url in (
+            ("POST", "http://localhost:8001/api/v1/projects"),
+            ("GET", "http://api.example.com/api/v1/projects"),
+            ("GET", "http://localhost:8001/other/path"),
+        ):
+            with self.subTest(method=method, url=url):
+                self.assertFalse(is_fixture_api_request(method, url))
+
+    def test_browser_fixture_context_blocks_api_urls_outside_loopback(self):
+        fe_base = "http://localhost:3021"
+        self.assertTrue(is_safe_fixture_browser_request("GET", fe_base + "/projects", fe_base))
+        self.assertTrue(is_safe_fixture_browser_request("GET", "http://127.0.0.1:8001/api/v1/projects", fe_base))
+        self.assertFalse(is_safe_fixture_browser_request("GET", "http://example.com/api/v1/projects", fe_base))
+        self.assertFalse(is_safe_fixture_browser_request("GET", "https://localhost/projects", fe_base))
+        self.assertFalse(is_safe_fixture_browser_request("POST", fe_base + "/api/v1/projects", fe_base))
 
     def test_root_horizontal_overflow_uses_one_pixel_tolerance(self):
         self.assertFalse(has_page_overflow(1181, 1180))
@@ -102,6 +131,12 @@ class TabletLandscapeAcceptanceHelpersTest(unittest.TestCase):
         self.assertIn(".filters", stylesheet)
         self.assertIn("grid-row: 2", stylesheet)
         self.assertIn(".actions", stylesheet)
+
+    def test_tablet_page_header_styles_nested_custom_select_and_project_picker_buttons(self):
+        stylesheet = __import__("pathlib").Path("web/components/ui/PageHeader.module.css").read_text()
+        self.assertIn('.filters :global([data-select-root="true"] > button)', stylesheet)
+        self.assertIn('.filters :global(.picker-grow > button)', stylesheet)
+        self.assertGreaterEqual(stylesheet.count("min-height: 44px"), 3)
 
     def test_tablet_filter_layout_requires_non_overlapping_controls(self):
         self.assertFalse(tablet_filter_layout_valid([
