@@ -6,6 +6,7 @@ import { useMeta } from "@/lib/useMeta";
 import { useForm } from "@/lib/useForm";
 import { Dialog } from "@/components/ui/Modal";
 import Field from "@/components/ui/Field";
+import { DatePicker } from "@/components/ui/DatePicker";
 import Select from "@/components/ui/Select";
 
 interface Values {
@@ -154,14 +155,14 @@ export default function TaskDialog({
           </Select>
         </Field>
         <Field label="计划开始">
-          <input type="date" value={form.values.plan_start} onChange={(e) => form.set("plan_start", e.target.value)} />
+          <DatePicker value={form.values.plan_start} onChange={(v) => form.set("plan_start", v)} ariaLabel="计划开始" />
         </Field>
         <Field label="计划结束" error={form.errors.plan_end}>
-          <input
-            type="date"
+          <DatePicker
             value={form.values.plan_end}
-            aria-invalid={!!form.errors.plan_end}
-            onChange={(e) => form.set("plan_end", e.target.value)}
+            onChange={(v) => form.set("plan_end", v)}
+            ariaLabel="计划结束"
+            invalid={!!form.errors.plan_end}
           />
         </Field>
       </div>

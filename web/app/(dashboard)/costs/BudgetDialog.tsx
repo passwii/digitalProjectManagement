@@ -6,6 +6,7 @@ import { SUBJECTS } from "@/lib/labels";
 import { useForm } from "@/lib/useForm";
 import { Dialog } from "@/components/ui/Modal";
 import Field from "@/components/ui/Field";
+import { DatePicker } from "@/components/ui/DatePicker";
 import Select from "@/components/ui/Select";
 
 interface Values {
@@ -116,14 +117,14 @@ export default function BudgetDialog({
           />
         </Field>
         <Field label="预算期间-开始" hint="须落在项目计划起止内">
-          <input type="date" value={form.values.period_start} onChange={(e) => form.set("period_start", e.target.value)} />
+          <DatePicker value={form.values.period_start} onChange={(v) => form.set("period_start", v)} ariaLabel="预算期间开始" />
         </Field>
         <Field label="预算期间-结束" error={form.errors.period_end}>
-          <input
-            type="date"
+          <DatePicker
             value={form.values.period_end}
-            aria-invalid={!!form.errors.period_end}
-            onChange={(e) => form.set("period_end", e.target.value)}
+            onChange={(v) => form.set("period_end", v)}
+            ariaLabel="预算期间结束"
+            invalid={!!form.errors.period_end}
           />
         </Field>
       </div>

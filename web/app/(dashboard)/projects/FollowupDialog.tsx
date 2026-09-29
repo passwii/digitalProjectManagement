@@ -6,6 +6,7 @@ import { FOLLOWUP_METHODS } from "@/lib/labels";
 import { useForm } from "@/lib/useForm";
 import { Dialog } from "@/components/ui/Modal";
 import Field from "@/components/ui/Field";
+import { DatePicker } from "@/components/ui/DatePicker";
 import Select from "@/components/ui/Select";
 
 interface Values {
@@ -104,7 +105,7 @@ export default function FollowupDialog({
           </Select>
         </Field>
         <Field label="跟进时间" hint="留空取当前时间">
-          <input type="date" value={form.values.happened_at} onChange={(e) => form.set("happened_at", e.target.value)} />
+          <DatePicker value={form.values.happened_at} onChange={(v) => form.set("happened_at", v)} ariaLabel="跟进时间" />
         </Field>
         <Field label="跟进内容" required error={form.errors.content} span>
           <textarea
@@ -119,7 +120,7 @@ export default function FollowupDialog({
           <textarea rows={2} value={form.values.next_step} onChange={(e) => form.set("next_step", e.target.value)} placeholder="后续动作" />
         </Field>
         <Field label="下次跟进提醒" hint="到期后生成站内通知" span>
-          <input type="date" value={form.values.remind_at} onChange={(e) => form.set("remind_at", e.target.value)} />
+          <DatePicker value={form.values.remind_at} onChange={(v) => form.set("remind_at", v)} ariaLabel="下次跟进提醒" />
         </Field>
       </div>
     </Dialog>

@@ -12,6 +12,7 @@
 import { useState } from "react";
 import { DatePicker, DateRangePicker, MonthPicker } from "@/components/ui/DatePicker";
 import Field from "@/components/ui/Field";
+import { Dialog } from "@/components/ui/Modal";
 import s from "./date-picker.module.css";
 
 function Row({ title, note, children }: { title: string; note?: string; children: React.ReactNode }) {
@@ -26,6 +27,58 @@ function Row({ title, note, children }: { title: string; note?: string; children
   );
 }
 
+/**
+ * 弹窗宿主验收。
+ *
+ * 这是迁移的真正风险点：日期弹层是浮在 Modal 里的第二个弹层。esc 会被 Modal 的
+ * capture 监听抢走、点击可能被 Field 的 <label> 转发回触发器 —— 这两件事
+ * jsdom 都复现不出来，只能在真浏览器里验。这里摆一个和迁移后各 Dialog 同构的
+ * 弹窗（Field + form.errors + Dialog），迁移时照着它对一眼。
+ */
+function DialogHost({ onClose }: { onClose: () => void }) {
+  const [planStart, setPlanStart] = useState("");
+  const [planEnd, setPlanEnd] = useState("");
+  const [err, setErr] = useState("");
+
+  return (
+    <Dialog
+      open
+      title="计划日期"
+      onClose={onClose}
+      footer={
+        <>
+          <button type="button" className="btn-ghost" onClick={onClose}>
+            取消
+          </button>
+          <button
+            type="button"
+            className="btn-primary"
+            onClick={() => {
+              if (!planEnd) {
+                setErr("请选择计划结束");
+                return;
+              }
+              setErr("");
+              onClose();
+            }}
+          >
+            保存
+          </button>
+        </>
+      }
+    >
+      <div className="form-grid">
+        <Field label="计划开始">
+          <DatePicker value={planStart} onChange={setPlanStart} ariaLabel="计划开始" />
+        </Field>
+        <Field label="计划结束" error={err}>
+          <DatePicker value={planEnd} onChange={setPlanEnd} ariaLabel="计划结束" invalid={!!err} />
+        </Field>
+      </div>
+    </Dialog>
+  );
+}
+
 export default function DatePickerReferencePage() {
   const [single, setSingle] = useState("2026-09-29");
   const [empty, setEmpty] = useState("");
@@ -33,6 +86,7 @@ export default function DatePickerReferencePage() {
   const [invalid, setInvalid] = useState("2026-09-01");
   const [range, setRange] = useState<{ from?: string | null; to?: string | null }>({ from: "", to: "" });
   const [month, setMonth] = useState("2026-09");
+  const [inDialog, setInDialog] = useState(false);
 
   return (
     <div className={s.page}>
@@ -116,6 +170,14 @@ export default function DatePickerReferencePage() {
           </Field>
         </div>
       </Row>
+
+      <Row title="弹窗内" note="迁移后的 10 处都在 Dialog 里。Esc 只关日期弹层，Tab 不会走过 42 个日期格。">
+        <button type="button" className="btn-ghost" onClick={() => setInDialog(true)}>
+          打开弹窗试一下
+        </button>
+      </Row>
+
+      {inDialog ? <DialogHost onClose={() => setInDialog(false)} /> : null}
     </div>
   );
 }

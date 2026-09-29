@@ -5,6 +5,7 @@ import { errText, tasksApi, type Task } from "@/lib/api";
 import { useForm } from "@/lib/useForm";
 import { Dialog } from "@/components/ui/Modal";
 import Field from "@/components/ui/Field";
+import { DatePicker } from "@/components/ui/DatePicker";
 
 interface Values {
   node_date: string;
@@ -89,11 +90,11 @@ export default function ProgressNodeDialog({
     >
       <div className="form-grid">
         <Field label="进度节点时间" required error={form.errors.node_date}>
-          <input
-            type="date"
+          <DatePicker
             value={form.values.node_date}
-            aria-invalid={!!form.errors.node_date}
-            onChange={(e) => form.set("node_date", e.target.value)}
+            onChange={(v) => form.set("node_date", v)}
+            ariaLabel="进度节点时间"
+            invalid={!!form.errors.node_date}
           />
         </Field>
         <Field label="进度关键内容" required error={form.errors.content} span>
