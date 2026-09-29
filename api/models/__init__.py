@@ -703,6 +703,68 @@ class ProjectMember(Base):
   project = relationship("Project", back_populates="members")
 
 
+class ProjectReceivable(Base):
+    """项目级应收台账；删除采用软删除以保留项目与回款历史。"""
+
+    __tablename__ = "project_receivables"
+    id = Column(Integer, primary_key=True)
+    project_id = Column(
+        Integer,
+        ForeignKey("projects.id", ondelete="RESTRICT"),
+        nullable=False,
+        index=True,
+    )
+    name = Column(String(128), nullable=False)
+    amount = Column(Numeric(18, 2), nullable=False)
+    receivable_date = Column(Date, nullable=False)
+    due_date = Column(Date, nullable=False)
+    note = Column(Text, nullable=False, default="", server_default="")
+    created_by = Column(Integer, ForeignKey("users.id"), nullable=False)
+    created_at = Column(DateTime, default=_now, nullable=False)
+    updated_at = Column(DateTime, default=_now, onupdate=_now, nullable=False)
+    deleted_at = Column(DateTime, nullable=True, index=True)
+    deleted_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+    __table_args__ = (
+        UniqueConstraint("project_id", "id", name="uq_project_receivables_project_id"),
+        CheckConstraint("amount > 0", name="ck_project_receivable_amount"),
+        CheckConstraint(
+            "due_date >= receivable_date",
+            name="ck_project_receivable_date_range",
+        ),
+    )
+
+
+class ProjectReceivablePayment(Base):
+    """应收下的逐笔回款；通过复合外键保证项目与应收路径一致。"""
+
+    __tablename__ = "project_receivable_payments"
+    id = Column(Integer, primary_key=True)
+    project_id = Column(
+        Integer,
+        ForeignKey("projects.id", ondelete="RESTRICT"),
+        nullable=False,
+        index=True,
+    )
+    receivable_id = Column(Integer, nullable=False, index=True)
+    amount = Column(Numeric(18, 2), nullable=False)
+    payment_date = Column(Date, nullable=False)
+    note = Column(Text, nullable=False, default="", server_default="")
+    created_by = Column(Integer, ForeignKey("users.id"), nullable=False)
+    created_at = Column(DateTime, default=_now, nullable=False)
+    updated_at = Column(DateTime, default=_now, onupdate=_now, nullable=False)
+    deleted_at = Column(DateTime, nullable=True, index=True)
+    deleted_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["project_id", "receivable_id"],
+            ["project_receivables.project_id", "project_receivables.id"],
+            name="fk_project_receivable_payment_parent",
+            ondelete="RESTRICT",
+        ),
+        CheckConstraint("amount > 0", name="ck_project_receivable_payment_amount"),
+    )
+
+
 class ProjectChange(Base):
   __tablename__ = "project_changes"
   id = Column(Integer, primary_key=True)

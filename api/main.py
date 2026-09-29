@@ -35,6 +35,7 @@ from .routers import (
   notifications,
   opportunities,
   partners,
+  project_receivables,
   projects,
   reports,
   tasks,
@@ -170,6 +171,8 @@ _ROUTER_MODULES: list[tuple[object, tuple[str, ...]]] = [
     (opportunities.router, (MODULE_OPPORTUNITIES,)),
     (equipment_assets.router, (MODULE_ASSETS,)),
     (reports.router, (MODULE_REPORTS, MODULE_PROJECTS, MODULE_OPPORTUNITIES, MODULE_ASSETS)),
+    (project_receivables.router, (MODULE_OPPORTUNITIES, MODULE_PROJECTS, MODULE_ASSETS,
+                                  MODULE_REPORTS, MODULE_ADMIN)),
     (projects.router, (MODULE_OPPORTUNITIES, MODULE_PROJECTS, MODULE_ASSETS,
                        MODULE_REPORTS, MODULE_ADMIN)),
 ]
