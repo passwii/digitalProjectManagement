@@ -6,6 +6,7 @@ import { useMeta } from "@/lib/useMeta";
 import { useForm } from "@/lib/useForm";
 import { Dialog } from "@/components/ui/Modal";
 import Field from "@/components/ui/Field";
+import { DatePicker } from "@/components/ui/DatePicker";
 import Select from "@/components/ui/Select";
 
 interface Values {
@@ -101,15 +102,15 @@ export default function MilestoneDialog({
           />
         </Field>
         <Field label="计划日期" required error={form.errors.plan_date} hint="计划日前 3 天自动预警">
-          <input
-            type="date"
+          <DatePicker
             value={form.values.plan_date}
-            aria-invalid={!!form.errors.plan_date}
-            onChange={(e) => form.set("plan_date", e.target.value)}
+            onChange={(v) => form.set("plan_date", v)}
+            ariaLabel="计划日期"
+            invalid={!!form.errors.plan_date}
           />
         </Field>
         <Field label="实际日期" hint="填写后自动标记完成">
-          <input type="date" value={form.values.actual_date} onChange={(e) => form.set("actual_date", e.target.value)} />
+          <DatePicker value={form.values.actual_date} onChange={(v) => form.set("actual_date", v)} ariaLabel="实际日期" />
         </Field>
         <Field label="负责人" span>
           <Select value={form.values.owner_id} onChange={(value) => form.set("owner_id", value)}>

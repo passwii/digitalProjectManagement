@@ -13,6 +13,7 @@ import { useUploadQueue } from "@/lib/useUploadQueue";
 import { Dialog } from "@/components/ui/Modal";
 import { useToast } from "@/components/ui/Toast";
 import Field from "@/components/ui/Field";
+import { DatePicker } from "@/components/ui/DatePicker";
 import Select from "@/components/ui/Select";
 import FileDropZone from "@/components/ui/FileDropZone";
 
@@ -201,7 +202,7 @@ export default function ExpenseDialog({
           />
         </Field>
         <Field label="支出日期">
-          <input type="date" value={form.values.exp_date} onChange={(e) => form.set("exp_date", e.target.value)} />
+          <DatePicker value={form.values.exp_date} onChange={(v) => form.set("exp_date", v)} ariaLabel="支出日期" />
         </Field>
         <Field label="费用说明" span>
           <input value={form.values.note} onChange={(e) => form.set("note", e.target.value)} placeholder="用途说明" />
