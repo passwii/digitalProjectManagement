@@ -12,10 +12,16 @@ on:
     branches: [main]
   pull_request:
     # 后端套件要 7 分半，只在真的动到后端时才跑，避免纯前端 PR 白烧额度。
-    # 测试只 import `api.*`，不依赖 api/ 与 tests/ 之外的任何路径。
+    # 测试只 import `api.*`，不依赖这些路径之外的任何东西。
+    #
+    # docker/api.Dockerfile 必须列进来：它决定测试跑在哪个 Python 上，是最该由
+    # API CI 守着的一个文件。漏了它就会出现「改了 Dockerfile → API CI 压根没触发
+    # → 本地/CI/生产用的解释器悄悄对不上」，这正是这条 CI 要防的事。（PR #114 实测
+    # 撞到过：只改 Dockerfile 时 api job 完全不出现，只有 web 在跑。）
     paths:
       - "api/**"
       - "tests/**"
+      - "docker/api.Dockerfile"
       - ".github/workflows/api.yml"
 
 concurrency:
