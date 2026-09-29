@@ -1931,6 +1931,13 @@ th.num {
  }
 }
 
+/* 横屏平板：项目表格操作持续可见，行内触控命中区不小于 44px；列与表格宽度不变。 */
+@media (min-width: 1180px) and (max-width: 1366px) {
+ [data-console-shell="true"] table.project-table td.no-print button {
+  min-height: 44px;
+ }
+}
+
 /* 触控设备：可点元素至少 40px 高，避免行内小按钮在手机上误点（BLF-1093） */
 @media (pointer: coarse) {
  .btn-ghost,
