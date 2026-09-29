@@ -1,7 +1,7 @@
 from datetime import datetime
 
 from api.models import AuditLog, Project
-from sqlalchemy import inspect, text
+from sqlalchemy import event, inspect, text
 
 
 def login(client, username, password=None):
@@ -81,6 +81,41 @@ def test_project_receivable_tracks_partial_and_full_payments_and_rejects_overpay
     assert item["outstanding_amount"] == "0.00"
     assert item["status"] == "paid"
     assert item["payment_count"] == 2
+
+
+def test_project_receivable_page_batches_payment_summaries(client, db):
+    user = login(client, "pm")
+    project = create_project(client, user, name="应收批量汇总项目")
+    receivables = [
+        create_receivable(client, user, project["id"], name=f"第{i}期", amount="100.00")
+        for i in range(5)
+    ]
+    for item in receivables:
+        assert add_payment(client, user, project["id"], item["id"], "10.00").status_code == 200
+
+    session = db()
+    bind = session.get_bind()
+    session.close()
+    payment_queries = []
+
+    def record_payment_query(_conn, _cursor, statement, _parameters, _context, _executemany):
+        normalized = statement.lower()
+        if "project_receivable_payments" in normalized and "select" in normalized:
+            payment_queries.append(normalized)
+
+    event.listen(bind, "before_cursor_execute", record_payment_query)
+    try:
+        response = client.get(
+            f"/api/v1/projects/{project['id']}/receivables?page=1&size=5",
+            headers=user,
+        )
+    finally:
+        event.remove(bind, "before_cursor_execute", record_payment_query)
+
+    assert response.status_code == 200, response.text
+    assert len(response.json()["items"]) == 5
+    assert [row["received_amount"] for row in response.json()["items"]] == ["10.00"] * 5
+    assert len(payment_queries) <= 2, payment_queries
 
 
 def test_project_receivable_amount_cannot_be_reduced_below_received_total(client):

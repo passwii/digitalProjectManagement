@@ -189,8 +189,9 @@ def _status(amount: Decimal, received: Decimal, due_date: date) -> str:
 def _receivable_row(
     db: Session,
     receivable: ProjectReceivable,
+    payment_totals: tuple[Decimal, int] | None = None,
 ) -> dict:
-    received, payment_count = _payment_totals(
+    received, payment_count = payment_totals or _payment_totals(
         db, receivable.project_id, receivable.id,
     )
     amount = Decimal(str(receivable.amount))
@@ -260,6 +261,33 @@ def _summary(db: Session, pid: int) -> dict:
     }
 
 
+def _page_payment_totals(
+    db: Session,
+    pid: int,
+    receivable_ids: list[int],
+) -> dict[int, tuple[Decimal, int]]:
+    if not receivable_ids:
+        return {}
+    rows = (
+        db.query(
+            ProjectReceivablePayment.receivable_id,
+            func.coalesce(func.sum(ProjectReceivablePayment.amount), Decimal("0.00")),
+            func.count(ProjectReceivablePayment.id),
+        )
+        .filter(
+            ProjectReceivablePayment.project_id == pid,
+            ProjectReceivablePayment.receivable_id.in_(receivable_ids),
+            ProjectReceivablePayment.deleted_at.is_(None),
+        )
+        .group_by(ProjectReceivablePayment.receivable_id)
+        .all()
+    )
+    return {
+        int(receivable_id): (Decimal(str(amount or 0)), int(count or 0))
+        for receivable_id, amount, count in rows
+    }
+
+
 @router.get("/{pid}/receivables")
 def list_receivables(
     pid: int,
@@ -279,8 +307,16 @@ def list_receivables(
         size=size,
         allowed=RECEIVABLE_SORTS,
         default_sort="-id",
-        map_row=lambda row: _receivable_row(db, row),
     )
+    payment_totals = _page_payment_totals(
+        db,
+        pid,
+        [row.id for row in result["items"]],
+    )
+    result["items"] = [
+        _receivable_row(db, row, payment_totals.get(row.id, (Decimal("0.00"), 0)))
+        for row in result["items"]
+    ]
     result["summary"] = _summary(db, pid)
     return result
 
