@@ -276,7 +276,7 @@ export default function BookMembersDialog({
                           <button className="btn-ghost btn-xs" onClick={() => void saveMemberRole(member)} disabled={!roleChanged || !isFinanceRole(role) || !!busyKey}>
                             {rowBusy && busyKey.startsWith("save:") ? "保存中…" : "保存角色"}
                           </button>
-                          <button className="btn-danger-outline btn-xs" onClick={() => setRemovingMember(member)} disabled={!!busyKey}>
+                          <button className="btn-ghost btn-danger-outline btn-xs" onClick={() => setRemovingMember(member)} disabled={!!busyKey}>
                             移除
                           </button>
                         </span>

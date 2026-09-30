@@ -167,14 +167,14 @@ function FinanceInner() {
     {isAdmin && <button className="btn-ghost" onClick={() => setBookOpen(true)}>+ 新建账套</button>}
     {isAdmin && <button className="btn-ghost" onClick={() => setRecycleBinOpen(true)}>账套回收站</button>}
     {isAdmin && book && <button className="btn-ghost" onClick={() => setBookMembersOpen(true)}>成员与权限</button>}
-    {isAdmin && book && <button className="btn-danger-outline" onClick={() => setDeleteBookOpen(true)}>移入回收站</button>}
+    {isAdmin && book && <button className="btn-ghost btn-danger-outline" onClick={() => setDeleteBookOpen(true)}>移入回收站</button>}
   </>;
   const mobileBookActions = [
     { label: "刷新", className: "btn-ghost", onClick: refreshAll },
     ...(isAdmin ? [{ label: "+ 新建账套", className: "btn-ghost", onClick: () => setBookOpen(true) }] : []),
     ...(isAdmin ? [{ label: "账套回收站", className: "btn-ghost", onClick: () => setRecycleBinOpen(true) }] : []),
     ...(isAdmin && book ? [{ label: "成员与权限", className: "btn-ghost", onClick: () => setBookMembersOpen(true) }] : []),
-    ...(isAdmin && book ? [{ label: "移入回收站", className: "btn-danger-outline", onClick: () => setDeleteBookOpen(true) }] : []),
+    ...(isAdmin && book ? [{ label: "移入回收站", className: "btn-ghost btn-danger-outline", onClick: () => setDeleteBookOpen(true) }] : []),
   ];
   function handleMobileMenuKeyDown(event: KeyboardEvent<HTMLDivElement>) {
     const items = Array.from(menuRef.current?.querySelectorAll<HTMLButtonElement>("[role=menuitem]") ?? []);
@@ -343,12 +343,12 @@ function VoucherList({ book, period, templates, data, loading, error, onRetry, o
     return <>
       {voucher.status === "draft" && <>
         <button className="btn-xs btn-ghost" disabled={busyVoucherId !== null} onClick={() => void runAction("submit", voucher)}>提交</button>
-        <button className="btn-xs btn-danger-outline" disabled={busyVoucherId !== null} onClick={() => setDeleteTarget(voucher)}>删除草稿</button>
+        <button className="btn-ghost btn-xs btn-danger-outline" disabled={busyVoucherId !== null} onClick={() => setDeleteTarget(voucher)}>删除草稿</button>
       </>}
       {voucher.status === "pending" && <>
         <button className="btn-xs btn-ghost" disabled={busyVoucherId !== null} onClick={() => void runAction("approve", voucher)}>审核</button>
         <button className="btn-xs btn-primary" disabled={busyVoucherId !== null} onClick={() => void runAction("post", voucher)}>过账</button>
-        <button className="btn-xs btn-danger-outline" disabled={busyVoucherId !== null} onClick={() => { setVoidTarget(voucher); setVoidReason(""); setVoidError(""); }}>作废</button>
+        <button className="btn-ghost btn-xs btn-danger-outline" disabled={busyVoucherId !== null} onClick={() => { setVoidTarget(voucher); setVoidReason(""); setVoidError(""); }}>作废</button>
       </>}
       {voucher.status === "posted" && <button className="btn-xs btn-ghost" disabled={busyVoucherId !== null} onClick={() => void runAction("reverse", voucher)}>红字冲销</button>}
     </>;
@@ -458,7 +458,7 @@ function ClosePanel({ book, period, check, loading, error, onRefresh, onClosed }
     setBusy(true);
     try { await financeApi.reopen(book, period.id, period.version); toast.ok("期间已反结账"); onClosed(); } catch (e) { toast.err(errText(e)); } finally { setBusy(false); }
   }
-  return <><div className="section-head"><div><h2>期末结账</h2><p>结账前检查未审核凭证、断号、试算平衡和报表恒等式。</p></div><button className="btn-ghost" onClick={onRefresh}>刷新检查</button></div><div className="card"><div className="status-row"><b>当前期间</b><span>{period?.period ?? "-"}</span><span className={`badge ${period?.status === "open" ? "doing" : "done"}`}>{period?.status === "open" ? "待结账" : period?.status === "closed" ? "已结账" : "已锁定"}</span></div>{loading ? <p className="muted">正在执行结账前检查…</p> : error ? <p className="field-err">{error}</p> : check?.issues.length ? <div className="warning-list">{check.issues.map((issue) => <div className="status-row" key={issue.code}><span className="badge warn">阻断</span><span>{issue.message}</span><span className="mono tiny">{issue.code}</span></div>)}</div> : <div className="status-row"><span className="badge done">检查通过</span><span>当前期间满足结账前置条件。</span></div>}<div className="row-actions" style={{ marginTop: 16 }}>{period?.status === "open" && <button className="btn-primary" disabled={busy || !check?.ready} onClick={close}>结账</button>}{period?.status === "closed" && <button className="btn-danger-outline" disabled={busy} onClick={reopen}>反结账</button>}</div></div></>;
+  return <><div className="section-head"><div><h2>期末结账</h2><p>结账前检查未审核凭证、断号、试算平衡和报表恒等式。</p></div><button className="btn-ghost" onClick={onRefresh}>刷新检查</button></div><div className="card"><div className="status-row"><b>当前期间</b><span>{period?.period ?? "-"}</span><span className={`badge ${period?.status === "open" ? "doing" : "done"}`}>{period?.status === "open" ? "待结账" : period?.status === "closed" ? "已结账" : "已锁定"}</span></div>{loading ? <p className="muted">正在执行结账前检查…</p> : error ? <p className="field-err">{error}</p> : check?.issues.length ? <div className="warning-list">{check.issues.map((issue) => <div className="status-row" key={issue.code}><span className="badge warn">阻断</span><span>{issue.message}</span><span className="mono tiny">{issue.code}</span></div>)}</div> : <div className="status-row"><span className="badge done">检查通过</span><span>当前期间满足结账前置条件。</span></div>}<div className="row-actions" style={{ marginTop: 16 }}>{period?.status === "open" && <button className="btn-primary" disabled={busy || !check?.ready} onClick={close}>结账</button>}{period?.status === "closed" && <button className="btn-ghost btn-danger-outline" disabled={busy} onClick={reopen}>反结账</button>}</div></div></>;
 }
 
 function VoucherDialog({ open, book, period, accounts, onClose, onSaved }: { open: boolean; book: FinanceBook; period: FinancePeriod | null; accounts: FinanceAccount[]; onClose: () => void; onSaved: () => void }) {
