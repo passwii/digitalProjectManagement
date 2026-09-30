@@ -15,7 +15,8 @@ from datetime import timedelta
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
-from ..models import Notification, Role, SysParam, User, UserRole
+from ..models import Notification, Role, SysParam, User, UserModule, UserRole
+from .rbac import MODULE_APPROVALS
 from .timeutil import app_now, to_db
 
 # 默认去重窗口（天）：可由 sys_params.notify_dedup_days 覆盖
@@ -160,11 +161,20 @@ def push_many(
 
 
 def approval_recipients(db: Session) -> list[int]:
-    """审批通知收件人：仅显式超级管理员身份。
-
-    审批操作资格由 approvals 模块控制；本通知契约只把通知发给超级管理员，旧角色记录不参与。
-    """
-    return admin_ids(db)
+    """审批通知收件人：启用的超级管理员和显式获批 approvals 模块的用户。"""
+    rows = (
+        db.query(User.id)
+        .outerjoin(
+            UserModule,
+            (UserModule.user_id == User.id) & (UserModule.module == MODULE_APPROVALS),
+        )
+        .filter(
+            User.status == "active",
+            or_(User.is_super_admin.is_(True), UserModule.user_id.is_not(None)),
+        )
+        .all()
+    )
+    return [user_id for (user_id,) in rows]
 
 
 def mark_state(db: Session, notification: Notification, state: str, user_id: int | None,

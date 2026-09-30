@@ -5,7 +5,7 @@ from sqlalchemy import Boolean, text
 from sqlalchemy.exc import IntegrityError
 
 from api import seed
-from api.models import AuditLog, Role, User, UserRole
+from api.models import AuditLog, Role, User, UserModule, UserRole
 
 
 def test_super_admin_metadata_contract():
@@ -50,6 +50,29 @@ def test_admin_notification_recipients_use_super_admin_identity(db):
 
         assert set(recipients) == {super_admin.id}
         assert len(recipients) == 1
+
+
+def test_approval_recipients_include_explicit_approvers_but_not_legacy_admins(db):
+    from api.core.notify import admin_ids, approval_recipients
+    from api.core.rbac import MODULE_APPROVALS
+
+    with db() as session:
+        super_admin = session.query(User).filter_by(username="admin").one()
+        explicit_approver = session.query(User).filter_by(username="pm").one()
+        legacy_admin = session.query(User).filter_by(username="outsider").one()
+        disabled_approver = session.query(User).filter_by(username="cost").one()
+        admin_role = session.query(Role).filter_by(code="admin").one()
+
+        session.add_all([
+            UserModule(user_id=explicit_approver.id, module=MODULE_APPROVALS),
+            UserRole(user_id=legacy_admin.id, role_id=admin_role.id),
+            UserModule(user_id=disabled_approver.id, module=MODULE_APPROVALS),
+        ])
+        disabled_approver.status = "disabled"
+        session.commit()
+
+        assert set(approval_recipients(session)) == {super_admin.id, explicit_approver.id}
+        assert set(admin_ids(session)) == {super_admin.id}
 
 
 def test_metadata_rejects_second_super_admin_and_accepts_multiple_ordinary_users(db):
