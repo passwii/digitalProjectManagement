@@ -76,9 +76,11 @@ def main():
             admin = User(username=INITIAL_ADMIN_USERNAME,
                          pwd_hash=hash_password(INITIAL_ADMIN_PASSWORD),
                          real_name="系统管理员", dept_id=dept.id,
-                         must_change_pwd=True)
+                         must_change_pwd=True, is_super_admin=True)
             db.add(admin)
             db.flush()
+        else:
+            admin.is_super_admin = True
         # admin 确保有 admin 角色
         role = db.query(Role).filter_by(code="admin").first()
         if not db.query(UserRole).filter_by(user_id=admin.id, role_id=role.id).first():

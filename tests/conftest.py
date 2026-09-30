@@ -103,12 +103,13 @@ def db():
         }.items():
             session.add(SysParam(key=key, value=value))
 
-        def mk(username: str, password: str, roles: list[str]):
+        def mk(username: str, password: str, roles: list[str], *, is_super_admin: bool = False):
             user = User(
                 username=username,
                 pwd_hash=hash_password(password),
                 real_name=username,
                 dept_id=dept.id,
+                is_super_admin=is_super_admin,
             )
             session.add(user)
             session.flush()
@@ -116,7 +117,7 @@ def db():
                 role = session.query(Role).filter_by(code=code).first()
                 session.add(UserRole(user_id=user.id, role_id=role.id))
 
-        mk("admin", "admin123456", ["admin"])
+        mk("admin", "admin123456", ["admin"], is_super_admin=True)
         mk("pm", "pm123456", ["project_manager", "member"])
         mk("outsider", "out123456", ["member"])
         mk("cost", "cost123456", ["cost_admin"])

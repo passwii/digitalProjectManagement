@@ -23,6 +23,7 @@ from sqlalchemy import (
   Numeric,
   String,
   Text,
+  true,
   UniqueConstraint,
 )
 from sqlalchemy.orm import relationship
@@ -542,6 +543,7 @@ class User(Base):
   failed_count = Column(Integer, default=0)
   locked_until = Column(DateTime, nullable=True)
   must_change_pwd = Column(Boolean, default=False)
+  is_super_admin = Column(Boolean, nullable=False, default=False, server_default="false")
   session_version = Column(Integer, nullable=False, default=0, server_default="0")
   # 功能模块分配（Stage 5）：是否已显式分配过模块。False（存量/未分配用户）走默认
   # 业务模块；True 时以 user_modules 行为准（允许显式分配为空）。
@@ -550,6 +552,12 @@ class User(Base):
   roles = relationship("Role", secondary="user_roles", back_populates="users")
   modules = relationship(
     "UserModule", back_populates="user", cascade="all, delete-orphan"
+  )
+  __table_args__ = (
+    Index(
+      "uq_users_single_super_admin", is_super_admin,
+      unique=True, postgresql_where=is_super_admin == true(),
+    ),
   )
 
 
