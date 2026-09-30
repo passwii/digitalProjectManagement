@@ -65,13 +65,13 @@ app = FastAPI(
 ## 功能模块与页面可见性契约（Stage 5，2026-09-28）
 
 - **页面可见性改为按用户手动分配**：导航/页面不再由 admin 角色推导，而是取模块目录
-  （`opportunities/projects/assets/reports/contacts/partners/approvals/admin`）∩ 用户生效模块。
+  （`opportunities/projects/assets/reports/contacts/partners/approvals/finance`）∩ 用户生效模块；系统管理不属于可分配模块，仅超级管理员可访问。
 - **生效规则**：超级管理员身份天然拥有全部可分配业务模块；普通用户以 `user_modules` 显式分配为准；
   存量/未显式分配用户回落到四个基础模块（升级平滑，行为不变）。
 - **前端菜单与后端接口同一判定**：`GET /meta/me/menus` 与各路由 `require_module` 共用
   `core.rbac.effective_modules`，不会出现入口可见但接口 403 的错位契约。
 - **审批资格** = 拥有「审批中心」模块（`can_approve`）；**系统管理**仅限超级管理员。
-- **财务**（`/finance`）入口由 finance 模块分配，账套数据权限仍由 `require_finance` 按账套角色单独判定；
+- **财务**（`/finance`）入口由 finance 模块分配；当前 finance API 仍由 `require_finance` 按账套/角色授权，Task 4 再迁移为 finance 模块门禁；
   设备资产的特权写操作仍要求超级管理员。
 - 超级管理员身份用于全局数据范围（跨部门/跨项目）与演示数据开关等高权限判定。
 
@@ -148,7 +148,7 @@ app.add_middleware(
 )
 
 def _module_guard(*modules: str):
-    """路由级模块门禁依赖：拥有其中任一模块（管理员天然全量）才放行整个路由。
+    """路由级模块门禁依赖：拥有其中任一模块（超级管理员天然全量）才放行整个路由。
 
     前端菜单与后端接口共用 core.rbac.effective_modules，避免「入口可见但接口 403」。
     """
@@ -158,10 +158,10 @@ def _module_guard(*modules: str):
 
 
 # 路由 → 允许的模块（任一即可）。auth/meta/dashboard/notifications 为全站公共面，不设模块门禁：
-#   · projects 是项目详情、跨模块选择器与回收站（admin）的共用读源，放行全部基础业务模块 + 系统管理；
+#   · projects 是项目详情、跨模块选择器与回收站（仅超级管理员）的共用读源，放行全部基础业务模块；
 #   · reports 被支出页用于预算执行汇总，故同时放行 projects 等基础模块；
 #   · tasks/milestones/budgets/expenses 是项目详情/进度/支出子页面的子资源，无独立导航模块，保持开放；
-#   · finance / finance_accounting 沿用账套成员授权（require_finance），不按模块门禁。
+#   · finance / finance_accounting 当前沿用账套/角色授权（require_finance），尚未迁移为 finance 模块门禁（Task 4）。
 _ROUTER_MODULES: list[tuple[object, tuple[str, ...]]] = [
     (contacts.router, (MODULE_CONTACTS,)),
     (partners.router, (MODULE_PARTNERS,)),

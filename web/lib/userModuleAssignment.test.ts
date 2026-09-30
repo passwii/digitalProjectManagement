@@ -26,6 +26,15 @@ test("用户弹窗具备模块分配并随创建/编辑一起提交", () => {
   assert.match(dialog, /adminApi\.createUser\(\{/);
 });
 
+test("用户弹窗不编辑角色，也不在用户载荷中提交 roles", () => {
+  const submit = dialog.slice(
+    dialog.indexOf("async function submit()"),
+    dialog.indexOf("\n  const modulesDirty")
+  );
+  assert.doesNotMatch(submit, /\broles\s*:/);
+  assert.doesNotMatch(dialog, /setPicked\(|picked\.length|请至少选择一个角色/);
+});
+
 test("系统管理面用 hasModule 门禁并加载模块目录", () => {
   assert.match(adminPage, /hasModule\("admin"\)/);
   assert.match(adminPage, /adminApi\.modules\(signal\)/);
