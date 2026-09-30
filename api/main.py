@@ -86,7 +86,7 @@ app = FastAPI(
   与项目删除/恢复分别要求超级管理员 / `approvals` 模块；鉴权先于任何业务读写。
 - 审批中心 `GET /approvals/pending` 行内的 `can_decide` 与各决策入口共用同一判定
   （`core.rbac.can_approve`），不会出现按钮可见但接口拒绝的错位契约。
-- **管理员全局 ≠ 包含回收站**：正常业务列表仍排除软删除项目，回收站单独查看与恢复。
+- **超级管理员全局 ≠ 包含回收站**：正常业务列表仍排除软删除项目，回收站单独查看与恢复。
 - 普通用户按「项目负责人 / 项目成员」参与业务（立项、任务、进度填报、跟进、预算/支出登记），该参与路径本轮不变。
 - 角色目录、`user_roles` 与 `account_book_members` 历史记录继续保留以兼容；这些旧角色/成员行不参与本次身份或模块授权判定。
 - `project_manager` / `dept_manager` / `member` / `cost_admin` / `executive` 当前不参与授权判定；
@@ -104,7 +104,7 @@ app = FastAPI(
 - **选择器与字典**：项目选择器用 `GET /projects/options`（最小字段 + 关键词分页）；人员搜索用 `GET /meta/users/search`；
   `/meta/users`、`/meta/depts` 为「一次取回本地映射」字典接口，服务端硬上限 500 行。
 - **审批待办有界**：`GET /approvals/pending` 每类最多 `limit` 条（默认 200，上限 500），并返回 `totals` 与 `limit`。
-- **边界不变**：子表列表与审批待办继续执行「可见 + 未软删除」过滤；管理员全局 ≠ 包含回收站。
+- **边界不变**：子表列表与审批待办继续执行「可见 + 未软删除」过滤；超级管理员全局 ≠ 包含回收站。
 - 实现与细节见 `api/core/paging.py`、README「列表分页与查询契约」节；回归测试见 `tests/test_mvp.py` 第 31—37 项。
 
 ## 进度 / 成本 / 审批 / 通知闭环契约（Stage 4A 定稿，2026-09-16）

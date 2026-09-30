@@ -103,7 +103,7 @@ def is_super_admin(user) -> bool:
 
 
 def can_approve(user) -> bool:
-    """审批资格：拥有「审批中心」模块（管理员天然拥有）即可审批。
+    """审批资格：拥有「审批中心」模块（超级管理员天然拥有）即可审批。
 
     `GET /approvals/pending` 行内的 can_decide 与各决策入口共用本判定，
     保证「列表里能点」与「接口放行」永远一致，不出现按钮可见但接口 403 的错位契约。
@@ -268,7 +268,7 @@ def scope_child_query(query, model, db, user):
 
     用法：`q = scope_child_query(db.query(Task), Task, db, user)`。
     超级管理员是唯一全局范围身份：不按参与人过滤（跨部门、跨项目可见），
-    但仍必须排除软删除项目——「管理员全局 ≠ 包含回收站」是 Stage 1 已确认契约，
+    但仍必须排除软删除项目——「超级管理员全局 ≠ 包含回收站」是 Stage 1 已确认契约，
     子表列表一律通过 `visible_project_ids` 子查询收口，避免回收站数据回流。
     """
     return query.filter(model.project_id.in_(visible_project_ids(db, user)))
