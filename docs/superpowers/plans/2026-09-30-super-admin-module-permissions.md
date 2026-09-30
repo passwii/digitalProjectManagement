@@ -41,7 +41,7 @@
 - `web/app/(dashboard)/finance/page.tsx`、`web/app/(dashboard)/finance/ArapPanel.tsx`、`web/app/(dashboard)/finance/BookMembersDialog.tsx`：所有已分配财务模块的用户使用相同财务操作；去掉账套成员权限 UI 与管理员/角色专属动作判断。
 - `web/lib/userModuleAssignment.test.ts`、`web/lib/finance*` 测试：锁定新管理页、模块权限和财务模块 UI 契约。
 
-## 任务一：超级管理员身份与数据库迁移
+## Task 1: 超级管理员身份与数据库迁移
 
 **文件：**
 - 新建：`api/alembic/versions/0034_superadmin_modules.py`
@@ -64,7 +64,7 @@
 - [ ] **步骤 5：验证迁移和模型**。运行 `pytest tests/test_migration_revision_ids.py -q`，并在配置 `TEST_DATABASE_URL` 时执行完整 migration test；运行 `alembic heads`，预期唯一 head 为 `0034_superadmin_modules`；用 Python/SQLAlchemy 检查 `Base.metadata.create_all()` 能建立 `uq_users_single_super_admin`，重复超级管理员写入被数据库拒绝。
 - [ ] **步骤 6：提交身份 schema 单元**。运行 `git diff --check` 后提交相关文件，中文提交标题示例：`权限：增加唯一超级管理员身份`。
 
-## 任务二：后端 RBAC、管理 API 与系统管理门禁
+## Task 2: 后端 RBAC、管理 API 与系统管理门禁
 
 **文件：**
 - 修改：`api/core/rbac.py`
@@ -91,7 +91,7 @@
 - [ ] **步骤 6：验证 RBAC 与用户管理**。运行 `pytest tests/test_super_admin.py tests/test_user_modules.py tests/test_mvp.py -q`；新增超管和模块用例必须通过；检查老 `admin` role 的测试用户仍不能访问全局端点。运行 `rg -n 'MODULE_ADMIN' api`，预期无可分配模块常量遗留，只有必要的系统管理身份代码不得以模块形式授权。
 - [ ] **步骤 7：提交后端身份与模块边界**。审阅新增 admin dependency 覆盖所有路由、拒绝角色/身份 payload 在任何写入前发生，再用中文提交标题：`权限：将系统管理限制为唯一超级管理员`。
 
-## 任务三：前端系统管理只配置功能模块
+## Task 3: 前端系统管理只配置功能模块
 
 **文件：**
 - 修改：`web/lib/api.ts`
@@ -115,7 +115,7 @@
 - [ ] **步骤 5：验证用户管理界面**。运行 `cd web && npm run test:unit` 与 `cd web && npm run test:motion -- lib/userModuleAssignment.test.ts`；运行 `cd web && npx tsc --noEmit --incremental false`；确认 0 TS 错误，源契约断言不再要求 `/admin` 是普通模块。
 - [ ] **步骤 6：提交管理 UI 单元**。运行 `git diff --check`，中文提交标题示例：`前端：用户管理改为超级管理员与模块分配`。
 
-## 任务四：后端财务模块统一授权
+## Task 4: 后端财务模块统一授权
 
 **文件：**
 - 修改：`api/core/rbac.py`
@@ -142,7 +142,7 @@
 - [ ] **步骤 6：验证财务授权与业务约束**。运行 `pytest tests/test_finance_vouchers.py tests/test_finance_project_expense_voucher.py tests/test_finance_p0a_review.py -q`，并运行 `rg -n 'AccountBookMember|_role\(db, user|ROLE_FINANCE_|ROLE_CASHIER|仅管理员可访问财务模块' api/routers/finance.py api/routers/finance_accounting.py`。预期成员模型只可留作未用于权限的引用（宜为 0），财务角色不参与 API allow/deny；凭证平衡、期间关闭和项目可见性回归测试仍通过。
 - [ ] **步骤 7：提交财务 API 权限边界**。审阅所有 finance router route 都受 `MODULE_FINANCE`，并确认 403 发生在任何账套数据读取前；中文提交标题示例：`权限：以财务功能模块统一控制账套访问`。
 
-## 任务五：前端财务统一授权与移除成员管理
+## Task 5: 前端财务统一授权与移除成员管理
 
 **文件：**
 - 修改：`web/lib/api.ts`
@@ -163,7 +163,7 @@
 - [ ] **步骤 5：移除组件并回归 UI**。删除 `BookMembersDialog.tsx`，清理相应测试引用；运行 `cd web && npm run test:motion` 与 `cd web && npm run test:unit`；然后 `cd web && npx tsc --noEmit --incremental false`，预期组件 props/API 类型无错误。
 - [ ] **步骤 6：提交财务 UI 权限调整**。运行 `git diff --check`，中文提交标题示例：`前端：按财务模块开放统一操作并移除成员授权`。
 
-## 任务六：跨模块回归、迁移与交付验证
+## Task 6: 跨模块回归、迁移与交付验证
 
 **文件：**
 - 修改：`api/main.py` 中权限契约说明
