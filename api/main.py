@@ -8,7 +8,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from . import models  # noqa: F401
 from .core.deps import get_current_user
 from .core.rbac import (
-    MODULE_ADMIN,
     MODULE_APPROVALS,
     MODULE_ASSETS,
     MODULE_CONTACTS,
@@ -67,21 +66,21 @@ app = FastAPI(
 
 - **页面可见性改为按用户手动分配**：导航/页面不再由 admin 角色推导，而是取模块目录
   （`opportunities/projects/assets/reports/contacts/partners/approvals/admin`）∩ 用户生效模块。
-- **生效规则**：`admin` 角色天然拥有全部模块；普通用户以 `user_modules` 显式分配为准；
+- **生效规则**：超级管理员身份天然拥有全部可分配业务模块；普通用户以 `user_modules` 显式分配为准；
   存量/未显式分配用户回落到四个基础模块（升级平滑，行为不变）。
 - **前端菜单与后端接口同一判定**：`GET /meta/me/menus` 与各路由 `require_module` 共用
   `core.rbac.effective_modules`，不会出现入口可见但接口 403 的错位契约。
-- **审批资格** = 拥有「审批中心」模块（`can_approve`）；**系统管理** = 拥有「系统管理」模块。
-- **财务**（`/finance`）沿用账套成员授权（`can_finance`，`require_finance` 按账套角色判定），
-  不纳入手动模块分配；设备资产的特权写操作仍要求 admin 角色。
-- 管理员角色仍用于全局数据范围（跨部门/跨项目）与演示数据开关等高权限判定。
+- **审批资格** = 拥有「审批中心」模块（`can_approve`）；**系统管理**仅限超级管理员。
+- **财务**（`/finance`）入口由 finance 模块分配，账套数据权限仍由 `require_finance` 按账套角色单独判定；
+  设备资产的特权写操作仍要求超级管理员。
+- 超级管理员身份用于全局数据范围（跨部门/跨项目）与演示数据开关等高权限判定。
 
 ## 管理与审批边界契约（Stage 1 收敛，2026-09-16 确认；Stage 5 起模块化）
 
-- **管理员（`admin`）拥有全部模块与全局数据范围**：可跨部门、跨项目读取和操作。
-- 管理接口（`/admin/*`）、审批接口（`/approvals/*`、`/budget-adjusts/{id}/approve`、
+- **超级管理员**拥有全部可分配模块与全局数据范围：可跨部门、跨项目读取和操作。
+- 管理接口（`/admin/*`）仅限超级管理员；审批接口（`/approvals/*`、`/budget-adjusts/{id}/approve`、
   `/expenses/{id}/approve|reject|exception`）、回收站（`/projects/recycle-bin/list`、项目删除与恢复）
-  分别要求 `admin` / `approvals` 模块；未分配该模块的账号稳定返回 403，鉴权先于任何业务读写。
+  与项目删除/恢复分别要求超级管理员 / `approvals` 模块；鉴权先于任何业务读写。
 - 审批中心 `GET /approvals/pending` 行内的 `can_decide` 与各决策入口共用同一判定
   （`core.rbac.can_approve`），不会出现按钮可见但接口拒绝的错位契约。
 - **管理员全局 ≠ 包含回收站**：正常业务列表仍排除软删除项目，回收站单独查看与恢复。
@@ -164,7 +163,6 @@ def _module_guard(*modules: str):
 #   · tasks/milestones/budgets/expenses 是项目详情/进度/支出子页面的子资源，无独立导航模块，保持开放；
 #   · finance / finance_accounting 沿用账套成员授权（require_finance），不按模块门禁。
 _ROUTER_MODULES: list[tuple[object, tuple[str, ...]]] = [
-    (admin.router, (MODULE_ADMIN,)),
     (contacts.router, (MODULE_CONTACTS,)),
     (partners.router, (MODULE_PARTNERS,)),
     (approvals.router, (MODULE_APPROVALS,)),
@@ -172,12 +170,13 @@ _ROUTER_MODULES: list[tuple[object, tuple[str, ...]]] = [
     (equipment_assets.router, (MODULE_ASSETS,)),
     (reports.router, (MODULE_REPORTS, MODULE_PROJECTS, MODULE_OPPORTUNITIES, MODULE_ASSETS)),
     (project_receivables.router, (MODULE_OPPORTUNITIES, MODULE_PROJECTS, MODULE_ASSETS,
-                                  MODULE_REPORTS, MODULE_ADMIN)),
+                                  MODULE_REPORTS)),
     (projects.router, (MODULE_OPPORTUNITIES, MODULE_PROJECTS, MODULE_ASSETS,
-                       MODULE_REPORTS, MODULE_ADMIN)),
+                       MODULE_REPORTS)),
 ]
 
 for r in (
+    admin.router,
     auth.router,
     meta.router,
     dashboard.router,

@@ -32,9 +32,8 @@ ALL_ROLES = [ROLE_ADMIN, *RESERVED_ROLES, *FINANCE_ROLES]
 
 # ---------------- 功能模块（Stage 5：页面可见性改为按用户手动分配） ----------------
 #
-# 契约变更：不再用「是否 admin 角色」推导通讯录/友商/审批中心/系统管理等页面的可见性，
-# 改为模块目录 + user_modules 按用户分配；管理员天然拥有全部模块，普通用户以分配为准。
-# 模块键与前端导航一一对应，顺序即导航顺序。财务（/finance）沿用账套成员授权，不在此列。
+# 管理权限只由 User.is_super_admin 决定；业务页面按模块目录与 user_modules 分配。
+# admin 菜单是超管专属入口，不属于可分配模块；财务页面模块可分配，账套写权限仍单独校验。
 MODULE_OPPORTUNITIES = "opportunities"
 MODULE_PROJECTS = "projects"
 MODULE_ASSETS = "assets"
@@ -42,7 +41,7 @@ MODULE_REPORTS = "reports"
 MODULE_CONTACTS = "contacts"
 MODULE_PARTNERS = "partners"
 MODULE_APPROVALS = "approvals"
-MODULE_ADMIN = "admin"
+MODULE_FINANCE = "finance"
 
 # (key, label, href)：后端是模块目录的单一事实来源，前端菜单与用户弹窗都消费它。
 MODULE_CATALOG: list[tuple[str, str, str]] = [
@@ -53,7 +52,7 @@ MODULE_CATALOG: list[tuple[str, str, str]] = [
     (MODULE_CONTACTS, "通讯录", "/contacts"),
     (MODULE_PARTNERS, "我的友商", "/partners"),
     (MODULE_APPROVALS, "审批中心", "/approvals"),
-    (MODULE_ADMIN, "系统管理", "/admin"),
+    (MODULE_FINANCE, "财务管理", "/finance"),
 ]
 ALL_MODULES = [key for key, _label, _href in MODULE_CATALOG]
 # 存量/未显式分配用户的默认模块：与本次改动前的基础导航一致，保证升级后既有
@@ -67,11 +66,11 @@ def user_module_codes(user) -> set:
 
 
 def effective_modules(user) -> set:
-    """用户实际生效的模块集合：管理员全量；其余按显式分配，否则回落默认业务模块。"""
-    if is_admin(user):
+    """用户实际生效的可分配模块；普通用户忽略历史残留的 admin 键。"""
+    if is_super_admin(user):
         return set(ALL_MODULES)
     if getattr(user, "modules_assigned", False):
-        return user_module_codes(user)
+        return user_module_codes(user) & set(ALL_MODULES)
     return set(DEFAULT_MODULES)
 
 
@@ -94,7 +93,12 @@ def role_codes(user) -> set:
 
 
 def is_admin(user) -> bool:
-    return ROLE_ADMIN in role_codes(user)
+    """历史调用方兼容别名；管理权限仅由超级管理员标志决定。"""
+    return bool(user.is_super_admin)
+
+
+def is_super_admin(user) -> bool:
+    return bool(user.is_super_admin)
 
 
 def can_approve(user) -> bool:
@@ -107,13 +111,9 @@ def can_approve(user) -> bool:
 
 
 def require_admin(user) -> None:
-    """兼容保留的 admin 角色门禁。
-
-    Stage 5 起页面/接口可见性应使用 require_module；仅在确实需要「必须是 admin 角色」
-    而非「拥有某模块」时使用（如设备资产的特权写操作），本函数保留以免外部集成断裂。
-    """
-    if not is_admin(user):
-        raise HTTPException(403, "仅管理员可操作")
+    """系统管理及特权写操作仅允许超级管理员。"""
+    if not is_super_admin(user):
+        raise HTTPException(403, "仅超级管理员可操作")
 
 
 def finance_role(db, user, book_id: int) -> str | None:
