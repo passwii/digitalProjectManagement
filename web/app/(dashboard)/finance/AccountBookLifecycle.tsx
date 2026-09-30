@@ -63,8 +63,8 @@ export function MoveBookToRecycleBinDialog({
         <>
           <button className="btn-ghost" onClick={close} disabled={busy}>取消</button>
           {step > 1 && <button className="btn-ghost" onClick={() => setStep((value) => (value - 1) as 1 | 2 | 3)} disabled={busy}>上一步</button>}
-          {step === 1 && <button className="btn-danger-outline" onClick={() => setStep(2)} disabled={!confirmTarget}>继续确认</button>}
-          {step === 2 && <button className="btn-danger-outline" onClick={() => setStep(3)} disabled={!confirmRetention}>继续输入账套编码</button>}
+          {step === 1 && <button className="btn-ghost btn-danger-outline" onClick={() => setStep(2)} disabled={!confirmTarget}>继续确认</button>}
+          {step === 2 && <button className="btn-ghost btn-danger-outline" onClick={() => setStep(3)} disabled={!confirmRetention}>继续输入账套编码</button>}
           {step === 3 && <button className="btn-danger" onClick={moveToRecycleBin} disabled={busy || confirmationCode !== book.code}>{busy ? "处理中…" : "移入回收站"}</button>}
         </>
       }
