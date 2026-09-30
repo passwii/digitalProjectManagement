@@ -193,22 +193,30 @@ def test_project_expense_auxiliary_ids_are_strict_and_saved_as_integers(client, 
             assert entry.aux_detail == {"project": item_id}
 
 
-def test_role_and_project_visibility_are_both_required(client, db):
+def test_finance_module_access_keeps_project_visibility_scope(client, db):
     headers, period, accounts, ids, pids, book = _setup(client, db)
+    admin = _auth(client)
     with db() as session:
         pm = session.query(User).filter_by(username="pm").one()
         pm_id = pm.id
         session.add(AccountBookMember(account_book_id=book["id"], user_id=pm_id, role="finance_reviewer"))
         session.commit()
+    assignment = client.patch(
+        f"/api/v1/admin/users/{pm_id}", headers=admin, json={"modules": ["finance"]}
+    )
+    assert assignment.status_code == 200, assignment.text
     pm_headers = {**_auth(client, "pm", "pm123456"), "X-Account-Book": book["code"]}
     listed = client.get("/api/v1/finance/project-expenses", headers=pm_headers)
     assert listed.status_code == 200
     assert {row["id"] for row in listed.json()["items"]} == {ids[0], ids[1]}
-    assert client.post(f"/api/v1/finance/project-expenses/{ids[0]}/voucher", headers=pm_headers, json=_payload(period, accounts)).status_code == 403
+    visible = client.post(f"/api/v1/finance/project-expenses/{ids[0]}/voucher", headers=pm_headers, json=_payload(period, accounts))
+    assert visible.status_code == 200, visible.text
     with db() as session:
         session.query(AccountBookMember).filter_by(account_book_id=book["id"], user_id=pm_id).one().role = "finance_clerk"
         session.commit()
-    assert client.post(f"/api/v1/finance/project-expenses/{ids[4]}/voucher", headers=pm_headers, json=_payload(period, accounts)).status_code in (403, 404)
+    still_visible = client.post(f"/api/v1/finance/project-expenses/{ids[1]}/voucher", headers=pm_headers, json=_payload(period, accounts))
+    assert still_visible.status_code == 200, still_visible.text
+    assert client.post(f"/api/v1/finance/project-expenses/{ids[4]}/voucher", headers=pm_headers, json=_payload(period, accounts)).status_code == 404
 
 
 def test_source_link_in_other_book_hides_voucher_details(client, db):

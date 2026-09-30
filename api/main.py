@@ -11,6 +11,7 @@ from .core.rbac import (
     MODULE_APPROVALS,
     MODULE_ASSETS,
     MODULE_CONTACTS,
+    MODULE_FINANCE,
     MODULE_OPPORTUNITIES,
     MODULE_PARTNERS,
     MODULE_PROJECTS,
@@ -71,7 +72,7 @@ app = FastAPI(
 - **前端菜单与后端接口同一判定**：`GET /meta/me/menus` 与各路由 `require_module` 共用
   `core.rbac.effective_modules`，不会出现入口可见但接口 403 的错位契约。
 - **审批资格** = 拥有「审批中心」模块（`can_approve`）；**系统管理**仅限超级管理员。
-- **财务**（`/finance`）入口由 finance 模块分配；当前 finance API 仍由 `require_finance` 按账套/角色授权，Task 4 再迁移为 finance 模块门禁；
+- **财务**（`/finance`）入口与全部财务 API 均由 finance 模块控制；模块用户具有相同访问权，账套期间、凭证状态、借贷平衡、辅助资料及项目可见范围校验继续生效；
   设备资产的特权写操作仍要求超级管理员。
 - 超级管理员身份用于全局数据范围（跨部门/跨项目）与演示数据开关等高权限判定。
 
@@ -161,7 +162,7 @@ def _module_guard(*modules: str):
 #   · projects 是项目详情、跨模块选择器与回收站（仅超级管理员）的共用读源，放行全部基础业务模块；
 #   · reports 被支出页用于预算执行汇总，故同时放行 projects 等基础模块；
 #   · tasks/milestones/budgets/expenses 是项目详情/进度/支出子页面的子资源，无独立导航模块，保持开放；
-#   · finance / finance_accounting 当前沿用账套/角色授权（require_finance），尚未迁移为 finance 模块门禁（Task 4）。
+#   · finance / finance_accounting 由 finance 模块统一门禁，业务校验保留在各端点中。
 _ROUTER_MODULES: list[tuple[object, tuple[str, ...]]] = [
     (contacts.router, (MODULE_CONTACTS,)),
     (partners.router, (MODULE_PARTNERS,)),
@@ -185,10 +186,15 @@ for r in (
     milestones.router,
     budgets.router,
     expenses.router,
-    finance.router,
-    finance_accounting.router,
 ):
     app.include_router(r, prefix="/api/v1")
+
+for r in (finance.router, finance_accounting.router):
+    app.include_router(
+        r,
+        prefix="/api/v1",
+        dependencies=[Depends(_module_guard(MODULE_FINANCE))],
+    )
 
 for r, _mods in _ROUTER_MODULES:
     app.include_router(

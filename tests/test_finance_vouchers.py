@@ -33,6 +33,94 @@ def _accounts(client, headers):
     return {row["code"]: row for row in rows}
 
 
+def _assign_finance(client, db, admin_headers, username):
+    from api.models import User
+
+    with db() as session:
+        user_id = session.query(User).filter_by(username=username).one().id
+    response = client.patch(
+        f"/api/v1/admin/users/{user_id}",
+        headers=admin_headers,
+        json={"modules": ["finance"]},
+    )
+    assert response.status_code == 200, response.text
+
+
+def test_finance_module_controls_books_and_ignores_legacy_member_roles(client, db):
+    from api.models import AccountBookMember, User
+
+    admin = _auth(client, "admin", "admin123456")
+    pm = _auth(client, "pm", "pm123456")
+    first = _book(client, admin, "MODULE-FINANCE-A")
+    second = _book(client, admin, "MODULE-FINANCE-B")
+    # No member row and no finance module: access is denied before book listing.
+    assert client.get("/api/v1/finance/books", headers=pm).status_code == 403
+    accounting_denied = client.get("/api/v1/finance/vouchers", headers=pm)
+    assert accounting_denied.status_code == 403
+    assert accounting_denied.json()["detail"] == "无权访问该功能模块"
+    with db() as session:
+        pm_id = session.query(User).filter_by(username="pm").one().id
+        session.add(AccountBookMember(
+            account_book_id=first["id"], user_id=pm_id, role="invalid-legacy-role"
+        ))
+        session.commit()
+
+    # A historical member row is not a substitute for explicit module access.
+    assert client.get("/api/v1/finance/books", headers=pm).status_code == 403
+    _assign_finance(client, db, admin, "pm")
+    menus = client.get("/api/v1/meta/me/menus", headers=pm)
+    assert menus.status_code == 200
+    assert "finance" in {item["key"] for item in menus.json()["menus"]}
+    with db() as session:
+        session.query(AccountBookMember).filter_by(
+            account_book_id=first["id"], user_id=pm_id
+        ).delete()
+        session.commit()
+
+    books = client.get("/api/v1/finance/books", headers=pm)
+    assert books.status_code == 200, books.text
+    assert {book["id"] for book in books.json()} == {first["id"], second["id"]}
+    scoped = _scoped(pm, first)
+    tree = client.get("/api/v1/finance/accounts/tree", headers=scoped)
+    assert tree.status_code == 200, tree.text
+    assert any(row["code"] == "1405" for row in tree.json())
+    added_account = client.post("/api/v1/finance/accounts", headers=scoped, json={
+        "code": "100203", "name": "财务用户新增科目", "direction": "D",
+        "category": "资产", "parent_id": next(row["id"] for row in tree.json() if row["code"] == "1002"),
+    })
+    assert added_account.status_code == 200, added_account.text
+
+    # Even malformed persisted roles do not restrict finance-module users.
+    with db() as session:
+        session.add(AccountBookMember(
+            account_book_id=first["id"], user_id=pm_id, role="still-not-a-finance-role"
+        ))
+        session.commit()
+    accounts = {row["code"]: row for row in tree.json()}
+    period = client.get("/api/v1/finance/periods", headers=scoped).json()[0]
+    draft = client.post("/api/v1/finance/vouchers", headers=scoped, json={
+        "period_id": period["id"], "voucher_no": "记-0001",
+        "voucher_date": period["start_date"], "summary": "模块授权凭证",
+        "lines": [
+            {"account_id": accounts["1405"]["id"], "debit": "1.00", "credit": "0"},
+            {"account_id": accounts["6001"]["id"], "debit": "0", "credit": "1.00"},
+        ],
+    })
+    assert draft.status_code == 200, draft.text
+    voucher_id = draft.json()["id"]
+    assert client.post(f"/api/v1/finance/vouchers/{voucher_id}/submit", headers=scoped).status_code == 200
+    assert client.post(f"/api/v1/finance/vouchers/{voucher_id}/approve", headers=scoped).status_code == 200
+    assert client.post(f"/api/v1/finance/vouchers/{voucher_id}/post", headers=scoped).status_code == 200
+
+    for method, path, body in (
+        ("get", f"/api/v1/finance/books/{first['id']}/members", None),
+        ("put", f"/api/v1/finance/books/{first['id']}/members/{pm_id}", {"role": "finance_manager"}),
+        ("delete", f"/api/v1/finance/books/{first['id']}/members/{pm_id}", None),
+    ):
+        response = getattr(client, method)(path, headers=admin, json=body) if body else getattr(client, method)(path, headers=admin)
+        assert response.status_code == 404, f"{method.upper()} {path}: {response.status_code} {response.text}"
+
+
 def test_admin_menu_exposes_finance_but_member_does_not(client):
     admin = _auth(client, "admin", "admin123456")
     member = _auth(client, "pm", "pm123456")
@@ -561,25 +649,26 @@ def test_bank_statement_import_is_atomic_and_reports_row_number(client):
     assert client.get("/api/v1/finance/bank-statements", headers=scoped).json()["total"] == 0
 
 
-def test_finance_book_roles_separate_read_entry_review_cash_and_close(client, db):
+def test_finance_module_users_share_access_without_member_role_gates(client, db):
     admin = _auth(client, "admin", "admin123456")
-    clerk = _auth(client, "pm", "pm123456")
+    finance_user = _auth(client, "pm", "pm123456")
     outsider = _auth(client, "outsider", "out123456")
     book = _book(client, admin, "ROLE-MATRIX")
     scoped_admin = _scoped(admin, book)
+    _assign_finance(client, db, admin, "pm")
     accounts = _accounts(client, scoped_admin)
     period = client.get("/api/v1/finance/periods", headers=scoped_admin).json()[0]
 
     from api.models import AccountBookMember, User
     with db() as session:
-        clerk_user = session.query(User).filter_by(username="pm").first()
-        session.add(AccountBookMember(account_book_id=book["id"], user_id=clerk_user.id, role="finance_clerk"))
+        finance_user_id = session.query(User).filter_by(username="pm").one().id
+        session.add(AccountBookMember(account_book_id=book["id"], user_id=finance_user_id, role="invalid"))
         session.commit()
 
-    scoped_clerk = _scoped(clerk, book)
-    read = client.get("/api/v1/finance/accounts/tree", headers=scoped_clerk)
+    scoped_user = _scoped(finance_user, book)
+    read = client.get("/api/v1/finance/accounts/tree", headers=scoped_user)
     assert read.status_code == 200
-    draft = client.post("/api/v1/finance/vouchers", headers=scoped_clerk, json={
+    draft = client.post("/api/v1/finance/vouchers", headers=scoped_user, json={
         "period_id": period["id"], "voucher_no": "记-0001", "voucher_date": period["start_date"], "summary": "制单",
         "lines": [
             {"account_id": accounts["1405"]["id"], "debit": "1.00", "credit": "0", "summary": "库存"},
@@ -588,9 +677,10 @@ def test_finance_book_roles_separate_read_entry_review_cash_and_close(client, db
     })
     assert draft.status_code == 200
     voucher_id = draft.json()["id"]
-    assert client.post(f"/api/v1/finance/vouchers/{voucher_id}/submit", headers=scoped_clerk).status_code == 200
-    assert client.post(f"/api/v1/finance/vouchers/{voucher_id}/approve", headers=scoped_clerk).status_code == 403
-    assert client.post("/api/v1/finance/close/check", headers=scoped_clerk, params={"period_id": period["id"]}).status_code == 403
+    assert client.post(f"/api/v1/finance/vouchers/{voucher_id}/submit", headers=scoped_user).status_code == 200
+    assert client.post(f"/api/v1/finance/vouchers/{voucher_id}/approve", headers=scoped_user).status_code == 200
+    assert client.post(f"/api/v1/finance/vouchers/{voucher_id}/post", headers=scoped_user).status_code == 200
+    assert client.post("/api/v1/finance/close/check", headers=scoped_user, params={"period_id": period["id"]}).status_code == 200
 
     assert client.get("/api/v1/finance/books", headers=outsider).status_code == 403
 

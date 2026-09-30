@@ -103,7 +103,7 @@ def menus(db: Session = Depends(get_db), user: User = Depends(get_current_user))
     契约：可分配功能菜单取模块目录 ∩ 用户生效模块；/admin 为超级管理员专属系统入口。
       · `can_approve` = 拥有「审批中心」模块；各决策接口 `require_module(approvals)` 同一判定。
       · `is_admin` 是兼容字段，与 `is_super_admin` 同义；旧 admin role 不授予系统权限。
-      · `can_finance` 表示拥有 finance 菜单模块，账套数据权限仍由财务接口单独校验。
+      · `can_finance` 表示拥有 finance 模块，且与财务接口路由使用同一模块门禁。
     另附演示数据开关状态：所有登录用户都需知道当前是否展示演示数据，仅超级管理员可切换。
     """
     from ..core.rbac import (

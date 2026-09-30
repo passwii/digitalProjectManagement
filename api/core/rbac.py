@@ -33,7 +33,7 @@ ALL_ROLES = [ROLE_ADMIN, *RESERVED_ROLES, *FINANCE_ROLES]
 # ---------------- 功能模块（Stage 5：页面可见性改为按用户手动分配） ----------------
 #
 # 管理权限只由 User.is_super_admin 决定；业务页面按模块目录与 user_modules 分配。
-# admin 菜单是超管专属入口，不属于可分配模块；财务页面模块可分配，账套写权限仍单独校验。
+# admin 菜单是超管专属入口，不属于可分配模块；财务 API 由财务模块统一控制访问。
 MODULE_OPPORTUNITIES = "opportunities"
 MODULE_PROJECTS = "projects"
 MODULE_ASSETS = "assets"
@@ -114,23 +114,6 @@ def require_admin(user) -> None:
     """系统管理及特权写操作仅允许超级管理员。"""
     if not is_super_admin(user):
         raise HTTPException(403, "仅超级管理员可操作")
-
-
-def finance_role(db, user, book_id: int) -> str | None:
-    if is_admin(user):
-        return ROLE_FINANCE_MANAGER
-    from ..models import AccountBookMember
-    row = db.query(AccountBookMember).filter_by(account_book_id=book_id, user_id=user.id).first()
-    if not row or row.role not in FINANCE_ROLES:
-        return None
-    return row.role
-
-
-def require_finance(db, user, book_id: int, allowed: set[str] | None = None) -> str:
-    role = finance_role(db, user, book_id)
-    if role is None or (allowed is not None and role not in allowed):
-        raise HTTPException(403, "无财务账套操作权限")
-    return role
 
 
 def member_ids(project) -> set:
