@@ -61,7 +61,6 @@ export default function ArapPanel({
   accountsLoading,
   accountsError,
   reloadAccounts,
-  isAdmin,
 }: {
   book: string;
   period: FinancePeriod | null;
@@ -69,7 +68,6 @@ export default function ArapPanel({
   accountsLoading: boolean;
   accountsError: string;
   reloadAccounts: () => void;
-  isAdmin: boolean;
 }) {
   const toast = useToast();
   const [view, setView] = useState<ArapView>("receivable");
@@ -261,19 +259,15 @@ export default function ArapPanel({
         </div>
         <div className="row-actions">
           <button className="btn-ghost" onClick={reload}>刷新</button>
-          {isAdmin && (
-            <>
-              <label className="toolbar-field">
-                <span>辅助资料</span>
-                <Select value={auxiliaryKind} onChange={(value) => setAuxiliaryKind(value as FinanceAuxiliaryKind)}>
-                  <option value="customer">客户</option>
-                  <option value="vendor">供应商</option>
-                  <option value="cashflow">现金流项目</option>
-                </Select>
-              </label>
-              <button className="btn-ghost" onClick={() => setDialog({ type: "auxiliary", kind: auxiliaryKind })}>新增资料</button>
-            </>
-          )}
+          <label className="toolbar-field">
+            <span>辅助资料</span>
+            <Select value={auxiliaryKind} onChange={(value) => setAuxiliaryKind(value as FinanceAuxiliaryKind)}>
+              <option value="customer">客户</option>
+              <option value="vendor">供应商</option>
+              <option value="cashflow">现金流项目</option>
+            </Select>
+          </label>
+          <button className="btn-ghost" onClick={() => setDialog({ type: "auxiliary", kind: auxiliaryKind })}>新增资料</button>
           <button
             className="btn-primary"
             disabled={!canWrite || missingPartyData}
@@ -296,14 +290,14 @@ export default function ArapPanel({
         </div>
       )}
 
-      {isAdmin && (!counterparties.length || !cashflowItems.length) && (
+      {(!counterparties.length || !cashflowItems.length) && (
         <div className="card" role="status">
           <div className="status-row">
             <span className="badge doing">需要设置</span>
             <span>
               {!counterparties.length
                 ? `当前账套没有有效${view === "receivable" ? "客户" : "供应商"}资料，请在右上方新增辅助资料。`
-                : "当前账套还没有现金流项目，银行收付款需要现金流核算时请先由管理员维护。"}
+                : "当前账套还没有现金流项目；如需现金流辅助核算，可通过右上方新增资料补齐。"}
             </span>
           </div>
         </div>
@@ -418,8 +412,8 @@ export default function ArapPanel({
         </>
       )}
 
-      {missingPartyData && !isAdmin && (
-        <p className="tiny muted">此账套暂无有效{view === "receivable" ? "客户" : "供应商"}辅助资料，请联系系统管理员维护。</p>
+      {missingPartyData && (
+        <p className="tiny muted">此账套暂无有效{view === "receivable" ? "客户" : "供应商"}辅助资料，可通过右上方新增资料补齐。</p>
       )}
       {cashAccounts.length > 0 && !paymentSetupReady && (
         <p className="tiny muted">此账套缺少现金流项目，无法使用当前需要现金流辅助核算的现金/银行科目登记收付款。</p>

@@ -265,11 +265,11 @@ describe("应收应付账龄与对账单", () => {
         accountsLoading={false}
         accountsError=""
         reloadAccounts={() => {}}
-        isAdmin={false}
       />,
     );
 
     expect((await screen.findAllByText("客户甲")).length).toBeGreaterThan(0);
+    expect(screen.getByRole("button", { name: "新增资料" })).toBeTruthy();
     expect(await screen.findByText("已过账未结余额")).toBeTruthy();
     expect(screen.getAllByText("冲销处理中").length).toBeGreaterThan(0);
     expect(screen.getAllByRole("button", { name: "登记收款" }).every((button) => (button as HTMLButtonElement).disabled)).toBe(true);

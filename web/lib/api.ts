@@ -521,19 +521,6 @@ export interface FinanceBook {
   currencies: string[];
   status: string;
 }
-export type FinanceRole =
-  | "finance_clerk"
-  | "finance_reviewer"
-  | "cashier"
-  | "finance_manager"
-  | "finance_auditor";
-export interface FinanceBookMember {
-  id: number;
-  user_id: number;
-  username: string;
-  real_name: string;
-  role: string;
-}
 export interface FinanceDeletedBook extends FinanceBook {
   deleted_at: string;
   deleted_by: number | null;
@@ -808,12 +795,6 @@ export const financeApi = {
       apiGet<FinanceDeletedBook[]>("/finance/books/recycle-bin/list", signal),
     restore: (id: number) => apiPost<FinanceBook>(`/finance/books/${id}/restore`, {}),
   },
-  members: (bookId: number, signal?: AbortSignal) =>
-    apiGet<FinanceBookMember[]>(`/finance/books/${bookId}/members`, signal),
-  saveMember: (bookId: number, userId: number, role: FinanceRole) =>
-    apiPut<FinanceBookMember>(`/finance/books/${bookId}/members/${userId}`, { role }),
-  removeMember: (bookId: number, userId: number) =>
-    apiDelete<{ deleted: boolean; user_id: number }>(`/finance/books/${bookId}/members/${userId}`),
   periods: (book: string, year?: number, signal?: AbortSignal) =>
     apiGetScoped<FinancePeriod[]>(`/finance/periods${buildQuery({ year })}`, financeHeaders(book), signal),
   periodStatus: (book: string, id: number, status: FinancePeriod["status"], version: number, reopen = false) =>
