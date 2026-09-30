@@ -80,7 +80,7 @@ def has_module(user, module: str) -> bool:
 
 
 def require_module(user, *modules: str) -> None:
-    """模块门禁：至少拥有其中一个模块才放行（管理员天然全量）。
+    """模块门禁：至少拥有其中一个模块才放行（超级管理员天然全量）。
 
     用于路由级依赖与端点内校验，保证「前端能看到入口」与「后端接口放行」同一判定，
     不会出现入口可见但接口 403 的错位契约。
@@ -126,7 +126,7 @@ def member_ids(project) -> set:
 
 
 def can_read_project(user, project, db=None) -> bool:
-    """读权限：管理员全局；其他用户仅限自己负责或参与的项目。"""
+    """读权限：超级管理员全局；其他用户仅限自己负责或参与的项目。"""
     if is_admin(user):
         return True
     return user.id in member_ids(project)
@@ -134,7 +134,7 @@ def can_read_project(user, project, db=None) -> bool:
 
 def check_project_access(user, project, write: bool = False, db=None,
                          hidden_msg: str = "项目不存在") -> None:
-    """读：可见即可；写：管理员或项目参与人。
+    """读：可见即可；写：超级管理员或项目参与人。
 
     传 db 时额外执行演示数据门禁：演示开关关闭时，演示项目视为不存在（404），
     与列表/统计口径保持一致，避免「列表里看不到、直接访问 URL 却能打开」。
@@ -152,7 +152,7 @@ def check_project_access(user, project, write: bool = False, db=None,
 def visible_project_condition(user):
     """把「可见项目」规则下推为 SQL 条件（避免全表载入后在 Python 过滤）。
 
-    返回 None 表示无需过滤：仅管理员，全局可见（跨部门、跨项目、不限成员）。
+    返回 None 表示无需过滤：仅超级管理员，全局可见（跨部门、跨项目、不限成员）。
     其余用户：负责人 或 项目成员；部门隔离规则已随本次契约收敛取消。
     """
     from sqlalchemy import exists, or_
@@ -202,7 +202,7 @@ def is_demo_hidden(project, db) -> bool:
 def project_scope_condition(user, db=None):
     """可见项目范围 = 权限范围 ∩ 演示数据开关。
 
-    返回 None 表示无任何过滤（管理员 + 演示开关打开）。
+    返回 None 表示无任何过滤（超级管理员 + 演示开关打开）。
     开关关闭时演示项目在全站（列表/工作台/报表/预警/任务）一并排除，保证统计口径一致。
     """
     from sqlalchemy import and_
@@ -230,7 +230,7 @@ def get_active_project(db, pid: int, user=None, write: bool = False,
                        msg: str = "项目不存在") -> Project:
     """按 id 取一个未软删除项目；不存在或已软删除 → 404（默认 msg 可覆盖）。
 
-    传 user 时附带参与人读/写校验（admin 全局放行）。子表接口（预算/支出/里程碑/任务/填报）
+    传 user 时附带参与人读/写校验（超级管理员全局放行）。子表接口（预算/支出/里程碑/任务/填报）
     的项目边界统一走这里，避免各自 `filter_by(id=...)` 漏掉软删除与可见性。
     """
     p = active_projects(db).filter(Project.id == pid).first()
@@ -267,7 +267,7 @@ def scope_child_query(query, model, db, user):
     """把「可见 + 未软删除」项目边界下推为子表列表的 SQL 过滤。
 
     用法：`q = scope_child_query(db.query(Task), Task, db, user)`。
-    管理员是唯一全局范围角色：不按参与人过滤（跨部门、跨项目可见），
+    超级管理员是唯一全局范围身份：不按参与人过滤（跨部门、跨项目可见），
     但仍必须排除软删除项目——「管理员全局 ≠ 包含回收站」是 Stage 1 已确认契约，
     子表列表一律通过 `visible_project_ids` 子查询收口，避免回收站数据回流。
     """
