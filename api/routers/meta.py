@@ -104,6 +104,7 @@ def menus(db: Session = Depends(get_db), user: User = Depends(get_current_user))
       · `can_approve` = 拥有「审批中心」模块；各决策接口 `require_module(approvals)` 同一判定。
       · `is_admin` 是兼容字段，与 `is_super_admin` 同义；旧 admin role 不授予系统权限。
       · `can_finance` 表示拥有 finance 模块，且与财务接口路由使用同一模块门禁。
+      · `roles` 仅供兼容展示；角色目录、user_roles 和账套成员历史行均不构成授权。
     另附演示数据开关状态：所有登录用户都需知道当前是否展示演示数据，仅超级管理员可切换。
     """
     from ..core.rbac import (

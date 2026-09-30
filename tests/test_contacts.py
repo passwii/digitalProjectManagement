@@ -147,7 +147,6 @@ def test_admin_created_user_gets_contact(client, db):
             "password": "abc12345",
             "real_name": "新员工",
             "dept_id": _dept_id(db),
-            "roles": ["member"],
         },
     )
     assert created.status_code == 200, created.text

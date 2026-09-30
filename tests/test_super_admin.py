@@ -36,6 +36,22 @@ def test_fixture_super_admin_is_explicit_and_legacy_role_does_not_promote(db):
         assert outsider.is_super_admin is False
 
 
+def test_admin_notification_recipients_use_super_admin_identity(db):
+    from api.core.notify import admin_ids
+
+    with db() as session:
+        super_admin = session.query(User).filter_by(username="admin").one()
+        ordinary_user = session.query(User).filter_by(username="outsider").one()
+        admin_role = session.query(Role).filter_by(code="admin").one()
+        session.add(UserRole(user_id=ordinary_user.id, role_id=admin_role.id))
+        session.commit()
+
+        recipients = admin_ids(session)
+
+        assert set(recipients) == {super_admin.id}
+        assert len(recipients) == 1
+
+
 def test_metadata_rejects_second_super_admin_and_accepts_multiple_ordinary_users(db):
     with db() as session:
         session.add_all([

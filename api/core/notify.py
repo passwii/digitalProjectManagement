@@ -15,7 +15,7 @@ from datetime import timedelta
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
-from ..models import Notification, Role, SysParam, UserRole
+from ..models import Notification, Role, SysParam, User, UserRole
 from .timeutil import app_now, to_db
 
 # 默认去重窗口（天）：可由 sys_params.notify_dedup_days 覆盖
@@ -101,10 +101,8 @@ def user_ids_with_role(db: Session, code: str) -> list[int]:
 
 
 def admin_ids(db: Session) -> list[int]:
-    """管理员用户 id：当前契约下唯一的管理与审批角色（见 core.rbac）。"""
-    from .rbac import ROLE_ADMIN
-
-    return user_ids_with_role(db, ROLE_ADMIN)
+    """超级管理员用户 id；旧 admin 角色关联不构成通知或管理授权。"""
+    return [user_id for (user_id,) in db.query(User.id).filter(User.is_super_admin.is_(True)).all()]
 
 
 def push(
@@ -162,9 +160,9 @@ def push_many(
 
 
 def approval_recipients(db: Session) -> list[int]:
-    """审批人：仅系统管理员（管理与审批唯一角色）。
+    """审批通知收件人：仅显式超级管理员身份。
 
-    项目负责人 / 成本管理员 / 高层都不再是审批人，不再出现在审批通知收件人里。
+    审批操作资格由 approvals 模块控制；本通知契约只把通知发给超级管理员，旧角色记录不参与。
     """
     return admin_ids(db)
 

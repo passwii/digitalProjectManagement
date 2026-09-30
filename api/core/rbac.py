@@ -1,25 +1,26 @@
-"""RBAC：管理与审批边界（Stage 1 收敛版）。
+"""RBAC：超级管理员身份、模块权限与业务数据边界。
 
-已确认契约（BLF-1097）：
-  · 管理员（admin）是唯一的管理与审批角色，也是唯一拥有全局数据范围的用户：跨部门、跨项目读写。
-  · 非管理员不获得任何管理/审批能力：管理、审批、回收站等接口对非管理员稳定返回 403，
-    且权限判定先于任何业务读写，拒绝时不会产生业务状态变更。
+当前授权契约：
+  · User.is_super_admin 是唯一系统管理身份；旧 admin 角色及其他角色关联仅为兼容/历史数据，不授予权限。
+  · 超级管理员拥有全局数据范围；/admin 仅其可访问。业务页面由
+    opportunities/projects/assets/reports/contacts/partners/approvals/finance 模块控制。
+  · 财务模块统一控制全部财务路由；account_book_members 账套成员记录不授予访问权限。
+  · 审批能力由 approvals 模块决定；权限拒绝在业务读写前稳定返回 403。
   · 普通用户仍按「项目负责人 / 项目成员」参与业务（立项、任务、进度填报、跟进、预算/支出登记），
     本轮不收敛该参与路径。
-  · 以下角色编码仅作为未来扩展的结构字段保留，当前不参与任何授权判定：
-    project_manager / dept_manager / member / cost_admin / executive。
-    即不再有「部门隔离」「项目成员授权优先于部门隔离」「高层只读」「成本管理员独立全局权限」规则。
+  · 角色目录、user_roles、账套成员模型继续保留以兼容历史记录；角色字段当前不参与系统授权判定。
 """
 from fastapi import HTTPException
 
 from ..models import Project
 
-ROLE_ADMIN = "admin"            # 系统管理员：唯一管理与审批角色，全局范围
-ROLE_PM = "project_manager"     # 保留字段：未来扩展用，当前不授予额外权限
-ROLE_DEPT = "dept_manager"      # 保留字段：同上
-ROLE_MEMBER = "member"          # 保留字段：同上
-ROLE_COST = "cost_admin"        # 保留字段：同上
-ROLE_EXEC = "executive"         # 保留字段：同上
+# 角色目录仅保留兼容及历史用途；系统身份只由 User.is_super_admin 决定。
+ROLE_ADMIN = "admin"
+ROLE_PM = "project_manager"
+ROLE_DEPT = "dept_manager"
+ROLE_MEMBER = "member"
+ROLE_COST = "cost_admin"
+ROLE_EXEC = "executive"
 ROLE_FINANCE_CLERK = "finance_clerk"
 ROLE_FINANCE_REVIEWER = "finance_reviewer"
 ROLE_CASHIER = "cashier"
@@ -56,7 +57,7 @@ MODULE_CATALOG: list[tuple[str, str, str]] = [
 ]
 ALL_MODULES = [key for key, _label, _href in MODULE_CATALOG]
 # 存量/未显式分配用户的默认模块：与本次改动前的基础导航一致，保证升级后既有
-# 普通用户行为不变，管理员再按需增减。
+# 普通用户行为不变；超级管理员身份来自 is_super_admin，而非 admin 角色。
 DEFAULT_MODULES = [MODULE_OPPORTUNITIES, MODULE_PROJECTS, MODULE_ASSETS, MODULE_REPORTS]
 
 

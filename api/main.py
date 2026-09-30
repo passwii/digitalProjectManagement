@@ -65,14 +65,16 @@ app = FastAPI(
   description="""
 ## 功能模块与页面可见性契约（Stage 5，2026-09-28）
 
-- **页面可见性改为按用户手动分配**：导航/页面不再由 admin 角色推导，而是取模块目录
+- **身份与模块目录**：唯一系统管理身份是 `User.is_super_admin`；旧 `admin` 角色和 `user_roles` 仅为兼容/历史数据，
+  不授予权限。可分配功能模块目录为
   （`opportunities/projects/assets/reports/contacts/partners/approvals/finance`）∩ 用户生效模块；系统管理不属于可分配模块，仅超级管理员可访问。
 - **生效规则**：超级管理员身份天然拥有全部可分配业务模块；普通用户以 `user_modules` 显式分配为准；
   存量/未显式分配用户回落到四个基础模块（升级平滑，行为不变）。
 - **前端菜单与后端接口同一判定**：`GET /meta/me/menus` 与各路由 `require_module` 共用
   `core.rbac.effective_modules`，不会出现入口可见但接口 403 的错位契约。
 - **审批资格** = 拥有「审批中心」模块（`can_approve`）；**系统管理**仅限超级管理员。
-- **财务**（`/finance`）入口与全部财务 API 均由 finance 模块控制；模块用户具有相同访问权，账套期间、凭证状态、借贷平衡、辅助资料及项目可见范围校验继续生效；
+- **财务**（`/finance`）入口与全部财务路由（`finance`、`finance_accounting`）均由 finance 模块统一控制；
+  账套成员行不授予访问权。模块用户具有相同访问权，账套期间、凭证状态、借贷平衡、辅助资料及项目可见范围校验继续生效；
   设备资产的特权写操作仍要求超级管理员。
 - 超级管理员身份用于全局数据范围（跨部门/跨项目）与演示数据开关等高权限判定。
 
@@ -86,8 +88,9 @@ app = FastAPI(
   （`core.rbac.can_approve`），不会出现按钮可见但接口拒绝的错位契约。
 - **管理员全局 ≠ 包含回收站**：正常业务列表仍排除软删除项目，回收站单独查看与恢复。
 - 普通用户按「项目负责人 / 项目成员」参与业务（立项、任务、进度填报、跟进、预算/支出登记），该参与路径本轮不变。
-- `project_manager` / `dept_manager` / `member` / `cost_admin` / `executive` 仅作为未来扩展的结构字段保留，
-  当前不参与授权判定（不再有部门隔离、成员优先、高层只读、成本管理员独立全局权限）。
+- 角色目录、`user_roles` 与 `account_book_members` 历史记录继续保留以兼容；这些旧角色/成员行不参与本次身份或模块授权判定。
+- `project_manager` / `dept_manager` / `member` / `cost_admin` / `executive` 当前不参与授权判定；
+  项目负责人/成员仍按既有业务对象规则参与项目业务。
 
 ## 列表分页与查询契约（Stage 3A 定稿，2026-09-16）
 
