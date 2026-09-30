@@ -1,7 +1,7 @@
 "use client";
 // 元数据（用户/部门）全局缓存 + hook，供各页做 id→名称映射。
-// 权限单一入口：`/meta/me/menus`（useMenus）返回可见菜单与 is_admin / can_approve，
-// 页面不再各自硬编码角色判断（Stage 1 契约：管理员是唯一管理与审批角色）。
+// 权限单一入口：`/meta/me/menus`（useMenus）返回可见菜单与 is_super_admin / can_approve，
+// 页面不再各自硬编码角色判断；菜单模块及审批权限均由服务端判定。
 import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import {
   authApi,
@@ -223,11 +223,13 @@ export interface MenuState {
   /** 后端返回的可见菜单（不含恒可见的工作台） */
   menus: { key: string; label: string; href: string }[];
   roles: string[];
+  isSuperAdmin: boolean;
+  /** @deprecated 兼容旧消费者，语义等同 isSuperAdmin。 */
   isAdmin: boolean;
   /**
    * 权限是否**已确认**（`/meta/me/menus` 成功返回）。
    *
-   * `isAdmin` 在 loading 期间恒为 false（BLF 原有契约，避免未确认就放行管理入口），
+   * `isSuperAdmin` 在 loading 期间恒为 false（避免未确认就放行管理入口），
    * 但 false 同时意味着「确认过、确实不是管理员」与「还没问到」，两者在纯身份展示上
    * 不可混同：先渲染「普通用户」再改成「管理员」会是一次可见的错误值闪烁。
    * 需要区分时用本字段（如侧栏/顶栏身份区渲染骨架）。
@@ -252,7 +254,7 @@ export interface MenuState {
 
 /**
  * 权限 hook：所有导航与管理/审批按钮的显示条件都取这里。
- * · loading 期间 isAdmin/canApprove 均为 false —— 未确认权限前不展示管理入口；
+ * · loading 期间 isSuperAdmin/canApprove 均为 false —— 未确认权限前不展示管理入口；
  * · error 时页面应展示可重试的加载失败，而不是“无权限”。
  */
 export function useMenus(): MenuState {
@@ -290,7 +292,8 @@ export function useMenus(): MenuState {
   return {
     menus: data?.menus ?? [],
     roles: data?.roles ?? [],
-    isAdmin: Boolean(data?.is_admin),
+    isSuperAdmin: Boolean(data?.is_super_admin),
+    isAdmin: Boolean(data?.is_super_admin),
     ready: data !== null && !error,
     canApprove: !!data?.can_approve,
     canFinance: !!data?.can_finance,

@@ -1,5 +1,5 @@
 "use client";
-// 用户新增/编辑弹窗：功能模块分配（Stage 5，可多选）、可重置密码
+// 用户新增/编辑弹窗：仅通过功能模块分配权限，可重置密码
 import { useEffect, useState } from "react";
 import { adminApi, type AdminUser, type ModuleItem } from "@/lib/api";
 import { useMeta } from "@/lib/useMeta";
@@ -17,9 +17,6 @@ interface Values {
 
 const BLANK: Values = { username: "", real_name: "", dept_id: "", password: "admin123456" };
 
-// 新用户的默认模块：与后端 DEFAULT_MODULES 对齐（四个基础导航模块），超级管理员可再增减。
-const DEFAULT_MODULE_KEYS = ["opportunities", "projects", "assets", "reports"];
-
 export default function UserDialog({
   open,
   onClose,
@@ -30,7 +27,6 @@ export default function UserDialog({
   open: boolean;
   onClose: () => void;
   user: AdminUser | null;
-  roles: { id: number; code: string; name: string }[];
   modules: ModuleItem[];
   onSaved: (isNew: boolean) => void;
 }) {
@@ -64,11 +60,7 @@ export default function UserDialog({
 
   useEffect(() => {
     if (!open) return;
-    setPickedModules(
-      user
-        ? user.modules
-        : DEFAULT_MODULE_KEYS.filter((k) => modules.some((m) => m.key === k))
-    );
+    setPickedModules(user ? user.modules : []);
     form.reset(
       user
         ? { username: user.username, real_name: user.real_name, dept_id: user.dept_id ? String(user.dept_id) : "", password: "" }
@@ -147,7 +139,7 @@ export default function UserDialog({
         </Field>
         <Field
           label="功能模块（可多选，决定该用户可见页面与可访问接口）"
-          hint="超级管理员的模块分配不影响其全量权限；财务页面沿用账套成员授权。普通用户未分配任何模块时仅能进入工作台。"
+          hint="模块控制可访问功能，财务模块包含全部活动账套；系统管理仅超级管理员可用。新用户默认不分配模块，仅能进入工作台。"
           span
         >
           <div style={{ display: "flex", flexWrap: "wrap", gap: 8, paddingTop: 2 }}>

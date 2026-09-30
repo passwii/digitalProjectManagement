@@ -497,11 +497,13 @@ export interface DictItem {
 }
 export interface MenuResp {
   roles: string[];
-  /** 是否管理员（后端 /meta/me/menus 契约）：仅表示角色，用于全局数据范围等高权限判定 */
+  /** 是否超级管理员；系统管理入口与全局高权限判定的唯一身份标志 */
+  is_super_admin: boolean;
+  /** 兼容旧消费者；语义固定为超级管理员 */
   is_admin: boolean;
   /** 是否可审批 = 是否拥有「审批中心」模块（管理员天然拥有，列表 can_decide 同一判定） */
   can_approve: boolean;
-  /** 是否有财务账套访问权（账套成员或管理员），与手动模块分配独立 */
+  /** 菜单接口判定的财务模块权限；前端不按角色推导 */
   can_finance: boolean;
   menus: { key: string; label: string; href: string }[];
   readonly: boolean;
@@ -1567,6 +1569,7 @@ export interface AdminUser {
   real_name: string;
   status: string;
   dept_id: number | null;
+  is_super_admin: boolean;
   roles: { code: string; name: string }[];
   /** 生效的功能模块（后端 effective_modules），弹窗按此回填勾选 */
   modules: string[];
