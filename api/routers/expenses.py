@@ -31,6 +31,7 @@ from ..core.database import get_db, parse_date
 from ..core.deps import get_current_user
 from ..core.limits import MAX_ATTACHMENT_SIZE, read_within_limit
 from ..core.paging import DEFAULT_PAGE_SIZE, paginate
+from ..core.project_changes import FIELD_EXPENSE, record_project_change
 from ..core.rbac import (
     MODULE_APPROVALS,
     can_read_project,
@@ -254,6 +255,14 @@ def create_expense(
     )
     db.add(e)
     db.flush()
+    # 成本活动同步落项目「日志」tab：`new` 不含类别词（前端补「成本」前缀）。
+    record_project_change(
+        db,
+        p.id,
+        FIELD_EXPENSE,
+        f"登记「{subject}」{amount:.2f} 元（{'待审批' if st == 'pending' else '已通过'}）",
+        user_id=user.id,
+    )
     from ..core.timeline import record as record_timeline
 
     record_timeline(
@@ -352,6 +361,14 @@ def resubmit(
     e.decided_at = app_now()
     e.decision_reason = ""
 
+    # 重提也是一次成本活动：让「日志」tab 看到申请人修正后的再次提交。
+    record_project_change(
+        db,
+        e.project_id,
+        FIELD_EXPENSE,
+        f"「{subject}」重新提交 {amount:.2f} 元",
+        user_id=user.id,
+    )
     from ..core.timeline import record as record_timeline
 
     record_timeline(
@@ -521,6 +538,16 @@ def _decide(
         actor_id=user.id,
         reason=reason,
     )
+    # 审批决策同步落项目「日志」tab；三种结果各自成句，驳回/特批带上意见。
+    decision_text = {
+        ACTION_APPROVE: f"「{e.subject}」审批通过",
+        ACTION_REJECT: f"「{e.subject}」被驳回：{reason}",
+        ACTION_EXCEPTION: f"「{e.subject}」特批放行：{reason}",
+    }.get(action)
+    if decision_text:
+        record_project_change(
+            db, e.project_id, FIELD_EXPENSE, decision_text, user_id=user.id
+        )
     commit_audited(
         db, user.id, audit_action, "expenses", e.id, f"{old}->{to_status} {reason}"
     )

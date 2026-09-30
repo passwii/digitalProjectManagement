@@ -12,6 +12,11 @@ from ..core.audit import commit_audited
 from ..core.database import get_db
 from ..core.deps import get_current_user
 from ..core.paging import DEFAULT_PAGE_SIZE, paginate
+from ..core.project_changes import (
+    FIELD_RECEIVABLE,
+    FIELD_RECEIVABLE_PAYMENT,
+    record_project_change,
+)
 from ..core.rbac import (
     check_project_access,
     get_active_project,
@@ -357,6 +362,15 @@ def create_receivable(
     )
     db.add(receivable)
     db.flush()
+    # 应收活动同步落项目「日志」tab：`new` 不含「应收」类别词（前端补前缀）。
+    record_project_change(
+        db,
+        pid,
+        FIELD_RECEIVABLE,
+        f"新增「{name}」{_money_text(amount)} 元"
+        f"（应收日期 {receivable_date.isoformat()}，到期日 {due_date.isoformat()}）",
+        user_id=user.id,
+    )
     commit_audited(
         db,
         user.id,
@@ -408,6 +422,13 @@ def update_receivable(
         receivable.note = _note(payload["note"])
     receivable.updated_by = user.id
     db.flush()
+    record_project_change(
+        db,
+        pid,
+        FIELD_RECEIVABLE,
+        f"修改「{name}」为 {_money_text(amount)} 元",
+        user_id=user.id,
+    )
     commit_audited(
         db,
         user.id,
@@ -434,6 +455,14 @@ def delete_receivable(
     receivable.deleted_by = user.id
     receivable.updated_by = user.id
     db.flush()
+    # 软删后行仍可读名字（本对象在内存里），用它留痕再提交。
+    record_project_change(
+        db,
+        pid,
+        FIELD_RECEIVABLE,
+        f"删除「{receivable.name}」",
+        user_id=user.id,
+    )
     commit_audited(
         db,
         user.id,
@@ -502,6 +531,14 @@ def create_payment(
     )
     db.add(payment)
     db.flush()
+    record_project_change(
+        db,
+        pid,
+        FIELD_RECEIVABLE_PAYMENT,
+        f"登记 {_money_text(amount)} 元（应收「{receivable.name}」，"
+        f"回款日期 {payment_date.isoformat()}）",
+        user_id=user.id,
+    )
     commit_audited(
         db,
         user.id,
@@ -548,6 +585,13 @@ def update_payment(
         payment.note = _note(payload["note"])
     payment.updated_by = user.id
     db.flush()
+    record_project_change(
+        db,
+        pid,
+        FIELD_RECEIVABLE_PAYMENT,
+        f"更正「{receivable.name}」下的回款为 {_money_text(amount)} 元",
+        user_id=user.id,
+    )
     commit_audited(
         db,
         user.id,
@@ -570,12 +614,19 @@ def delete_payment(
     require_admin(user)
     project = _lock_project(db, pid, user)
     _require_writable(project)
-    _receivable(db, pid, rid, lock=True)
+    receivable = _receivable(db, pid, rid, lock=True)
     payment = _payment(db, pid, rid, payment_id, lock=True)
     payment.deleted_at = app_now()
     payment.deleted_by = user.id
     payment.updated_by = user.id
     db.flush()
+    record_project_change(
+        db,
+        pid,
+        FIELD_RECEIVABLE_PAYMENT,
+        f"删除「{receivable.name}」下的一笔回款 {_money_text(payment.amount)} 元",
+        user_id=user.id,
+    )
     commit_audited(
         db,
         user.id,

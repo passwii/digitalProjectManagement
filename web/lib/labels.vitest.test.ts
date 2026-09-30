@@ -38,4 +38,10 @@ describe("项目状态展示映射", () => {
     expect(projectChangeFieldLabel("members")).toBe("项目成员");
     expect(projectChangeFieldLabel("progress_snapshot")).toBe("进度快照");
   });
+
+  it("成本 / 应收 / 回款这类事件型变更字段也有中文名", () => {
+    expect(projectChangeFieldLabel("expense")).toBe("成本");
+    expect(projectChangeFieldLabel("receivable")).toBe("应收");
+    expect(projectChangeFieldLabel("receivable_payment")).toBe("回款");
+  });
 });

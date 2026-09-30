@@ -93,9 +93,20 @@
   border: 1px solid var(--line);
   border-radius: var(--radius);
   box-shadow: var(--shadow-float);
+  /* 内联 maxHeight 会按可用空间把弹层截短，超出部分必须能在弹层内部滚动，
+     否则又被 Modal 正文（overflow: auto）连同底部快捷条一起裁掉。
+     overscroll-behavior: contain 阻止滚动链传到正文/页面。 */
+  overflow: auto;
+  overscroll-behavior: contain;
   animation: popIn var(--motion) var(--ease-console);
 }
 .popMonth { width: min(260px, 90vw); }
+/* 上方空间更宽裕时翻到触发器正上方（由 usePopoverPlacement 计算 placement）。
+   top: auto 必须显式写：base 规则里那条 top 会赢过 bottom 的定位。 */
+.popUp {
+  top: auto;
+  bottom: calc(100% + 4px);
+}
 
 @keyframes popIn {
   from { opacity: 0; transform: translateY(-4px); }
@@ -261,14 +272,8 @@
 .quickBtn:hover:not(:disabled) { border-color: var(--brand); color: var(--brand); }
 .quickBtn:disabled { color: var(--ink-3); cursor: not-allowed; opacity: 0.6; }
 
-/* 移动窄屏：弹层不横向溢出 */
-@media (max-width: 640px) {
-  .pop {
-    left: 0;
-    right: 0;
-    width: auto;
-  }
-}
+/* 移动窄屏的横向夹取已交给 usePopoverPlacement 计算的内联 left / width，
+   这里不再用 CSS 覆盖 —— 那会与内联的右移修正互相打架。 */
 
 /* 触控目标不小于 44px（对齐全局 `--m-tap` 契约） */
 @media (max-width: 767px) {

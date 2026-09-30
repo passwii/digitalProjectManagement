@@ -20,7 +20,13 @@
  *      Modal 的 Tab 锁定会把弹层内所有可聚焦元素纳入循环，
  *      若 42 个日期格都是可 Tab 的按钮，用户在 Dialog 里按 Tab 要穿过整个月历。
  */
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import {
+  resolvePopoverPlacement,
+  type PopoverPlacement,
+  type Rect,
+} from "@/lib/datePopoverPosition";
+import { MODAL_BODY_ATTR } from "@/lib/modalFocus";
 import {
   buildMonthMatrix,
   compareISO,
@@ -126,6 +132,99 @@ function usePopoverBehavior(
   );
 
   return { boxRef, onKeyDown };
+}
+
+/** 把 `DOMRect` 收窄成本模块定位需要的结构。 */
+function toRect(rect: DOMRect): Rect {
+  return {
+    top: rect.top,
+    left: rect.left,
+    right: rect.right,
+    bottom: rect.bottom,
+    width: rect.width,
+    height: rect.height,
+  };
+}
+
+/**
+ * 量出弹层可用的边界。
+ *
+ * 优先取最近的 `[data-modal-body]`（Dialog / Drawer 的正文区）—— 它自带
+ * `overflow: auto`，正是裁掉弹层的那一层；不在弹层里时退回文档根。
+ * 再按视口夹一次：容器可能比视口还高（移动端全屏 Dialog），
+ * 只有两者相交的那块才是真正看得见的空间。
+ */
+function measureBoundary(root: HTMLElement): Rect {
+  const container = root.closest(`[${MODAL_BODY_ATTR}]`) ?? document.documentElement;
+  const rect = container.getBoundingClientRect();
+  const top = Math.max(0, rect.top);
+  const left = Math.max(0, rect.left);
+  const right = Math.min(window.innerWidth, rect.right);
+  const bottom = Math.min(window.innerHeight, rect.bottom);
+  return {
+    top,
+    left,
+    right,
+    bottom,
+    width: Math.max(0, right - left),
+    height: Math.max(0, bottom - top),
+  };
+}
+
+/**
+ * 弹层自适应定位：翻上/翻下 + 高度夹取 + 水平夹取。
+ *
+ * 两趟渲染：打开后第一趟弹层还没被内联样式约束，量到的就是**自然尺寸**；
+ * 算出摆放后第二趟才套上 `maxHeight / left / width`。自然尺寸记在 ref 里，
+ * 之后 resize / scroll 重算时复用它 —— 此时弹层已被夹过，再量只会越算越小。
+ *
+ * 刻意不做 portal：弹层留在 `.root` 内，`Modal` 的 Esc / 焦点锁定 /
+ * `nestedPopover` 登记与既有无障碍行为都无需改动；`left` 因此是相对触发器左缘的偏移。
+ */
+function usePopoverPlacement(
+  open: boolean,
+  rootRef: React.RefObject<HTMLElement>,
+): { popRef: React.RefObject<HTMLDivElement>; placement: PopoverPlacement | null } {
+  const popRef = useRef<HTMLDivElement>(null);
+  const [placement, setPlacement] = useState<PopoverPlacement | null>(null);
+  // `null` 表示「还没量到过自然尺寸」：只会在打开后的第一趟里取一次。
+  const naturalRef = useRef<{ width: number; height: number } | null>(null);
+
+  useLayoutEffect(() => {
+    if (!open) {
+      naturalRef.current = null;
+      setPlacement(null);
+      return;
+    }
+    const update = () => {
+      const root = rootRef.current;
+      const pop = popRef.current;
+      if (!root || !pop) return;
+      const trigger = toRect(root.getBoundingClientRect());
+      if (!naturalRef.current) {
+        const natural = toRect(pop.getBoundingClientRect());
+        naturalRef.current = { width: natural.width, height: natural.height };
+      }
+      const boundary = measureBoundary(root);
+      setPlacement(resolvePopoverPlacement({ trigger, boundary, popover: naturalRef.current }));
+    };
+    update();
+    // capture 阶段的 scroll 才能收到嵌套滚动容器（如 Dialog 正文）的滚动事件。
+    window.addEventListener("resize", update);
+    window.addEventListener("scroll", update, true);
+    return () => {
+      window.removeEventListener("resize", update);
+      window.removeEventListener("scroll", update, true);
+    };
+  }, [open, rootRef]);
+
+  return { popRef, placement };
+}
+
+/** 把摆放结果并进 `style`；未算出摆放时交给 CSS 默认值。 */
+function placementStyle(placement: PopoverPlacement | null): React.CSSProperties | undefined {
+  if (!placement) return undefined;
+  return { maxHeight: placement.maxHeight, left: placement.left, width: placement.width };
 }
 
 /** 月历头部：上一月 / 标题 / 下一月。 */
@@ -481,6 +580,7 @@ export function DatePicker({
     [triggerRef],
   );
   const { boxRef, onKeyDown } = usePopoverBehavior(open, close, triggerRef);
+  const { popRef, placement } = usePopoverPlacement(open, boxRef);
 
   // 打开时把视野对齐到当前值 —— 关掉弹层换了月份再打开，不该停在旧月份。
   useEffect(() => {
@@ -510,7 +610,14 @@ export function DatePicker({
         name={name}
       />
       {open ? (
-        <div className={st.pop} role="dialog" aria-label={popoverLabel} onKeyDown={onKeyDown}>
+        <div
+          ref={popRef}
+          className={`${st.pop}${placement?.placement === "up" ? ` ${st.popUp}` : ""}`}
+          style={placementStyle(placement)}
+          role="dialog"
+          aria-label={popoverLabel}
+          onKeyDown={onKeyDown}
+        >
           <MonthNav viewISO={viewISO} onShift={(delta) => setViewISO((v) => addMonths(v, delta))} min={min} max={max} />
           <DayGrid
             viewISO={viewISO}
@@ -582,6 +689,7 @@ export function DateRangePicker({
     [triggerRef],
   );
   const { boxRef, onKeyDown } = usePopoverBehavior(open, close, triggerRef);
+  const { popRef, placement } = usePopoverPlacement(open, boxRef);
 
   // 关掉重开时丢弃未完成的第二段，避免残留一个半截选择。
   useEffect(() => {
@@ -632,7 +740,14 @@ export function DateRangePicker({
         name={name}
       />
       {open ? (
-        <div className={st.pop} role="dialog" aria-label={popoverLabel} onKeyDown={onKeyDown}>
+        <div
+          ref={popRef}
+          className={`${st.pop}${placement?.placement === "up" ? ` ${st.popUp}` : ""}`}
+          style={placementStyle(placement)}
+          role="dialog"
+          aria-label={popoverLabel}
+          onKeyDown={onKeyDown}
+        >
           <MonthNav viewISO={viewISO} onShift={(delta) => setViewISO((v) => addMonths(v, delta))} min={min} max={max} />
           <p className={st.hint} aria-live="polite">
             {pendingFrom ? "再选一天作为结束日期" : "选择起始日期"}
@@ -699,6 +814,7 @@ export function MonthPicker({
     [triggerRef],
   );
   const { boxRef, onKeyDown } = usePopoverBehavior(open, close, triggerRef);
+  const { popRef, placement } = usePopoverPlacement(open, boxRef);
 
   useEffect(() => {
     if (open) setViewKey(monthKey(value) || monthKey(todayISO()));
@@ -750,7 +866,14 @@ function isMonthDisabled(key: string) {
         name={name}
       />
       {open ? (
-        <div className={`${st.pop} ${st.popMonth}`} role="dialog" aria-label={popoverLabel} onKeyDown={onKeyDown}>
+        <div
+          ref={popRef}
+          className={`${st.pop} ${st.popMonth}${placement?.placement === "up" ? ` ${st.popUp}` : ""}`}
+          style={placementStyle(placement)}
+          role="dialog"
+          aria-label={popoverLabel}
+          onKeyDown={onKeyDown}
+        >
           <div className={st.nav}>
             <button type="button" className={st.navBtn} onClick={() => shiftMonth(-12)} aria-label="上一年">
               ‹‹
