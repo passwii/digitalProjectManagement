@@ -48,6 +48,7 @@ import ProjectFormDialog from "../ProjectFormDialog";
 import AttachmentPreviewDialog from "@/components/ui/AttachmentPreviewDialog";
 import ProgressNodeDialog from "../../progress/ProgressNodeDialog";
 import ExpenseDialog from "../../costs/ExpenseDialog";
+import ExpenseDetailDialog from "../../costs/ExpenseDetailDialog";
 import ProjectReceivablesPanel from "./ProjectReceivablesPanel";
 
 /** Tab 定义与 `?tab=` 兼容规则在 `@/lib/projectTabs`（纯逻辑、有单测）。 */
@@ -94,11 +95,17 @@ function ProjectDetail({ pid }: { pid: number }) {
   const [nodeOpen, setNodeOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [expenseOpen, setExpenseOpen] = useState(false);
+  /** 被驳回的支出：打开登记弹层时预填原单（复用成本页的「重新提交」流程）。 */
+  const [resubmitOf, setResubmitOf] = useState<Expense | null>(null);
+  /** 打开只读详情的支出（`null` = 未打开）；成本 Tab 卡片 / 行点击绑定。 */
+  const [expenseDetail, setExpenseDetail] = useState<Expense | null>(null);
   /** 打开预览的文件（`null` = 未打开）。图片与 PDF 内联渲染，其余给出下载引导。 */
   const [filePreview, setFilePreview] = useState<Attachment | null>(null);
   const previewUrlsRef = useRef<string[]>([]);
   const hydratedRef = useRef(false);
   const loadSeqRef = useRef(0);
+  /** `reloadChanges` 的乱序守卫：只有最后一次请求的响应才允许写入 `changes`。 */
+  const changesSeqRef = useRef(0);
   const loadControllerRef = useRef<AbortController | null>(null);
   const auxiliaryControllerRef = useRef<AbortController | null>(null);
 
@@ -180,6 +187,9 @@ function ProjectDetail({ pid }: { pid: number }) {
       setContent(p.description || "");
       setAttachments(assetRows);
       setContracts(contractRows);
+      // 整页重取也会覆盖变更日志：递增序号，让任何在途的 reloadChanges 响应作废，
+      // 避免它晚于本次 loadAll 返回、又把旧日志写回去。
+      changesSeqRef.current += 1;
       setChanges(changeRows);
       setTasks(pagedTasks.items);
       setExpenses(pagedExpenses.items);
@@ -229,6 +239,26 @@ function ProjectDetail({ pid }: { pid: number }) {
     }
   }, [beginActivity, fetchPreviewUrl, pid]);
 
+  /**
+   * 只重取变更日志，不触发整页 `loadAll`。
+   *
+   * 文档自动保存、进度 / 成本 / 应收弹层保存后都会调用它：这些操作只新增一条日志，
+   * 若走 `loadAll` 会把附件、缩略图等一并重取并整体替换，既慢又打断用户当前视图。
+   * 用 `changesSeqRef` 守卫乱序：只有最后一次请求的响应才写回，快速连续变更时
+   * 旧响应不会覆盖新结果。失败静默（下次打开日志 Tab 或任一保存动作会再试），
+   * 日志刷新失败不值得弹错误打断用户。
+   */
+  const reloadChanges = useCallback(async () => {
+    const seq = ++changesSeqRef.current;
+    try {
+      const rows = await projectsApi.changes(pid);
+      if (seq !== changesSeqRef.current) return;
+      setChanges(rows);
+    } catch {
+      // 静默：变更日志不是关键路径。
+    }
+  }, [pid]);
+
   useRegisterPageRefresh(async (signal) => {
     const editing = project !== null && content !== (project.description || "");
     if (
@@ -256,6 +286,12 @@ function ProjectDetail({ pid }: { pid: number }) {
     setTab(t);
   }, [search]);
 
+  // 打开「日志」Tab 时重取一次：外部（审批 / 他人编辑）造成的变更也能被及时看到。
+  useEffect(() => {
+    if (tab !== "日志") return;
+    void reloadChanges();
+  }, [tab, reloadChanges]);
+
   useEffect(() => {
     if (!project || !hydratedRef.current) return;
     if (content === (project.description || "")) return;
@@ -266,6 +302,8 @@ function ProjectDetail({ pid }: { pid: number }) {
         const saved = await projectsApi.update(pid, { description: content });
         setProject(saved);
         setSaveState("saved");
+        // 文档自动保存也会写一条变更日志：立即刷新，用户切到「日志」Tab 无需整页刷新。
+        void reloadChanges();
       } catch {
         setSaveState("error");
       } finally {
@@ -273,13 +311,19 @@ function ProjectDetail({ pid }: { pid: number }) {
       }
     }, 900);
     return () => window.clearTimeout(timer);
-  }, [beginActivity, content, pid, project]);
+  }, [beginActivity, content, pid, project, reloadChanges]);
 
   function selectTab(next: Tab) {
     setTab(next);
     const q = new URLSearchParams(search.toString());
     q.set("tab", next);
     router.replace(`/projects/${pid}?${q.toString()}`, { scroll: false });
+  }
+
+  /** 打开进度编辑弹层：卡片 / 整行 / 行内「编辑」三个入口共用同一动作。 */
+  function editTask(t: Task) {
+    setEditingTask(t);
+    setNodeOpen(true);
   }
 
   /**
@@ -694,7 +738,8 @@ function ProjectDetail({ pid }: { pid: number }) {
                   title={t.name}
                   code={fmtDate(t.plan_end || t.plan_start)}
                   fields={[{ label: "记录人", value: userName(t.owner_id) }]}
-                  actions={<button className="btn-ghost btn-xs" onClick={() => { setEditingTask(t); setNodeOpen(true); }}>编辑</button>}
+                  onSelect={() => editTask(t)}
+                  actions={<button className="btn-ghost btn-xs" onClick={() => editTask(t)}>编辑</button>}
                 />
               ))}
             </CardList>
@@ -703,12 +748,17 @@ function ProjectDetail({ pid }: { pid: number }) {
                 <thead><tr><th>进度节点时间</th><th>进度关键内容</th><th>记录人</th><th className="no-print" /></tr></thead>
                 <tbody>
                   {tasks.map((t) => (
-                    <tr key={t.id}>
+                    <tr
+                      key={t.id}
+                      className="clickable-row"
+                      title="点击编辑进度"
+                      onClick={() => editTask(t)}
+                    >
                       <td className="mono">{fmtDate(t.plan_end || t.plan_start)}</td>
                       <td><span className="ellipsis" title={t.name}>{t.name}</span></td>
                       <td>{userName(t.owner_id)}</td>
-                      <td className="no-print">
-                        <button className="btn-ghost btn-xs" onClick={() => { setEditingTask(t); setNodeOpen(true); }}>编辑</button>
+                      <td className="no-print" onClick={(e) => e.stopPropagation()}>
+                        <button className="btn-ghost btn-xs" onClick={() => editTask(t)}>编辑</button>
                       </td>
                     </tr>
                   ))}
@@ -727,7 +777,7 @@ function ProjectDetail({ pid }: { pid: number }) {
               <h2>项目成本</h2>
               <p>合同金额 {fmtMoney(project.budget_total)} 元 · 已登记成本 {fmtMoney(spent)} 元</p>
             </div>
-            <button className="btn-primary" onClick={() => setExpenseOpen(true)}>+ 成本</button>
+            <button className="btn-primary" onClick={() => { setResubmitOf(null); setExpenseOpen(true); }}>+ 成本</button>
           </div>
           {expenses.length === 0 ? (
             <Empty title="暂无成本记录" hint="点击「+ 成本」登记项目关联费用。" />
@@ -744,6 +794,7 @@ function ProjectDetail({ pid }: { pid: number }) {
                     { label: "人员", value: x.subject },
                     { label: "费用说明", value: x.note || "-" },
                   ]}
+                  onSelect={() => setExpenseDetail(x)}
                 />
               ))}
             </CardList>
@@ -752,7 +803,12 @@ function ProjectDetail({ pid }: { pid: number }) {
                 <thead><tr><th>日期</th><th>人员</th><th className="num">金额</th><th>费用说明</th><th>状态</th></tr></thead>
                 <tbody>
                   {expenses.map((x) => (
-                    <tr key={x.id}>
+                    <tr
+                      key={x.id}
+                      className="clickable-row"
+                      title="点击查看支出详情"
+                      onClick={() => setExpenseDetail(x)}
+                    >
                       <td className="mono">{fmtDate(x.exp_date)}</td>
                       <td>{x.subject}</td>
                       <td className="num">{fmtMoney(x.amount)}</td>
@@ -774,6 +830,7 @@ function ProjectDetail({ pid }: { pid: number }) {
           projectId={pid}
           canWrite={canWriteProject && project.status !== "archived"}
           canDelete={isAdmin && project.status !== "archived"}
+          onChanged={reloadChanges}
         />
       )}
 
@@ -793,7 +850,18 @@ function ProjectDetail({ pid }: { pid: number }) {
                   <span className="t mono">{fmtDateTime(c.at)}</span>
                   <span>
                     <b>{projectChangeFieldLabel(c.field)}</b>：
-                    <span className="muted">{projectChangeValueLabel(c.field, c.old)}</span> → {projectChangeValueLabel(c.field, c.new)}
+                    {c.old ? (
+                      <>
+                        <span className="muted">{projectChangeValueLabel(c.field, c.old)}</span> → {projectChangeValueLabel(c.field, c.new)}
+                      </>
+                    ) : (
+                      // 事件型变更（成本 / 应收 / 回款）：new 本身就是一句人话，
+                      // 没有「旧 → 新」可比，直接展示，不补「空」。
+                      <>{c.new}</>
+                    )}
+                    {c.by_id != null && (
+                      <span className="muted tiny"> · {userName(c.by_id)}</span>
+                    )}
                   </span>
                 </li>
               ))}
@@ -807,7 +875,7 @@ function ProjectDetail({ pid }: { pid: number }) {
         open={editOpen}
         onClose={() => setEditOpen(false)}
         project={project}
-        onSaved={(saved) => { setProject(saved); toast.ok("项目信息已保存"); }}
+        onSaved={(saved) => { setProject(saved); toast.ok("项目信息已保存"); void reloadChanges(); }}
       />
       <ProgressNodeDialog
         open={nodeOpen}
@@ -816,6 +884,7 @@ function ProjectDetail({ pid }: { pid: number }) {
         task={editingTask}
         onSaved={async () => {
           toast.ok(editingTask ? "进度已更新" : "进度已添加");
+          void reloadChanges();
           try {
             const rows = await readAuxiliary((signal) =>
               tasksApi.list(`?project_id=${pid}&page=1&size=100&sort=-plan_end`, signal),
@@ -830,8 +899,10 @@ function ProjectDetail({ pid }: { pid: number }) {
         open={expenseOpen}
         onClose={() => setExpenseOpen(false)}
         projectId={pid}
+        resubmitOf={resubmitOf}
         onSaved={async (msg) => {
           toast.ok(msg);
+          void reloadChanges();
           try {
             const rows = await readAuxiliary((signal) =>
               expensesApi.list(`?project_id=${pid}&page=1&size=100&sort=-exp_date`, signal),
@@ -840,6 +911,17 @@ function ProjectDetail({ pid }: { pid: number }) {
           } catch (e) {
             if (!isAbortError(e)) throw e;
           }
+        }}
+      />
+      <ExpenseDetailDialog
+        open={!!expenseDetail}
+        expense={expenseDetail}
+        onClose={() => setExpenseDetail(null)}
+        onResubmit={(x) => {
+          // 被驳回的单据：关掉只读详情，复用登记弹层的「重新提交」预填原单。
+          setExpenseDetail(null);
+          setResubmitOf(x);
+          setExpenseOpen(true);
         }}
       />
       <AttachmentPreviewDialog

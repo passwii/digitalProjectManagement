@@ -81,6 +81,12 @@ export const PROJECT_CHANGE_FIELD_LABELS: Record<string, string> = {
   member_ids: "项目成员",
   members: "项目成员",
   progress_snapshot: "进度快照",
+  // 成本 / 应收是「事件型」变更：后端 field 直接给出 expense / receivable /
+  // receivable_payment，old 为空、new 是一句人话（如「登记 50000.00 元…」），
+  // 这里只负责把字段名译成中文，值不再走 projectChangeValueLabel 的「空 → 空」兜底。
+  expense: "成本",
+  receivable: "应收",
+  receivable_payment: "回款",
 };
 export const FOLLOWUP_METHODS = ["电话", "会议", "现场", "邮件", "其他"];
 

@@ -22,6 +22,12 @@ import {
   ProjectReceivableDialog,
   ProjectReceivablePaymentDialog,
 } from "./ProjectReceivableDialogs";
+// 展示口径（金额分组 / 状态文案与色调）与详情弹层共用一份：列表与详情不得各写一套。
+import ProjectReceivableDetailDialog, {
+  money,
+  statusLabel,
+  statusTone,
+} from "./ProjectReceivableDetailDialog";
 import styles from "./ProjectReceivables.module.css";
 
 type Expanded = { id: number; items: ProjectReceivablePayment[]; page: number; total: number; loading: boolean; error: string } | null;
@@ -29,36 +35,17 @@ type DeleteTarget = { kind: "receivable"; receivable: ProjectReceivable } | { ki
 const PAGE_SIZE = 20;
 const PAYMENT_PAGE_SIZE = 20;
 
-function money(value: string | number | null | undefined): string {
-  const raw = String(value ?? "0").trim();
-  if (!/^\d+(?:\.\d{1,2})?$/.test(raw)) return "0.00";
-  const [whole, fraction = ""] = raw.split(".");
-  const grouped = BigInt(whole).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
-  return `${grouped}.${(fraction + "00").slice(0, 2)}`;
-}
-
-function statusLabel(status: ProjectReceivable["status"]): string {
-  if (status === "paid") return "已收清";
-  if (status === "overdue") return "逾期";
-  if (status === "partial") return "部分回款";
-  return "未回款";
-}
-
-function statusTone(status: ProjectReceivable["status"]): "done" | "danger" | "warn" | "todo" {
-  if (status === "paid") return "done";
-  if (status === "overdue") return "danger";
-  if (status === "partial") return "warn";
-  return "todo";
-}
-
 export default function ProjectReceivablesPanel({
   projectId,
   canWrite,
   canDelete,
+  onChanged,
 }: {
   projectId: number;
   canWrite: boolean;
   canDelete: boolean;
+  /** 应收 / 回款增删改成功后通知父级（刷新项目变更日志） */
+  onChanged?: () => void;
 }) {
   const toast = useToast();
   const [data, setData] = useState<ProjectReceivableList | null>(null);
@@ -75,6 +62,11 @@ export default function ProjectReceivablesPanel({
   const [paymentsRevision, setPaymentsRevision] = useState(0);
   const [deleteTarget, setDeleteTarget] = useState<DeleteTarget>(null);
   const [deleting, setDeleting] = useState(false);
+  /** 打开详情的应收（`null` = 未打开）；与卡片 / 表格整行点击绑定。 */
+  const [detail, setDetail] = useState<ProjectReceivable | null>(null);
+
+  /** 打开详情；点整行与点卡片共用同一入口。 */
+  const openDetail = useCallback((item: ProjectReceivable) => setDetail(item), []);
 
   const reload = useCallback(() => setReloadKey((value) => value + 1), []);
 
@@ -151,6 +143,7 @@ export default function ProjectReceivablesPanel({
       setPage(1);
     }
     reload();
+    onChanged?.();
   }
 
   async function savePayment(body: ProjectReceivablePaymentInput) {
@@ -171,6 +164,7 @@ export default function ProjectReceivablesPanel({
     reload();
     setExpanded({ id: paymentTarget.receivable.id, items: [], page: 1, total: 0, loading: true, error: "" });
     setPaymentsRevision((revision) => revision + 1);
+    onChanged?.();
   }
 
   async function confirmDelete() {
@@ -190,6 +184,7 @@ export default function ProjectReceivablesPanel({
       }
       reload();
       setExpanded(null);
+      onChanged?.();
     } catch (cause) {
       toast.err(errText(cause));
     } finally {
@@ -240,6 +235,7 @@ export default function ProjectReceivablesPanel({
                   { label: "应收日期", value: fmtDate(item.receivable_date), mono: true },
                   ...(item.note ? [{ label: "说明", value: item.note }] : []),
                 ]}
+                onSelect={() => openDetail(item)}
                 actions={
                   <>
                     <button type="button" className="btn-ghost btn-xs" onClick={() => void loadPayments(item)}>
@@ -262,7 +258,11 @@ export default function ProjectReceivablesPanel({
               <tbody>
                 {items.map((item) => (
                   <Fragment key={item.id}>
-                    <tr>
+                    <tr
+                      className="clickable-row"
+                      title="点击查看应收详情"
+                      onClick={() => openDetail(item)}
+                    >
                       <td><strong>{item.name}</strong>{item.note && <div className="muted tiny">{item.note}</div>}</td>
                       <td className="mono">{fmtDate(item.receivable_date)}</td>
                       <td className="mono">{fmtDate(item.due_date)}</td>
@@ -270,7 +270,7 @@ export default function ProjectReceivablesPanel({
                       <td className="num mono">{money(item.received_amount)}</td>
                       <td className="num mono">{money(item.outstanding_amount)}</td>
                       <td><Badge status={statusLabel(item.status)} tone={statusTone(item.status)} /></td>
-                      <td className="no-print"><span className="table-actions">
+                      <td className="no-print" onClick={(e) => e.stopPropagation()}><span className="table-actions">
                         <button type="button" className="btn-ghost btn-xs" onClick={() => void loadPayments(item)}>{expanded?.id === item.id ? "收起回款" : "回款记录"}</button>
                         {canWrite && <button type="button" className="btn-ghost btn-xs" onClick={() => setEditing(item)}>编辑</button>}
                         {canWrite && item.status !== "paid" && <button type="button" className="btn-primary btn-xs" onClick={() => setPaymentTarget({ receivable: item })}>登记回款</button>}
@@ -320,6 +320,21 @@ export default function ProjectReceivablesPanel({
         </>
       )}
 
+      {/* 详情弹层的每个动作先关掉自己再打开对应弹层：两层面板叠在一起会互抢滚动锁与 Esc */}
+      <ProjectReceivableDetailDialog
+        open={!!detail}
+        projectId={projectId}
+        receivable={detail}
+        onClose={() => setDetail(null)}
+        onEdit={canWrite ? (item) => { setDetail(null); setEditing(item); } : undefined}
+        onAddPayment={canWrite ? (item) => { setDetail(null); setPaymentTarget({ receivable: item }); } : undefined}
+        onEditPayment={canWrite
+          ? (item, payment) => { setDetail(null); setPaymentTarget({ receivable: item, payment }); }
+          : undefined}
+        onDelete={canDelete
+          ? (item) => { setDetail(null); setDeleteTarget({ kind: "receivable", receivable: item }); }
+          : undefined}
+      />
       <ProjectReceivableDialog
         open={editing !== undefined}
         receivable={editing}
