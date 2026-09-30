@@ -362,7 +362,7 @@ function UserMenu({ name, onLogout }: { name: string | null; onLogout: () => voi
 }
 
 /** 侧栏（桌面外壳）与 Dock（手机外壳）共用的同一份权限状态，避免两个外壳各自取一次 */
-function DashboardShell({ children }: { children: React.ReactNode }) {
+function DashboardShell({ children, modal }: { children: React.ReactNode; modal?: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const [collapsed, setCollapsed] = useState(false);
@@ -398,13 +398,13 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
     let alive = true;
     loadMe()
       .then((m) => {
-        if (alive && m.must_change_pwd) router.replace("/change-password");
+        if (alive && m.must_change_pwd) window.location.replace("/change-password");
       })
       .catch(() => {});
     return () => {
       alive = false;
     };
-  }, [router]);
+  }, []);
 
   /**
    * 身份区展示文案（BLF-1125）。
@@ -552,6 +552,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
         Shell.module.css 收窄成手机顶栏即可——重复渲染会得到两个 aria-label 相同的
         铃铛（读屏与既有走查脚本都会撞上），并让未读数每分钟轮询两次。
       */}
+      {modal}
       <MobileDock
         menus={menus}
         ready={permsReady}
@@ -564,11 +565,17 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
   );
 }
 
-export default function DashboardLayout({ children }: { children: React.ReactNode }) {
+export default function DashboardLayout({
+  children,
+  modal,
+}: {
+  children: React.ReactNode;
+  modal?: React.ReactNode;
+}) {
   return (
     <ToastProvider>
       <MotionProvider>
-        <DashboardShell>{children}</DashboardShell>
+        <DashboardShell modal={modal}>{children}</DashboardShell>
       </MotionProvider>
     </ToastProvider>
   );
