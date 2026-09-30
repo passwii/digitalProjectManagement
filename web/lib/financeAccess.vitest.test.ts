@@ -7,6 +7,7 @@ const financePage = readFileSync(join(root, "app/(dashboard)/finance/page.tsx"),
 const arapPanel = readFileSync(join(root, "app/(dashboard)/finance/ArapPanel.tsx"), "utf8");
 const api = readFileSync(join(root, "lib/api.ts"), "utf8");
 const membersDialog = join(root, "app/(dashboard)/finance/BookMembersDialog.tsx");
+const lifecycleDialog = readFileSync(join(root, "app/(dashboard)/finance/AccountBookLifecycle.tsx"), "utf8");
 
 describe("财务模块统一授权", () => {
   it("以 canFinance 作为财务页门禁，并准确说明模块未分配", () => {
@@ -22,6 +23,8 @@ describe("财务模块统一授权", () => {
     expect(financePage).toMatch(/<AccountBookRecycleBinDialog/);
     expect(financePage).toMatch(/<MoveBookToRecycleBinDialog/);
     expect(financePage).not.toMatch(/BookMembersDialog|成员与权限|bookMembersOpen/);
+    expect(lifecycleDialog).not.toMatch(/仅管理员可见|管理员可以随时恢复/);
+    expect(lifecycleDialog).toContain("拥有财务管理模块");
   });
 
   it("应收应付配置和辅助资料操作不再按管理员身份隐藏", () => {
