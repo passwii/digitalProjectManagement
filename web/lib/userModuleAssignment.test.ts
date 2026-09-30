@@ -9,6 +9,7 @@ const dialog = readFileSync(join(root, "app/(dashboard)/admin/UserDialog.tsx"), 
 const adminPage = readFileSync(join(root, "app/(dashboard)/admin/page.tsx"), "utf8");
 const useMeta = readFileSync(join(root, "lib/useMeta.ts"), "utf8");
 const api = readFileSync(join(root, "lib/api.ts"), "utf8");
+const backendModules = readFileSync(join(root, "../api/core/rbac.py"), "utf8");
 const layout = readFileSync(join(root, "app/(dashboard)/layout.tsx"), "utf8");
 const menuResp = api.slice(api.indexOf("export interface MenuResp"), api.indexOf("export interface FinanceBook"));
 const adminUser = api.slice(api.indexOf("export interface AdminUser"), api.indexOf("/** 功能模块目录"));
@@ -31,6 +32,8 @@ test("用户弹窗具备模块分配并随创建/编辑一起提交", () => {
 test("模块目录驱动弹窗并包含财务说明，不默认分配业务模块或选择角色", () => {
   contains(api, /modules: \(signal\?: AbortSignal\) => apiGet<ModuleItem\[]>\("\/admin\/modules"/, "目录应来自模块 API");
   contains(dialog, /modules\.map\(\(mod\)/, "弹窗应展示 API 返回的目录");
+  contains(backendModules, /MODULE_FINANCE = "finance"[\s\S]*?\(MODULE_FINANCE, "财务管理", "\/finance"\)/, "后端可分配目录应暴露财务模块");
+  contains(dialog, /mod\.key/, "弹窗应按后端模块 key 展示并回填财务模块");
   contains(dialog, /财务模块包含全部活动账套/, "应解释财务模块的账套访问范围");
   excludes(dialog, /modules\.filter\(|key\s*===\s*["']admin["']/, "模块目录应原样展示，系统管理不作为可分配模块");
   contains(dialog, /useState<string\[]>\(\[\]\)/, "初始所选模块应为空");
