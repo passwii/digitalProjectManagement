@@ -1,8 +1,13 @@
-.mobileSelect { display: none; }
+/*
+ * `!important` 是刻意的层叠顺序护栏：全局 `.tabs`（app/globals.css）与本模块
+ * 同为单类选择器、优先级相等，仅靠书写顺序无法保证谁生效。先例见
+ * components/ui/CardList.module.css 的 `.desktopOnly`。
+ */
+.mobileSelect { display: none !important; }
 
 @media (max-width: 767px) {
   .mobileSelect {
-    display: block;
+    display: block !important;
     width: 100%;
     margin-bottom: 16px;
   }
@@ -11,5 +16,5 @@
     border-radius: 0;
     font-size: 16px;
   }
-  .tabList { display: none; }
+  .tabList { display: none !important; }
 }

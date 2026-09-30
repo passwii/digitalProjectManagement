@@ -42,15 +42,16 @@ export default function MotionTabs<T extends string>({
 
   return (
     <>
-      <Select
-        className={s.mobileSelect}
-        surface="console"
-        aria-label="选择页面分区"
-        value={active}
-        onChange={(value) => onChange(value as T)}
-      >
-        {items.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}
-      </Select>
+      <div className={s.mobileSelect}>
+        <Select
+          surface="console"
+          aria-label="选择页面分区"
+          value={active}
+          onChange={(value) => onChange(value as T)}
+        >
+          {items.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}
+        </Select>
+      </div>
       <div className={`tabs detail-tabs ${s.tabList}`} role="tablist" aria-label="页面分区">
         {items.map((item, index) => (
           <button
