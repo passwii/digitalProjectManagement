@@ -35,7 +35,6 @@
 }
 
 .solo .authShell { width: 100%; }
-.solo .consoleTop { display: none; }
 
 .story {
   position: relative;
@@ -186,33 +185,6 @@
   letter-spacing: 0.12em;
 }
 
-.edition,
-.storyFootMeta,
-.consoleTop,
-.cardMeta,
-.copyright {
-  font-family: var(--font-mono);
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-}
-
-.edition {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  color: var(--login-muted);
-  font-size: 10px;
-}
-
-.editionDot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--login-active);
-  box-shadow: 0 0 14px rgba(198, 255, 114, 0.9);
-  animation: statusPulse 2.4s ease-in-out infinite;
-}
-
 .storyMain {
   display: flex;
   flex: 1;
@@ -245,34 +217,12 @@
   text-shadow: 0 0 30px rgba(198, 255, 114, 0.14);
 }
 
-.storyText {
-  max-width: 520px;
-  margin: 22px 0 0;
-  color: var(--login-muted);
-  font-size: 16px;
-  line-height: 1.8;
-}
-
-.storyText strong {
-  color: var(--login-signal);
-  font-family: var(--font-mono);
-  font-size: 0.9em;
-  font-weight: 500;
-  letter-spacing: 0.12em;
-}
-
 .storyFoot {
   display: flex;
   align-items: flex-end;
   justify-content: space-between;
   gap: 20px;
   animation: surfaceIn 760ms 180ms var(--ease-console) both;
-}
-
-.storyFootMeta {
-  color: var(--login-dim);
-  font-size: 10px;
-  white-space: nowrap;
 }
 
 .auth {
@@ -321,18 +271,6 @@
   width: min(100%, 460px);
 }
 
-.consoleTop {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 10px;
-  color: var(--login-dim);
-  font-size: 10px;
-}
-
-.consoleTop span:first-child { color: var(--login-signal); }
-
 .card {
   position: relative;
   width: 100%;
@@ -376,9 +314,11 @@
 
 .cardHead {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 15px;
 }
+
+.wrap[data-login-page] .cardHead { align-items: center; }
 
 .cardBadge {
   width: 48px;
@@ -399,12 +339,6 @@
 }
 
 .compactTitle { display: none; }
-
-.cardIntro {
-  margin: 8px 0 0;
-  color: var(--login-muted);
-  font-size: 14px;
-}
 
 .card form { margin-top: 32px; }
 
@@ -598,26 +532,6 @@
   animation: submitCheckDraw 100ms 20ms ease-out forwards;
 }
 
-.cardMeta {
-  display: flex;
-  justify-content: space-between;
-  gap: 16px;
-  padding-top: 16px;
-  margin-top: 18px;
-  border-top: 1px solid rgba(146, 189, 210, 0.16);
-  color: var(--login-dim);
-  font-size: 10px;
-}
-
-.copyright {
-  display: flex;
-  justify-content: space-between;
-  gap: 16px;
-  margin: 17px 0 0;
-  color: var(--login-dim);
-  font-size: 9px;
-}
-
 @keyframes starDrift {
   from { transform: translate3d(0, 0, 0); }
   to { transform: translate3d(-24px, 18px, 0); }
@@ -631,11 +545,6 @@
 @keyframes cardIn {
   from { opacity: 0.2; transform: translateY(18px) scale(0.985); }
   to { opacity: 1; transform: translateY(0) scale(1); }
-}
-
-@keyframes statusPulse {
-  0%, 100% { opacity: 0.45; }
-  50% { opacity: 1; }
 }
 
 @keyframes submitSpin {
@@ -692,8 +601,6 @@
   }
 
   .storyMain h1 { font-size: clamp(42px, 4.8vw, 66px); }
-  .storyText { margin-top: 13px; font-size: 14px; }
-  .storyFootMeta { display: none; }
 }
 
 @media (max-width: 980px) {
@@ -726,13 +633,8 @@
 
   .wrap[data-login-page] .storyMain,
   .wrap[data-login-page] .storyFoot,
-  .wrap[data-login-page] .consoleTop,
   .wrap[data-login-page] .cardBadge,
-  .wrap[data-login-page] .cardIntro,
-  .wrap[data-login-page] .cardMeta,
-  .wrap[data-login-page] .copyright,
-  .wrap[data-login-page] .desktopTitle,
-  .wrap[data-login-page] .editionNode { display: none; }
+  .wrap[data-login-page] .desktopTitle { display: none; }
 
   .wrap[data-login-page] .compactTitle { display: block; }
   .wrap[data-login-page] .auth {
@@ -776,8 +678,6 @@
   .brandLockup { gap: 10px; }
   .brandGlyph { width: 28px; height: 28px; }
   .mark { font-size: 20px; letter-spacing: 0.13em; }
-  .edition { display: inline-flex; font-size: 11px; }
-  .editionDot { display: none; }
 
   .wrap[data-login-page] .auth {
     min-height: auto;
@@ -788,7 +688,6 @@
 
   .auth::after { display: none; }
   .authShell { width: 100%; }
-  .consoleTop { margin-bottom: 8px; font-size: 9px; }
 
   .card {
     padding: 19px 18px 15px;
@@ -798,23 +697,12 @@
   .cardBadge { width: 42px; height: 42px; }
   .card h1,
   .card h2 { font-size: 19px; }
-  .cardIntro { margin-top: 6px; font-size: 13px; }
   .card form { margin-top: 21px; }
   .wrap[data-login-page] .card form { margin-top: 20px; }
   .field { gap: 7px; margin-bottom: 12px; }
   .field label { font-size: 12px; letter-spacing: 0.08em; }
   .field input { height: 46px; min-height: 46px; font-size: 16px; }
   .submit { height: 48px; min-height: 48px; font-size: 15px; }
-  .cardMeta { padding-top: 11px; margin-top: 12px; font-size: 9px; }
-
-  .copyright {
-    position: absolute;
-    right: 18px;
-    bottom: calc(env(safe-area-inset-bottom, 0px) + 2px);
-    left: 18px;
-    margin: 0;
-    font-size: 8px;
-  }
 
   .solo {
     min-height: 100vh;
@@ -824,7 +712,6 @@
   }
 
   .solo .auth { margin: auto; }
-  .solo .copyright { display: none; }
 }
 
 @media (max-width: 400px) {
@@ -832,6 +719,4 @@
   .cardBadge { width: 38px; height: 38px; }
   .card h1,
   .card h2 { font-size: 18px; }
-  .cardIntro { font-size: 12px; }
-  .cardMeta span:last-child { display: none; }
 }
