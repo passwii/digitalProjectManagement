@@ -44,14 +44,6 @@ export default function LoginPage() {
         : hasError
           ? "error"
           : "ready";
-  const sessionLabel =
-    submitPhase === "loading"
-      ? "会话 / 握手中"
-      : submitPhase === "success"
-        ? "会话 / 已验证"
-        : hasError
-          ? "会话 / 请重试"
-          : "会话 / 待命";
   const submitLabel =
     submitPhase === "loading"
       ? "正在验证身份…"
@@ -123,10 +115,6 @@ export default function LoginPage() {
         data-auth-state={authState}
       >
         <div className={st.authShell}>
-          <div className={st.consoleTop}>
-            <span>登录控制台</span>
-            <span>{sessionLabel}</span>
-          </div>
           <div className={st.card} data-login="card">
             <div className={st.cardHead}>
               <span className={st.cardBadge} aria-hidden="true">
@@ -137,7 +125,6 @@ export default function LoginPage() {
               <div>
                 <h2 className={st.desktopTitle}>登录管理工作台</h2>
                 <h1 className={st.compactTitle}>账号登录</h1>
-                <p className={st.cardIntro}>建立身份链路，进入项目运营空间</p>
               </div>
             </div>
             <form onSubmit={onSubmit}>

@@ -54,11 +54,18 @@ describe("LoginPage CTA", () => {
       "数科云办公 // 项目运营",
       "©2026",
       "链路图 / 项目交付",
+      "登录控制台",
+      "会话 / 请重试",
+      "会话 / 握手中",
+      "会话 / 已验证",
+      "会话 / 待命",
+      "建立身份链路，进入项目运营空间",
     ]) {
       expect(pageText).not.toContain(removedCopy);
     }
     expect(pageText).not.toContain("复杂有章，");
     expect(pageText).not.toContain("交付有信。");
+    expect(screen.getByRole("heading", { name: "登录管理工作台" })).toBeTruthy();
     expect(screen.getByLabelText("手机号")).toBeTruthy();
     expect(screen.getByLabelText("密码")).toBeTruthy();
     expect(screen.getByRole("button", { name: "进入管理平台" })).toBeTruthy();
