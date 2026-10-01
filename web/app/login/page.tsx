@@ -52,14 +52,6 @@ export default function LoginPage() {
         : hasError
           ? "会话 / 请重试"
           : "会话 / 待命";
-  const nodeLabel =
-    submitPhase === "loading"
-      ? "本地节点 / 同步中"
-      : submitPhase === "success"
-        ? "本地节点 / 跳转中"
-        : hasError
-          ? "本地节点 / 待检查"
-          : "本地节点 / 就绪";
   const submitLabel =
     submitPhase === "loading"
       ? "正在验证身份…"
@@ -112,25 +104,17 @@ export default function LoginPage() {
             </span>
             <span className={st.mark}>数科云办公</span>
           </div>
-          <span className={st.edition}>
-            <span className={st.editionDot} />
-            项目协同 · 交付管理<span className={st.editionNode}> / 节点 07</span>
-          </span>
         </div>
         <div className={st.storyMain}>
           <div className={st.storyCopy}>
             <h1>
-              复杂有章，
-              <span>交付有信。</span>
+              复杂有章
+              <span>交付有信</span>
             </h1>
-            <p className={st.storyText}>
-              <strong>数字化项目运营</strong> · 把台账、进度、成本与审批，收束进同一条可追溯的工作链路。
-            </p>
           </div>
         </div>
         <div className={st.storyFoot}>
           <StorySteps steps={STORY_STEPS} />
-          <span className={st.storyFootMeta}>链路图 / 项目交付</span>
         </div>
       </section>
 
@@ -206,15 +190,7 @@ export default function LoginPage() {
                 {busy ? submitLabel : ""}
               </span>
             </form>
-            <div className={st.cardMeta} aria-hidden="true">
-              <span>认证入口 / 01</span>
-              <span>{nodeLabel}</span>
-            </div>
           </div>
-          <p className={st.copyright} data-login="hint">
-            <span>数科云办公 // 项目运营</span>
-            <span>©2026</span>
-          </p>
         </div>
       </section>
     </main>
