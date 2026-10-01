@@ -1867,6 +1867,7 @@ export interface EquipmentAsset {
   brand: string | null; model: string | null; location: string | null; note: string | null;
   purchase_date: string | null; purchase_price: number | null; status: EquipmentAssetStatus;
   holder_id: number | null; due_date: string | null; batch_id: number | null;
+  quantity?: number; available_quantity?: number; inventory_managed?: boolean;
   created_by: number | null; created_at: string; updated_at: string;
 }
 export interface EquipmentBatch {
@@ -1877,10 +1878,32 @@ export interface EquipmentBatch {
 export type EquipmentBatchSelection =
   | { batch_id: number }
   | { batch_id?: undefined; name: string; source?: string; supplier?: string; purchase_order_no?: string; invoice_no?: string; acceptance_status?: "pending_acceptance" | "accepted"; note?: string };
+export type EquipmentInboundInput = EquipmentBatchSelection & (
+  | { inventory_managed: true; items: [(EquipmentWrite & { quantity: number; serial_number?: never })] }
+  | { inventory_managed?: false; items: (EquipmentWrite & { quantity?: 1 })[] }
+);
 export interface EquipmentEvent {
   id: number; asset_id: number; batch_id: number | null; action: string; from_status: string | null;
   to_status: string | null; actor_id: number | null; holder_id: number | null; due_date: string | null;
+  quantity?: number | null; customer?: string | null; destination?: string | null; shipped_at?: string | null;
   note: string | null; created_at: string;
+}
+export interface EquipmentOutbound extends EquipmentEvent {
+  action: "outbound";
+  quantity: number;
+  customer: string | null;
+  destination: string | null;
+  shipped_at: string;
+  asset_name: string;
+  asset_code: string;
+  available_quantity: number;
+}
+export interface EquipmentOutboundInput {
+  quantity: number;
+  customer: string;
+  destination: string;
+  shipped_at: string;
+  note?: string;
 }
 /** 设备流水动作（后端 EquipmentEvent.action 英文值）的中文名。
  *  覆盖 api/routers/equipment_assets.py 写入的全部 action：_add_asset 的 create / inbound / import、
@@ -1889,7 +1912,7 @@ export interface EquipmentEvent {
 export const EQUIPMENT_ACTION_LABELS: Record<string, string> = {
   create: "建档", inbound: "入库", import: "批量导入", acceptance: "验收通过", update: "档案更新",
   claim: "领用", borrow: "借用", return: "归还", maintenance: "送修", restore: "恢复可用",
-  scrap: "报废", void: "作废",
+  scrap: "报废", void: "作废", outbound: "出库",
 };
 export interface EquipmentCategory { code: string; label: string; sort: number }
 export interface EquipmentOverview { total: number; by_status: Record<string, number>; overdue: number }
@@ -1940,7 +1963,9 @@ export const equipmentAssetsApi = {
   batch: (id: number, signal?: AbortSignal) => apiGet<EquipmentBatch>(`${EQUIPMENT_ASSETS}/batches/${id}`, signal),
   renameBatch: (id: number, body: { name: string }) => apiPatch<EquipmentBatch>(`${EQUIPMENT_ASSETS}/batches/${id}`, body),
   removeBatch: (id: number) => apiDelete<{ ok: boolean; id: number }>(`${EQUIPMENT_ASSETS}/batches/${id}`),
-  inbound: (body: EquipmentBatchSelection & { items: EquipmentWrite[] }) => apiPost<EquipmentBatch>(`${EQUIPMENT_ASSETS}/inbound`, body),
+  inbound: (body: EquipmentInboundInput) => apiPost<EquipmentBatch>(`${EQUIPMENT_ASSETS}/inbound`, body),
+  outbounds: (params: { asset_id?: number; page?: number; size?: number } = {}, signal?: AbortSignal) => apiGet<Paged<EquipmentOutbound>>(`${EQUIPMENT_ASSETS}/outbounds${buildQuery(params)}`, signal),
+  outbound: (id: number, body: EquipmentOutboundInput) => apiPost<EquipmentOutbound>(`${EQUIPMENT_ASSETS}/${id}/outbound`, body),
   acceptBatch: (id: number, body: { note?: string } = {}) => apiPost<EquipmentBatch>(`${EQUIPMENT_ASSETS}/batches/${id}/accept`, body),
   claim: (id: number, body: { note?: string } = {}) => apiPost<EquipmentAsset>(`${EQUIPMENT_ASSETS}/${id}/claim`, body),
   borrow: (id: number, body: { due_date?: string; note?: string } = {}) => apiPost<EquipmentAsset>(`${EQUIPMENT_ASSETS}/${id}/borrow`, body),

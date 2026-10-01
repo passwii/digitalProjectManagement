@@ -11,6 +11,22 @@ describe("equipmentAssetsApi", () => {
     expect(fetch.mock.calls[0][0]).toContain("/equipment-assets?keyword=%E7%AC%94%E8%AE%B0%E6%9C%AC&category_code=computer&status=available&holder_id=8&page=2&size=10");
   });
 
+  it("creates outbound inventory records with customer, destination, quantity, and shipment time", async () => {
+    const response = { id: 91, asset_id: 12, batch_id: 5, action: "outbound", quantity: 3, customer: "客户 A", destination: "项目现场", shipped_at: "2026-10-01T06:00:00Z", available_quantity: 7 };
+    const fetch = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify(response)))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ total: 1, page: 1, size: 20, items: [{ ...response, asset_name: "网线", asset_code: "EQ-12" }] })));
+    vi.stubGlobal("fetch", fetch);
+    const payload = { quantity: 3, customer: "客户 A", destination: "项目现场", shipped_at: response.shipped_at };
+
+    await expect(equipmentAssetsApi.outbound(12, payload)).resolves.toMatchObject(response);
+    await expect(equipmentAssetsApi.outbounds({ asset_id: 12, page: 1, size: 20 })).resolves.toMatchObject({ total: 1, items: [{ asset_name: "网线" }] });
+
+    expect(String(fetch.mock.calls[0][0]).split("/api/v1").at(-1)).toBe("/equipment-assets/12/outbound");
+    expect(JSON.parse((fetch.mock.calls[0][1] as RequestInit).body as string)).toEqual(payload);
+    expect(String(fetch.mock.calls[1][0]).split("/api/v1").at(-1)).toBe("/equipment-assets/outbounds?asset_id=12&page=1&size=20");
+  });
+
   it("uses API lifecycle routes and payloads for claim, borrow, and return", async () => {
     const fetch = vi.fn().mockImplementation(() => Promise.resolve(new Response("{}")));
     vi.stubGlobal("fetch", fetch);
