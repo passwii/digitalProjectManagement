@@ -8,7 +8,7 @@ const { api, me, users, isAdmin } = vi.hoisted(() => ({
     list: vi.fn(), get: vi.fn(), events: vi.fn(), batch: vi.fn(), acceptBatch: vi.fn(),
     inbound: vi.fn(), renameBatch: vi.fn(), removeBatch: vi.fn(), claim: vi.fn(), borrow: vi.fn(), return: vi.fn(), transition: vi.fn(), update: vi.fn(),
     deleteCheck: vi.fn(), remove: vi.fn(),
-    upload: vi.fn(), export: vi.fn(), createCategory: vi.fn(), updateCategory: vi.fn(), deleteCategory: vi.fn(),
+    upload: vi.fn(), export: vi.fn(), outbounds: vi.fn(), outbound: vi.fn(), createCategory: vi.fn(), updateCategory: vi.fn(), deleteCategory: vi.fn(),
   },
   me: vi.fn(),
   users: [{ id: 42, real_name: "张三" }],
@@ -38,18 +38,20 @@ import { dateValue, setDate } from "./testing/dateDriver";
 const asset = (overrides: Record<string, unknown> = {}) => ({
   id: 1, code: "EQ-001", name: "测试笔记本", category_code: "computer", serial_number: null,
   brand: null, model: null, location: "A 座", note: null, purchase_date: null, purchase_price: null,
+  quantity: 1, available_quantity: 1, inventory_managed: false,
   status: "available", holder_id: null, due_date: null, batch_id: null, created_by: 1,
   created_at: "2026-01-01T00:00:00Z", updated_at: "2026-01-01T00:00:00Z", ...overrides,
 });
 const page = <T,>(items: T[], total = items.length, current = 1, size = 20) => ({ items, total, page: current, size });
 
-function setup({ batchTotal = 1, overdueTotal = 1, batchItems }: { batchTotal?: number; overdueTotal?: number; batchItems?: Record<string, unknown>[] } = {}) {
+function setup({ batchTotal = 1, overdueTotal = 1, batchItems, outbounds = [], assets = [asset()] }: { batchTotal?: number; overdueTotal?: number; batchItems?: Record<string, unknown>[]; outbounds?: Record<string, unknown>[]; assets?: Record<string, unknown>[] } = {}) {
   api.overview.mockResolvedValue({ total: 1, by_status: { available: 1 }, overdue: overdueTotal });
   api.categories.mockResolvedValue([{ code: "computer", label: "电脑", sort: 1 }]);
   api.batches.mockImplementation(async (params: { page?: number; size?: number } = {}) => page(batchItems ?? (params.page === 1 ? [{ id: 10, name: "9月设备批次", asset_count: 2, source: "采购", supplier: "供方", purchase_order_no: null, invoice_no: null, acceptance_status: "accepted" }] : [{ id: 11, name: "8月设备批次", asset_count: 0, source: "采购", supplier: "供方", purchase_order_no: null, invoice_no: null, acceptance_status: "accepted" }]), batchTotal, params.page ?? 1, params.size ?? 20));
   api.overdue.mockImplementation(async (current: number, size: number) => page(current === 1 ? [asset({ id: 20, status: "borrowed", holder_id: 42, due_date: "2026-01-01" })] : [asset({ id: 21, status: "borrowed", holder_id: 42, due_date: "2026-01-02" })], overdueTotal, current, size));
   api.statistics.mockResolvedValue({ by_category: [], by_status: [], by_month: [], by_holder: [] });
-  api.list.mockResolvedValue(page([asset()]));
+  api.list.mockResolvedValue(page(assets));
+  api.outbounds.mockResolvedValue(page(outbounds));
   api.get.mockImplementation(async (id: number) => asset({ id, holder_id: 42, status: "borrowed", due_date: "2026-12-31" }));
   api.events.mockResolvedValue({ items: [] });
   api.deleteCheck.mockResolvedValue({ allowed: true, asset_id: 1, code: "EQ-001", reason: null, event_count: 1, protected_actions: [] });
@@ -69,16 +71,13 @@ beforeEach(() => {
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 
 describe("资产页面分页和刷新", () => {
-  it("保留分区标题与批次搜索，同时隐藏复述列表用途的说明", async () => {
-    fireEvent.click(await screen.findByRole("tab", { name: "入库批次" }));
-
-    expect(screen.getByRole("heading", { name: "入库批次" })).toBeTruthy();
-    expect(screen.getByLabelText("搜索批次列表")).toBeTruthy();
-    expect(screen.queryByText("按名称查找批次，查看设备数量、来源、验收情况和设备明细")).toBeNull();
-
-    fireEvent.click(screen.getByRole("tab", { name: "逾期借用" }));
-    expect(screen.getByRole("heading", { name: "逾期借用" })).toBeTruthy();
-    expect(screen.queryByText("仅展示超过归还日期的设备")).toBeNull();
+  it("导航只保留总览、台账、入库、出库和借用五项", async () => {
+    const tabs = await screen.findAllByRole("tab");
+    expect(tabs.map((tab) => tab.textContent?.trim())).toEqual(["总览", "设备台账", "入库", "出库", "借用"]);
+    expect(screen.queryByRole("tab", { name: "入库批次" })).toBeNull();
+    expect(screen.queryByRole("tab", { name: "逾期借用" })).toBeNull();
+    expect(screen.queryByRole("tab", { name: "统计" })).toBeNull();
+    expect(screen.queryByRole("tab", { name: "分类维护" })).toBeNull();
   });
 
   it("使用项目详情页共享标签控件并同步移动端分区选择", async () => {
@@ -89,26 +88,70 @@ describe("资产页面分页和刷新", () => {
     expect(await screen.findByPlaceholderText("编号、名称、序列号…")).toBeTruthy();
   });
 
-  it("批次与逾期分别按服务端 total/page/size 翻页，并保持每页不超过 100", async () => {
-    cleanup();
-    setup({ batchTotal: 101, overdueTotal: 101 });
-    fireEvent.click(await screen.findByRole("tab", { name: "入库批次" }));
-    expect(await screen.findByText("9月设备批次 · 批次 #10")).toBeTruthy();
-    expect(document.querySelector(".asset-pagination span")?.textContent).toBe("第 1 页 · 共 101 批");
-    fireEvent.click(screen.getByRole("button", { name: "下一页批次" }));
-    expect(await screen.findByText("8月设备批次 · 批次 #11")).toBeTruthy();
-    await waitFor(() => expect(api.batches).toHaveBeenLastCalledWith({ keyword: "", page: 2, size: 100 }, expect.any(AbortSignal)));
+  it("总览提示实物数量与台账记录数口径不同", async () => {
+    api.overview.mockResolvedValue({ total: 120, by_status: { available: 120 }, overdue: 0 });
+    expect(await screen.findByText("总览、分类与状态按实物数量统计；台账分页总数按入库记录数统计。")).toBeTruthy();
+    expect(screen.getByText("实物总数")).toBeTruthy();
+    fireEvent.click(await screen.findByRole("tab", { name: "设备台账" }));
+    expect(await screen.findByText(/共 1 条记录/)).toBeTruthy();
+  });
 
-    fireEvent.click(screen.getByRole("tab", { name: "逾期借用" }));
-    expect(document.querySelector(".asset-pagination span")?.textContent).toBe("第 1 页 · 共 101 件");
-    fireEvent.click(screen.getByRole("button", { name: "下一页逾期" }));
-    await waitFor(() => expect(api.overdue).toHaveBeenLastCalledWith(2, 100, expect.any(AbortSignal)));
+  it("零库存库存记录仍显示出库入口但禁用", async () => {
+    cleanup();
+    const zeroStockAsset = asset({ inventory_managed: true, quantity: 5, available_quantity: 0 });
+    setup({ assets: [zeroStockAsset] });
+    api.get.mockResolvedValue(zeroStockAsset);
+    fireEvent.click(await screen.findByRole("tab", { name: "设备台账" }));
+    const outboundButtons = await screen.findAllByRole("button", { name: "出库" });
+    expect(outboundButtons).toHaveLength(2);
+    for (const outboundButton of outboundButtons) {
+      expect((outboundButton as HTMLButtonElement).disabled).toBe(true);
+      expect(outboundButton.getAttribute("title")).toContain("可用库存为 0");
+    }
+
+    fireEvent.click(await screen.findByRole("button", { name: "查看" }));
+    const detailOutboundButton = await within(await screen.findByRole("dialog")).findByRole("button", { name: "出库" });
+    expect((detailOutboundButton as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it("出库弹窗提交数量、客户/去向和发出时间并刷新流水", async () => {
+    cleanup();
+    const inventory = asset({ name: "Cat6 网线", inventory_managed: true, quantity: 10, available_quantity: 8 });
+    setup({ assets: [inventory] });
+    api.outbound.mockResolvedValue({ quantity: 2, available_quantity: 6 });
+    fireEvent.click(await screen.findByRole("tab", { name: "设备台账" }));
+    fireEvent.click((await screen.findAllByRole("button", { name: "出库" }))[0]);
+
+    fireEvent.change(screen.getByLabelText("出库数量"), { target: { value: "2" } });
+    fireEvent.change(screen.getByLabelText("发货客户"), { target: { value: "客户 A" } });
+    fireEvent.change(screen.getByLabelText("出库去向"), { target: { value: "项目现场" } });
+    fireEvent.click(screen.getByRole("button", { name: "确认出库" }));
+
+    await waitFor(() => expect(api.outbound).toHaveBeenCalledTimes(1));
+    const [assetId, payload] = api.outbound.mock.calls[0];
+    expect(assetId).toBe(1);
+    expect(payload).toMatchObject({ quantity: 2, customer: "客户 A", destination: "项目现场" });
+    expect(Number.isNaN(Date.parse(payload.shipped_at))).toBe(false);
+    await waitFor(() => expect(api.outbounds).toHaveBeenCalledWith({ page: 1, size: 20 }, expect.anything()));
+    expect(api.outbound).toHaveBeenCalledTimes(1);
+  });
+
+  it("出库台账展示设备、客户和去向", async () => {
+    cleanup();
+    setup({ outbounds: [{ id: 5, action: "outbound", asset_id: 3, batch_id: 10, quantity: 2, customer: "客户 A", destination: "项目现场", shipped_at: "2026-10-01T02:00:00Z", asset_name: "网线", asset_code: "EQ-003", available_quantity: 8, note: "" }] });
+    fireEvent.click(await screen.findByRole("tab", { name: "出库" }));
+
+    expect(await screen.findByRole("heading", { name: "出库记录" })).toBeTruthy();
+    expect((await screen.findAllByText("网线")).length).toBeGreaterThan(0);
+    expect(screen.getAllByText("客户 A").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("项目现场").length).toBeGreaterThan(0);
   });
 
   it("导入台账时选择已有批次并将整份文件上传到该批次", async () => {
     cleanup();
     setup();
     api.upload.mockResolvedValue({ batch_id: 10, batch_name: "9月设备批次", created: 2 });
+    fireEvent.click(await screen.findByRole("tab", { name: "设备台账" }));
     fireEvent.click(await screen.findByRole("button", { name: "导入台账" }));
     selectOption("导入批次方式", "加入已有批次");
     fireEvent.change(screen.getByLabelText("搜索导入目标批次"), { target: { value: "9月" } });
@@ -125,6 +168,7 @@ describe("资产页面分页和刷新", () => {
     cleanup();
     setup();
     api.upload.mockResolvedValue({ batch_id: 12, batch_name: "导入批次9月", created: 1 });
+    fireEvent.click(await screen.findByRole("tab", { name: "设备台账" }));
     fireEvent.click(await screen.findByRole("button", { name: "导入台账" }));
     fireEvent.change(screen.getByLabelText("导入新批次名称"), { target: { value: "导入批次9月" } });
     const file = new File(["设备名称,设备分类\n电脑,电脑"], "设备清单.csv", { type: "text/csv" });
@@ -136,87 +180,7 @@ describe("资产页面分页和刷新", () => {
     }));
   });
 
-  it("重命名成功后关闭对话框并在列表显示新名称", async () => {
-    cleanup();
-    let batchName = "旧批次名称";
-    setup({ batchTotal: 1, batchItems: [
-      { id: 10, name: "旧批次名称", asset_count: 0, source: "", supplier: "", acceptance_status: "accepted" },
-    ] });
-    api.renameBatch.mockImplementation(async (_id: number, body: { name: string }) => {
-      batchName = body.name;
-      return { id: 10, name: body.name, asset_count: 0, acceptance_status: "accepted" };
-    });
-    api.batches.mockImplementation(async (params: { page?: number; size?: number } = {}) => page([
-      { id: 10, name: batchName, asset_count: 0, source: "", supplier: "", acceptance_status: "accepted" },
-    ], 1, params.page ?? 1, params.size ?? 100));
-    fireEvent.click(await screen.findByRole("tab", { name: "入库批次" }));
-    expect(await screen.findByText("旧批次名称 · 批次 #10")).toBeTruthy();
-    fireEvent.click(await screen.findByRole("button", { name: "重命名" }));
-    fireEvent.change(screen.getByLabelText("修改批次名称"), { target: { value: "新批次名称" } });
-    fireEvent.click(screen.getByRole("button", { name: "保存名称" }));
-    await waitFor(() => expect(api.renameBatch).toHaveBeenCalledWith(10, { name: "新批次名称" }));
-    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
-    expect(await screen.findByText("新批次名称 · 批次 #10")).toBeTruthy();
-  });
-
-  it("重命名名称冲突时在对话框内显示错误", async () => {
-    cleanup();
-    setup({ batchItems: [
-      { id: 10, name: "旧批次名称", asset_count: 0, source: "", supplier: "", acceptance_status: "accepted" },
-    ] });
-    api.renameBatch.mockRejectedValue(new Error("批次名称已存在，请选择已有批次或更换名称"));
-    fireEvent.click(await screen.findByRole("tab", { name: "入库批次" }));
-    fireEvent.click(await screen.findByRole("button", { name: "重命名" }));
-    const dialog = screen.getByRole("dialog");
-    fireEvent.change(within(dialog).getByLabelText("修改批次名称"), { target: { value: "重复名称" } });
-    fireEvent.click(within(dialog).getByRole("button", { name: "保存名称" }));
-    await waitFor(() => expect(api.renameBatch).toHaveBeenCalledWith(10, { name: "重复名称" }));
-    expect((await within(dialog).findByRole("alert")).textContent).toContain("批次名称已存在");
-  });
-
-  it("批次列表显示名称和设备数，并对空批次提供重命名与确认删除", async () => {
-    cleanup();
-    setup({ batchTotal: 2, batchItems: [
-      { id: 10, name: "9月设备批次", asset_count: 2, source: "采购", supplier: "供方", acceptance_status: "accepted" },
-      { id: 11, name: "空批次", asset_count: 0, source: "调拨", supplier: "", acceptance_status: "accepted" },
-    ] });
-    api.renameBatch.mockResolvedValue({ id: 11, name: "已更名批次", asset_count: 0, acceptance_status: "accepted" });
-    api.removeBatch.mockResolvedValue({ ok: true, id: 11 });
-    fireEvent.click(await screen.findByRole("tab", { name: "入库批次" }));
-    expect(await screen.findByText("9月设备批次 · 批次 #10")).toBeTruthy();
-    expect(screen.getByText(/2 件设备/)).toBeTruthy();
-    expect(screen.getAllByRole("article")[1].textContent).toContain("空批次");
-
-    fireEvent.click(screen.getAllByRole("button", { name: "重命名" })[1]);
-    fireEvent.change(screen.getByLabelText("修改批次名称"), { target: { value: "已更名批次" } });
-    fireEvent.click(screen.getByRole("button", { name: "保存名称" }));
-    await waitFor(() => expect(api.renameBatch).toHaveBeenCalledWith(11, { name: "已更名批次" }));
-
-    fireEvent.click(screen.getByRole("button", { name: "删除空批次" }));
-    expect(await screen.findByRole("heading", { name: "删除空批次" })).toBeTruthy();
-    const dialogs = screen.getAllByRole("dialog");
-    fireEvent.click(within(dialogs[dialogs.length - 1]).getByRole("button", { name: "取消" }));
-    expect(api.removeBatch).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByRole("button", { name: "删除空批次" }));
-    fireEvent.click(await screen.findByRole("button", { name: "确认删除" }));
-    await waitFor(() => expect(api.removeBatch).toHaveBeenCalledWith(11));
-  });
-
-  it("删除空批次遇到遗留流水冲突时在确认对话框内显示错误", async () => {
-    cleanup();
-    setup({ batchTotal: 1, batchItems: [
-      { id: 10, name: "有遗留流水", asset_count: 0, source: "", supplier: "", acceptance_status: "accepted" },
-    ] });
-    api.removeBatch.mockRejectedValue(new Error("批次仍有关联设备或流水，不能删除"));
-    fireEvent.click(await screen.findByRole("tab", { name: "入库批次" }));
-    fireEvent.click(await screen.findByRole("button", { name: "删除空批次" }));
-    const dialog = screen.getByRole("dialog");
-    fireEvent.click(within(dialog).getByRole("button", { name: "确认删除" }));
-    await waitFor(() => expect(api.removeBatch).toHaveBeenCalledWith(10));
-    expect((await within(dialog).findByRole("alert")).textContent).toContain("仍有关联设备或流水");
-  });
-
-  it("入库表单可选择已有批次并将单件或多件设备加入该批次", async () => {
+  it("单件入库可选择已有批次并将设备关联到台账", async () => {
     cleanup();
     setup();
     fireEvent.click(await screen.findByRole("tab", { name: "入库" }));
@@ -227,16 +191,15 @@ describe("资产页面分页和刷新", () => {
     await waitFor(() => expect(within(firstBatchListbox).getByRole("option", { name: /9月设备批次 · 批次 #10/ })).toBeTruthy());
     fireEvent.click(within(firstBatchListbox).getByRole("option", { name: /9月设备批次 · 批次 #10/ }));
     fireEvent.change(screen.getByLabelText("搜索并选择已有批次"), { target: { value: "其他批次" } });
-    expect(screen.getByRole("button", { name: "登记 1 件设备" }).hasAttribute("disabled")).toBe(true);
+    expect(screen.getByRole("button", { name: "登记单件设备" }).hasAttribute("disabled")).toBe(true);
     fireEvent.change(screen.getByLabelText("搜索并选择已有批次"), { target: { value: "9月设备" } });
     const secondBatchListbox = openSelect("选择入库批次");
     await waitFor(() => expect(within(secondBatchListbox).getByRole("option", { name: /9月设备批次 · 批次 #10/ })).toBeTruthy());
     fireEvent.click(within(secondBatchListbox).getByRole("option", { name: /9月设备批次 · 批次 #10/ }));
-    fireEvent.change(screen.getByLabelText("设备件数"), { target: { value: "1" } });
     fireEvent.change(screen.getByLabelText("名称", { selector: "input" }), { target: { value: "新设备" } });
-    fireEvent.click(screen.getByRole("button", { name: "登记 1 件设备" }));
+    fireEvent.click(screen.getByRole("button", { name: "登记单件设备" }));
 
-    await waitFor(() => expect(api.inbound).toHaveBeenCalledWith({ batch_id: 10, items: [expect.objectContaining({ name: "新设备" })] }));
+    await waitFor(() => expect(api.inbound).toHaveBeenCalledWith({ batch_id: 10, inventory_managed: false, items: [expect.objectContaining({ name: "新设备", quantity: 1 })] }));
   });
 
   it("新建批次后立即刷新已有批次选择器，可继续选择刚建批次", async () => {
@@ -255,7 +218,7 @@ describe("资产页面分页和刷新", () => {
     fireEvent.click(await screen.findByRole("tab", { name: "入库" }));
     fireEvent.change(screen.getByLabelText("新批次名称"), { target: { value: "刚创建批次" } });
     fireEvent.change(screen.getByLabelText("名称", { selector: "input" }), { target: { value: "第一台" } });
-    fireEvent.click(screen.getByRole("button", { name: "登记 1 件设备" }));
+    fireEvent.click(screen.getByRole("button", { name: "登记单件设备" }));
     await waitFor(() => expect(api.inbound).toHaveBeenCalled());
 
     selectOption("批次录入方式", "加入已有批次");
@@ -286,13 +249,6 @@ describe("资产页面分页和刷新", () => {
     await waitFor(() => expect(document.querySelector(".grid tbody tr td:nth-child(3)")?.textContent).toBe("借用中"));
     expect(document.querySelector(".grid tbody tr td:nth-child(4)")?.textContent).toBe("张三");
     expect(document.querySelector(".grid tbody tr td:nth-child(5)")?.textContent).toBe("2026-12-31");
-  });
-
-  it("批次详情失败时显示可见错误且不产生未处理拒绝", async () => {
-    api.batch.mockRejectedValue(new Error("批次服务不可用"));
-    fireEvent.click(await screen.findByRole("tab", { name: "入库批次" }));
-    fireEvent.click(await screen.findByRole("button", { name: "查看设备" }));
-    expect((await screen.findByRole("alert")).textContent).toContain("批次服务不可用");
   });
 
   it("映射详情持有人姓名，找不到目录用户时回退到用户编号", async () => {
@@ -488,31 +444,29 @@ describe("资产页面分页和刷新", () => {
  * 必须单独钉住 —— 否则 hidden 里写错值（比如写成展示文案「2026 年 9 月 18 日」）
  * 不会有任何测试报警，后端只会收到一个解析不了的日期。
  */
-describe("入库表单的购置日期随 FormData 提交", () => {
-  it("提交的是 ISO 原值，不是 DatePicker 展示用的中文文案", async () => {
-    api.inbound.mockResolvedValue({ id: 10, acceptance_status: "accepted", items: [asset()] });
+describe("入库字段精简与库存模式", () => {
+  it("单件入库不展示已删除的采购和位置字段", async () => {
     selectOption("选择页面分区", "入库");
-    fireEvent.change(screen.getByLabelText("新批次名称"), { target: { value: "日期回归批次" } });
-    fireEvent.change((await screen.findByText("登记设备入库")).closest("form")!.querySelector("input[name=\"name-0\"]")!, { target: { value: "测试笔记本" } });
-    setDate("设备 1 购置日期", "2026-09-18");
-    expect(dateValue("设备 1 购置日期")).toBe("2026-09-18");
-
-    fireEvent.click(screen.getByRole("button", { name: "登记 1 件设备" }));
-    await waitFor(() => expect(api.inbound).toHaveBeenCalledOnce());
-    expect(api.inbound.mock.calls[0][0]).toMatchObject({
-      items: [{ name: "测试笔记本", purchase_date: "2026-09-18" }],
-    });
+    expect(await screen.findByRole("heading", { name: "单件设备入库" })).toBeTruthy();
+    for (const label of ["来源", "发票号", "验收状态", "采购单号", "购置日期", "购置金额", "存放位置"]) {
+      expect(screen.queryByText(label)).toBeNull();
+    }
   });
 
-  it("没选日期时 purchase_date 为 undefined，而不是空串", async () => {
-    api.inbound.mockResolvedValue({ id: 10, acceptance_status: "accepted", items: [asset()] });
+  it("批量入库提交且仅提交一个库存元素及数量，不要求单件序列号", async () => {
+    api.inbound.mockResolvedValue({ id: 10, batch_id: 10, name: "网线入库", items: [] });
     selectOption("选择页面分区", "入库");
-    fireEvent.change(screen.getByLabelText("新批次名称"), { target: { value: "空日期回归批次" } });
-    fireEvent.change((await screen.findByText("登记设备入库")).closest("form")!.querySelector("input[name=\"name-0\"]")!, { target: { value: "测试笔记本" } });
-
-    fireEvent.click(screen.getByRole("button", { name: "登记 1 件设备" }));
-    await waitFor(() => expect(api.inbound).toHaveBeenCalledOnce());
-    expect(api.inbound.mock.calls[0][0].items[0].purchase_date).toBeUndefined();
+    fireEvent.click(screen.getByRole("button", { name: "批量入库" }));
+    fireEvent.change(screen.getByLabelText("新批次名称"), { target: { value: "网线入库" } });
+    fireEvent.change(screen.getByLabelText("名称", { selector: "input" }), { target: { value: "Cat6 网线" } });
+    fireEvent.change(screen.getByLabelText("入库数量"), { target: { value: "120" } });
+    expect(screen.queryByLabelText("序列号")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "登记 120 件库存" }));
+    await waitFor(() => expect(api.inbound).toHaveBeenCalledWith({
+      name: "网线入库", acceptance_status: "accepted", inventory_managed: true,
+      items: [expect.objectContaining({ name: "Cat6 网线", quantity: 120 })],
+    }));
+    expect(api.inbound.mock.calls.at(-1)?.[0].items).toHaveLength(1);
   });
 });
 
