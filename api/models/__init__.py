@@ -1041,7 +1041,7 @@ class EquipmentBatch(Base):
 
 
 class EquipmentAsset(Base):
-  """单件设备当前快照；全部状态变更另记 EquipmentEvent。"""
+  """单件设备或库存记录的当前快照；数量流转另记 EquipmentEvent。"""
   __tablename__ = "equipment_assets"
   id = Column(Integer, primary_key=True)
   code = Column(String(40), nullable=False, unique=True, index=True)
@@ -1058,12 +1058,28 @@ class EquipmentAsset(Base):
   holder_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
   due_date = Column(Date, nullable=True)
   batch_id = Column(Integer, ForeignKey("equipment_batches.id"), nullable=True, index=True)
+  # 批量库存以此记录为一个入库来源，quantity 为入库量，available_quantity 为可出库余量。
+  quantity = Column(Integer, nullable=False, default=1, server_default="1")
+  available_quantity = Column(Integer, nullable=False, default=1, server_default="1")
+  inventory_managed = Column(Boolean, nullable=False, default=False, server_default="false")
   created_by = Column(Integer, ForeignKey("users.id"), nullable=False)
   created_at = Column(DateTime, default=_now, nullable=False)
   updated_at = Column(DateTime, default=_now, onupdate=_now, nullable=False)
-  __table_args__ = (CheckConstraint(
-      "status IN ('pending_acceptance','available','claimed','borrowed','maintenance','scrapped','void')",
-      name="ck_equipment_status"),)
+  __table_args__ = (
+      CheckConstraint(
+          "status IN ('pending_acceptance','available','claimed','borrowed','maintenance','scrapped','void')",
+          name="ck_equipment_status",
+      ),
+      CheckConstraint("quantity > 0", name="ck_equipment_quantity_positive"),
+      CheckConstraint(
+          "available_quantity >= 0 AND available_quantity <= quantity",
+          name="ck_equipment_available_quantity_range",
+      ),
+      CheckConstraint(
+          "inventory_managed OR (quantity = 1 AND available_quantity = 1)",
+          name="ck_equipment_single_asset_quantity",
+      ),
+  )
 
 
 class EquipmentEvent(Base):
@@ -1079,7 +1095,21 @@ class EquipmentEvent(Base):
   holder_id = Column(Integer, ForeignKey("users.id"), nullable=True)
   due_date = Column(Date, nullable=True)
   note = Column(Text, nullable=False, default="")
+  # 出库流水扩展字段；普通生命周期事件为空，出库记录必须携带完整信息。
+  quantity = Column(Integer, nullable=True)
+  customer = Column(String(255), nullable=True)
+  destination = Column(String(255), nullable=True)
+  shipped_at = Column(DateTime, nullable=True)
   created_at = Column(DateTime, default=_now, nullable=False, index=True)
+  __table_args__ = (
+      CheckConstraint(
+          "action <> 'outbound' OR (quantity > 0 AND shipped_at IS NOT NULL "
+          "AND (length(trim(coalesce(customer, ''))) > 0 OR "
+          "length(trim(coalesce(destination, ''))) > 0))",
+          name="ck_equipment_outbound_details",
+      ),
+      Index("ix_equipment_events_outbound_time", "action", "shipped_at"),
+  )
 
 
 class TokenBlacklist(Base):

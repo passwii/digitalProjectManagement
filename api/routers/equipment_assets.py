@@ -11,7 +11,7 @@ from urllib.parse import quote
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
 from fastapi.responses import StreamingResponse
 from openpyxl import Workbook, load_workbook
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy import case, func, or_, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -20,7 +20,7 @@ from ..core.audit import commit_audited, write_audit
 from ..core.database import get_db
 from ..core.deps import get_current_user
 from ..core.rbac import is_admin, require_admin
-from ..core.timeutil import app_now, app_today
+from ..core.timeutil import app_now, app_today, to_db
 from ..models import Dict, EquipmentAsset, EquipmentBatch, EquipmentEvent, User
 
 router = APIRouter(prefix="/equipment-assets", tags=["equipment-assets"])
@@ -58,9 +58,9 @@ FIELD_HINTS = {
 }
 STATUS_LABELS = {"pending_acceptance": "待验收", "available": "可用", "claimed": "已领用",
                  "borrowed": "借用中", "maintenance": "维修中", "scrapped": "已报废", "void": "已作废"}
-PROTECTED_DELETE_ACTIONS = ("claim", "borrow", "return", "maintenance", "restore", "scrap", "void")
+PROTECTED_DELETE_ACTIONS = ("claim", "borrow", "return", "maintenance", "restore", "scrap", "void", "outbound")
 PROTECTED_DELETE_LABELS = {"claim": "领用", "borrow": "借用", "return": "归还", "maintenance": "维修",
-                           "restore": "恢复", "scrap": "报废", "void": "作废"}
+                           "restore": "恢复", "scrap": "报废", "void": "作废", "outbound": "出库"}
 
 EXPORT_STEM = "设备台账"
 TEMPLATE_STEM = "设备台账导入模板"
@@ -164,6 +164,8 @@ class AssetIn(BaseModel):
     note: str = ""
     purchase_date: date | None = None
     purchase_price: Decimal | None = None
+    quantity: int = Field(default=1, ge=1)
+    inventory_managed: bool = False
 
 
 class AssetCreateIn(AssetIn):
@@ -173,6 +175,7 @@ class AssetCreateIn(AssetIn):
 class BatchIn(BaseModel):
     name: str = ""
     batch_id: int | None = None
+    inventory_managed: bool = False
     source: str = ""
     supplier: str = ""
     purchase_order_no: str = ""
@@ -184,6 +187,14 @@ class BatchIn(BaseModel):
 
 class TransitionIn(BaseModel):
     due_date: date | None = None
+    note: str = ""
+
+
+class OutboundIn(BaseModel):
+    quantity: int = Field(gt=0)
+    customer: str = Field(default="", max_length=255)
+    destination: str = Field(default="", max_length=255)
+    shipped_at: datetime
     note: str = ""
 
 
@@ -213,7 +224,9 @@ def _asset(a: EquipmentAsset) -> dict:
             "location": a.location or "", "note": a.note or "", "purchase_date": a.purchase_date,
             "purchase_price": float(a.purchase_price) if a.purchase_price is not None else None,
             "status": a.status, "holder_id": a.holder_id, "due_date": a.due_date,
-            "batch_id": a.batch_id, "created_by": a.created_by,
+            "batch_id": a.batch_id, "quantity": a.quantity,
+            "available_quantity": a.available_quantity,
+            "inventory_managed": a.inventory_managed, "created_by": a.created_by,
             "created_at": a.created_at, "updated_at": a.updated_at}
 
 
@@ -244,10 +257,14 @@ def _export_row(a: EquipmentAsset, categories: dict, user_names: dict,
 
 
 def _event(e: EquipmentEvent) -> dict:
-    return {"id": e.id, "asset_id": e.asset_id, "batch_id": e.batch_id,
-            "action": e.action, "from_status": e.from_status, "to_status": e.to_status,
-            "actor_id": e.actor_id, "holder_id": e.holder_id, "due_date": e.due_date,
-            "note": e.note, "created_at": e.created_at}
+    result = {"id": e.id, "asset_id": e.asset_id, "batch_id": e.batch_id,
+              "action": e.action, "from_status": e.from_status, "to_status": e.to_status,
+              "actor_id": e.actor_id, "holder_id": e.holder_id, "due_date": e.due_date,
+              "quantity": e.quantity, "customer": e.customer, "destination": e.destination,
+              "shipped_at": e.shipped_at, "note": e.note, "created_at": e.created_at}
+    if e.action == "inbound" and e.quantity is not None:
+        result["quantity"] = e.quantity
+    return result
 
 
 def _batch(b: EquipmentBatch, items=None, asset_count=None) -> dict:
@@ -256,7 +273,13 @@ def _batch(b: EquipmentBatch, items=None, asset_count=None) -> dict:
               "acceptance_status": b.acceptance_status, "note": b.note,
               "created_by": b.created_by, "created_at": b.created_at}
     if items is not None:
-        result["items"] = [_asset(a) for a in items]
+        result["items"] = []
+        for asset in items:
+            row = _asset(asset)
+            if asset.inventory_managed:
+                row["inbound_quantity"] = asset.quantity
+                row["quantity"] = asset.quantity
+            result["items"].append(row)
     if asset_count is not None:
         result["asset_count"] = asset_count
     elif items is not None:
@@ -319,6 +342,10 @@ def _validate(db, body: AssetIn, exclude_id=None):
         raise HTTPException(400, f"设备分类「{body.category_code.strip()}」不存在，请使用已有分类")
     if body.purchase_price is not None and (not body.purchase_price.is_finite() or body.purchase_price < 0):
         raise HTTPException(400, "采购金额必须为非负有限数")
+    if not body.inventory_managed and body.quantity != 1:
+        raise HTTPException(400, "非库存设备数量必须为 1")
+    if body.inventory_managed and body.serial_number.strip():
+        raise HTTPException(400, "库存物料不能填写单件序列号")
     serial = body.serial_number.strip()
     if serial:
         q = db.query(EquipmentAsset).filter_by(serial_number=serial)
@@ -340,6 +367,15 @@ def _delete_check(db: Session, asset: EquipmentAsset) -> dict:
     actions = [action for (action,) in db.query(EquipmentEvent.action).filter_by(asset_id=asset.id).all()]
     protected = [action for action in PROTECTED_DELETE_ACTIONS if action in actions]
     status_blocked = asset.status not in {"pending_acceptance", "available"}
+    if asset.inventory_managed:
+        return {
+            "allowed": False,
+            "asset_id": asset.id,
+            "code": asset.code,
+            "reason": "库存入库和出库流水需长期保留，不能永久删除该库存记录",
+            "event_count": len(actions),
+            "protected_actions": protected,
+        }
     reason = None
     if protected:
         labels = "、".join(PROTECTED_DELETE_LABELS[action] for action in protected)
@@ -362,18 +398,23 @@ def _add_asset(db, body: AssetIn, actor_id: int, batch_id=None, action="create",
                        serial_number=body.serial_number.strip() or None, brand=body.brand.strip(),
                        model=body.model.strip(), location=body.location.strip(), note=body.note.strip(),
                        purchase_date=body.purchase_date, purchase_price=body.purchase_price,
+                       quantity=body.quantity, available_quantity=body.quantity,
+                       inventory_managed=body.inventory_managed,
                        batch_id=batch_id, created_by=actor_id, status=status)
     db.add(a)
     db.flush()
-    db.add(EquipmentEvent(asset_id=a.id, batch_id=batch_id, action=action,
+    event_action = "inbound" if body.inventory_managed and action == "create" else action
+    db.add(EquipmentEvent(asset_id=a.id, batch_id=batch_id, action=event_action,
                           from_status=None, to_status=status, actor_id=actor_id,
+                          quantity=body.quantity if body.inventory_managed else None,
                           note=body.note.strip()))
     return a
 
 
 def _page(q, page, size):
     return {"total": q.count(), "page": page, "size": size,
-            "items": [_asset(a) for a in q.order_by(EquipmentAsset.id.desc()).offset((page-1)*size).limit(size).all()]}
+            "items": [_asset(a) for a in q.order_by(EquipmentAsset.id.desc())
+                      .offset((page-1)*size).limit(size).all()]}
 
 
 @router.get("")
@@ -396,7 +437,8 @@ def list_assets(keyword: str = "", category_code: str = "", status: str = "", ho
 
 @router.get("/overview")
 def overview(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    rows = dict(db.query(EquipmentAsset.status, func.count()).group_by(EquipmentAsset.status).all())
+    units = case((EquipmentAsset.inventory_managed.is_(True), EquipmentAsset.quantity), else_=1)
+    rows = dict(db.query(EquipmentAsset.status, func.sum(units)).group_by(EquipmentAsset.status).all())
     overdue = db.query(EquipmentAsset).filter(EquipmentAsset.status == "borrowed",
               EquipmentAsset.due_date < app_today()).count()
     return {"total": sum(rows.values()), "by_status": rows, "overdue": overdue}
@@ -411,17 +453,18 @@ def overdue(page: int = Query(1, ge=1), size: int = Query(20, ge=1, le=100),
 
 @router.get("/statistics")
 def statistics(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    units = case((EquipmentAsset.inventory_managed.is_(True), EquipmentAsset.quantity), else_=1)
     by_category = [{"category_code": code, "count": count} for code, count in
-                   db.query(EquipmentAsset.category_code, func.count()).group_by(EquipmentAsset.category_code).all()]
+                   db.query(EquipmentAsset.category_code, func.sum(units)).group_by(EquipmentAsset.category_code).all()]
     by_status = [{"status": status, "count": count} for status, count in
-                 db.query(EquipmentAsset.status, func.count()).group_by(EquipmentAsset.status).all()]
-    event_month = func.to_char(EquipmentEvent.created_at, "YYYY-MM")
+                 db.query(EquipmentAsset.status, func.sum(units)).group_by(EquipmentAsset.status).all()]
+    event_month = func.to_char(func.coalesce(EquipmentEvent.shipped_at, EquipmentEvent.created_at), "YYYY-MM")
     inbound_actions = ("create", "inbound", "import", "return")
-    outbound_actions = ("claim", "borrow")
+    outbound_actions = ("claim", "borrow", "outbound")
     monthly_events = db.query(
         event_month.label("month"),
-        func.sum(case((EquipmentEvent.action.in_(inbound_actions), 1), else_=0)).label("inbound"),
-        func.sum(case((EquipmentEvent.action.in_(outbound_actions), 1), else_=0)).label("outbound"),
+        func.sum(case((EquipmentEvent.action.in_(inbound_actions), func.coalesce(EquipmentEvent.quantity, 1)), else_=0)).label("inbound"),
+        func.sum(case((EquipmentEvent.action.in_(outbound_actions), func.coalesce(EquipmentEvent.quantity, 1)), else_=0)).label("outbound"),
     ).group_by(event_month).order_by(event_month).all()
     by_month = [{"month": month, "inbound": inbound, "outbound": outbound}
                 for month, inbound, outbound in monthly_events]
@@ -481,6 +524,8 @@ def inbound(body: BatchIn, db: Session = Depends(get_db), user: User = Depends(g
     require_admin(user)
     if not body.items:
         raise HTTPException(400, "入库设备不能为空")
+    for item in body.items:
+        item.inventory_managed = body.inventory_managed
     if (body.batch_id is not None and bool(body.name.strip())) or (body.batch_id is None and not body.name.strip()):
         raise HTTPException(400, "请选择已有批次，或填写新批次名称")
     serials = [item.serial_number.strip() for item in body.items if item.serial_number.strip()]
@@ -493,6 +538,11 @@ def inbound(body: BatchIn, db: Session = Depends(get_db), user: User = Depends(g
 
     if body.batch_id is not None:
         batch = _get_batch(db, body.batch_id)
+        existing_managed = db.query(EquipmentAsset.inventory_managed).filter_by(batch_id=batch.id).first()
+        if existing_managed and existing_managed[0] != body.inventory_managed:
+            raise HTTPException(400, "不能在同一批次混合单件设备和库存物料")
+        if batch.acceptance_status != body.acceptance_status and body.name:
+            raise HTTPException(400, "选择已有批次时不能覆盖其验收状态")
         action = "add_equipment_to_batch"
     else:
         batch = _create_batch(db, user.id, name=body.name, source=body.source, supplier=body.supplier,
@@ -500,10 +550,14 @@ def inbound(body: BatchIn, db: Session = Depends(get_db), user: User = Depends(g
                               acceptance_status=body.acceptance_status, note=body.note)
         action = "inbound_equipment"
     asset_status = "pending_acceptance" if batch.acceptance_status == "pending_acceptance" else "available"
+    for item in body.items:
+        if item.inventory_managed and asset_status != "available":
+            raise HTTPException(400, "库存物料入库不支持待验收状态")
     items = [_add_asset(db, item, user.id, batch.id, "inbound", asset_status) for item in body.items]
     commit_audited(db, user.id, action, "equipment_batches", batch.id, f"count={len(items)}")
     asset_count = db.query(EquipmentAsset).filter_by(batch_id=batch.id).count()
-    return {"batch_id": batch.id, **_batch(batch, items, asset_count=asset_count)}
+    return {"batch_id": batch.id, "inventory_managed": body.inventory_managed,
+            **_batch(batch, items, asset_count=asset_count)}
 
 
 @router.get("/batches")
@@ -591,9 +645,17 @@ def accept_batch(batch_id: int, body: TransitionIn = TransitionIn(),
 @router.post("")
 def create_asset(body: AssetCreateIn, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     require_admin(user)
+    if body.inventory_managed:
+        raise HTTPException(400, "库存物料请使用入库登记接口")
     _validate(db, body)
     batch = _get_batch(db, body.batch_id) if body.batch_id is not None else None
+    if batch is not None:
+        existing = db.query(EquipmentAsset.inventory_managed).filter_by(batch_id=batch.id).first()
+        if existing and existing[0] != body.inventory_managed:
+            raise HTTPException(400, "不能在同一批次混合单件设备和库存物料")
     status = "pending_acceptance" if batch and batch.acceptance_status == "pending_acceptance" else "available"
+    if body.inventory_managed and status != "available":
+        raise HTTPException(400, "库存物料入库不支持待验收状态")
     a = _add_asset(db, body, user.id, batch.id if batch else None, status=status)
     commit_audited(db, user.id, "create_equipment", "equipment_assets", a.id, a.code)
     return _asset(a)
@@ -788,6 +850,9 @@ def import_assets(file: UploadFile = File(...), batch_id: int | None = Form(None
         raise HTTPException(400, "请选择已有批次，或填写新批次名称")
     if batch_id is not None:
         batch = _get_batch(db, batch_id)
+        existing = db.query(EquipmentAsset.inventory_managed).filter_by(batch_id=batch.id).first()
+        if existing and existing[0]:
+            raise HTTPException(400, "库存物料批次请使用库存入库接口")
     else:
         batch = _create_batch(db, user.id, name=batch_name, source=source.strip() or f"导入 {file.filename}",
                               supplier=supplier, purchase_order_no=purchase_order_no,
@@ -814,6 +879,8 @@ def delete_asset(asset_id: int, body: AssetDeleteIn, db: Session = Depends(get_d
                  user: User = Depends(get_current_user)):
     require_admin(user)
     asset = _get(db, asset_id, lock=True)
+    if asset.inventory_managed:
+        raise HTTPException(409, "库存入库和出库流水需长期保留，不能永久删除该库存记录")
     if body.confirm_code.strip() != asset.code:
         raise HTTPException(400, "设备编号确认不一致")
     reason = body.reason.strip()
@@ -854,6 +921,28 @@ def delete_asset(asset_id: int, body: AssetDeleteIn, db: Session = Depends(get_d
     return {"ok": True, "id": asset_id, "code": deleted_code}
 
 
+@router.get("/outbounds")
+def list_outbounds(asset_id: int | None = None, page: int = Query(1, ge=1), size: int = Query(20, ge=1, le=100),
+                  db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    q = db.query(EquipmentEvent, EquipmentAsset).join(EquipmentAsset, EquipmentAsset.id == EquipmentEvent.asset_id)\
+        .filter(EquipmentEvent.action == "outbound")
+    if asset_id is not None:
+        q = q.filter(EquipmentEvent.asset_id == asset_id)
+    total = q.count()
+    rows = q.order_by(EquipmentEvent.shipped_at.desc(), EquipmentEvent.id.desc())\
+        .offset((page - 1) * size).limit(size).all()
+    return {
+        "total": total,
+        "page": page,
+        "size": size,
+        "items": [
+            {**_event(event), "asset_name": asset.name, "asset_code": asset.code,
+             "available_quantity": asset.available_quantity}
+            for event, asset in rows
+        ],
+    }
+
+
 @router.get("/{asset_id}")
 def detail(asset_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     return _asset(_get(db, asset_id))
@@ -863,9 +952,17 @@ def detail(asset_id: int, db: Session = Depends(get_db), user: User = Depends(ge
 def update_asset(asset_id: int, body: AssetIn, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     require_admin(user)
     a = _get(db, asset_id, lock=True)
+    if body.inventory_managed and not a.inventory_managed:
+        raise HTTPException(400, "不能通过档案编辑将单件设备改为库存物料")
+    if a.inventory_managed:
+        # 库存总量与可用量只能通过入库 / 出库流水改变；基础信息仍可维护。
+        body.inventory_managed = True
+        body.quantity = a.quantity
     if a.status in {"scrapped", "void"}:
         raise HTTPException(400, "终止状态设备不能修改")
     _validate(db, body, exclude_id=asset_id)
+    if a.inventory_managed and body.serial_number.strip():
+        raise HTTPException(400, "库存物料不能填写单件序列号")
     for key in FIELDS:
         value = getattr(body, key)
         setattr(a, key, value.strip() if isinstance(value, str) else value)
@@ -887,6 +984,8 @@ def events(asset_id: int, page: int = Query(1, ge=1), size: int = Query(100, ge=
 
 def _change(db, user, asset_id, action, body):
     a = _get(db, asset_id, lock=True)
+    if a.inventory_managed:
+        raise HTTPException(400, "库存物料请使用出库操作，不支持单件领用、借用或状态流转")
     old = a.status
     if action in {"claim", "borrow"}:
         if old != "available":
@@ -918,6 +1017,53 @@ def _change(db, user, asset_id, action, body):
                           holder_id=a.holder_id, due_date=a.due_date, note=body.note.strip()))
     commit_audited(db, user.id, f"{action}_equipment", "equipment_assets", a.id, f"{old}->{a.status}")
     return _asset(a)
+
+
+@router.post("/{asset_id}/outbound")
+def outbound(asset_id: int, body: OutboundIn, db: Session = Depends(get_db),
+             user: User = Depends(get_current_user)):
+    require_admin(user)
+    asset = _get(db, asset_id, lock=True)
+    if not asset.inventory_managed:
+        raise HTTPException(400, "仅库存型物料支持出库")
+    if asset.status != "available":
+        raise HTTPException(400, "该库存记录当前不可出库")
+    customer = body.customer.strip()
+    destination = body.destination.strip()
+    if not customer and not destination:
+        raise HTTPException(400, "请填写发货客户或去向")
+    if body.quantity > asset.available_quantity:
+        raise HTTPException(400, f"可用库存不足，当前仅剩 {asset.available_quantity}")
+
+    asset.available_quantity -= body.quantity
+    event = EquipmentEvent(
+        asset_id=asset.id,
+        batch_id=asset.batch_id,
+        action="outbound",
+        from_status=asset.status,
+        to_status=asset.status,
+        actor_id=user.id,
+        quantity=body.quantity,
+        customer=customer or None,
+        destination=destination or None,
+        shipped_at=to_db(body.shipped_at),
+        note=body.note.strip(),
+    )
+    db.add(event)
+    commit_audited(
+        db,
+        user.id,
+        "outbound_equipment_inventory",
+        "equipment_assets",
+        asset.id,
+        json.dumps(
+            {"quantity": body.quantity, "customer": customer, "destination": destination,
+             "shipped_at": to_db(body.shipped_at)},
+            ensure_ascii=False,
+            default=str,
+        ),
+    )
+    return {**_event(event), "available_quantity": asset.available_quantity}
 
 
 @router.post("/{asset_id}/claim")
