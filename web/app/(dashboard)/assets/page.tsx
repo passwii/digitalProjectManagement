@@ -151,7 +151,7 @@ function AssetsInner() {
       {section === "borrow" && <section className="asset-panel"><div className="asset-panel-heading"><div><h2>借用中的设备</h2></div><span className="asset-count">{borrowedData?.total ?? 0} 件</span></div>{borrowedLoading && !borrowedData ? <LoadingBlock label="读取借用记录…" /> : borrowedData && <>{borrowedData.items.length ? <AssetRows rows={borrowedData.items} categories={categories} onOpen={openAsset} onOutbound={setOutboundAsset} isAdmin={isAdmin} userName={userName} /> : <div className="asset-empty">当前没有借用中的设备</div>}<div className="asset-pagination"><span>第 {borrowedData.page} 页 · 共 {borrowedData.total} 件</span><button className="btn-ghost" disabled={borrowedData.page <= 1 || borrowedLoading} onClick={() => setBorrowPage(borrowedData.page - 1)}>上一页</button><button className="btn-ghost" disabled={borrowedData.page * borrowedData.size >= borrowedData.total || borrowedLoading} onClick={() => setBorrowPage(borrowedData.page + 1)}>下一页</button></div></>}</section>}
     </>}
     </MotionTabs>
-    {selected && <AssetDetail asset={selected} categories={categories} batch={batch} events={events} deleteCheck={deleteCheck} userName={userName} isAdmin={isAdmin} currentUser={data?.me.id} busy={busy} onClose={() => setSelected(null)} onEdit={(body) => perform(() => api.update(selected.id, body), "档案已更新")} onAction={(action, body) => perform(() => action === "claim" ? api.claim(selected.id, body) : action === "borrow" ? api.borrow(selected.id, body) : action === "return" ? api.return(selected.id, body) : api.transition(selected.id, action, body), "设备状态已更新")} onDelete={(reason) => deleteAsset(selected, reason)} onOutbound={() => setOutboundAsset(selected)} />}
+    {selected && <AssetDetail asset={selected} categories={categories} batch={batch} events={events} deleteCheck={deleteCheck} userName={userName} isAdmin={isAdmin} currentUser={data?.me.id} busy={busy} onClose={() => setSelected(null)} onEdit={(body) => perform(() => api.update(selected.id, body), "档案已更新")} onAction={(action, body) => perform(() => action === "claim" ? api.claim(selected.id, body) : action === "borrow" ? api.borrow(selected.id, body) : action === "return" ? api.return(selected.id, body) : api.transition(selected.id, action, body), "设备状态已更新")} onDelete={(reason) => deleteAsset(selected, reason)} onAcceptBatch={(batchId) => { void perform(() => api.acceptBatch(batchId), "批次全部待验收设备已验收"); }} onOutbound={() => setOutboundAsset(selected)} />}
     {outboundAsset && <OutboundDialog asset={outboundAsset} busy={busy} onClose={() => setOutboundAsset(null)} onSubmit={async (body) => { await submitOutbound(outboundAsset, body); setOutboundAsset(null); }} />}
   </main>;
 }
@@ -478,7 +478,7 @@ function CategoryRow({ category, onError, onChange, onToast }: { category: Equip
   return <div><code>{category.code}</code><input aria-label={`${category.label}分类名称`} value={label} onChange={(e) => setLabel(e.target.value)} /><button type="button" className="btn-ghost" onClick={async () => { try { await api.updateCategory(category.code, { label }); await onChange(); onToast("分类已更新"); } catch (e) { onError(e); } }}>保存</button><button type="button" className="btn-ghost asset-danger" onClick={async () => { try { await api.deleteCategory(category.code); await onChange(); onToast("分类已删除"); } catch (e) { onError(e); } }}>删除</button></div>;
 }
 
-function AssetDetail({ asset, categories, batch, events, deleteCheck, userName, isAdmin, currentUser, busy, onClose, onEdit, onAction, onDelete, onOutbound }: { asset: EquipmentAsset; categories: EquipmentCategory[]; batch: EquipmentBatch | null; events: EquipmentEvent[]; deleteCheck: EquipmentDeleteCheck | null; userName: (id: number | null) => string; isAdmin: boolean; currentUser?: number; busy: boolean; onClose: () => void; onEdit: (body: EquipmentWrite) => void; onAction: (action: "claim" | "borrow" | "return" | "maintenance" | "restore" | "scrap" | "void", body: { note?: string; due_date?: string }) => void; onDelete: (reason: string) => Promise<void>; onOutbound: () => void }) {
+function AssetDetail({ asset, categories, batch, events, deleteCheck, userName, isAdmin, currentUser, busy, onClose, onEdit, onAction, onDelete, onAcceptBatch, onOutbound }: { asset: EquipmentAsset; categories: EquipmentCategory[]; batch: EquipmentBatch | null; events: EquipmentEvent[]; deleteCheck: EquipmentDeleteCheck | null; userName: (id: number | null) => string; isAdmin: boolean; currentUser?: number; busy: boolean; onClose: () => void; onEdit: (body: EquipmentWrite) => void; onAction: (action: "claim" | "borrow" | "return" | "maintenance" | "restore" | "scrap" | "void", body: { note?: string; due_date?: string }) => void; onDelete: (reason: string) => Promise<void>; onAcceptBatch: (batchId: number) => void; onOutbound: () => void }) {
   const [note, setNote] = useState("");
   const [due, setDue] = useState("");
   const [editing, setEditing] = useState(false);
@@ -487,6 +487,7 @@ function AssetDetail({ asset, categories, batch, events, deleteCheck, userName, 
   const [confirmCode, setConfirmCode] = useState("");
   const [deleteReason, setDeleteReason] = useState("");
   const [deleteError, setDeleteError] = useState("");
+  const [acceptanceBatchId, setAcceptanceBatchId] = useState<number | null>(null);
   const [form, setForm] = useState<EquipmentWrite>({
     name: asset.name,
     category_code: asset.category_code,
@@ -542,7 +543,8 @@ function AssetDetail({ asset, categories, batch, events, deleteCheck, userName, 
         <div className="asset-section-heading"><div><h3>设备操作</h3></div></div>
         <div className="asset-detail-actions">
           {asset.inventory_managed && <button type="button" className="btn-primary" disabled={busy || (asset.available_quantity ?? 0) === 0} title={(asset.available_quantity ?? 0) === 0 ? "可用库存为 0，无法出库" : undefined} onClick={onOutbound}>出库</button>}
-          {!asset.inventory_managed && asset.status === "pending_acceptance" && <span className="asset-muted">待验收设备请在入库批次中完成验收。</span>}
+          {asset.status === "pending_acceptance" && asset.batch_id !== null && <button type="button" className="btn-primary" disabled={busy} onClick={() => setAcceptanceBatchId(asset.batch_id)}>验收该批次全部待验收设备</button>}
+          {asset.status === "pending_acceptance" && asset.batch_id === null && <span className="asset-muted">该待验收设备未关联入库批次，请联系管理员核查。</span>}
           {!asset.inventory_managed && !(["void", "scrapped", "pending_acceptance"].includes(asset.status)) && <button type="button" className="btn-ghost" disabled={busy} onClick={() => setEditing(!editing)}>{editing ? "取消编辑" : "编辑档案"}</button>}
           {!asset.inventory_managed && asset.status === "available" && <button type="button" className="btn-ghost" disabled={busy} onClick={() => onAction("maintenance", { note })}>送修</button>}
           {!asset.inventory_managed && asset.status === "maintenance" && <button type="button" className="btn-ghost" disabled={busy} onClick={() => onAction("restore", { note })}>恢复可用</button>}
@@ -562,6 +564,17 @@ function AssetDetail({ asset, categories, batch, events, deleteCheck, userName, 
           <button className="btn-primary" disabled={busy}>{busy ? "保存中…" : "保存档案"}</button>
         </form>}
       </section>}
+
+      {acceptanceBatchId !== null && <Dialog
+        open
+        onClose={() => setAcceptanceBatchId(null)}
+        title="确认批次验收"
+        size="sm"
+        maskClosable={!busy}
+        footer={<><button type="button" className="btn-ghost" disabled={busy} onClick={() => setAcceptanceBatchId(null)}>取消</button><button type="button" className="btn-primary" disabled={busy} onClick={() => { const batchId = acceptanceBatchId; setAcceptanceBatchId(null); onAcceptBatch(batchId); }}>{busy ? "验收中…" : "确认验收该批次全部待验收设备"}</button></>}
+      >
+        <p>此操作将验收批次「{batch?.id === acceptanceBatchId ? batch.name : `批次 #${acceptanceBatchId}`}」下全部待验收设备，不只是当前设备。</p>
+      </Dialog>}
 
       {!asset.inventory_managed && (canClaim || canBorrow || canReturn) && <section className="asset-detail-section">
         <div className="asset-section-heading"><div><h3>领用与借用</h3></div></div>

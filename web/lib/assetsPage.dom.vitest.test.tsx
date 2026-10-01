@@ -114,6 +114,27 @@ describe("资产页面分页和刷新", () => {
     expect((detailOutboundButton as HTMLButtonElement).disabled).toBe(true);
   });
 
+  it("从有批次的待验收设备详情触发整批验收，并明确确认影响整批", async () => {
+    cleanup();
+    const pendingAsset = asset({ status: "pending_acceptance", batch_id: 10 });
+    setup({ assets: [pendingAsset] });
+    api.get.mockResolvedValue(pendingAsset);
+    api.acceptBatch.mockResolvedValue({ id: 10, name: "9月设备批次", acceptance_status: "accepted" });
+
+    fireEvent.click(await screen.findByRole("tab", { name: "设备台账" }));
+    fireEvent.click(await screen.findByRole("button", { name: "查看" }));
+    fireEvent.click(await screen.findByRole("button", { name: "验收该批次全部待验收设备" }));
+
+    const confirmation = await screen.findByRole("heading", { name: "确认批次验收" });
+    const dialog = confirmation.closest('[role="dialog"]') as HTMLElement;
+    expect(within(dialog).getByText(/下全部待验收设备，不只是当前设备/)).toBeTruthy();
+    expect(within(dialog).getByRole("button", { name: "确认验收该批次全部待验收设备" })).toBeTruthy();
+    expect(api.acceptBatch).not.toHaveBeenCalled();
+    fireEvent.click(within(dialog).getByRole("button", { name: "确认验收该批次全部待验收设备" }));
+
+    await waitFor(() => expect(api.acceptBatch).toHaveBeenCalledWith(10));
+  });
+
   it("出库弹窗提交数量、客户/去向和发出时间并刷新流水", async () => {
     cleanup();
     const inventory = asset({ name: "Cat6 网线", inventory_managed: true, quantity: 10, available_quantity: 8 });
