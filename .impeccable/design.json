@@ -1,0 +1,323 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-02T01:19:38Z",
+  "title": "Design System: 数科云办公",
+  "extensions": {
+    "colorMeta": {
+      "dark-canvas": {
+        "role": "neutral",
+        "displayName": "Dark Canvas",
+        "canonical": "#07131f",
+        "tonalRamp": ["#030c17", "#162330", "#2e3c4a", "#485766", "#647383", "#8191a1", "#a0b0c1", "#dff1ff"]
+      },
+      "dark-surface": {
+        "role": "neutral",
+        "displayName": "Deep Surface",
+        "canonical": "#0d1d2c",
+        "tonalRamp": ["#010c1a", "#132332", "#2b3c4d", "#455769", "#617486", "#7e92a5", "#9cb1c5", "#dcf1ff"]
+      },
+      "dark-rail": {
+        "role": "neutral",
+        "displayName": "Midnight Rail",
+        "canonical": "#081622",
+        "tonalRamp": ["#020c17", "#152330", "#2d3c4a", "#475766", "#637483", "#8092a2", "#9eb0c1", "#def1ff"]
+      },
+      "dark-ink": {
+        "role": "neutral",
+        "displayName": "Cool White Ink",
+        "canonical": "#eaf9fb",
+        "tonalRamp": ["#040d0e", "#192425", "#313d3f", "#4b585a", "#677476", "#849294", "#a3b1b3", "#e3f2f4"]
+      },
+      "dark-ink-secondary": {
+        "role": "neutral",
+        "displayName": "Mist Secondary Ink",
+        "canonical": "rgba(201, 227, 235, 0.72)",
+        "tonalRamp": ["#000e13", "#10252b", "#293e45", "#435a60", "#5f767d", "#7c949b", "#9ab3bb", "#daf4fc"]
+      },
+      "dark-ink-muted": {
+        "role": "neutral",
+        "displayName": "Mist Muted Ink",
+        "canonical": "rgba(201, 227, 235, 0.48)",
+        "tonalRamp": ["#000e13", "#10252b", "#293e45", "#435a60", "#5f767d", "#7c949b", "#9ab3bb", "#daf4fc"]
+      },
+      "dark-divider": {
+        "role": "neutral",
+        "displayName": "Blue Grey Divider",
+        "canonical": "rgba(146, 189, 210, 0.22)",
+        "tonalRamp": ["#000e1d", "#002636", "#164051", "#335b6e", "#4f788b", "#6c96aa", "#8ab5ca", "#caf6ff"]
+      },
+      "dark-signal": {
+        "role": "primary",
+        "displayName": "Signal Cyan",
+        "canonical": "#6cf3ff",
+        "tonalRamp": ["#001421", "#002e3a", "#004a56", "#006672", "#008490", "#00a3af", "#2fc3cf", "#81ffff"]
+      },
+      "dark-action": {
+        "role": "primary",
+        "displayName": "Action Lime",
+        "canonical": "#c6ff72",
+        "tonalRamp": ["#001200", "#032c00", "#1d4800", "#376500", "#528300", "#6fa200", "#8dc22c", "#ccff78"]
+      },
+      "dark-warning": {
+        "role": "secondary",
+        "displayName": "Amber Warning",
+        "canonical": "#ffc46b",
+        "tonalRamp": ["#250000", "#410f00", "#5e2c00", "#7c4800", "#9b6500", "#bb8321", "#dba247", "#ffe38a"]
+      },
+      "dark-danger": {
+        "role": "secondary",
+        "displayName": "Coral Danger",
+        "canonical": "#ff9a6a",
+        "tonalRamp": ["#300000", "#4f0000", "#6f1400", "#8f3400", "#b05320", "#d27141", "#f49060", "#ffd19f"]
+      },
+      "dark-success": {
+        "role": "secondary",
+        "displayName": "Lime Success",
+        "canonical": "#c6ff72",
+        "tonalRamp": ["#001200", "#032c00", "#1d4800", "#376500", "#528300", "#6fa200", "#8dc22c", "#ccff78"]
+      },
+      "dark-neutral-state": {
+        "role": "neutral",
+        "displayName": "Paused Blue Grey",
+        "canonical": "#9cb4c4",
+        "tonalRamp": ["#000d18", "#102430", "#293d4b", "#435867", "#5f7584", "#7c93a2", "#9ab2c2", "#d9f3ff"]
+      },
+      "dark-data-violet": {
+        "role": "tertiary",
+        "displayName": "Data Violet",
+        "canonical": "#bda6ff",
+        "tonalRamp": ["#140039", "#290656", "#412674", "#5c4393", "#7860b3", "#957ed4", "#b49df5", "#f5deff"]
+      },
+      "light-canvas": {
+        "role": "neutral",
+        "displayName": "Daylight Canvas",
+        "canonical": "#f3f7fa",
+        "tonalRamp": ["#090c0d", "#1f2224", "#383b3d", "#525658", "#6f7275", "#8c9092", "#abaeb1", "#ebeff2"]
+      },
+      "light-surface": {
+        "role": "neutral",
+        "displayName": "White Surface",
+        "canonical": "#ffffff",
+        "tonalRamp": ["#0b0b0b", "#222222", "#3a3a3a", "#555555", "#717171", "#8f8f8f", "#aeaeae", "#eeeeee"]
+      },
+      "light-raised": {
+        "role": "neutral",
+        "displayName": "Raised Blue Grey",
+        "canonical": "#eaf2f6",
+        "tonalRamp": ["#070c0f", "#1d2326", "#353c3f", "#50565a", "#6c7376", "#899094", "#a8afb3", "#e8f0f4"]
+      },
+      "light-rail": {
+        "role": "neutral",
+        "displayName": "Pale Blue Rail",
+        "canonical": "#e7f1f5",
+        "tonalRamp": ["#060c0f", "#1c2326", "#343c3f", "#4e575a", "#6a7377", "#889195", "#a6b0b3", "#e6f0f4"]
+      },
+      "light-ink": {
+        "role": "neutral",
+        "displayName": "Navy Ink",
+        "canonical": "#10263a",
+        "tonalRamp": ["#000c1e", "#0d2337", "#263d52", "#40586e", "#5c748c", "#7992ab", "#97b1cb", "#d7f2ff"]
+      },
+      "light-ink-secondary": {
+        "role": "neutral",
+        "displayName": "Harbor Secondary Ink",
+        "canonical": "#496779",
+        "tonalRamp": ["#000d1b", "#072534", "#213e4f", "#3c5a6b", "#587689", "#7594a7", "#93b3c7", "#d2f4ff"]
+      },
+      "light-ink-muted": {
+        "role": "neutral",
+        "displayName": "Harbor Muted Ink",
+        "canonical": "#607988",
+        "tonalRamp": ["#000d18", "#0d2431", "#273e4b", "#415967", "#5d7684", "#7a93a3", "#98b2c2", "#d7f3ff"]
+      },
+      "light-divider": {
+        "role": "neutral",
+        "displayName": "Harbor Divider",
+        "canonical": "rgba(45, 85, 105, .22)",
+        "tonalRamp": ["#000e1e", "#002638", "#173f53", "#335b6f", "#4f788d", "#6c96ac", "#8ab5cc", "#caf6ff"]
+      },
+      "light-signal": {
+        "role": "primary",
+        "displayName": "Harbor Signal",
+        "canonical": "#006e86",
+        "tonalRamp": ["#001025", "#00293f", "#00445b", "#006078", "#207d96", "#459cb5", "#66bcd6", "#a7fdff"]
+      },
+      "light-action": {
+        "role": "primary",
+        "displayName": "Daylight Action Lime",
+        "canonical": "#b8e86b",
+        "tonalRamp": ["#001100", "#0a2b00", "#234600", "#3c6300", "#588100", "#74a013", "#92c041", "#d1ff85"]
+      },
+      "light-warning": {
+        "role": "secondary",
+        "displayName": "Burnished Warning",
+        "canonical": "#a85c00",
+        "tonalRamp": ["#2b0000", "#490000", "#682000", "#873e00", "#a75b00", "#c87931", "#ea9852", "#ffd993"]
+      },
+      "light-danger": {
+        "role": "secondary",
+        "displayName": "Rust Danger",
+        "canonical": "#c24735",
+        "tonalRamp": ["#370000", "#580000", "#790000", "#9b2010", "#bd4231", "#e0624f", "#ff826d", "#ffc3ab"]
+      },
+      "light-success": {
+        "role": "secondary",
+        "displayName": "Forest Success",
+        "canonical": "#2e7a4a",
+        "tonalRamp": ["#001500", "#002e03", "#00491d", "#146637", "#388353", "#57a26f", "#77c28d", "#b7ffcc"]
+      },
+      "light-neutral-state": {
+        "role": "neutral",
+        "displayName": "Slate State",
+        "canonical": "#607988",
+        "tonalRamp": ["#000d18", "#0d2431", "#273e4b", "#415967", "#5d7684", "#7a93a3", "#98b2c2", "#d7f3ff"]
+      },
+      "light-data-violet": {
+        "role": "tertiary",
+        "displayName": "Iris Data Violet",
+        "canonical": "#6d4cc2",
+        "tonalRamp": ["#19004d", "#2c006c", "#42138c", "#5b37ac", "#7757ce", "#9476f0", "#b296ff", "#f1d7ff"]
+      }
+    },
+    "typographyMeta": {
+      "body": {"displayName": "正文", "purpose": "工作台基础中文无衬线文字。"},
+      "page-title": {"displayName": "页面标题", "purpose": "当前页面的一级标题。"},
+      "section-title": {"displayName": "区段标题", "purpose": "内容区、卡片和表格分组标题。"},
+      "brand": {"displayName": "品牌中文黑体", "purpose": "工作台品牌标识的中文无衬线字族。"},
+      "label": {"displayName": "字段标签", "purpose": "表单字段名称和简短控件标签。"},
+      "data": {"displayName": "数据等宽字", "purpose": "项目编号、时间戳及需逐位比较的数据。"}
+    },
+    "shadows": [
+      {"name": "card", "value": "0 16px 40px rgba(0, 0, 0, 0.14)", "purpose": "深色主题内容卡片的现有轻层级阴影；浅色主题使用环境色调阴影。"},
+      {"name": "float", "value": "0 30px 90px rgba(0, 0, 0, 0.32), 0 0 0 1px rgba(108, 243, 255, 0.08)", "purpose": "深色主题浮动菜单和对话层。"},
+      {"name": "drawer", "value": "-16px 0 36px rgba(7, 19, 31, .24), 0 0 0 1px var(--signal-glow)", "purpose": "抽屉与工作区内容的边界。"}
+    ],
+    "motion": [
+      {"name": "console", "value": "140ms ease-out", "purpose": "常规控件的短状态反馈。"},
+      {"name": "fast", "value": "160ms", "purpose": "紧凑的导航与控件状态变化。"},
+      {"name": "base", "value": "220ms", "purpose": "较明显的面板和组件状态过渡。"},
+      {"name": "number", "value": "420ms", "purpose": "数值变化反馈。"},
+      {"name": "chart", "value": "500ms", "purpose": "图表状态更新。"},
+      {"name": "ease-console", "value": "cubic-bezier(0.2, 0.72, 0.2, 1)", "purpose": "主控制台交互的缓出曲线。"}
+    ],
+    "breakpoints": [
+      {"name": "compact-shell", "value": "900px"},
+      {"name": "tablet", "value": "767px"},
+      {"name": "small-mobile", "value": "520px"},
+      {"name": "sidebar-compact-start", "value": "901px"},
+      {"name": "sidebar-compact-end", "value": "1180px"}
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button · Dark",
+      "kind": "button",
+      "refersTo": "button-primary-dark",
+      "description": "酸橙填充的主要行动按钮，深色主题使用深色前景。",
+      "html": "<button class=\"ds-btn-primary-dark\" type=\"button\">保存更改</button>",
+      "css": ".ds-btn-primary-dark { display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 38px; padding: 0 16px; border: 1px solid #c6ff72; border-radius: 0; background: #c6ff72; color: #07131f; font: 650 14px/1 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif; white-space: nowrap; transition: background 140ms ease-out, border-color 140ms ease-out, transform 140ms ease-out; } .ds-btn-primary-dark:hover { background: #d9ff9b; border-color: #d9ff9b; } .ds-btn-primary-dark:focus-visible { outline: 2px solid #6cf3ff; outline-offset: 2px; } .ds-btn-primary-dark:active { transform: translateY(1px); }"
+    },
+    {
+      "name": "Primary Button · Light",
+      "kind": "button",
+      "refersTo": "button-primary-light",
+      "description": "浅色工作面上的酸橙行动按钮，维持深色文字和清楚边界。",
+      "html": "<button class=\"ds-btn-primary-light\" type=\"button\">保存更改</button>",
+      "css": ".ds-btn-primary-light { display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 38px; padding: 0 16px; border: 1px solid #b8e86b; border-radius: 0; background: #b8e86b; color: #10263a; font: 650 14px/1 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif; white-space: nowrap; transition: background 140ms ease-out, border-color 140ms ease-out, transform 140ms ease-out; } .ds-btn-primary-light:hover { background: #c6f18b; border-color: #c6f18b; } .ds-btn-primary-light:focus-visible { outline: 2px solid #006e86; outline-offset: 2px; } .ds-btn-primary-light:active { transform: translateY(1px); }"
+    },
+    {
+      "name": "Ghost Button · Dark",
+      "kind": "button",
+      "refersTo": "button-ghost-dark",
+      "description": "深色模式下使用深色表面与细边界的次级操作。",
+      "html": "<button class=\"ds-btn-ghost-dark\" type=\"button\">取消</button>",
+      "css": ".ds-btn-ghost-dark { display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 38px; padding: 0 13px; border: 1px solid rgba(146, 189, 210, .22); border-radius: 0; background: #0d1d2c; color: #eaf9fb; font: 400 14px/1.5 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif; white-space: nowrap; transition: color 140ms ease-out, border-color 140ms ease-out, background 140ms ease-out; } .ds-btn-ghost-dark:hover { border-color: #6cf3ff; color: #6cf3ff; } .ds-btn-ghost-dark:focus-visible { outline: 2px solid #6cf3ff; outline-offset: 2px; } .ds-btn-ghost-dark:active { transform: translateY(1px); }"
+    },
+    {
+      "name": "Ghost Button · Light",
+      "kind": "button",
+      "refersTo": "button-ghost-light",
+      "description": "浅色模式下使用白色表面与细边界的次级操作。",
+      "html": "<button class=\"ds-btn-ghost-light\" type=\"button\">取消</button>",
+      "css": ".ds-btn-ghost-light { display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 38px; padding: 0 13px; border: 1px solid rgba(45, 85, 105, .22); border-radius: 0; background: #fff; color: #10263a; font: 400 14px/1.5 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif; white-space: nowrap; transition: color 140ms ease-out, border-color 140ms ease-out, background 140ms ease-out; } .ds-btn-ghost-light:hover { border-color: #006e86; color: #006e86; } .ds-btn-ghost-light:focus-visible { outline: 2px solid #006e86; outline-offset: 2px; } .ds-btn-ghost-light:active { transform: translateY(1px); }"
+    },
+    {
+      "name": "Input · Dark",
+      "kind": "input",
+      "refersTo": "input-dark",
+      "description": "深色表面上的方角单行输入，焦点使用主题信号色。",
+      "html": "<label class=\"ds-field-dark\">项目名称<input class=\"ds-input-dark\" type=\"text\" value=\"北区交付计划\" /></label>",
+      "css": ".ds-field-dark { display: grid; gap: 5px; color: rgba(201, 227, 235, .72); font: 400 13px/1.5 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif; } .ds-input-dark { width: 100%; height: 38px; padding: 0 11px; border: 1px solid rgba(146, 189, 210, .22); border-radius: 0; background: #0d1d2c; color: #eaf9fb; font: 400 14px/1.5 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif; transition: border-color 140ms ease-out, box-shadow 140ms ease-out; } .ds-input-dark:focus { border-color: #6cf3ff; box-shadow: 0 0 0 2px rgba(108, 243, 255, .08); outline: none; }"
+    },
+    {
+      "name": "Input · Light",
+      "kind": "input",
+      "refersTo": "input-light",
+      "description": "浅色工作面上的方角单行输入，焦点使用深青色边界。",
+      "html": "<label class=\"ds-field-light\">项目名称<input class=\"ds-input-light\" type=\"text\" value=\"北区交付计划\" /></label>",
+      "css": ".ds-field-light { display: grid; gap: 5px; color: #496779; font: 400 13px/1.5 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif; } .ds-input-light { width: 100%; height: 38px; padding: 0 11px; border: 1px solid rgba(45, 85, 105, .22); border-radius: 0; background: #fff; color: #10263a; font: 400 14px/1.5 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif; transition: border-color 140ms ease-out, box-shadow 140ms ease-out; } .ds-input-light:focus { border-color: #006e86; box-shadow: 0 0 0 2px rgba(0, 110, 134, .09); outline: none; }"
+    },
+    {
+      "name": "Console Navigation · Theme Pair",
+      "kind": "nav",
+      "description": "主题成对对照的侧栏入口，深色和浅色的导航状态维持相同语义。",
+      "html": "<div class=\"ds-nav-pair\"><nav class=\"ds-nav-dark\" aria-label=\"深色导航示例\"><a class=\"ds-nav-item-dark\" href=\"#dashboard-dark\">工作台</a><a class=\"ds-nav-item-dark ds-nav-item-dark-active\" href=\"#projects-dark\" aria-current=\"page\">项目台账</a></nav><nav class=\"ds-nav-light\" aria-label=\"浅色导航示例\"><a class=\"ds-nav-item-light\" href=\"#dashboard-light\">工作台</a><a class=\"ds-nav-item-light ds-nav-item-light-active\" href=\"#projects-light\" aria-current=\"page\">项目台账</a></nav></div>",
+      "css": ".ds-nav-pair { display: flex; flex-wrap: wrap; gap: 12px; } .ds-nav-dark, .ds-nav-light { display: grid; gap: 4px; width: 220px; padding: 14px 10px; } .ds-nav-dark { border-right: 1px solid rgba(255, 255, 255, .08); background: #081622; } .ds-nav-light { border-right: 1px solid rgba(33, 83, 104, .14); background: #e7f1f5; } .ds-nav-item-dark, .ds-nav-item-light { min-height: 42px; display: flex; align-items: center; padding: 0 12px; border-radius: 0; font: 500 14px/1.4 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif; text-decoration: none; } .ds-nav-item-dark { color: rgba(231, 239, 252, .72); } .ds-nav-item-light { color: #526c7d; } .ds-nav-item-dark:hover, .ds-nav-item-dark-active { background: rgba(108, 243, 255, .06); color: #eaf2ff; } .ds-nav-item-light:hover, .ds-nav-item-light-active { background: rgba(0, 110, 134, .09); color: #10263a; } .ds-nav-item-dark-active { box-shadow: inset 2px 0 #6cf3ff; } .ds-nav-item-light-active { box-shadow: inset 2px 0 #006e86; } .ds-nav-item-dark:focus-visible { outline: 2px solid #6cf3ff; outline-offset: -2px; } .ds-nav-item-light:focus-visible { outline: 2px solid #006e86; outline-offset: -2px; } @media (max-width: 480px) { .ds-nav-pair { flex-direction: column; } }"
+    },
+    {
+      "name": "Card · Dark",
+      "kind": "card",
+      "refersTo": "card-dark",
+      "description": "深色主题的直角内容面板，使用细边界和轻量层级。",
+      "html": "<article class=\"ds-card-dark\"><h2>项目进展</h2><p>关键节点与交付状态</p></article>",
+      "css": ".ds-card-dark { padding: 20px; border: 1px solid rgba(146, 189, 210, .22); border-radius: 0; background: #0d1d2c; color: #eaf9fb; box-shadow: 0 16px 40px rgba(0, 0, 0, .14); } .ds-card-dark h2 { margin: 0 0 8px; font: 700 15px/1.35 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif; } .ds-card-dark p { margin: 0; color: rgba(201, 227, 235, .72); font: 400 14px/1.5 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif; }"
+    },
+    {
+      "name": "Card · Light",
+      "kind": "card",
+      "refersTo": "card-light",
+      "description": "浅色主题的直角白色内容面板，层级来自边界和柔和阴影。",
+      "html": "<article class=\"ds-card-light\"><h2>项目进展</h2><p>关键节点与交付状态</p></article>",
+      "css": ".ds-card-light { padding: 20px; border: 1px solid rgba(45, 85, 105, .22); border-radius: 0; background: #fff; color: #10263a; box-shadow: 0 12px 30px rgba(21, 55, 76, .08); } .ds-card-light h2 { margin: 0 0 8px; font: 700 15px/1.35 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif; } .ds-card-light p { margin: 0; color: #496779; font: 400 14px/1.5 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif; }"
+    },
+    {
+      "name": "Status Badge",
+      "kind": "chip",
+      "description": "紧凑的小圆角状态徽标，文字、小圆点和语义色共同表达状态。",
+      "html": "<span class=\"ds-badge\">进行中</span>",
+      "css": ".ds-badge { display: inline-flex; align-items: center; height: 22px; padding: 0 8px; border: 1px solid rgba(0, 110, 134, .34); border-radius: 11px; background: rgba(0, 110, 134, .09); color: #006e86; font: 500 12px/1 'JetBrains Mono', 'IBM Plex Mono', Menlo, Consolas, monospace; white-space: nowrap; transition: background 120ms ease-out, border-color 120ms ease-out; } .ds-badge::before { width: 4px; height: 4px; margin-right: 5px; border-radius: 50%; background: currentColor; content: ''; opacity: .72; } .ds-badge:focus-visible { outline: 2px solid #006e86; outline-offset: 2px; } @media (prefers-reduced-motion: reduce) { .ds-badge { transition: none; } }"
+    }
+  ],
+  "narrative": {
+    "northStar": "信号日光台（Signal Daylight Console）",
+    "overview": "数科云办公是一套供团队治理项目、推进执行并核对交付事实的工作台。视觉语言以清晰的工作面和可读的数据为先：深海军蓝承载暗色工作环境，冷白与蓝灰构成浅色工作面；青色标记信息路径和当前焦点，酸橙色只标记可执行动作与完成状态。深浅主题共享同一组语义职责与版式，不是两套互不相干的皮肤。\n\n界面以黑体中文、紧凑的操作型信息层级、直角边界和克制的阴影建立控制台感。项目列表、表格、审批和浮层必须清楚地区分画布、内容表面、导航和状态。主题由根节点的 data-theme 驱动；新工作台界面应消费语义颜色，而不是复制某个主题下的硬编码颜色。",
+    "keyCharacteristics": [
+      "深浅双主题共用语义色职责，切换不改变信息层级或布局。",
+      "冷调深蓝 / 冷白基底，青色链路信号与酸橙执行色各司其职。",
+      "中文无衬线为主，等宽字只用于编号、时间及测量数据。",
+      "以直角、细边界和留白分组，不靠圆角卡片堆叠层级。"
+    ],
+    "rules": [
+      {"name": "The Two-Theme Parity Rule", "body": "主题切换只替换语义颜色，不反转组件职责；同一控件在两种主题下都必须保有相同的重点、可读性和状态表达。", "section": "colors"},
+      {"name": "The Signal / Action Rule", "body": "青色负责“看哪里、当前在哪里”，酸橙负责“现在可以做什么、什么已完成”。不要把这两个角色混为装饰色。", "section": "colors"},
+      {"name": "The One Sans Rule", "body": "工作台标题、正文、字段和按钮保持同一中文无衬线家族；品牌字标可沿用独立的 `--font-brand` 黑体栈，不要为单个页面插入衬线展示字或新的品牌字体。", "section": "typography"},
+      {"name": "The Surface-First Rule", "body": "默认保持工作区内容平实；只在真实浮层或需要区分的容器边缘使用阴影，普通分组优先使用间距和细边界。", "section": "elevation"}
+    ],
+    "dos": [
+      "Do 让主工作台的新颜色来自根级语义 token，并同时确认深色和浅色映射。",
+      "Do 让酸橙只承担主操作或完成语义，让青色承担链接、导航和焦点信号。",
+      "Do 为警告、危险、完成和中性状态同时提供文字或形状提示。",
+      "Do 延续中文黑体、表格密度、直角控件和现有移动导航结构。",
+      "Do 在深浅主题中检查表格、输入、浮层、焦点环、禁用态和状态徽标的对比度。",
+      "Do 把独立演示和登录界面视为有边界的视觉例外，并在扩展其体验时保持自己的局部系统。"
+    ],
+    "donts": [
+      "Don't 把深色背景或白色文本硬编码进需要跟随工作台主题的组件。",
+      "Don't 将青色与酸橙互换职责，或用高饱和色大面积填充工作区。",
+      "Don't 用颜色单独传达状态、错误、选中或可操作性。",
+      "Don't 将整套工作台改成统一圆角卡片，或在卡片内部再堆叠无层级意义的卡片。",
+      "Don't 把 `/login` 或 `/spark` 的专属配色未经转换就复制到主工作台。",
+      "Don't 让动效、阴影或装饰性发光削弱表格扫描、表单操作和键盘导航。"
+    ]
+  }
+}
