@@ -16,6 +16,7 @@ import {
   type UserOption,
 } from "./api";
 import { parseIdentitySnapshot } from "./identityCore";
+import { cacheIdentity, readAsyncDataCache, writeAsyncDataCache } from "./asyncDataCache";
 
 interface Meta {
   users: UserOption[];
@@ -24,14 +25,42 @@ interface Meta {
 
 let cache: Meta | null = null;
 let inflight: Promise<Meta> | null = null;
+const metaCache = cacheIdentity("metadata:users-departments", JSON.stringify([]));
+let metaCacheToken: string | null = null;
 
 export function loadMeta(): Promise<Meta> {
+  const token = getToken();
+  if (token !== metaCacheToken) {
+    cache = null;
+    inflight = null;
+    metaCacheToken = token;
+  }
   if (cache) return Promise.resolve(cache);
+  const snapshot = readAsyncDataCache<Meta>(metaCache.key, metaCache.depsKey, token, 5 * 60_000);
   if (!inflight) {
+    if (snapshot) {
+      cache = snapshot;
+      // Paint the local dictionary immediately while refreshing it in the background.
+      inflight = Promise.all([metaApi.users(), metaApi.depts()])
+        .then(([users, depts]) => {
+          cache = { users, depts };
+          writeAsyncDataCache(metaCache.key, metaCache.depsKey, token, cache);
+          return cache;
+        })
+        .catch(() => cache as Meta)
+        .finally(() => { inflight = null; });
+      return Promise.resolve(snapshot);
+    }
     inflight = Promise.all([metaApi.users(), metaApi.depts()])
       .then(([users, depts]) => {
         cache = { users, depts };
+        writeAsyncDataCache(metaCache.key, metaCache.depsKey, token, cache);
         return cache;
+      })
+      .catch((error) => {
+        // Preserve a valid session snapshot on temporary read failure.
+        if (cache) return cache;
+        throw error;
       })
       .finally(() => {
         inflight = null;

@@ -7,6 +7,7 @@ import {
 } from "./identityCore";
 import { runReadWithRetry } from "./readClient";
 import { uploadPercent, type UploadProgress } from "./uploadZone";
+import { clearAsyncDataCache } from "./asyncDataCache";
 
 /**
  * `process` 的模块内声明。
@@ -57,12 +58,24 @@ const REFRESH_KEY = "pm_refresh_token";
 
 export function getToken(): string | null {
   if (typeof window === "undefined") return null;
-  return localStorage.getItem(TOKEN_KEY);
+  try {
+    return window.localStorage.getItem(TOKEN_KEY);
+  } catch {
+    return null;
+  }
 }
 
 export function saveSession(access: string, refresh: string) {
-  localStorage.setItem(TOKEN_KEY, access);
-  localStorage.setItem(REFRESH_KEY, refresh);
+  clearAsyncDataCache();
+  try {
+    window.localStorage.setItem(TOKEN_KEY, access);
+    window.localStorage.setItem(REFRESH_KEY, refresh);
+  } catch {
+    // Keep the existing token-cookie middleware gate where browser storage is unavailable.
+  }
+  if (typeof window !== "undefined" && typeof window.dispatchEvent === "function") {
+    window.dispatchEvent(new Event("pm:session-changed"));
+  }
   // middleware 侧可读的 cookie（MVP 非 httpOnly），与 access token 的 8 小时有效期一致
   document.cookie = `pm_access_token=${access}; path=/; max-age=${8 * 3600}`;
 }
@@ -112,8 +125,16 @@ export function clearIdentityCache(): void {
 const LOGIN_PATH = "/login";
 
 export function clearSession() {
-  localStorage.removeItem(TOKEN_KEY);
-  localStorage.removeItem(REFRESH_KEY);
+  clearAsyncDataCache();
+  try {
+    window.localStorage.removeItem(TOKEN_KEY);
+    window.localStorage.removeItem(REFRESH_KEY);
+  } catch {
+    // Optional browser storage must not prevent logout navigation or identity cleanup.
+  }
+  if (typeof window !== "undefined" && typeof window.dispatchEvent === "function") {
+    window.dispatchEvent(new Event("pm:session-changed"));
+  }
   clearIdentityCache();
   document.cookie = "pm_access_token=; path=/; max-age=0";
   if (typeof window === "undefined") return;
