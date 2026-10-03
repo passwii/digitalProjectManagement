@@ -110,6 +110,7 @@ function ProjectsInner() {
   const { data: ownerRows, reload: reloadOwners } = useAsyncData(
     (signal) => projectsApi.owners(signal),
     [],
+    { cacheKey: "projects:owners" },
   );
   const ownerOptions = ownerRows ?? PROJECT_OWNERS.map((name) => ({ name, count: 0 }));
 

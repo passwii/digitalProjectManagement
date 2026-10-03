@@ -36,6 +36,26 @@ function days() {
   return screen.getAllByRole("gridcell");
 }
 
+/** 根据月历实际显示的月份查找日期，不依赖运行时的当前月份。 */
+function visibleMonthDay(day: number) {
+  const title = screen.getByText(/^\d{4} 年 \d{1,2} 月$/).textContent ?? "";
+  const match = title.match(/^(\d{4}) 年 (\d{1,2}) 月$/);
+  if (!match) throw new Error(`无法识别月历标题：${title}`);
+
+  const [, year, monthText] = match;
+  const month = Number(monthText);
+  const labelPrefix = `${year}年${month}月${day}日`;
+  const cell = days().find((candidate) =>
+    candidate.getAttribute("aria-label")?.startsWith(labelPrefix),
+  );
+  if (!cell) throw new Error(`月历中找不到 ${labelPrefix}`);
+
+  return {
+    cell,
+    iso: `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`,
+  };
+}
+
 describe("随表单提交（name）", () => {
   it("单选提交的必须是 ISO 值，不能是展示用的中文", () => {
     render(<DatePicker name="purchase_date" value="2026-09-29" onChange={() => {}} />);
@@ -320,11 +340,13 @@ describe("区间选择", () => {
     const onChange = vi.fn();
     render(<DateRangePicker value={{ from: "", to: "" }} onChange={onChange} />);
     openTrigger("选择日期区间");
-    fireEvent.click(screen.getByLabelText("2026年9月20日 星期日"));
+    const twentieth = visibleMonthDay(20);
+    fireEvent.click(twentieth.cell);
     expect(onChange).not.toHaveBeenCalled();
     // 先点了 20 号再点 15 号 → 自动对调，用户要的是「一个区间」而不是固定顺序
-    fireEvent.click(screen.getByLabelText("2026年9月15日 星期二"));
-    expect(onChange).toHaveBeenCalledWith({ from: "2026-09-15", to: "2026-09-20" });
+    const fifteenth = visibleMonthDay(15);
+    fireEvent.click(fifteenth.cell);
+    expect(onChange).toHaveBeenCalledWith({ from: fifteenth.iso, to: twentieth.iso });
   });
 
   it("两端齐备时触发器展示区间", () => {
@@ -338,7 +360,7 @@ describe("区间选择", () => {
     render(<DateRangePicker value={{ from: "", to: "" }} onChange={() => {}} />);
     openTrigger("选择日期区间");
     expect(screen.getByText("选择起始日期")).toBeTruthy();
-    fireEvent.click(screen.getByLabelText("2026年9月20日 星期日"));
+    fireEvent.click(visibleMonthDay(20).cell);
     expect(screen.getByText("再选一天作为结束日期")).toBeTruthy();
   });
 });

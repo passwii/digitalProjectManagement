@@ -7,8 +7,15 @@
  * - resetOnDepChange=true：筛选条件或当前项目变化时立即清空旧数据，
  *   骨架屏期间不会展示上一个筛选/项目的错误数据（reload() 不受影响）。
  */
-import { useCallback, useEffect, useRef, useState } from "react";
-import { errText } from "./api";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { errText, getToken } from "./api";
+import {
+  cacheIdentity,
+  deleteAsyncDataCache,
+  getAsyncDataCacheSnapshot,
+  subscribeAsyncDataCache,
+  writeAsyncDataCache,
+} from "./asyncDataCache";
 import { useActivity } from "./useActivity";
 import { linkAbortSignal, refreshAbortMessage, useRegisterPageRefresh } from "./pageRefresh";
 
@@ -34,22 +41,58 @@ export function useAsyncData<T>(
   {
     enabled = true,
     resetOnDepChange = false,
-  }: { enabled?: boolean; resetOnDepChange?: boolean } = {},
+    cacheKey,
+    cacheMaxAgeMs = 5 * 60_000,
+  }: { enabled?: boolean; resetOnDepChange?: boolean; cacheKey?: string; cacheMaxAgeMs?: number } = {},
 ): AsyncData<T> {
   const { beginActivity } = useActivity();
   const loaderRef = useRef(loader);
   loaderRef.current = loader;
 
-  const [data, setData] = useState<T | null>(null);
-  const [loading, setLoading] = useState(enabled);
+  const depKey = JSON.stringify(deps);
+  const token = cacheKey ? getToken() : null;
+  const isCacheable = Boolean(cacheKey) && token !== null;
+  const cache = cacheKey ? cacheIdentity(cacheKey, depKey) : null;
+  const storageKey = cache?.key;
+  const storageDepsKey = cache?.depsKey ?? depKey;
+  const subscribeCache = useCallback(
+    (listener: () => void) => storageKey && token ? subscribeAsyncDataCache(storageKey, listener) : () => {},
+    [storageKey, token],
+  );
+  const readCacheSnapshot = useCallback(
+    () => storageKey && token
+      ? getAsyncDataCacheSnapshot<T>(storageKey, storageDepsKey, token, cacheMaxAgeMs)
+      : null,
+    [storageKey, storageDepsKey, token, cacheMaxAgeMs],
+  );
+  const cacheSnapshot = useSyncExternalStore(subscribeCache, readCacheSnapshot, () => null);
+  const cacheValue = cacheSnapshot?.data;
+  const cacheValueRef = useRef(cacheValue);
+  cacheValueRef.current = cacheValue;
+  const depKeyRef = useRef(depKey);
+  depKeyRef.current = depKey;
+  const cacheSnapshotRef = useRef(cacheSnapshot);
+  cacheSnapshotRef.current = cacheSnapshot;
+  const enabledRef = useRef(enabled);
+  const resetOnDepChangeRef = useRef(resetOnDepChange);
+  const cacheKeyRef = useRef(cacheKey);
+  enabledRef.current = enabled;
+  resetOnDepChangeRef.current = resetOnDepChange;
+  cacheKeyRef.current = cacheKey;
+  const currentDataScope = isCacheable ? `${storageKey}\u0000${token}` : "";
+  const [data, setData] = useState<T | null>(() => cacheSnapshotRef.current?.data ?? null);
+  const dataRef = useRef(data);
+  dataRef.current = data;
+  const dataScopeRef = useRef(currentDataScope);
+  const depsKeyRef = useRef(depKey);
+  depsKeyRef.current = depKey;
+  const [loading, setLoading] = useState(enabled && data === null);
   const [error, setError] = useState("");
 
   const seqRef = useRef(0);
   const lastDepRef = useRef<string | null>(null);
   const controllerRef = useRef<AbortController | null>(null);
   const finishRef = useRef<(() => void) | null>(null);
-
-  const depKey = JSON.stringify(deps);
 
   const cancelCurrent = useCallback(() => {
     ++seqRef.current;
@@ -62,6 +105,7 @@ export function useAsyncData<T>(
   /** 同一条请求通道供依赖变化、手动重试和页面下拉刷新使用。 */
   const run = useCallback(async (externalSignal?: AbortSignal): Promise<void> => {
     if (!enabled) return;
+    ++seqRef.current;
     controllerRef.current?.abort();
     finishRef.current?.();
     const id = ++seqRef.current;
@@ -76,7 +120,10 @@ export function useAsyncData<T>(
       finishActivity();
     };
     finishRef.current = finishOnce;
-    setLoading(true);
+    const hasCurrentData =
+      (dataScopeRef.current === currentDataScope && depsKeyRef.current === depKey && dataRef.current !== null) ||
+      (cacheKey !== undefined && cacheValueRef.current !== undefined);
+    setLoading(isCacheable ? !hasCurrentData : true);
     setError("");
 
     const controller = new AbortController();
@@ -94,7 +141,11 @@ export function useAsyncData<T>(
       });
       const value = await Promise.race([request, cancelled]);
       if (controller.signal.aborted || seqRef.current !== id) return;
+      dataScopeRef.current = currentDataScope;
+      depsKeyRef.current = depKey;
+      dataRef.current = value;
       setData(value);
+      if (storageKey) writeAsyncDataCache(storageKey, storageDepsKey, token, value);
       setError("");
       setLoading(false);
     } catch (e) {
@@ -107,7 +158,19 @@ export function useAsyncData<T>(
       }
       const message = errText(e);
       setError(message);
-      setData(null);
+      const candidate = e as { name?: unknown; status?: unknown } | null;
+      const canKeepSnapshot =
+        candidate?.name === "NetworkError" ||
+        (typeof candidate?.status === "number" && [408, 425, 429, 500, 502, 503, 504].includes(candidate.status));
+      const hasCurrentData =
+        (dataScopeRef.current === currentDataScope && depsKeyRef.current === depKey && dataRef.current !== null) ||
+        (cacheKey !== undefined && cacheValueRef.current !== undefined);
+      if (!isCacheable || !canKeepSnapshot || !hasCurrentData) {
+        dataScopeRef.current = currentDataScope;
+        dataRef.current = null;
+        setData(null);
+      }
+      if (storageKey && (!canKeepSnapshot || !hasCurrentData)) deleteAsyncDataCache(storageKey);
       setLoading(false);
       throw new Error(message);
     } finally {
@@ -117,29 +180,71 @@ export function useAsyncData<T>(
       if (finishRef.current === finishOnce) finishRef.current = null;
       if (controllerRef.current === controller) controllerRef.current = null;
     }
-  }, [beginActivity, enabled]);
+  }, [beginActivity, cacheKey, currentDataScope, depKey, enabled, isCacheable, storageDepsKey, storageKey, token]);
 
   useEffect(() => {
-    if (!enabled) {
+    if (!enabledRef.current) {
       cancelCurrent();
       setLoading(false);
       setError("");
       lastDepRef.current = depKey;
       return;
     }
-    // 只有依赖切换清空旧数据；手动刷新保留页面筛选和当前视图。
-    if (resetOnDepChange && lastDepRef.current !== depKey) setData(null);
+    // Restore a matching local snapshot before starting the request. A missing,
+    // expired, oversized, or unreadable entry transparently falls back to network.
+    const depsChanged = lastDepRef.current !== depKey;
+    let restored = false;
+    if (storageKey && token && depsChanged) {
+      const cached = getAsyncDataCacheSnapshot<T>(storageKey, storageDepsKey, token, cacheMaxAgeMs);
+      if (cached) {
+        dataScopeRef.current = currentDataScope;
+        depsKeyRef.current = depKey;
+        dataRef.current = cached.data;
+        setData(cached.data);
+        setLoading(false);
+        restored = true;
+      }
+    }
+    // Only dependency changes clear old data when this caller asks for that behavior.
+    if (resetOnDepChangeRef.current && depsChanged && !restored) {
+      dataScopeRef.current = currentDataScope;
+      dataRef.current = null;
+      setData(null);
+      setLoading(true);
+    } else if (!isCacheable && resetOnDepChangeRef.current && depsChanged) {
+      setData(null);
+      setLoading(true);
+    }
     lastDepRef.current = depKey;
     void run().catch(() => {});
     return cancelCurrent;
-  }, [enabled, depKey, resetOnDepChange, run, cancelCurrent]);
+  }, [depKey, run, cancelCurrent, storageKey, storageDepsKey, cacheMaxAgeMs, token, currentDataScope, isCacheable]);
 
   useRegisterPageRefresh(run, enabled);
 
   const reload = useCallback(() => {
     void run().catch(() => {});
   }, [run]);
-  const setDataDirect = useCallback((next: T | null) => setData(next), []);
+  const setDataDirect = useCallback((next: T | null) => {
+    dataScopeRef.current = currentDataScope;
+    depsKeyRef.current = depKey;
+    dataRef.current = next;
+    setData(next);
+    if (!storageKey || !token) return;
+    if (next === null) deleteAsyncDataCache(storageKey);
+    else writeAsyncDataCache(storageKey, storageDepsKey, token, next);
+  }, [currentDataScope, depKey, storageKey, storageDepsKey, token]);
 
-  return { data, loading, firstLoad: loading && data === null, error, reload, setData: setDataDirect };
+  const dataScopeChanged = isCacheable && dataScopeRef.current !== currentDataScope;
+  const scopedData = !isCacheable || !dataScopeChanged ? data : null;
+  const visibleData = scopedData ?? (cacheValue as T | undefined) ?? null;
+  const visibleLoading = loading || (enabled && dataScopeChanged && cacheValue === undefined);
+  return {
+    data: visibleData,
+    loading: visibleLoading,
+    firstLoad: visibleLoading && visibleData === null,
+    error,
+    reload,
+    setData: setDataDirect,
+  };
 }

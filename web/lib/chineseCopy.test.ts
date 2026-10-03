@@ -7,12 +7,24 @@ function source(path: string): string {
 }
 
 describe("生产端中文界面文案", () => {
-  it("登录页不再暴露英文宣传文案", () => {
+  it("登录页仅保留无标点宣传语，不展示指定的辅助文案", () => {
     const login = source("app/login/page.tsx");
-    assert.doesNotMatch(login, /Digital Project Operations/);
-    assert.doesNotMatch(login, /OA \/ PROJECT DELIVERY/);
-    assert.match(login, /数字化项目运营/);
-    assert.match(login, /项目协同 · 交付管理/);
+    assert.match(login, /复杂有章\s*<span>交付有信<\/span>/);
+    assert.doesNotMatch(login, /复杂有章，|交付有信。/);
+
+    for (const removedCopy of [
+      "项目协同 · 交付管理",
+      "节点 07",
+      "数字化项目运营",
+      "把台账、进度、成本与审批，收束进同一条可追溯的工作链路",
+      "认证入口 / 01",
+      "本地节点 / 就绪",
+      "数科云办公 // 项目运营",
+      "©2026",
+      "链路图 / 项目交付",
+    ]) {
+      assert.doesNotMatch(login, new RegExp(removedCopy));
+    }
   });
 
   it("项目状态码在管理页以中文状态展示", () => {

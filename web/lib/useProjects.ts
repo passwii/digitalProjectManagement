@@ -8,6 +8,7 @@ export function useProjectsProbe() {
   const { data, loading, error, reload } = useAsyncData(
     (signal) => projectsApi.options({ page: 1, size: 1 }, signal),
     [],
+    { cacheKey: "projects:scope-probe", cacheMaxAgeMs: 60_000 },
   );
   return {
     hasProjects: (data?.total ?? 0) > 0,

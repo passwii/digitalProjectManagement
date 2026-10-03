@@ -277,6 +277,92 @@ def test_batch_and_unique_codes(client, db):
     assert client.post(f"{ROOT}/inbound", headers=login(client, "pm"), json={"items": []}).status_code == 403
 
 
+def test_inventory_inbound_outbound_tracks_source_quantity_and_shipment(client, db):
+    admin = login(client, "admin")
+    inbound = client.post(f"{ROOT}/inbound", headers=admin, json={
+        "name": "库存网线入库",
+        "inventory_managed": True,
+        "items": [{
+            "name": "Cat6 网线",
+            "category_code": "network",
+            "quantity": 12,
+        }],
+    })
+    assert inbound.status_code == 200, inbound.text
+    stock = inbound.json()["items"][0]
+    assert stock["inventory_managed"] is True
+    assert stock["quantity"] == 12
+    assert stock["available_quantity"] == 12
+
+    outbound = client.post(f"{ROOT}/{stock['id']}/outbound", headers=admin, json={
+        "quantity": 5,
+        "customer": "示例客户",
+        "destination": "客户机房",
+        "shipped_at": "2026-10-01T14:30:00+08:00",
+        "note": "现场部署",
+    })
+    assert outbound.status_code == 200, outbound.text
+    event = outbound.json()
+    assert event["asset_id"] == stock["id"]
+    assert event["batch_id"] == stock["batch_id"]
+    assert event["quantity"] == 5
+    assert event["customer"] == "示例客户"
+    assert event["destination"] == "客户机房"
+    assert event["shipped_at"] == "2026-10-01T14:30:00"
+    assert event["available_quantity"] == 7
+
+    ledger = client.get(ROOT, headers=admin).json()["items"]
+    updated_stock = next(item for item in ledger if item["id"] == stock["id"])
+    assert updated_stock["quantity"] == 12
+    assert updated_stock["available_quantity"] == 7
+
+    history = client.get(f"{ROOT}/outbounds?asset_id={stock['id']}", headers=admin)
+    assert history.status_code == 200, history.text
+    assert history.json()["total"] == 1
+    assert history.json()["items"][0]["id"] == event["id"]
+    assert history.json()["items"][0]["asset_code"] == stock["code"]
+
+    insufficient = client.post(f"{ROOT}/{stock['id']}/outbound", headers=admin, json={
+        "quantity": 8, "destination": "另一个客户现场", "shipped_at": "2026-10-01T15:00:00",
+    })
+    assert insufficient.status_code == 400
+    with db() as session:
+        asset = session.get(EquipmentAsset, stock["id"])
+        assert asset.quantity == 12
+        assert asset.available_quantity == 7
+        assert session.query(EquipmentEvent).filter_by(asset_id=stock["id"], action="outbound").count() == 1
+
+
+def test_inventory_contract_rejects_invalid_modes_and_protects_stock_history(client, db):
+    admin, pm = login(client, "admin"), login(client, "pm")
+    invalid_quantity = client.post(f"{ROOT}/inbound", headers=admin, json={
+        "name": "错误单件数量", "items": [{
+            "name": "笔记本", "category_code": "computer", "quantity": 2,
+        }],
+    })
+    assert invalid_quantity.status_code == 400
+
+    stock_batch = client.post(f"{ROOT}/inbound", headers=admin, json={
+        "name": "出库权限测试库存", "inventory_managed": True, "items": [{
+            "name": "光模块", "category_code": "network", "quantity": 4,
+        }],
+    })
+    assert stock_batch.status_code == 200, stock_batch.text
+    stock = stock_batch.json()["items"][0]
+    assert client.post(f"{ROOT}/{stock['id']}/outbound", headers=pm, json={
+        "quantity": 1, "customer": "客户", "shipped_at": "2026-10-01T15:00:00",
+    }).status_code == 403
+    assert client.post(f"{ROOT}/{stock['id']}/outbound", headers=admin, json={
+        "quantity": 1, "shipped_at": "2026-10-01T15:00:00",
+    }).status_code == 400
+    delete_check = client.get(f"{ROOT}/{stock['id']}/delete-check", headers=admin)
+    assert delete_check.status_code == 200
+    assert delete_check.json()["allowed"] is False
+    assert client.request("DELETE", f"{ROOT}/{stock['id']}", headers=admin, json={
+        "confirm_code": stock["code"], "reason": "库存不可删除",
+    }).status_code == 409
+
+
 def test_inbound_does_not_treat_zero_batch_id_as_create_new_batch(client, db):
     admin = login(client, "admin")
     response = client.post(f"{ROOT}/inbound", headers=admin, json={
