@@ -3,6 +3,9 @@
 const STORAGE_PREFIX = "pm_async_data_v1:";
 const MAX_CACHE_CHARS = 256 * 1024;
 const MAX_CACHE_ENTRIES = 8;
+const MAX_SNAPSHOT_ENTRIES = 64;
+const CACHE_MISS_TTL_MS = 1_000;
+const STORAGE_INDEX_KEY = `${STORAGE_PREFIX}__index__`;
 
 interface StoredAsyncData {
   version: 1;
@@ -37,15 +40,9 @@ const snapshots = new Map<string, {
 }>();
 const listeners = new Map<string, Set<() => void>>();
 
-/** Avoid storing raw filters/search text in the localStorage key or cache envelope. */
+/** Keep the complete dependency key so distinct requests cannot collide. */
 export function cacheIdentity(key: string, depsKey: string): { key: string; depsKey: string } {
-  let hash = 2166136261;
-  for (let index = 0; index < depsKey.length; index += 1) {
-    hash ^= depsKey.charCodeAt(index);
-    hash = Math.imul(hash, 16777619);
-  }
-  const fingerprint = (hash >>> 0).toString(36);
-  return { key: `${key}:${fingerprint}`, depsKey: fingerprint };
+  return { key: `${key}:${depsKey}`, depsKey };
 }
 
 function storageKey(key: string): string {
@@ -63,6 +60,72 @@ function storage(): CacheStorage | null {
 function notify(key: string): void {
   snapshots.delete(key);
   listeners.get(key)?.forEach((listener) => listener());
+}
+
+function setSnapshot(
+  key: string,
+  snapshot: { signature: string; expiresAt: number; value: AsyncDataCacheSnapshot<unknown> | null },
+): void {
+  const now = Date.now();
+  snapshots.forEach((cached, cachedKey) => {
+    if (cached.expiresAt < now) snapshots.delete(cachedKey);
+  });
+  snapshots.delete(key);
+  while (snapshots.size >= MAX_SNAPSHOT_ENTRIES) {
+    const oldestKey = snapshots.keys().next().value as string | undefined;
+    if (oldestKey === undefined) break;
+    snapshots.delete(oldestKey);
+  }
+  snapshots.set(key, snapshot);
+}
+
+function readCacheIndex(localStorage: CacheStorage): Record<string, number> | null {
+  try {
+    const raw = localStorage.getItem(STORAGE_INDEX_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as unknown;
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return null;
+    return Object.fromEntries(
+      Object.entries(parsed).filter(([key, savedAt]) =>
+        key.startsWith(STORAGE_PREFIX) && key !== STORAGE_INDEX_KEY && typeof savedAt === "number" && Number.isFinite(savedAt),
+      ),
+    );
+  } catch {
+    return null;
+  }
+}
+
+/** One-time migration for caches written before the small savedAt index existed. */
+function rebuildCacheIndex(localStorage: CacheStorage): Record<string, number> {
+  const index: Record<string, number> = {};
+  for (let position = 0; position < localStorage.length; position += 1) {
+    const key = localStorage.key(position);
+    if (!key?.startsWith(STORAGE_PREFIX) || key === STORAGE_INDEX_KEY) continue;
+    try {
+      const entry = JSON.parse(localStorage.getItem(key) ?? "null") as Partial<StoredAsyncData> | null;
+      if (typeof entry?.savedAt === "number" && Number.isFinite(entry.savedAt)) index[key] = entry.savedAt;
+    } catch {
+      index[key] = 0;
+    }
+  }
+  return index;
+}
+
+function updateCacheIndex(localStorage: CacheStorage, key: string, savedAt?: number): void {
+  const index = readCacheIndex(localStorage) ?? rebuildCacheIndex(localStorage);
+  if (savedAt === undefined) delete index[key];
+  else index[key] = savedAt;
+
+  const entries = Object.entries(index);
+  if (entries.length > MAX_CACHE_ENTRIES) {
+    entries.sort((left, right) => left[1] - right[1]);
+    for (const [expiredKey] of entries.slice(0, entries.length - MAX_CACHE_ENTRIES)) {
+      localStorage.removeItem(expiredKey);
+      delete index[expiredKey];
+      notify(expiredKey);
+    }
+  }
+  localStorage.setItem(STORAGE_INDEX_KEY, JSON.stringify(index));
 }
 
 function parseEntry(
@@ -136,22 +199,7 @@ export function writeAsyncDataCache<T>(
       return;
     }
     localStorage.setItem(itemKey, serialized);
-    const entries: { key: string; savedAt: number }[] = [];
-    for (let index = 0; index < localStorage.length; index += 1) {
-      const candidateKey = localStorage.key(index);
-      if (!candidateKey?.startsWith(STORAGE_PREFIX)) continue;
-      try {
-        const savedAt = Number((JSON.parse(localStorage.getItem(candidateKey) ?? "null") as StoredAsyncData | null)?.savedAt);
-        entries.push({ key: candidateKey, savedAt: Number.isFinite(savedAt) ? savedAt : 0 });
-      } catch {
-        entries.push({ key: candidateKey, savedAt: 0 });
-      }
-    }
-    entries.sort((left, right) => right.savedAt - left.savedAt);
-    for (const entry of entries.slice(MAX_CACHE_ENTRIES)) {
-      localStorage.removeItem(entry.key);
-      notify(entry.key);
-    }
+    updateCacheIndex(localStorage, itemKey, candidate.savedAt);
     notify(itemKey);
   } catch {
     // Storage can be disabled or full; the network remains the source of truth.
@@ -163,6 +211,7 @@ export function deleteAsyncDataCache(key: string): void {
   const itemKey = storageKey(key);
   try {
     localStorage?.removeItem(itemKey);
+    if (localStorage) updateCacheIndex(localStorage, itemKey);
   } catch {
     // Cache deletion should not affect the caller's state update.
   }
@@ -186,7 +235,7 @@ export function getAsyncDataCacheSnapshot<T>(
     return existing.value as AsyncDataCacheSnapshot<T> | null;
   }
   let value: AsyncDataCacheSnapshot<T> | null = null;
-  let expiresAt = now;
+  let expiresAt = now + CACHE_MISS_TTL_MS;
   try {
     const entry = parseEntry(localStorage.getItem(itemKey), depsKey, token, maxAgeMs);
     if (entry) {
@@ -196,7 +245,7 @@ export function getAsyncDataCacheSnapshot<T>(
   } catch {
     // A storage read failure is simply a miss.
   }
-  snapshots.set(itemKey, { signature, expiresAt, value });
+  setSnapshot(itemKey, { signature, expiresAt, value });
   return value;
 }
 
@@ -228,6 +277,7 @@ export function subscribeAsyncDataCache(key: string, listener: () => void): () =
 
 export function clearAsyncDataCache(): void {
   const localStorage = storage();
+  snapshots.clear();
   if (!localStorage) return;
   try {
     for (let index = localStorage.length - 1; index >= 0; index -= 1) {

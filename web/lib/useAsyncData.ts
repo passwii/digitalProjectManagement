@@ -212,9 +212,6 @@ export function useAsyncData<T>(
       dataRef.current = null;
       setData(null);
       setLoading(true);
-    } else if (!isCacheable && resetOnDepChangeRef.current && depsChanged) {
-      setData(null);
-      setLoading(true);
     }
     lastDepRef.current = depKey;
     void run().catch(() => {});
