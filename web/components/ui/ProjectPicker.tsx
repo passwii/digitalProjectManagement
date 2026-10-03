@@ -186,7 +186,7 @@ export default function ProjectPicker({
         signal,
       ),
     [debouncedKeyword, page, open],
-    { enabled: open, resetOnDepChange: true, cacheKey: "projects:options", cacheMaxAgeMs: 60_000 },
+    { enabled: open, resetOnDepChange: true },
   );
 
   const total = data?.total ?? 0;

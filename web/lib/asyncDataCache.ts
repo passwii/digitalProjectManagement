@@ -131,6 +131,7 @@ export function writeAsyncDataCache<T>(
     const serialized = JSON.stringify(candidate);
     if (serialized.length > MAX_CACHE_CHARS) {
       localStorage.removeItem(itemKey);
+      updateCacheIndex(localStorage, itemKey);
       notify(itemKey);
       return;
     }

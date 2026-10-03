@@ -16,57 +16,82 @@ import {
   type UserOption,
 } from "./api";
 import { parseIdentitySnapshot } from "./identityCore";
-import { cacheIdentity, readAsyncDataCache, writeAsyncDataCache } from "./asyncDataCache";
+import { cacheIdentity, deleteAsyncDataCache, readAsyncDataCache, writeAsyncDataCache } from "./asyncDataCache";
 
 interface Meta {
   users: UserOption[];
   depts: Dept[];
 }
 
+const EMPTY_META: Meta = { users: [], depts: [] };
+const META_CACHE_INVALIDATED_EVENT = "pm:meta-cache-invalidated";
+const META_RETRY_DELAY_MS = 15_000;
 let cache: Meta | null = null;
 let inflight: Promise<Meta> | null = null;
 const metaCache = cacheIdentity("metadata:users-departments", JSON.stringify([]));
-let metaCacheToken: string | null = null;
+let metaCacheToken: string | null | undefined;
+let metaRetryAfter = 0;
+
+function notifyMetaCacheInvalidated(): void {
+  if (typeof window !== "undefined") window.dispatchEvent(new Event(META_CACHE_INVALIDATED_EVENT));
+}
+
+function canKeepMetaSnapshot(error: unknown): boolean {
+  const candidate = error as { name?: unknown; status?: unknown } | null;
+  if (candidate?.name === "NetworkError") return true;
+  if (typeof candidate?.status !== "number") return false;
+  return [408, 425, 429].includes(candidate.status) || (candidate.status >= 500 && candidate.status <= 599);
+}
 
 export function loadMeta(): Promise<Meta> {
   const token = getToken();
   if (token !== metaCacheToken) {
     cache = null;
     inflight = null;
+    metaRetryAfter = 0;
     metaCacheToken = token;
+    notifyMetaCacheInvalidated();
   }
   if (cache) return Promise.resolve(cache);
   const snapshot = readAsyncDataCache<Meta>(metaCache.key, metaCache.depsKey, token, 5 * 60_000);
-  if (!inflight) {
-    if (snapshot) {
-      cache = snapshot;
-      // Paint the local dictionary immediately while refreshing it in the background.
-      inflight = Promise.all([metaApi.users(), metaApi.depts()])
-        .then(([users, depts]) => {
-          cache = { users, depts };
-          writeAsyncDataCache(metaCache.key, metaCache.depsKey, token, cache);
-          return cache;
-        })
-        .catch(() => cache as Meta)
-        .finally(() => { inflight = null; });
-      return Promise.resolve(snapshot);
-    }
-    inflight = Promise.all([metaApi.users(), metaApi.depts()])
-      .then(([users, depts]) => {
-        cache = { users, depts };
-        writeAsyncDataCache(metaCache.key, metaCache.depsKey, token, cache);
-        return cache;
-      })
-      .catch((error) => {
-        // Preserve a valid session snapshot on temporary read failure.
-        if (cache) return cache;
-        throw error;
-      })
-      .finally(() => {
-        inflight = null;
-      });
+  if (inflight) return inflight;
+  if (snapshot && Date.now() < metaRetryAfter) return Promise.resolve(snapshot);
+
+  const request = Promise.all([metaApi.users(), metaApi.depts()])
+    .then(([users, depts]) => {
+      // A late response from a signed-out/previous account must never populate this module cache.
+      if (getToken() !== token) return EMPTY_META;
+      cache = { users, depts };
+      metaRetryAfter = 0;
+      writeAsyncDataCache(metaCache.key, metaCache.depsKey, token, cache);
+      return cache;
+    })
+    .catch((error) => {
+      if (getToken() !== token) return EMPTY_META;
+      if (snapshot && canKeepMetaSnapshot(error)) {
+        // Keep the bounded disk snapshot as a temporary fallback, but don't mark it fresh;
+        // throttle retries briefly so repeated renders don't immediately re-read the network.
+        cache = null;
+        metaRetryAfter = Date.now() + META_RETRY_DELAY_MS;
+        return snapshot;
+      }
+      cache = null;
+      metaRetryAfter = 0;
+      deleteAsyncDataCache(metaCache.key);
+      notifyMetaCacheInvalidated();
+      throw error;
+    });
+  const tracked = request.finally(() => {
+    if (inflight === tracked) inflight = null;
+  });
+  inflight = tracked;
+
+  if (snapshot) {
+    // Return immediately for the stale-while-revalidate path; observe background errors below.
+    void tracked.catch(() => {});
+    return Promise.resolve(snapshot);
   }
-  return inflight;
+  return tracked;
 }
 
 // ---------------- 当前用户身份：带 localStorage 快照的 external store ----------------
@@ -237,6 +262,9 @@ export function loadMenus(): Promise<MenuResp> {
 export function clearMetaCache() {
   cache = null;
   inflight = null;
+  metaCacheToken = getToken();
+  metaRetryAfter = 0;
+  notifyMetaCacheInvalidated();
   meCache = null;
   meInflight = null;
   menusCache = null;
@@ -333,14 +361,31 @@ export function useMenus(): MenuState {
 }
 
 export function useMeta() {
-  const [meta, setMeta] = useState<Meta>(cache ?? { users: [], depts: [] });
+  const [meta, setMeta] = useState<Meta>(cache ?? EMPTY_META);
   useEffect(() => {
     let alive = true;
+    const invalidate = () => {
+      if (alive) setMeta(EMPTY_META);
+    };
+    const refreshForSession = () => {
+      setMeta(EMPTY_META);
+      const requestToken = getToken();
+      if (requestToken) {
+        loadMeta()
+          .then((m) => alive && getToken() === requestToken && setMeta(m))
+          .catch(() => {});
+      }
+    };
+    window.addEventListener("pm:session-changed", refreshForSession);
+    window.addEventListener(META_CACHE_INVALIDATED_EVENT, invalidate);
+    const requestToken = getToken();
     loadMeta()
-      .then((m) => alive && setMeta(m))
+      .then((m) => alive && getToken() === requestToken && setMeta(m))
       .catch(() => {});
     return () => {
       alive = false;
+      window.removeEventListener("pm:session-changed", refreshForSession);
+      window.removeEventListener(META_CACHE_INVALIDATED_EVENT, invalidate);
     };
   }, []);
 
