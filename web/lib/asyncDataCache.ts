@@ -67,9 +67,9 @@ function setSnapshot(
   snapshot: { signature: string; expiresAt: number; value: AsyncDataCacheSnapshot<unknown> | null },
 ): void {
   const now = Date.now();
-  for (const [cachedKey, cached] of snapshots) {
+  snapshots.forEach((cached, cachedKey) => {
     if (cached.expiresAt < now) snapshots.delete(cachedKey);
-  }
+  });
   snapshots.delete(key);
   while (snapshots.size >= MAX_SNAPSHOT_ENTRIES) {
     const oldestKey = snapshots.keys().next().value as string | undefined;
