@@ -103,6 +103,36 @@ test("miss snapshots are memoized briefly to avoid repeated storage reads and pa
   }
 });
 
+test("expired entries are parsed once per miss window, then can be read again", () => {
+  const expiredKey = "expired-miss-window";
+  const expiredStorageKey = `${prefix}${encodeURIComponent(expiredKey)}`;
+  const { storage } = installStorage({
+    [expiredStorageKey]: JSON.stringify({ version: 1, token, depsKey, savedAt: 1_000, data: { value: 1 } }),
+  });
+  const originalGetItem = storage.getItem;
+  const originalNow = Date.now;
+  let now = 100_000;
+  let reads = 0;
+  storage.getItem = (item: string) => {
+    if (item === expiredStorageKey) reads += 1;
+    return originalGetItem(item);
+  };
+  Date.now = () => now;
+  try {
+    for (let render = 0; render < 10; render += 1) {
+      assert.equal(getAsyncDataCacheSnapshot(expiredKey, depsKey, token, 60_000), null);
+    }
+    assert.equal(reads, 1);
+    now += 1_001;
+    assert.equal(getAsyncDataCacheSnapshot(expiredKey, depsKey, token, 60_000), null);
+    assert.equal(reads, 2);
+    writeAsyncDataCache(expiredKey, depsKey, token, { value: 2 });
+    assert.deepEqual(getAsyncDataCacheSnapshot<{ value: number }>(expiredKey, depsKey, token, 60_000)?.data, { value: 2 });
+  } finally {
+    Date.now = originalNow;
+  }
+});
+
 test("cache identities retain the complete dependency key", () => {
   const first = cacheIdentity("projects", '["keyword-a",1]');
   const second = cacheIdentity("projects", '["keyword-b",1]');
