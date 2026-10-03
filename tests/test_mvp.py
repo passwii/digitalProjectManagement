@@ -1172,7 +1172,6 @@ def test_admin_issued_phone_user_must_change_password(client, db):
         "username": "13800138000",
         "password": "InitPass2026",
         "real_name": "新成员",
-        "roles": ["member"],
     })
     assert r.status_code == 200, r.text
     S = db()

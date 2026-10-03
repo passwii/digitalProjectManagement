@@ -1,4 +1,4 @@
-"""P0-A 财务底座 API：账套、自然月期间、科目树、期初余额与账套辅助资料。"""
+"""P0-A 财务 API：账套与基础资料由 finance 模块统一控制；业务状态校验保持不变。"""
 
 from calendar import monthrange
 from datetime import date
@@ -13,14 +13,12 @@ from sqlalchemy.orm import Session
 from ..core.audit import commit_audited
 from ..core.database import get_db
 from ..core.deps import get_current_user
-from ..core.rbac import is_admin
 from ..core.timeutil import app_now
 from ..models import (
     Account,
     AccountAuxiliary,
     AccountBook,
     AccountBalance,
-    AccountBookMember,
     AccountingPeriod,
     AuxiliaryItem,
     OpeningBalance,
@@ -95,8 +93,6 @@ def _book_access(db: Session, user: User, book_id: int) -> AccountBook:
     book = db.query(AccountBook).filter(AccountBook.id == book_id, AccountBook.deleted_at.is_(None)).first()
     if not book:
         _finance_error(404, "F-NO-BOOK-ACCESS", "账套不存在")
-    if not is_admin(user) and not db.query(AccountBookMember).filter_by(account_book_id=book_id, user_id=user.id).first():
-        _finance_error(403, "F-NO-BOOK-ACCESS", "无账套权限")
     return book
 
 
@@ -245,8 +241,6 @@ def _serialize_book(book: AccountBook) -> dict:
 def create_book(
     body: BookIn, db: Session = Depends(get_db), user: User = Depends(get_current_user)
 ):
-    if not is_admin(user):
-        raise HTTPException(403, "仅管理员可创建账套")
     code = body.code.strip()
     currency = body.base_currency.upper()
     if currency != "CNY":
@@ -274,7 +268,6 @@ def create_book(
                 end_date=end,
             )
         )
-    db.add(AccountBookMember(account_book_id=book.id, user_id=user.id, role="owner"))
     _seed_accounts(db, book.id)  # type: ignore[arg-type]
     try:
         commit_audited(db, user.id, "create", "account_book", str(book.id), code)
@@ -286,8 +279,6 @@ def create_book(
 
 @router.get("/books")
 def list_books(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    if not is_admin(user):
-        _finance_error(403, "F-NO-BOOK-ACCESS", "仅管理员可访问财务模块")
     q = db.query(AccountBook).filter(AccountBook.deleted_at.is_(None))
     return [_serialize_book(x) for x in q.order_by(AccountBook.id).all()]
 
@@ -300,8 +291,6 @@ def delete_book(
     user: User = Depends(get_current_user),
 ):
     """把账套移入回收站；数据库中的账套及其业务数据全部保留。"""
-    if not is_admin(user):
-        _finance_error(403, "F-NO-BOOK-ACCESS", "仅系统管理员可移入账套回收站")
     book = (
         db.query(AccountBook)
         .filter(AccountBook.id == book_id, AccountBook.deleted_at.is_(None))
@@ -322,9 +311,7 @@ def delete_book(
 
 @router.get("/books/recycle-bin/list")
 def list_deleted_books(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    """列出保留在数据库中的账套（仅系统管理员）。"""
-    if not is_admin(user):
-        _finance_error(403, "F-NO-BOOK-ACCESS", "仅系统管理员可访问账套回收站")
+    """列出保留在数据库中的账套。"""
     books = (
         db.query(AccountBook)
         .filter(AccountBook.deleted_at.is_not(None))
@@ -347,9 +334,7 @@ def restore_book(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    """从回收站恢复账套及其原有业务数据（仅系统管理员）。"""
-    if not is_admin(user):
-        _finance_error(403, "F-NO-BOOK-ACCESS", "仅系统管理员可恢复账套")
+    """从回收站恢复账套及其原有业务数据。"""
     book = (
         db.query(AccountBook)
         .filter(AccountBook.id == book_id, AccountBook.deleted_at.is_not(None))
@@ -362,50 +347,6 @@ def restore_book(
     book.deleted_by = None
     commit_audited(db, user.id, "restore", "account_book", str(book.id), f"恢复账套：{book.code}")
     return _serialize_book(book)
-
-
-@router.get("/books/{book_id}/members")
-def list_book_members(book_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    book = _book_access(db, user, book_id)
-    if not is_admin(user):
-        _finance_error(403, "F-NO-BOOK-ACCESS", "仅管理员可维护账套成员")
-    rows = db.query(AccountBookMember, User).join(User, User.id == AccountBookMember.user_id).filter(AccountBookMember.account_book_id == book.id).order_by(AccountBookMember.id).all()
-    return [{"id": member.id, "user_id": member.user_id, "username": account.username, "real_name": account.real_name, "role": member.role} for member, account in rows]
-
-
-@router.put("/books/{book_id}/members/{user_id}")
-def upsert_book_member(book_id: int, user_id: int, body: dict, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    book = _book_access(db, user, book_id)
-    if not is_admin(user):
-        _finance_error(403, "F-NO-BOOK-ACCESS", "仅管理员可维护账套成员")
-    from ..core.rbac import FINANCE_ROLES
-    role = str(body.get("role", "")).strip()
-    if role not in FINANCE_ROLES:
-        _finance_error(400, "F-FINANCE-ROLE", "财务角色不合法")
-    target = db.query(User).filter_by(id=user_id).first()
-    if not target:
-        _finance_error(404, "F-FINANCE-ROLE", "用户不存在")
-    member = db.query(AccountBookMember).filter_by(account_book_id=book.id, user_id=user_id).first()
-    if not member:
-        member = AccountBookMember(account_book_id=book.id, user_id=user_id, role=role)
-        db.add(member)
-    else:
-        member.role = role
-    commit_audited(db, user.id, "upsert_finance_member", "account_book_members", str(member.id or user_id), f"book={book.code},role={role}")
-    return {"id": member.id, "user_id": user_id, "username": target.username, "real_name": target.real_name, "role": member.role}
-
-
-@router.delete("/books/{book_id}/members/{user_id}")
-def remove_book_member(book_id: int, user_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    book = _book_access(db, user, book_id)
-    if not is_admin(user):
-        _finance_error(403, "F-NO-BOOK-ACCESS", "仅管理员可维护账套成员")
-    member = db.query(AccountBookMember).filter_by(account_book_id=book.id, user_id=user_id).first()
-    if not member:
-        _finance_error(404, "F-FINANCE-ROLE", "账套成员不存在")
-    db.delete(member)
-    commit_audited(db, user.id, "remove_finance_member", "account_book_members", str(user_id), f"book={book.code}")
-    return {"deleted": True, "user_id": user_id}
 
 
 @router.get("/books/{book_id}")
@@ -453,8 +394,6 @@ def update_period(
     user: User = Depends(get_current_user),
 ):
     book = _book_header(db, user, x_account_book)
-    if not is_admin(user):
-        _finance_error(403, "F-NO-BOOK-ACCESS", "仅管理员可维护期间")
     row = (
         db.query(AccountingPeriod)
         .filter_by(id=period_id, account_book_id=book.id)
@@ -645,8 +584,6 @@ def create_account(
     user: User = Depends(get_current_user),
 ):
     book = _book_header(db, user, x_account_book)
-    if not is_admin(user):
-        _finance_error(403, "F-NO-BOOK-ACCESS", "仅管理员可维护科目")
     level, parent = _validate_account_code(db, book.id, body)  # type: ignore[arg-type]
     if db.query(Account).filter_by(account_book_id=book.id, code=body.code).first():
         _finance_error(409, "F-ACCT-INACTIVE", "科目编码已存在")
@@ -683,8 +620,6 @@ def toggle_account(
     user: User = Depends(get_current_user),
 ):
     book = _book_header(db, user, x_account_book)
-    if not is_admin(user):
-        _finance_error(403, "F-NO-BOOK-ACCESS", "仅管理员可维护科目")
     row = db.query(Account).filter_by(id=account_id, account_book_id=book.id).first()
     if not row:
         _finance_error(400, "F-ACCT-INACTIVE", "科目不存在")
@@ -765,8 +700,6 @@ def upsert_opening(
     user: User = Depends(get_current_user),
 ):
     book = _book_header(db, user, x_account_book)
-    if not is_admin(user):
-        _finance_error(403, "F-NO-BOOK-ACCESS", "仅管理员可录入期初")
     account = (
         db.query(Account).filter_by(id=body.account_id, account_book_id=book.id).first()
     )
@@ -881,8 +814,6 @@ def create_account_auxiliary(
     user: User = Depends(get_current_user),
 ):
     book = _book_header(db, user, x_account_book)
-    if not is_admin(user):
-        _finance_error(403, "F-NO-BOOK-ACCESS", "仅管理员可维护科目辅助核算")
     account = (
         db.query(Account).filter_by(id=body.account_id, account_book_id=book.id).first()
     )
@@ -923,8 +854,6 @@ def delete_account_auxiliary(
     user: User = Depends(get_current_user),
 ):
     book = _book_header(db, user, x_account_book)
-    if not is_admin(user):
-        _finance_error(403, "F-NO-BOOK-ACCESS", "仅管理员可维护科目辅助核算")
     row = (
         db.query(AccountAuxiliary)
         .filter_by(id=link_id, account_book_id=book.id)
@@ -947,8 +876,6 @@ def create_auxiliary(
     user: User = Depends(get_current_user),
 ):
     book = _book_header(db, user, x_account_book)
-    if not is_admin(user):
-        _finance_error(403, "F-NO-BOOK-ACCESS", "仅管理员可维护辅助资料")
     if body.kind not in AUX_KINDS:
         _finance_error(400, "F-ACCT-INACTIVE", "辅助资料类型不合法")
     row = AuxiliaryItem(

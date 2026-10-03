@@ -140,8 +140,8 @@ export function AccountBookRecycleBinDialog({
       size="lg"
       footer={<button className="btn-ghost" onClick={onClose}>关闭</button>}
     >
-      <p className="tiny muted">回收站仅管理员可见。恢复后，账套及其原有成员关系和业务数据会重新开放。</p>
-      {books.firstLoad ? <p className="muted">正在加载回收站…</p> : books.error ? <LoadFailed message={books.error} onRetry={books.reload} /> : !books.data?.length ? <Empty title="回收站为空" hint="移入回收站的账套会保留在这里，管理员可以随时恢复。" /> : (
+      <p className="tiny muted">拥有财务管理模块的用户可查看并恢复账套。恢复后，账套及其业务数据会重新开放；账套成员记录仅作为历史数据保留，不参与权限判断。</p>
+      {books.firstLoad ? <p className="muted">正在加载回收站…</p> : books.error ? <LoadFailed message={books.error} onRetry={books.reload} /> : !books.data?.length ? <Empty title="回收站为空" hint="移入回收站的账套会保留在这里，拥有财务管理模块的用户可以恢复。" /> : (
         <div className="table-scroll">
           <table className="grid">
             <thead><tr><th>账套名称</th><th>编码</th><th>状态</th><th>移入时间</th><th>操作</th></tr></thead>

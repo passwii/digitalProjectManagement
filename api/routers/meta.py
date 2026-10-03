@@ -1,7 +1,7 @@
 """元数据：供任意登录用户拉取选项（用户/部门/字典），用于表单下拉与 id→名称映射。
 
 非管理员也能读，仅返回 id/名称等非敏感字段。
-管理与审批边界见 `GET /meta/me/menus`：管理员入口只对 admin 返回，供前端做单一入口控制。
+管理与审批边界见 `GET /meta/me/menus`：系统管理入口只对超级管理员返回。
 
 查询边界（Stage 3A）：字典类接口（`/meta/users`、`/meta/depts`、`/meta/dicts`）是「全量小字段映射」用
 （前端一次预取后本地映射 id→名称），响应有服务端硬上限 `META_MAX_ROWS`，不会无界放大；
@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session
 from ..core.database import get_db
 from ..core.deps import get_current_user
 from ..core.paging import DEFAULT_PAGE_SIZE, paginate
-from ..models import AccountBook, AccountBookMember, Department, Dict, User
+from ..models import Department, Dict, User
 
 router = APIRouter(prefix="/meta", tags=["meta"])
 
@@ -100,40 +100,34 @@ def dicts(type: str = "", db: Session = Depends(get_db),
 def menus(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     """按**用户模块分配**返回可见菜单，供前端做单一入口控制。
 
-    契约（Stage 5：页面可见性改为手动分配）：
-      · 菜单不再按 admin 角色硬编码拼接，而是取 `core.rbac` 模块目录 ∩ 用户生效模块；
-        管理员天然拥有全部模块，普通用户以 `user_modules` 分配为准。
+    契约：可分配功能菜单取模块目录 ∩ 用户生效模块；/admin 为超级管理员专属系统入口。
       · `can_approve` = 拥有「审批中心」模块；各决策接口 `require_module(approvals)` 同一判定。
-      · `is_admin` 仍表示角色（用于全局数据范围与演示开关等高权限判定），不再直接决定页面可见性。
-      · 财务管理（/finance）沿用账套成员授权：`can_finance` 由账套成员关系或管理员决定，
-        不纳入手动模块分配，避免把账套数据权限降级为普通页面开关。
-    另附演示数据开关状态：所有登录用户都需知道当前是否展示演示数据，仅管理员可切换。
+      · `is_admin` 是兼容字段，与 `is_super_admin` 同义；旧 admin role 不授予系统权限。
+      · `can_finance` 表示拥有 finance 模块，且与财务接口路由使用同一模块门禁。
+      · `roles` 仅供兼容展示；角色目录、user_roles 和账套成员历史行均不构成授权。
+    另附演示数据开关状态：所有登录用户都需知道当前是否展示演示数据，仅超级管理员可切换。
     """
     from ..core.rbac import (
         MODULE_CATALOG,
         can_approve,
         demo_data_on,
         effective_modules,
-        is_admin,
+        is_super_admin,
         role_codes,
     )
     codes = role_codes(user)
-    admin = is_admin(user)
+    super_admin = is_super_admin(user)
     effective = effective_modules(user)
     items = [
         {"key": key, "label": label, "href": href}
         for key, label, href in MODULE_CATALOG
         if key in effective
     ]
-    finance_books = (
-        db.query(AccountBookMember.account_book_id)
-        .join(AccountBook, AccountBook.id == AccountBookMember.account_book_id)
-        .filter(AccountBookMember.user_id == user.id, AccountBook.deleted_at.is_(None))
-        .count()
-    )
-    can_finance = admin or finance_books > 0
-    if can_finance and not any(item["key"] == "finance" for item in items):
-        items.append({"key": "finance", "label": "财务管理", "href": "/finance"})
-    return {"roles": sorted(codes), "is_admin": admin, "can_approve": can_approve(user), "can_finance": can_finance,
+    if super_admin:
+        items.append({"key": "admin", "label": "系统管理", "href": "/admin"})
+    can_finance = "finance" in effective
+    return {"roles": sorted(codes), "is_admin": super_admin,
+            "is_super_admin": super_admin,
+            "can_approve": can_approve(user), "can_finance": can_finance,
             "menus": items, "readonly": False,
-            "demo_on": demo_data_on(db), "can_toggle_demo": admin}
+            "demo_on": demo_data_on(db), "can_toggle_demo": super_admin}

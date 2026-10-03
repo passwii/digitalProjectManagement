@@ -28,14 +28,8 @@ import DictDialog from "./DictDialog";
 import ParamDialog, { PARAM_LABELS } from "./ParamDialog";
 import UserDialog from "./UserDialog";
 
-const TABS = ["用户", "角色", "字典", "参数", "日志", "回收站"] as const;
+const TABS = ["用户", "字典", "参数", "日志", "回收站"] as const;
 type Tab = (typeof TABS)[number];
-
-interface RoleItem {
-  id: number;
-  code: string;
-  name: string;
-}
 
 // 当前页签 / 日志筛选与分页 / 用户分页写入 URL（BLF-1095）
 const URL_DEFAULTS = {
@@ -50,9 +44,9 @@ const URL_DEFAULTS = {
 };
 
 export default function AdminPage() {
-  // 系统管理属于「系统管理」功能模块：无该模块不拉取数据（避免整页 403 报错），并给出明确说明
-  const { hasModule, loading: permsLoading, error: permsError, reload } = useMenus();
-  const canManage = hasModule("admin");
+  // 系统管理不是可分配模块，只对后端确认的超级管理员身份开放。
+  const { isSuperAdmin, loading: permsLoading, error: permsError, reload } = useMenus();
+  const canManage = isSuperAdmin;
 
   if (permsLoading) return <LoadingBlock kpis={0} />;
   if (permsError) return <LoadFailed message={permsError} onRetry={reload} />;
@@ -60,12 +54,12 @@ export default function AdminPage() {
     return (
       <div>
         <NoAccess
-          title="系统管理模块未分配"
+          title="仅限超级管理员"
           hint={
             <>
-              当前账号未被分配「系统管理」模块，无法查看用户、角色、字典、参数、审计日志与回收站。
+              当前账号不是超级管理员，无法查看用户、字典、参数、审计日志与回收站。
               <br />
-              需要调整权限或恢复项目时，请联系管理员在用户管理中分配该模块。
+              需要调整权限或恢复项目时，请联系超级管理员。
             </>
           }
         />
@@ -111,11 +105,6 @@ function AdminInner() {
     [userPage, userSize],
     { enabled: tab === "用户", resetOnDepChange: true },
   );
-  const roles = useAsyncData(
-    (signal) => adminApi.roles(signal),
-    [],
-    { enabled: tab === "用户" || tab === "角色" },
-  );
   // 功能模块目录（Stage 5）：用户弹窗按它渲染可分配模块并回填勾选
   const modules = useAsyncData(
     (signal) => adminApi.modules(signal),
@@ -152,14 +141,13 @@ function AdminInner() {
   const binTotal = binPageData.total;
 
   const userItems: AdminUser[] = users.data?.items ?? [];
-  const roleItems: RoleItem[] = roles.data ?? [];
   const moduleItems: ModuleItem[] = modules.data ?? [];
   const moduleLabel = new Map(moduleItems.map((m) => [m.key, m.label]));
   const dictItems: DictItem[] = dicts.data ?? [];
   const paramItems = params.data ?? {};
   const logItems: AuditLog[] = logs.data?.items ?? [];
 
-  const active = { 用户: users, 角色: roles, 字典: dicts, 参数: params, 日志: logs, 回收站: bin }[tab];
+  const active = { 用户: users, 字典: dicts, 参数: params, 日志: logs, 回收站: bin }[tab];
 
   const [userOpen, setUserOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<AdminUser | null>(null);
@@ -183,9 +171,11 @@ function AdminInner() {
   function userActions(u: AdminUser) {
     return <>
       <button className="btn-ghost btn-xs" onClick={() => { setEditingUser(u); setUserOpen(true); }}>编辑</button>
-      <button className={`btn-ghost btn-xs ${u.status === "active" ? "btn-danger-outline" : ""}`} onClick={() => toggleUser(u)}>
-        {u.status === "active" ? "停用" : "启用"}
-      </button>
+      {!u.is_super_admin && (
+        <button className={`btn-ghost btn-xs ${u.status === "active" ? "btn-danger-outline" : ""}`} onClick={() => toggleUser(u)}>
+          {u.status === "active" ? "停用" : "启用"}
+        </button>
+      )}
     </>;
   }
 
@@ -201,7 +191,7 @@ function AdminInner() {
     });
   }
 
-  // 主操作随页签变化；没有主操作的页签（角色 / 参数 / 日志 / 回收站）不传，
+  // 主操作随页签变化；没有主操作的页签（参数 / 日志 / 回收站）不传，
   // 避免又留一条空白操作行（BLF-1140）
   const pageActions =
     tab === "用户" ? (
@@ -228,7 +218,7 @@ function AdminInner() {
         users.firstLoad ? (
           <LoadingBlock kpis={0} label="加载用户…" />
         ) : userItems.length === 0 ? (
-          <div className="card"><Empty title="暂无用户" hint="新增用户后可分配角色与功能模块。" /></div>
+          <div className="card"><Empty title="暂无用户" hint="新增用户后可分配功能模块。" /></div>
         ) : (
           <>
             <CardList label="系统用户">
@@ -240,7 +230,7 @@ function AdminInner() {
                   badges={<Badge status={u.status === "active" ? "启用" : u.status === "locked" ? "锁定" : "停用"} tone={u.status === "active" ? "done" : u.status === "locked" ? "warn" : "paused"} />}
                   fields={[
                     { label: "部门", value: deptName(u.dept_id) },
-                    { label: "角色", value: u.roles.map((r) => r.name).join(" / ") || "-" },
+                    { label: "身份", value: u.is_super_admin ? <Badge status="超级管理员" /> : "普通用户" },
                     { label: "模块", value: u.modules.length === 0 ? "-" : u.modules.map((k) => moduleLabel.get(k) ?? k).join(" / ") },
                   ]}
                   onSelect={() => { setEditingUser(u); setUserOpen(true); }}
@@ -250,14 +240,14 @@ function AdminInner() {
             </CardList>
             <DesktopTable>
               <table className="grid" aria-busy={users.loading}>
-                <thead><tr><th>手机号</th><th>姓名</th><th>部门</th><th>角色</th><th>模块</th><th>状态</th><th className="no-print" /></tr></thead>
+                <thead><tr><th>手机号</th><th>姓名</th><th>部门</th><th>身份</th><th>模块</th><th>状态</th><th className="no-print" /></tr></thead>
                 <tbody>
                   {userItems.map((u) => (
                     <tr key={u.id} className="clickable-row" onClick={() => { setEditingUser(u); setUserOpen(true); }}>
                       <td className="mono tiny">{u.username}</td>
                       <td>{u.real_name}</td>
                       <td className="muted">{deptName(u.dept_id)}</td>
-                      <td>{u.roles.map((r) => r.name).join(" / ") || "-"}</td>
+                      <td>{u.is_super_admin ? <Badge status="超级管理员" /> : "普通用户"}</td>
                       <td className="muted tiny">{u.modules.length === 0 ? "-" : u.modules.map((k) => moduleLabel.get(k) ?? k).join(" / ")}</td>
                       <td>
                         <Badge
@@ -280,21 +270,6 @@ function AdminInner() {
               onChange={(next) => setUrl({ upage: String(next.page), usize: String(next.size) })}
             />
           </>
-        )
-      )}
-
-      {tab === "角色" && (
-        roles.firstLoad ? (
-          <LoadingBlock kpis={0} label="加载角色…" />
-        ) : (
-          <div className="table-scroll">
-            <table className="grid">
-              <thead><tr><th>角色码</th><th>角色名称</th></tr></thead>
-              <tbody>
-                {roleItems.map((r) => <tr key={r.code}><td className="mono tiny">{r.code}</td><td>{r.name}</td></tr>)}
-              </tbody>
-            </table>
-          </div>
         )
       )}
 
@@ -495,7 +470,6 @@ function AdminInner() {
         open={userOpen}
         onClose={() => setUserOpen(false)}
         user={editingUser}
-        roles={roleItems}
         modules={moduleItems}
         onSaved={(isNew) => { toast.ok(isNew ? "用户已创建" : "用户已保存"); users.reload(); }}
       />

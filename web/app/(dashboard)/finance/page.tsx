@@ -23,7 +23,6 @@ import { useToast } from "@/components/ui/Toast";
 import ArapPanel from "./ArapPanel";
 import ProjectExpensePanel from "./ProjectExpensePanel";
 import { AccountBookRecycleBinDialog, MoveBookToRecycleBinDialog } from "./AccountBookLifecycle";
-import BookMembersDialog from "./BookMembersDialog";
 import fm from "./finance.module.css";
 
 const TABS = ["账套概览", "基础设置", "凭证", "项目支出入账", "应收应付", "出纳与对账", "固定资产", "账簿与报表", "期末结账"] as const;
@@ -35,7 +34,7 @@ function money(value: string | number) {
 }
 
 function FinanceInner() {
-  const { canFinance, isAdmin, loading: permissionLoading, error: permissionError, reload: reloadPermission } = useMenus();
+  const { canFinance, loading: permissionLoading, error: permissionError, reload: reloadPermission } = useMenus();
   const toast = useToast();
   const [tab, setTab] = useState<Tab>("账套概览");
   const [bookCode, setBookCode] = useState("");
@@ -44,7 +43,6 @@ function FinanceInner() {
   const [templateOpen, setTemplateOpen] = useState(false);
   const [recycleBinOpen, setRecycleBinOpen] = useState(false);
   const [deleteBookOpen, setDeleteBookOpen] = useState(false);
-  const [bookMembersOpen, setBookMembersOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [menuPosition, setMenuPosition] = useState<MenuPosition | null>(null);
   const menuTriggerRef = useRef<HTMLButtonElement>(null);
@@ -158,23 +156,21 @@ function FinanceInner() {
 
   if (permissionLoading) return <LoadingBlock kpis={0} label="确认财务权限…" />;
   if (permissionError) return <LoadFailed message={permissionError} onRetry={reloadPermission} />;
-  if (!canFinance) return <NoAccess title="暂无财务账套权限" hint="当前账号没有被授权访问财务账套。请联系系统管理员分配账套角色。" />;
+  if (!canFinance) return <NoAccess title="未分配财务管理模块" hint="当前账号尚未分配财务管理模块，请联系系统管理员开通。" />;
   if (books.firstLoad) return <LoadingBlock kpis={4} label="加载财务账套…" />;
   if (books.error) return <LoadFailed message={books.error} onRetry={books.reload} />;
 
   const bookActions = <>
     <button className="btn-ghost" onClick={refreshAll} title="刷新财务工作台">刷新</button>
-    {isAdmin && <button className="btn-ghost" onClick={() => setBookOpen(true)}>+ 新建账套</button>}
-    {isAdmin && <button className="btn-ghost" onClick={() => setRecycleBinOpen(true)}>账套回收站</button>}
-    {isAdmin && book && <button className="btn-ghost" onClick={() => setBookMembersOpen(true)}>成员与权限</button>}
-    {isAdmin && book && <button className="btn-ghost btn-danger-outline" onClick={() => setDeleteBookOpen(true)}>移入回收站</button>}
+    <button className="btn-ghost" onClick={() => setBookOpen(true)}>+ 新建账套</button>
+    <button className="btn-ghost" onClick={() => setRecycleBinOpen(true)}>账套回收站</button>
+    {book && <button className="btn-ghost btn-danger-outline" onClick={() => setDeleteBookOpen(true)}>移入回收站</button>}
   </>;
   const mobileBookActions = [
     { label: "刷新", className: "btn-ghost", onClick: refreshAll },
-    ...(isAdmin ? [{ label: "+ 新建账套", className: "btn-ghost", onClick: () => setBookOpen(true) }] : []),
-    ...(isAdmin ? [{ label: "账套回收站", className: "btn-ghost", onClick: () => setRecycleBinOpen(true) }] : []),
-    ...(isAdmin && book ? [{ label: "成员与权限", className: "btn-ghost", onClick: () => setBookMembersOpen(true) }] : []),
-    ...(isAdmin && book ? [{ label: "移入回收站", className: "btn-ghost btn-danger-outline", onClick: () => setDeleteBookOpen(true) }] : []),
+    { label: "+ 新建账套", className: "btn-ghost", onClick: () => setBookOpen(true) },
+    { label: "账套回收站", className: "btn-ghost", onClick: () => setRecycleBinOpen(true) },
+    ...(book ? [{ label: "移入回收站", className: "btn-ghost btn-danger-outline", onClick: () => setDeleteBookOpen(true) }] : []),
   ];
   function handleMobileMenuKeyDown(event: KeyboardEvent<HTMLDivElement>) {
     const items = Array.from(menuRef.current?.querySelectorAll<HTMLButtonElement>("[role=menuitem]") ?? []);
@@ -256,7 +252,7 @@ function FinanceInner() {
                 return true;
               } catch (error) { toast.err(errText(error)); return false; }
             }} />}
-            {tab === "应收应付" && <ArapPanel book={activeBook} period={currentPeriod} accounts={accounts.data ?? []} accountsLoading={accounts.loading} accountsError={accounts.error} reloadAccounts={accounts.reload} isAdmin={isAdmin} />}
+            {tab === "应收应付" && <ArapPanel book={activeBook} period={currentPeriod} accounts={accounts.data ?? []} accountsLoading={accounts.loading} accountsError={accounts.error} reloadAccounts={accounts.reload} />}
             {tab === "项目支出入账" && (accounts.error ? <LoadFailed message={accounts.error} onRetry={accounts.reload} /> : <ProjectExpensePanel key={book.id} book={book} periods={periods.data ?? []} accounts={accounts.data ?? []} onVoucherCreated={vouchers.reload} />)}
             {tab === "出纳与对账" && <CashierList book={activeBook} period={currentPeriod} statements={bankStatements.data?.items ?? []} summary={reconciliation.data ?? undefined} loading={bankStatements.loading || reconciliation.loading} error={bankStatements.error || reconciliation.error} onRetry={() => { bankStatements.reload(); reconciliation.reload(); }} onChanged={() => { bankStatements.reload(); reconciliation.reload(); }} />}
             {tab === "固定资产" && <FixedAssetList book={activeBook} period={currentPeriod} items={fixedAssets.data?.items ?? []} loading={fixedAssets.loading} error={fixedAssets.error} onRetry={fixedAssets.reload} onChanged={fixedAssets.reload} />}
@@ -268,22 +264,13 @@ function FinanceInner() {
           <TemplateDialog open={templateOpen} book={activeBook} period={currentPeriod} accounts={accounts.data ?? []} templates={templates.data ?? []} onClose={() => setTemplateOpen(false)} onSaved={() => { setTemplateOpen(false); templates.reload(); toast.ok("模板已保存"); }} onGenerated={() => { setTemplateOpen(false); vouchers.reload(); toast.ok("已按模板生成凭证草稿"); }} />
         </>
       )}
-      {isAdmin && <AccountBookRecycleBinDialog open={recycleBinOpen} onClose={() => setRecycleBinOpen(false)} onRestored={() => books.reload()} />}
-      {isAdmin && <BookMembersDialog
-        key={book?.id ?? "no-book"}
-        open={bookMembersOpen}
-        book={book}
-        onClose={() => setBookMembersOpen(false)}
-        onChanged={(change) => toast.ok(
-          change === "granted" ? "账套成员授权已新增" : change === "role_changed" ? "成员财务角色已更新" : "成员财务授权已移除",
-        )}
-      />}
-      {isAdmin && <MoveBookToRecycleBinDialog open={deleteBookOpen} book={book} onClose={() => setDeleteBookOpen(false)} onDeleted={() => {
+      <AccountBookRecycleBinDialog open={recycleBinOpen} onClose={() => setRecycleBinOpen(false)} onRestored={() => books.reload()} />
+      <MoveBookToRecycleBinDialog open={deleteBookOpen} book={book} onClose={() => setDeleteBookOpen(false)} onDeleted={() => {
         if (book) books.setData((books.data ?? []).filter((item) => item.id !== book.id));
         setBookCode("");
         books.reload();
         toast.ok("账套已移入回收站，数据保留且可恢复");
-      }} />}
+      }} />
     </div>
   );
 }

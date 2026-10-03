@@ -9,7 +9,8 @@
 from test_mvp import login
 
 BASE_MODULES = ["opportunities", "projects", "assets", "reports"]
-ADMIN_MODULES = ["contacts", "partners", "approvals", "admin"]
+ADMIN_MODULES = ["contacts", "partners", "approvals"]
+BUSINESS_MODULES = BASE_MODULES + ADMIN_MODULES + ["finance"]
 
 
 def _uid(db, username: str) -> int:
@@ -44,21 +45,27 @@ def test_admin_sees_all_modules_and_catalog(client):
     admin = login(client, "admin")
     body = _menus(client, admin)
     assert body["is_admin"] is True
+    assert body["is_super_admin"] is True
     assert body["can_approve"] is True
-    # 管理员同时拥有账套财务入口（can_finance），它在模块目录之外
-    assert _keys(body) == BASE_MODULES + ADMIN_MODULES + ["finance"]
+    assert body["can_finance"] is True
+    assert _keys(body) == BUSINESS_MODULES + ["admin"]
 
     r = client.get("/api/v1/admin/modules", headers=admin)
     assert r.status_code == 200, r.text
     catalog = r.json()
-    assert [m["key"] for m in catalog] == BASE_MODULES + ADMIN_MODULES
+    assert [m["key"] for m in catalog] == BUSINESS_MODULES
     assert all(m["label"] and m["href"] for m in catalog)
+    assert {m["key"]: (m["label"], m["href"]) for m in catalog}["finance"] == (
+        "财务管理", "/finance"
+    )
+    assert all(m["key"] != "admin" for m in catalog)
 
 
 def test_unassigned_user_defaults_to_base_modules(client):
     pm = login(client, "pm")
     body = _menus(client, pm)
     assert body["is_admin"] is False
+    assert body["is_super_admin"] is False
     assert _keys(body) == BASE_MODULES
     assert body["can_approve"] is False
     # 未分配管理模块：通讯录/审批中心接口稳定 403
@@ -95,7 +102,35 @@ def test_explicitly_empty_modules_keep_only_dashboard(client, db):
     pm = login(client, "pm")
     body = _menus(client, pm)
     assert _keys(body) == []
+    assert body["is_admin"] is False and body["is_super_admin"] is False
     assert client.get("/api/v1/projects", headers=pm).status_code == 403
+
+
+def test_legacy_admin_role_does_not_affect_explicit_modules(client, db):
+    from api.models import Role, User, UserRole
+
+    with db() as session:
+        user = session.query(User).filter_by(username="pm").one()
+        role = session.query(Role).filter_by(code="admin").one()
+        session.add(UserRole(user_id=user.id, role_id=role.id))
+        user.modules_assigned = True
+        session.commit()
+
+    body = _menus(client, login(client, "pm"))
+    assert body["is_admin"] is False and body["is_super_admin"] is False
+    assert _keys(body) == []
+
+
+def test_legacy_admin_role_does_not_affect_default_modules(client, db):
+    from api.models import Role, User, UserRole
+
+    with db() as session:
+        user = session.query(User).filter_by(username="pm").one()
+        role = session.query(Role).filter_by(code="admin").one()
+        session.add(UserRole(user_id=user.id, role_id=role.id))
+        session.commit()
+
+    assert _keys(_menus(client, login(client, "pm"))) == BASE_MODULES
 
 
 def test_new_user_modules_roundtrip(client):
@@ -107,7 +142,6 @@ def test_new_user_modules_roundtrip(client):
             "username": "13700000001",
             "password": "abc12345",
             "real_name": "模块测试",
-            "roles": ["member"],
             "modules": ["reports", "partners"],
         },
     )

@@ -1,5 +1,5 @@
 "use client";
-// 用户新增/编辑弹窗：角色多选（并集）、功能模块分配（Stage 5，可多选）、可重置密码
+// 用户新增/编辑弹窗：仅通过功能模块分配权限，可重置密码
 import { useEffect, useState } from "react";
 import { adminApi, type AdminUser, type ModuleItem } from "@/lib/api";
 import { useMeta } from "@/lib/useMeta";
@@ -17,27 +17,21 @@ interface Values {
 
 const BLANK: Values = { username: "", real_name: "", dept_id: "", password: "admin123456" };
 
-// 新用户的默认模块：与后端 DEFAULT_MODULES 对齐（四个基础导航模块），管理员可再增减。
-const DEFAULT_MODULE_KEYS = ["opportunities", "projects", "assets", "reports"];
-
 export default function UserDialog({
   open,
   onClose,
   user,
-  roles,
   modules,
   onSaved,
 }: {
   open: boolean;
   onClose: () => void;
   user: AdminUser | null;
-  roles: { id: number; code: string; name: string }[];
   modules: ModuleItem[];
   onSaved: (isNew: boolean) => void;
 }) {
   const { depts } = useMeta();
   const isEdit = !!user;
-  const [picked, setPicked] = useState<string[]>([]);
   const [pickedModules, setPickedModules] = useState<string[]>([]);
 
   const form = useForm<Values>(
@@ -66,12 +60,7 @@ export default function UserDialog({
 
   useEffect(() => {
     if (!open) return;
-    setPicked(user ? user.roles.map((r) => r.code) : []);
-    setPickedModules(
-      user
-        ? user.modules
-        : DEFAULT_MODULE_KEYS.filter((k) => modules.some((m) => m.key === k))
-    );
+    setPickedModules(user ? user.modules : []);
     form.reset(
       user
         ? { username: user.username, real_name: user.real_name, dept_id: user.dept_id ? String(user.dept_id) : "", password: "" }
@@ -82,16 +71,11 @@ export default function UserDialog({
 
   async function submit() {
     if (!form.validate()) return;
-    if (picked.length === 0) {
-      form.setErrors({ real_name: "请至少选择一个角色" });
-      return;
-    }
     const v = form.values;
     if (isEdit) {
       const payload: Record<string, unknown> = {
         real_name: v.real_name,
         dept_id: v.dept_id ? Number(v.dept_id) : null,
-        roles: picked,
         modules: pickedModules,
       };
       if (v.password) payload.password = v.password;
@@ -102,7 +86,6 @@ export default function UserDialog({
         password: v.password || "admin123456",
         real_name: v.real_name,
         dept_id: v.dept_id ? Number(v.dept_id) : null,
-        roles: picked,
         modules: pickedModules,
       });
     }
@@ -117,7 +100,7 @@ export default function UserDialog({
     <Dialog
       open={open}
       onClose={onClose}
-      dirty={form.dirty || (!!user && JSON.stringify(picked) !== JSON.stringify(user.roles.map((r) => r.code))) || modulesDirty}
+      dirty={form.dirty || modulesDirty}
       title={isEdit ? `编辑用户 · ${user?.username ?? ""}` : "新增用户"}
       footer={
         <>
@@ -154,29 +137,9 @@ export default function UserDialog({
             placeholder={isEdit ? "留空不修改" : "admin123456"}
           />
         </Field>
-        <Field label="角色（可多选，权限取并集）" required error={form.errors.real_name} span>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 8, paddingTop: 2 }}>
-            {roles.map((r) => {
-              const on = picked.includes(r.code);
-              return (
-                <button
-                  key={r.code}
-                  type="button"
-                  className={`${on ? "btn-primary" : "btn-ghost"} btn-xs`}
-                  aria-pressed={on}
-                  onClick={() =>
-                    setPicked((prev) => (prev.includes(r.code) ? prev.filter((c) => c !== r.code) : [...prev, r.code]))
-                  }
-                >
-                  {on ? "✓ " : ""}{r.name}
-                </button>
-              );
-            })}
-          </div>
-        </Field>
         <Field
           label="功能模块（可多选，决定该用户可见页面与可访问接口）"
-          hint="管理员的模块分配不影响其全量权限；财务页面沿用账套成员授权。普通用户未分配任何模块时仅能进入工作台。"
+          hint="模块控制可访问功能，财务模块包含全部活动账套；系统管理仅超级管理员可用。新用户默认不分配模块，仅能进入工作台。"
           span
         >
           <div style={{ display: "flex", flexWrap: "wrap", gap: 8, paddingTop: 2 }}>
@@ -201,7 +164,7 @@ export default function UserDialog({
           </div>
         </Field>
       </div>
-      {isEdit && <p className="tiny">仅系统管理模块用户可编辑用户；改密后该用户下次登录需使用新密码。</p>}
+      {isEdit && <p className="tiny">仅超级管理员可编辑用户；改密后该用户下次登录需使用新密码。</p>}
     </Dialog>
   );
 }

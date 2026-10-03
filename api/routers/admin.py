@@ -1,12 +1,8 @@
-"""系统管理（用户/角色/字典/参数/日志）：系统管理模块面。
-
-权限契约（Stage 5）：所有接口统一走 core.rbac.require_module(user, "admin")，
-未分配「系统管理」模块的账号恒定 403；管理员天然拥有全部模块。
-"""
+"""系统管理（用户/角色/字典/参数/日志）：仅超级管理员可访问。"""
 import re
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict, model_validator
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
@@ -16,10 +12,9 @@ from ..core.deps import get_current_user
 from ..core.paging import DEFAULT_PAGE_SIZE, paginate
 from ..core.rbac import (
     ALL_MODULES,
-    MODULE_ADMIN,
     MODULE_CATALOG,
     effective_modules,
-    require_module,
+    require_admin,
 )
 from ..core.security import hash_password
 from ..core.timeutil import app_now, iso
@@ -32,15 +27,20 @@ from ..models import (
     SysParam,
     User,
     UserModule,
-    UserRole,
 )
 
-router = APIRouter(prefix="/admin", tags=["admin"])
+def _require_super_admin(user: User = Depends(get_current_user)) -> User:
+    require_admin(user)
+    return user
+
+
+router = APIRouter(
+    prefix="/admin", tags=["admin"], dependencies=[Depends(_require_super_admin)]
+)
 PHONE_RE = re.compile(r"^1\d{10}$")
 
-# 统一门禁：系统管理模块（管理员天然拥有；也可由管理员分配给其他用户）
 def _admin(user: User) -> None:
-    require_module(user, MODULE_ADMIN)
+    require_admin(user)
 
 # 排序白名单（Stage 3A）：字段名 → ORM 列
 USER_SORTS = {
@@ -73,6 +73,7 @@ def _operator_name(user_id: int | None, account: User | None = None) -> str:
 def _u(u: User):
     return {"id": u.id, "username": u.username, "real_name": u.real_name,
             "status": u.status, "dept_id": u.dept_id,
+            "is_super_admin": bool(u.is_super_admin),
             "roles": [{"code": r.code, "name": r.name} for r in u.roles],
             "modules": _sorted_modules(u)}
 
@@ -84,12 +85,20 @@ def _sorted_modules(u: User) -> list[str]:
 
 
 class UserIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     username: str
     password: str = "admin123456"
     real_name: str = ""
     dept_id: int | None = None
-    roles: list[str] = []
     modules: list[str] | None = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def reject_identity_fields(cls, value):
+        if isinstance(value, dict) and {"roles", "is_super_admin"} & value.keys():
+            raise HTTPException(400, "不允许通过用户接口设置角色或超级管理员身份")
+        return value
 
 
 def _apply_modules(db: Session, uid: int, modules: list[str]) -> None:
@@ -97,6 +106,8 @@ def _apply_modules(db: Session, uid: int, modules: list[str]) -> None:
 
     只接受模块目录内取值（去重、忽略非法值）；空列表表示显式不分配任何模块。
     """
+    if "admin" in modules:
+        raise HTTPException(400, "admin 不是可分配功能模块")
     wanted = [m for m in dict.fromkeys(modules) if m in ALL_MODULES]
     db.query(UserModule).filter_by(user_id=uid).delete()
     for module in wanted:
@@ -109,7 +120,7 @@ def _apply_modules(db: Session, uid: int, modules: list[str]) -> None:
 @router.get("/users")
 def list_users(keyword: str = "", status: str = "", dept_id: int = 0, sort: str = "id",
                page: int = 1, size: int = DEFAULT_PAGE_SIZE,
-               db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+               db: Session = Depends(get_db), user: User = Depends(_require_super_admin)):
     """用户列表（仅管理员）：统一分页信封 + 关键词/部门/状态筛选 + 排序白名单。"""
     _admin(user)
     q = db.query(User)
@@ -125,8 +136,10 @@ def list_users(keyword: str = "", status: str = "", dept_id: int = 0, sort: str 
 
 
 @router.post("/users")
-def create_user(body: UserIn, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+def create_user(body: UserIn, db: Session = Depends(get_db), user: User = Depends(_require_super_admin)):
     _admin(user)
+    if body.modules and "admin" in body.modules:
+        raise HTTPException(400, "admin 不是可分配功能模块")
     username = str(body.username or "").strip()
     if not PHONE_RE.match(username):
         raise HTTPException(400, "登录账号须为 11 位手机号")
@@ -160,35 +173,30 @@ def create_user(body: UserIn, db: Session = Depends(get_db), user: User = Depend
             employment_status="active",
             updated_by=user.id,
         ))
-    for code in body.roles:
-        r = db.query(Role).filter_by(code=code).first()
-        if r:
-            db.add(UserRole(user_id=u.id, role_id=r.id))
-    if body.modules is not None:
-        _apply_modules(db, u.id, body.modules)
+    _apply_modules(db, u.id, body.modules or [])
     commit_audited(db, user.id, "create_user", "users", u.id, username)
     return _u(db.query(User).filter_by(id=u.id).first())
 
 
 @router.patch("/users/{uid}")
 def update_user(uid: int, body: dict, db: Session = Depends(get_db),
-                user: User = Depends(get_current_user)):
+                user: User = Depends(_require_super_admin)):
     _admin(user)
+    if {"roles", "is_super_admin"} & body.keys():
+        raise HTTPException(400, "不允许通过用户接口设置角色或超级管理员身份")
+    if isinstance(body.get("modules"), list) and "admin" in body["modules"]:
+        raise HTTPException(400, "admin 不是可分配功能模块")
     u = db.query(User).filter_by(id=uid).first()
     if not u:
         raise HTTPException(404, "用户不存在")
+    if body.get("status") == "disabled" and u.is_super_admin:
+        raise HTTPException(409, "超级管理员不能停用")
     for f in ("real_name", "status", "dept_id"):
         if f in body:
             setattr(u, f, body[f])
     if body.get("password"):
         u.pwd_hash = hash_password(body["password"])
         u.must_change_pwd = True
-    if "roles" in body:
-        db.query(UserRole).filter_by(user_id=uid).delete()
-        for code in body["roles"]:
-            r = db.query(Role).filter_by(code=code).first()
-            if r:
-                db.add(UserRole(user_id=uid, role_id=r.id))
     if "modules" in body and isinstance(body["modules"], list):
         _apply_modules(db, uid, [str(m) for m in body["modules"]])
     if body.get("status") == "active":
@@ -204,7 +212,7 @@ def update_user(uid: int, body: dict, db: Session = Depends(get_db),
 
 
 @router.get("/demo-data")
-def get_demo_data(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+def get_demo_data(db: Session = Depends(get_db), user: User = Depends(_require_super_admin)):
     """演示数据开关状态 + 数据量概览（仅管理员）。"""
     _admin(user)
     from ..core.rbac import demo_data_on
@@ -218,7 +226,7 @@ def get_demo_data(db: Session = Depends(get_db), user: User = Depends(get_curren
 
 @router.put("/demo-data")
 def set_demo_data_flag(body: dict, db: Session = Depends(get_db),
-                       user: User = Depends(get_current_user)):
+                       user: User = Depends(_require_super_admin)):
     """打开/关闭演示数据展示（仅管理员，全局生效）。"""
     _admin(user)
     from ..core.rbac import demo_data_on, set_demo_data
@@ -231,13 +239,13 @@ def set_demo_data_flag(body: dict, db: Session = Depends(get_db),
 
 
 @router.get("/roles")
-def list_roles(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+def list_roles(db: Session = Depends(get_db), user: User = Depends(_require_super_admin)):
     _admin(user)
     return [{"id": r.id, "code": r.code, "name": r.name} for r in db.query(Role).all()]
 
 
 @router.get("/modules")
-def list_modules(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+def list_modules(db: Session = Depends(get_db), user: User = Depends(_require_super_admin)):
     """功能模块目录（仅系统管理模块可见）：供用户弹窗渲染可分配模块与排序。"""
     _admin(user)
     return [{"key": key, "label": label, "href": href}
@@ -246,7 +254,7 @@ def list_modules(db: Session = Depends(get_db), user: User = Depends(get_current
 
 @router.get("/dicts")
 def list_dicts(type: str = "", db: Session = Depends(get_db),
-               user: User = Depends(get_current_user)):
+               user: User = Depends(_require_super_admin)):
     _admin(user)
     q = db.query(Dict).order_by(Dict.type, Dict.sort)
     if type:
@@ -255,7 +263,7 @@ def list_dicts(type: str = "", db: Session = Depends(get_db),
 
 
 @router.post("/dicts")
-def create_dict(body: dict, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+def create_dict(body: dict, db: Session = Depends(get_db), user: User = Depends(_require_super_admin)):
     _admin(user)
     d = Dict(type=body["type"], code=body["code"], label=body.get("label", ""), sort=body.get("sort", 0))
     db.add(d)
@@ -265,13 +273,13 @@ def create_dict(body: dict, db: Session = Depends(get_db), user: User = Depends(
 
 
 @router.get("/params")
-def list_params(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+def list_params(db: Session = Depends(get_db), user: User = Depends(_require_super_admin)):
     _admin(user)
     return {p.key: p.value for p in db.query(SysParam).all()}
 
 
 @router.put("/params")
-def set_params(body: dict, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+def set_params(body: dict, db: Session = Depends(get_db), user: User = Depends(_require_super_admin)):
     _admin(user)
     for k, v in body.items():
         p = db.query(SysParam).filter_by(key=k).first()
@@ -285,7 +293,7 @@ def set_params(body: dict, db: Session = Depends(get_db), user: User = Depends(g
 
 @router.get("/logs/export")
 def export_logs(action: str = "", user_id: int = 0, limit: int = 5000,
-                db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+                db: Session = Depends(get_db), user: User = Depends(_require_super_admin)):
     """审计日志导出 Excel（仅管理员）。"""
     import io
 
@@ -326,7 +334,7 @@ def export_logs(action: str = "", user_id: int = 0, limit: int = 5000,
 @router.get("/logs")
 def list_logs(action: str = "", user_id: int = 0, sort: str = "-id",
               page: int = 1, size: int = DEFAULT_PAGE_SIZE,
-              db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+              db: Session = Depends(get_db), user: User = Depends(_require_super_admin)):
     """审计日志列表（仅管理员）：统一分页信封（默认 `-id` 最新在前）+ 排序白名单。"""
     _admin(user)
     # 外连接保证历史记录在账号已删除时仍可返回；姓名为空时由

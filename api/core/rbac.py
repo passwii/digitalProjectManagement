@@ -1,25 +1,26 @@
-"""RBAC：管理与审批边界（Stage 1 收敛版）。
+"""RBAC：超级管理员身份、模块权限与业务数据边界。
 
-已确认契约（BLF-1097）：
-  · 管理员（admin）是唯一的管理与审批角色，也是唯一拥有全局数据范围的用户：跨部门、跨项目读写。
-  · 非管理员不获得任何管理/审批能力：管理、审批、回收站等接口对非管理员稳定返回 403，
-    且权限判定先于任何业务读写，拒绝时不会产生业务状态变更。
+当前授权契约：
+  · User.is_super_admin 是唯一系统管理身份；旧 admin 角色及其他角色关联仅为兼容/历史数据，不授予权限。
+  · 超级管理员拥有全局数据范围；/admin 仅其可访问。业务页面由
+    opportunities/projects/assets/reports/contacts/partners/approvals/finance 模块控制。
+  · 财务模块统一控制全部财务路由；account_book_members 账套成员记录不授予访问权限。
+  · 审批能力由 approvals 模块决定；权限拒绝在业务读写前稳定返回 403。
   · 普通用户仍按「项目负责人 / 项目成员」参与业务（立项、任务、进度填报、跟进、预算/支出登记），
     本轮不收敛该参与路径。
-  · 以下角色编码仅作为未来扩展的结构字段保留，当前不参与任何授权判定：
-    project_manager / dept_manager / member / cost_admin / executive。
-    即不再有「部门隔离」「项目成员授权优先于部门隔离」「高层只读」「成本管理员独立全局权限」规则。
+  · 角色目录、user_roles、账套成员模型继续保留以兼容历史记录；角色字段当前不参与系统授权判定。
 """
 from fastapi import HTTPException
 
 from ..models import Project
 
-ROLE_ADMIN = "admin"            # 系统管理员：唯一管理与审批角色，全局范围
-ROLE_PM = "project_manager"     # 保留字段：未来扩展用，当前不授予额外权限
-ROLE_DEPT = "dept_manager"      # 保留字段：同上
-ROLE_MEMBER = "member"          # 保留字段：同上
-ROLE_COST = "cost_admin"        # 保留字段：同上
-ROLE_EXEC = "executive"         # 保留字段：同上
+# 角色目录仅保留兼容及历史用途；系统身份只由 User.is_super_admin 决定。
+ROLE_ADMIN = "admin"
+ROLE_PM = "project_manager"
+ROLE_DEPT = "dept_manager"
+ROLE_MEMBER = "member"
+ROLE_COST = "cost_admin"
+ROLE_EXEC = "executive"
 ROLE_FINANCE_CLERK = "finance_clerk"
 ROLE_FINANCE_REVIEWER = "finance_reviewer"
 ROLE_CASHIER = "cashier"
@@ -32,9 +33,8 @@ ALL_ROLES = [ROLE_ADMIN, *RESERVED_ROLES, *FINANCE_ROLES]
 
 # ---------------- 功能模块（Stage 5：页面可见性改为按用户手动分配） ----------------
 #
-# 契约变更：不再用「是否 admin 角色」推导通讯录/友商/审批中心/系统管理等页面的可见性，
-# 改为模块目录 + user_modules 按用户分配；管理员天然拥有全部模块，普通用户以分配为准。
-# 模块键与前端导航一一对应，顺序即导航顺序。财务（/finance）沿用账套成员授权，不在此列。
+# 管理权限只由 User.is_super_admin 决定；业务页面按模块目录与 user_modules 分配。
+# admin 菜单是超管专属入口，不属于可分配模块；财务 API 由财务模块统一控制访问。
 MODULE_OPPORTUNITIES = "opportunities"
 MODULE_PROJECTS = "projects"
 MODULE_ASSETS = "assets"
@@ -42,7 +42,7 @@ MODULE_REPORTS = "reports"
 MODULE_CONTACTS = "contacts"
 MODULE_PARTNERS = "partners"
 MODULE_APPROVALS = "approvals"
-MODULE_ADMIN = "admin"
+MODULE_FINANCE = "finance"
 
 # (key, label, href)：后端是模块目录的单一事实来源，前端菜单与用户弹窗都消费它。
 MODULE_CATALOG: list[tuple[str, str, str]] = [
@@ -53,11 +53,11 @@ MODULE_CATALOG: list[tuple[str, str, str]] = [
     (MODULE_CONTACTS, "通讯录", "/contacts"),
     (MODULE_PARTNERS, "我的友商", "/partners"),
     (MODULE_APPROVALS, "审批中心", "/approvals"),
-    (MODULE_ADMIN, "系统管理", "/admin"),
+    (MODULE_FINANCE, "财务管理", "/finance"),
 ]
 ALL_MODULES = [key for key, _label, _href in MODULE_CATALOG]
 # 存量/未显式分配用户的默认模块：与本次改动前的基础导航一致，保证升级后既有
-# 普通用户行为不变，管理员再按需增减。
+# 普通用户行为不变；超级管理员身份来自 is_super_admin，而非 admin 角色。
 DEFAULT_MODULES = [MODULE_OPPORTUNITIES, MODULE_PROJECTS, MODULE_ASSETS, MODULE_REPORTS]
 
 
@@ -67,11 +67,11 @@ def user_module_codes(user) -> set:
 
 
 def effective_modules(user) -> set:
-    """用户实际生效的模块集合：管理员全量；其余按显式分配，否则回落默认业务模块。"""
-    if is_admin(user):
+    """用户实际生效的可分配模块；普通用户忽略历史残留的 admin 键。"""
+    if is_super_admin(user):
         return set(ALL_MODULES)
     if getattr(user, "modules_assigned", False):
-        return user_module_codes(user)
+        return user_module_codes(user) & set(ALL_MODULES)
     return set(DEFAULT_MODULES)
 
 
@@ -80,7 +80,7 @@ def has_module(user, module: str) -> bool:
 
 
 def require_module(user, *modules: str) -> None:
-    """模块门禁：至少拥有其中一个模块才放行（管理员天然全量）。
+    """模块门禁：至少拥有其中一个模块才放行（超级管理员天然全量）。
 
     用于路由级依赖与端点内校验，保证「前端能看到入口」与「后端接口放行」同一判定，
     不会出现入口可见但接口 403 的错位契约。
@@ -94,11 +94,16 @@ def role_codes(user) -> set:
 
 
 def is_admin(user) -> bool:
-    return ROLE_ADMIN in role_codes(user)
+    """历史调用方兼容别名；管理权限仅由超级管理员标志决定。"""
+    return bool(user.is_super_admin)
+
+
+def is_super_admin(user) -> bool:
+    return bool(user.is_super_admin)
 
 
 def can_approve(user) -> bool:
-    """审批资格：拥有「审批中心」模块（管理员天然拥有）即可审批。
+    """审批资格：拥有「审批中心」模块（超级管理员天然拥有）即可审批。
 
     `GET /approvals/pending` 行内的 can_decide 与各决策入口共用本判定，
     保证「列表里能点」与「接口放行」永远一致，不出现按钮可见但接口 403 的错位契约。
@@ -107,30 +112,9 @@ def can_approve(user) -> bool:
 
 
 def require_admin(user) -> None:
-    """兼容保留的 admin 角色门禁。
-
-    Stage 5 起页面/接口可见性应使用 require_module；仅在确实需要「必须是 admin 角色」
-    而非「拥有某模块」时使用（如设备资产的特权写操作），本函数保留以免外部集成断裂。
-    """
-    if not is_admin(user):
-        raise HTTPException(403, "仅管理员可操作")
-
-
-def finance_role(db, user, book_id: int) -> str | None:
-    if is_admin(user):
-        return ROLE_FINANCE_MANAGER
-    from ..models import AccountBookMember
-    row = db.query(AccountBookMember).filter_by(account_book_id=book_id, user_id=user.id).first()
-    if not row or row.role not in FINANCE_ROLES:
-        return None
-    return row.role
-
-
-def require_finance(db, user, book_id: int, allowed: set[str] | None = None) -> str:
-    role = finance_role(db, user, book_id)
-    if role is None or (allowed is not None and role not in allowed):
-        raise HTTPException(403, "无财务账套操作权限")
-    return role
+    """系统管理及特权写操作仅允许超级管理员。"""
+    if not is_super_admin(user):
+        raise HTTPException(403, "仅超级管理员可操作")
 
 
 def member_ids(project) -> set:
@@ -142,7 +126,7 @@ def member_ids(project) -> set:
 
 
 def can_read_project(user, project, db=None) -> bool:
-    """读权限：管理员全局；其他用户仅限自己负责或参与的项目。"""
+    """读权限：超级管理员全局；其他用户仅限自己负责或参与的项目。"""
     if is_admin(user):
         return True
     return user.id in member_ids(project)
@@ -150,7 +134,7 @@ def can_read_project(user, project, db=None) -> bool:
 
 def check_project_access(user, project, write: bool = False, db=None,
                          hidden_msg: str = "项目不存在") -> None:
-    """读：可见即可；写：管理员或项目参与人。
+    """读：可见即可；写：超级管理员或项目参与人。
 
     传 db 时额外执行演示数据门禁：演示开关关闭时，演示项目视为不存在（404），
     与列表/统计口径保持一致，避免「列表里看不到、直接访问 URL 却能打开」。
@@ -168,7 +152,7 @@ def check_project_access(user, project, write: bool = False, db=None,
 def visible_project_condition(user):
     """把「可见项目」规则下推为 SQL 条件（避免全表载入后在 Python 过滤）。
 
-    返回 None 表示无需过滤：仅管理员，全局可见（跨部门、跨项目、不限成员）。
+    返回 None 表示无需过滤：仅超级管理员，全局可见（跨部门、跨项目、不限成员）。
     其余用户：负责人 或 项目成员；部门隔离规则已随本次契约收敛取消。
     """
     from sqlalchemy import exists, or_
@@ -218,7 +202,7 @@ def is_demo_hidden(project, db) -> bool:
 def project_scope_condition(user, db=None):
     """可见项目范围 = 权限范围 ∩ 演示数据开关。
 
-    返回 None 表示无任何过滤（管理员 + 演示开关打开）。
+    返回 None 表示无任何过滤（超级管理员 + 演示开关打开）。
     开关关闭时演示项目在全站（列表/工作台/报表/预警/任务）一并排除，保证统计口径一致。
     """
     from sqlalchemy import and_
@@ -246,7 +230,7 @@ def get_active_project(db, pid: int, user=None, write: bool = False,
                        msg: str = "项目不存在") -> Project:
     """按 id 取一个未软删除项目；不存在或已软删除 → 404（默认 msg 可覆盖）。
 
-    传 user 时附带参与人读/写校验（admin 全局放行）。子表接口（预算/支出/里程碑/任务/填报）
+    传 user 时附带参与人读/写校验（超级管理员全局放行）。子表接口（预算/支出/里程碑/任务/填报）
     的项目边界统一走这里，避免各自 `filter_by(id=...)` 漏掉软删除与可见性。
     """
     p = active_projects(db).filter(Project.id == pid).first()
@@ -283,8 +267,8 @@ def scope_child_query(query, model, db, user):
     """把「可见 + 未软删除」项目边界下推为子表列表的 SQL 过滤。
 
     用法：`q = scope_child_query(db.query(Task), Task, db, user)`。
-    管理员是唯一全局范围角色：不按参与人过滤（跨部门、跨项目可见），
-    但仍必须排除软删除项目——「管理员全局 ≠ 包含回收站」是 Stage 1 已确认契约，
+    超级管理员是唯一全局范围身份：不按参与人过滤（跨部门、跨项目可见），
+    但仍必须排除软删除项目——「超级管理员全局 ≠ 包含回收站」是 Stage 1 已确认契约，
     子表列表一律通过 `visible_project_ids` 子查询收口，避免回收站数据回流。
     """
     return query.filter(model.project_id.in_(visible_project_ids(db, user)))

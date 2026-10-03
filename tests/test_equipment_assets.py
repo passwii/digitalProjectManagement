@@ -8,6 +8,7 @@ import pytest
 from openpyxl import Workbook
 from sqlalchemy import text
 
+from api.core.timeutil import app_today
 from api.models import AuditLog, Dict, EquipmentAsset, EquipmentEvent, EquipmentBatch, User
 from test_mvp import login
 
@@ -777,6 +778,6 @@ def test_statistics_monthly_inbound_and_outbound_count_equipment_events(client):
 
     response = client.get(f"{ROOT}/statistics", headers=pm)
     assert response.status_code == 200, response.text
-    month = date.today().strftime("%Y-%m")
+    month = app_today().strftime("%Y-%m")
     summary = next(row for row in response.json()["by_month"] if row["month"] == month)
     assert summary == {"month": month, "inbound": 4, "outbound": 2}

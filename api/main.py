@@ -8,10 +8,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from . import models  # noqa: F401
 from .core.deps import get_current_user
 from .core.rbac import (
-    MODULE_ADMIN,
     MODULE_APPROVALS,
     MODULE_ASSETS,
     MODULE_CONTACTS,
+    MODULE_FINANCE,
     MODULE_OPPORTUNITIES,
     MODULE_PARTNERS,
     MODULE_PROJECTS,
@@ -65,29 +65,32 @@ app = FastAPI(
   description="""
 ## 功能模块与页面可见性契约（Stage 5，2026-09-28）
 
-- **页面可见性改为按用户手动分配**：导航/页面不再由 admin 角色推导，而是取模块目录
-  （`opportunities/projects/assets/reports/contacts/partners/approvals/admin`）∩ 用户生效模块。
-- **生效规则**：`admin` 角色天然拥有全部模块；普通用户以 `user_modules` 显式分配为准；
+- **身份与模块目录**：唯一系统管理身份是 `User.is_super_admin`；旧 `admin` 角色和 `user_roles` 仅为兼容/历史数据，
+  不授予权限。可分配功能模块目录为
+  （`opportunities/projects/assets/reports/contacts/partners/approvals/finance`）∩ 用户生效模块；系统管理不属于可分配模块，仅超级管理员可访问。
+- **生效规则**：超级管理员身份天然拥有全部可分配业务模块；普通用户以 `user_modules` 显式分配为准；
   存量/未显式分配用户回落到四个基础模块（升级平滑，行为不变）。
 - **前端菜单与后端接口同一判定**：`GET /meta/me/menus` 与各路由 `require_module` 共用
   `core.rbac.effective_modules`，不会出现入口可见但接口 403 的错位契约。
-- **审批资格** = 拥有「审批中心」模块（`can_approve`）；**系统管理** = 拥有「系统管理」模块。
-- **财务**（`/finance`）沿用账套成员授权（`can_finance`，`require_finance` 按账套角色判定），
-  不纳入手动模块分配；设备资产的特权写操作仍要求 admin 角色。
-- 管理员角色仍用于全局数据范围（跨部门/跨项目）与演示数据开关等高权限判定。
+- **审批资格** = 拥有「审批中心」模块（`can_approve`）；**系统管理**仅限超级管理员。
+- **财务**（`/finance`）入口与全部财务路由（`finance`、`finance_accounting`）均由 finance 模块统一控制；
+  账套成员行不授予访问权。模块用户具有相同访问权，账套期间、凭证状态、借贷平衡、辅助资料及项目可见范围校验继续生效；
+  设备资产的特权写操作仍要求超级管理员。
+- 超级管理员身份用于全局数据范围（跨部门/跨项目）与演示数据开关等高权限判定。
 
 ## 管理与审批边界契约（Stage 1 收敛，2026-09-16 确认；Stage 5 起模块化）
 
-- **管理员（`admin`）拥有全部模块与全局数据范围**：可跨部门、跨项目读取和操作。
-- 管理接口（`/admin/*`）、审批接口（`/approvals/*`、`/budget-adjusts/{id}/approve`、
+- **超级管理员**拥有全部可分配模块与全局数据范围：可跨部门、跨项目读取和操作。
+- 管理接口（`/admin/*`）仅限超级管理员；审批接口（`/approvals/*`、`/budget-adjusts/{id}/approve`、
   `/expenses/{id}/approve|reject|exception`）、回收站（`/projects/recycle-bin/list`、项目删除与恢复）
-  分别要求 `admin` / `approvals` 模块；未分配该模块的账号稳定返回 403，鉴权先于任何业务读写。
+  与项目删除/恢复分别要求超级管理员 / `approvals` 模块；鉴权先于任何业务读写。
 - 审批中心 `GET /approvals/pending` 行内的 `can_decide` 与各决策入口共用同一判定
   （`core.rbac.can_approve`），不会出现按钮可见但接口拒绝的错位契约。
-- **管理员全局 ≠ 包含回收站**：正常业务列表仍排除软删除项目，回收站单独查看与恢复。
+- **超级管理员全局 ≠ 包含回收站**：正常业务列表仍排除软删除项目，回收站单独查看与恢复。
 - 普通用户按「项目负责人 / 项目成员」参与业务（立项、任务、进度填报、跟进、预算/支出登记），该参与路径本轮不变。
-- `project_manager` / `dept_manager` / `member` / `cost_admin` / `executive` 仅作为未来扩展的结构字段保留，
-  当前不参与授权判定（不再有部门隔离、成员优先、高层只读、成本管理员独立全局权限）。
+- 角色目录、`user_roles` 与 `account_book_members` 历史记录继续保留以兼容；这些旧角色/成员行不参与本次身份或模块授权判定。
+- `project_manager` / `dept_manager` / `member` / `cost_admin` / `executive` 当前不参与授权判定；
+  项目负责人/成员仍按既有业务对象规则参与项目业务。
 
 ## 列表分页与查询契约（Stage 3A 定稿，2026-09-16）
 
@@ -101,7 +104,7 @@ app = FastAPI(
 - **选择器与字典**：项目选择器用 `GET /projects/options`（最小字段 + 关键词分页）；人员搜索用 `GET /meta/users/search`；
   `/meta/users`、`/meta/depts` 为「一次取回本地映射」字典接口，服务端硬上限 500 行。
 - **审批待办有界**：`GET /approvals/pending` 每类最多 `limit` 条（默认 200，上限 500），并返回 `totals` 与 `limit`。
-- **边界不变**：子表列表与审批待办继续执行「可见 + 未软删除」过滤；管理员全局 ≠ 包含回收站。
+- **边界不变**：子表列表与审批待办继续执行「可见 + 未软删除」过滤；超级管理员全局 ≠ 包含回收站。
 - 实现与细节见 `api/core/paging.py`、README「列表分页与查询契约」节；回归测试见 `tests/test_mvp.py` 第 31—37 项。
 
 ## 进度 / 成本 / 审批 / 通知闭环契约（Stage 4A 定稿，2026-09-16）
@@ -149,7 +152,7 @@ app.add_middleware(
 )
 
 def _module_guard(*modules: str):
-    """路由级模块门禁依赖：拥有其中任一模块（管理员天然全量）才放行整个路由。
+    """路由级模块门禁依赖：拥有其中任一模块（超级管理员天然全量）才放行整个路由。
 
     前端菜单与后端接口共用 core.rbac.effective_modules，避免「入口可见但接口 403」。
     """
@@ -159,12 +162,11 @@ def _module_guard(*modules: str):
 
 
 # 路由 → 允许的模块（任一即可）。auth/meta/dashboard/notifications 为全站公共面，不设模块门禁：
-#   · projects 是项目详情、跨模块选择器与回收站（admin）的共用读源，放行全部基础业务模块 + 系统管理；
+#   · projects 是项目详情、跨模块选择器与回收站（仅超级管理员）的共用读源，放行全部基础业务模块；
 #   · reports 被支出页用于预算执行汇总，故同时放行 projects 等基础模块；
 #   · tasks/milestones/budgets/expenses 是项目详情/进度/支出子页面的子资源，无独立导航模块，保持开放；
-#   · finance / finance_accounting 沿用账套成员授权（require_finance），不按模块门禁。
+#   · finance / finance_accounting 由 finance 模块统一门禁，业务校验保留在各端点中。
 _ROUTER_MODULES: list[tuple[object, tuple[str, ...]]] = [
-    (admin.router, (MODULE_ADMIN,)),
     (contacts.router, (MODULE_CONTACTS,)),
     (partners.router, (MODULE_PARTNERS,)),
     (approvals.router, (MODULE_APPROVALS,)),
@@ -172,12 +174,13 @@ _ROUTER_MODULES: list[tuple[object, tuple[str, ...]]] = [
     (equipment_assets.router, (MODULE_ASSETS,)),
     (reports.router, (MODULE_REPORTS, MODULE_PROJECTS, MODULE_OPPORTUNITIES, MODULE_ASSETS)),
     (project_receivables.router, (MODULE_OPPORTUNITIES, MODULE_PROJECTS, MODULE_ASSETS,
-                                  MODULE_REPORTS, MODULE_ADMIN)),
+                                  MODULE_REPORTS)),
     (projects.router, (MODULE_OPPORTUNITIES, MODULE_PROJECTS, MODULE_ASSETS,
-                       MODULE_REPORTS, MODULE_ADMIN)),
+                       MODULE_REPORTS)),
 ]
 
 for r in (
+    admin.router,
     auth.router,
     meta.router,
     dashboard.router,
@@ -186,10 +189,15 @@ for r in (
     milestones.router,
     budgets.router,
     expenses.router,
-    finance.router,
-    finance_accounting.router,
 ):
     app.include_router(r, prefix="/api/v1")
+
+for r in (finance.router, finance_accounting.router):
+    app.include_router(
+        r,
+        prefix="/api/v1",
+        dependencies=[Depends(_module_guard(MODULE_FINANCE))],
+    )
 
 for r, _mods in _ROUTER_MODULES:
     app.include_router(
