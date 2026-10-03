@@ -57,7 +57,7 @@ function ProgressInner() {
   const { data, loading, firstLoad, error, reload } = useAsyncData(
     (signal) => tasksApi.list(buildQuery({ project_id: pid, page, size, sort: "-plan_end" }), signal),
     [pid, page, size],
-    { enabled: !!pid, resetOnDepChange: true },
+    { enabled: !!pid, resetOnDepChange: true, cacheKey: "progress:tasks", cacheMaxAgeMs: 60_000 },
   );
   const paged = unwrapPaged<Task>(data);
   const tasks = paged.items;
