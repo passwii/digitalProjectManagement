@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  cacheIdentity,
   deleteAsyncDataCache,
   getAsyncDataCacheSnapshot,
   readAsyncDataCache,
@@ -64,12 +65,41 @@ test("writes bound entry count and skip oversized values", () => {
   } finally {
     Date.now = originalNow;
   }
-  const cacheKeys = [...values.keys()].filter((entry) => entry.startsWith(prefix));
+  const cacheKeys = [...values.keys()].filter((entry) => entry.startsWith(prefix) && entry !== `${prefix}__index__`);
   assert.equal(cacheKeys.length, 8);
   assert.equal(values.has(`${prefix}entry-0`), false);
 
   writeAsyncDataCache("too-large", depsKey, token, "x".repeat(257 * 1024));
   assert.equal(values.has(`${prefix}too-large`), false);
+});
+
+test("miss snapshots are memoized briefly to avoid repeated storage reads and parsing", () => {
+  const missKey = "snapshot-miss-memoization";
+  const missStorageKey = `${prefix}${encodeURIComponent(missKey)}`;
+  let reads = 0;
+  const { storage } = installStorage();
+  const originalGetItem = storage.getItem;
+  storage.getItem = (item: string) => {
+    if (item === missStorageKey) reads += 1;
+    return originalGetItem(item);
+  };
+  const originalNow = Date.now;
+  Date.now = () => 123_000;
+  try {
+    assert.equal(getAsyncDataCacheSnapshot(missKey, depsKey, token, 60_000), null);
+    assert.equal(getAsyncDataCacheSnapshot(missKey, depsKey, token, 60_000), null);
+    assert.equal(reads, 1);
+  } finally {
+    Date.now = originalNow;
+  }
+});
+
+test("cache identities retain the complete dependency key", () => {
+  const first = cacheIdentity("projects", '["keyword-a",1]');
+  const second = cacheIdentity("projects", '["keyword-b",1]');
+  assert.notEqual(first.key, second.key);
+  assert.equal(first.depsKey, '["keyword-a",1]');
+  assert.equal(second.depsKey, '["keyword-b",1]');
 });
 
 test("cached external-store snapshots expire without a storage event", () => {

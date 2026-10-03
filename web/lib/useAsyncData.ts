@@ -161,7 +161,8 @@ export function useAsyncData<T>(
       const candidate = e as { name?: unknown; status?: unknown } | null;
       const canKeepSnapshot =
         candidate?.name === "NetworkError" ||
-        (typeof candidate?.status === "number" && [408, 425, 429, 500, 502, 503, 504].includes(candidate.status));
+        (typeof candidate?.status === "number" &&
+          ([408, 425, 429].includes(candidate.status) || (candidate.status >= 500 && candidate.status <= 599)));
       const hasCurrentData =
         (dataScopeRef.current === currentDataScope && depsKeyRef.current === depKey && dataRef.current !== null) ||
         (cacheKey !== undefined && cacheValueRef.current !== undefined);
@@ -209,9 +210,6 @@ export function useAsyncData<T>(
     if (resetOnDepChangeRef.current && depsChanged && !restored) {
       dataScopeRef.current = currentDataScope;
       dataRef.current = null;
-      setData(null);
-      setLoading(true);
-    } else if (!isCacheable && resetOnDepChangeRef.current && depsChanged) {
       setData(null);
       setLoading(true);
     }
