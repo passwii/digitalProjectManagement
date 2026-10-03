@@ -159,6 +159,21 @@ def test_alembic_revision_ids_fit_default_version_column():
     assert oversized == []
 
 
+def test_alembic_migration_graph_has_one_head_and_merges_inventory_and_super_admin():
+    from alembic.config import Config
+    from alembic.script import ScriptDirectory
+
+    api_dir = Path(__file__).parents[1] / "api"
+    config = Config(str(api_dir / "alembic.ini"))
+    config.set_main_option("script_location", str(api_dir / "alembic"))
+    scripts = ScriptDirectory.from_config(config)
+
+    assert scripts.get_heads() == ["0035_merge_superadmin_inventory"]
+    merge = scripts.get_revision("0035_merge_superadmin_inventory")
+    assert merge is not None
+    assert set(merge.down_revision) == {"0034_superadmin_modules", "34"}
+
+
 def test_equipment_batch_name_migration_backfills_legacy_rows_and_adds_case_insensitive_unique_index():
     migration_path = Path(__file__).parents[1] / "api" / "alembic" / "versions" / "0031_equipment_batch_names.py"
     source = migration_path.read_text(encoding="utf-8")
