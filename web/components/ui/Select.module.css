@@ -100,7 +100,7 @@
   --select-bg: var(--card);
   --select-text: var(--ink);
   --select-muted: var(--ink-3);
-  --select-border: var(--line);
+  --select-border: var(--control-border, var(--line));
   --select-accent: var(--brand);
   --select-active-bg: var(--brand-soft);
   --select-disabled-bg: var(--th-bg);

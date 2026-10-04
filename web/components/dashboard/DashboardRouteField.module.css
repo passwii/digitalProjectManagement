@@ -19,7 +19,7 @@
 }
 
 .route + .route { border-top: 1px solid var(--dash-line-soft); }
-.ok { --route-signal: var(--dash-lime); }
+.ok { --route-signal: var(--dash-success); }
 .risk { --route-signal: var(--dash-amber); }
 .bad { --route-signal: var(--dash-alert); }
 .closed { --route-signal: var(--dash-dim); }
@@ -79,6 +79,11 @@
   border-radius: 50%;
   background: currentColor;
   box-shadow: 0 0 9px currentColor;
+}
+
+:global(:root[data-theme="light"]) .state i,
+:global(:root[data-theme="light"]) .trackFill {
+  box-shadow: none;
 }
 
 .trackLine {

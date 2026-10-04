@@ -13,7 +13,7 @@
 .neutral { --readout-signal: var(--dash-cyan); }
 .warn { --readout-signal: var(--dash-amber); }
 .danger { --readout-signal: var(--dash-alert); }
-.done { --readout-signal: var(--dash-lime); }
+.done { --readout-signal: var(--done); }
 
 .head {
   display: flex;

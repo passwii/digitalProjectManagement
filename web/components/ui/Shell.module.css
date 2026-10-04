@@ -158,6 +158,22 @@
   background: transparent;
   box-shadow: none;
 }
+:global(:root[data-theme="light"]) .shell[data-console-shell="true"] .navLink.active {
+  background: var(--nav-active-bg);
+}
+:global(:root[data-theme="light"]) .shell[data-console-shell="true"] .navActive {
+  box-shadow: none;
+}
+:global(:root[data-theme="light"]) .shell[data-console-shell="true"] .navLink.active::before {
+  position: absolute;
+  inset: 7px auto 7px 0;
+  width: 2px;
+  content: "";
+  background: var(--brand);
+}
+:global(:root[data-theme="light"]) .navActive {
+  box-shadow: none;
+}
 .navLink.active svg { color: var(--brand); opacity: 1; }
 .navLink:active { transform: translateY(1px) scale(.995); }
 .collapsed .navLink { justify-content: center; padding: 0; }
