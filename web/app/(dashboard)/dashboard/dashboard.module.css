@@ -9,6 +9,8 @@
   --dash-dim: var(--ink-3);
   --dash-cyan: var(--brand);
   --dash-lime: var(--action);
+  --dash-success: var(--done);
+  --dash-data-green: var(--data-green, var(--done));
   --dash-amber: var(--warn);
   --dash-alert: var(--danger);
   --dash-violet: var(--data-violet);
@@ -277,7 +279,7 @@
 }
 
 .cyan { background: var(--dash-cyan); }
-.lime { background: var(--dash-lime); }
+.lime { background: var(--dash-data-green); }
 .amber { background: var(--dash-amber); }
 .violet { background: var(--dash-violet); }
 .muted { background: var(--dash-muted); }
@@ -331,7 +333,7 @@
 .logBody { display: grid; min-width: 0; gap: 3px; color: var(--dash-ink); }
 .logBody:hover { color: var(--dash-cyan); text-decoration: none; }
 .logTitle { overflow: hidden; font-size: 13px; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
-.logTitle b { color: var(--dash-lime); font-family: var(--font-mono); font-weight: 600; }
+.logTitle b { color: var(--dash-success); font-family: var(--font-mono); font-weight: 600; }
 .logMeta { overflow: hidden; color: var(--dash-dim); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
 
 .metaNote {
@@ -401,6 +403,19 @@
 
 @media (max-width: 640px) {
   .readoutRail { grid-template-columns: minmax(0, 1fr); }
+}
+
+:global(:root[data-theme="light"]) .headerState i {
+  background: var(--dash-success);
+  box-shadow: none;
+}
+
+:global(:root[data-theme="light"]) .logNode {
+  box-shadow: none;
+}
+
+:global(:root[data-theme="light"]) .approvalButton {
+  border-color: var(--action-border);
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -16,21 +16,24 @@ colors:
   dark-success: "#c6ff72"
   dark-neutral-state: "#9cb4c4"
   dark-data-violet: "#bda6ff"
-  light-canvas: "#f3f7fa"
+  light-canvas: "#f6f7f5"
   light-surface: "#ffffff"
-  light-raised: "#eaf2f6"
-  light-rail: "#e7f1f5"
-  light-ink: "#10263a"
-  light-ink-secondary: "#496779"
-  light-ink-muted: "#607988"
-  light-divider: "rgba(45, 85, 105, 0.22)"
-  light-signal: "#006e86"
-  light-action: "#b8e86b"
-  light-warning: "#a85c00"
-  light-danger: "#c24735"
-  light-success: "#2e7a4a"
-  light-neutral-state: "#607988"
+  light-raised: "#f0f2ee"
+  light-rail: "#f0f2ee"
+  light-ink: "#252724"
+  light-ink-secondary: "#565c55"
+  light-ink-muted: "#646d62"
+  light-divider: "#dde1d9"
+  light-signal: "#245e7a"
+  light-action: "#cadb9a"
+  light-warning: "#805515"
+  light-danger: "#ac3e36"
+  light-success: "#356344"
+  light-neutral-state: "#646d62"
   light-data-violet: "#6d4cc2"
+  light-control-border: "#7d8579"
+  light-action-border: "#708044"
+  light-data-green: "#587839"
 typography:
   body:
     fontFamily: '"Noto Sans SC", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", system-ui, sans-serif'
@@ -127,7 +130,7 @@ components:
 
 数科云办公是一套供团队治理项目、推进执行并核对交付事实的工作台。视觉语言以清晰的工作面和可读的数据为先：深海军蓝承载暗色工作环境，冷白与蓝灰构成浅色工作面；青色标记信息路径和当前焦点，酸橙色只标记可执行动作与完成状态。深浅主题共享同一组语义职责与版式，不是两套互不相干的皮肤。
 
-界面以黑体中文、紧凑的操作型信息层级、直角边界和克制的阴影建立控制台感。项目列表、表格、审批和浮层必须清楚地区分画布、内容表面、导航和状态。主题由根节点的 `data-theme` 驱动；新工作台界面应消费语义颜色，而不是复制某个主题下的硬编码颜色。
+界面以黑体中文、紧凑的操作型信息层级、直角边界和克制的阴影建立控制台感。浅色以矿物灰白画布、白色内容面和灰绿 raised surface 区分工作区、卡片与导航；蓝色承担信息信号，低饱和鼠尾草酸橙只强调主要行动。项目列表、表格、审批和浮层必须清楚地区分画布、内容表面、导航和状态。主题由根节点的 `data-theme` 驱动；新工作台界面应消费语义颜色，而不是复制某个主题下的硬编码颜色。
 
 **Key Characteristics:**
 - 深浅双主题共用语义色职责，切换不改变信息层级或布局。
@@ -143,12 +146,12 @@ components:
 
 ### Primary
 - **信号青**：深色使用 `dark-signal`，浅色使用 `light-signal`。用于链接、焦点、当前导航、选择边界和信息路径；浅色采用更深的青色以维持文字和细线对比。
-- **执行酸橙**：深色使用 `dark-action`，浅色使用 `light-action`。用于主要行动按钮和完成状态，不铺满大面积背景。深浅模式都应搭配深色前景文字。
+- **执行酸橙**：深色使用 `dark-action`，浅色使用 `light-action`。浅色只用于主要行动按钮背景；完成状态使用 `light-success`，绿色数据系列使用 `light-data-green`，不可将行动底色作为前景文字。
 
 ### Secondary
 - **警告琥珀**：使用 `dark-warning` / `light-warning` 表示需注意但尚未阻断的事项。
 - **错误珊瑚**：使用 `dark-danger` / `light-danger` 表示失败、危险或需纠正的事项。
-- **完成绿**：使用 `dark-success` / `light-success` 表示已完成状态。
+- **完成绿**：使用 `dark-success` / `light-success` 表示已完成状态；浅色绿数据系列使用 `light-data-green`，与行动按钮底色分开。
 
 ### Tertiary
 - **数据紫**：使用 `dark-data-violet` / `light-data-violet` 作为图表或多系列数据的辅助区分色；不替代主交互信号。
@@ -158,7 +161,7 @@ components:
 - **内容表面**：`dark-surface` / `light-surface` 用于表单、卡片、表格和弹窗主体。
 - **抬高表面**：浅色用 `light-raised` 表示表头、工具区和次级面；深色对应 `--th-bg` 的半透明内容表面。
 - **导航表面**：使用 `dark-rail` / `light-rail`，导航文字另用 `--nav-ink` 与 `--nav-muted` 语义 token。
-- **文字与分隔线**：主文字、次级文字、弱文字和边界分别映射到对应主题的 ink 与 divider token。弱文字不承担唯一状态或操作信息。
+- **文字与分隔线**：主文字、次级文字、弱文字和分隔分别映射到对应主题的 ink 与 divider token；浅色内容区使用 `light-divider`，需要更明确边界的控件使用 `light-control-border`。浅色按钮边缘使用 `light-action-border`；弱文字不承担唯一状态或操作信息。
 - **中性状态**：使用 `dark-neutral-state` / `light-neutral-state` 表示待处理、暂停等非活动状态。
 
 **The Two-Theme Parity Rule.** 主题切换只替换语义颜色，不反转组件职责；同一控件在两种主题下都必须保有相同的重点、可读性和状态表达。
@@ -194,7 +197,7 @@ components:
 
 ## Elevation & Depth
 
-系统采用“边界为主、阴影为辅”的深度表达。主工作区用画布与实面表面的色差、细分隔线和空间分组表达层级；浮动菜单、Dialog、Drawer 使用柔和且带环境色的阴影，遮罩降低背景干扰。阴影通过 `--shadow-card`、`--shadow-float`、`--shadow-drawer` 等现有语义变量提供，并随主题切换调整。不要给每个数据面板都加浮起效果。
+系统采用“边界为主、阴影为辅”的深度表达。浅色主工作区用矿物灰白画布、白色内容面、灰绿 raised surface 和细分隔线区分层级；固定卡片保持平实（`--shadow-card: none`），避免高密度列表出现无必要的漂浮感。浮动菜单、Dialog、Drawer 使用柔和中性色阴影（`--shadow-float` / `--shadow-drawer`），遮罩降低背景干扰。深色保留各自的卡片与浮层阴影。不要给每个数据面板都加浮起效果。
 
 **The Surface-First Rule.** 默认保持工作区内容平实；只在真实浮层或需要区分的容器边缘使用阴影，普通分组优先使用间距和细边界。
 
@@ -208,7 +211,7 @@ components:
 
 ### Buttons
 按钮采用方正、紧凑的工作台形态，标签单行显示。
-- **Primary:** 深色用酸橙填充，浅色用稍深的浅色主题酸橙填充；前景使用深色文字。高度 38px，水平内边距 16px。
+- **Primary:** 深色用酸橙填充；浅色用低饱和鼠尾草酸橙 `light-action`，以 `light-action-border` 收边并搭配 `light-ink` 前景。行动底色不用于正文或小图标；hover 使用稍深的行动底色。高度 38px，水平内边距 16px。
 - **Secondary / Ghost:** 使用内容表面、细边框和主文字；高度 38px，水平内边距 13px。悬停时以信号青强化边界与文字，不增加发光装饰。
 - **Hover / Focus:** 鼠标 hover 显示边界或背景状态；键盘焦点使用全局可见焦点环。按下反馈轻微，不改变周边布局。
 - **Disabled:** 降低对比并明确禁止态，不只靠颜色暗示。

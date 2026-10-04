@@ -28,7 +28,7 @@
   min-width: 0;
   height: 38px;
   padding: 0 8px 0 11px;
-  border: 1px solid var(--line);
+  border: 1px solid var(--control-border, var(--line));
   border-radius: var(--radius);
   background: var(--card);
   color: var(--ink);
@@ -51,6 +51,9 @@
   border-color: var(--brand);
   box-shadow: 0 0 0 2px var(--brand-soft), 0 0 18px var(--signal-glow);
   outline: none;
+}
+:global(:root[data-theme="light"]) .trigger:focus-visible {
+  box-shadow: 0 0 0 2px var(--brand);
 }
 /* className 落在触发器上时，外层 .root 不该再抢宽度 */
 .triggerHost { display: flex; }
