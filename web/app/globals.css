@@ -113,7 +113,7 @@
  --ink: #252724;
  --ink-2: #565c55;
  --ink-3: #646d62;
- --line: #dde1d9;
+ --line: var(--separator);
  --line-soft: #e7e9e4;
  --brand: #245e7a;
  --brand-hover: #194960;
@@ -131,7 +131,7 @@
  --danger: #ac3e36;
  --danger-bg: #fbefec;
  --data-violet: #6d4cc2;
- --done: #356344;
+ --done: var(--success-ink);
  --done-bg: #edf4ec;
  --paused: #646d62;
  --paused-bg: #f0f2ee;

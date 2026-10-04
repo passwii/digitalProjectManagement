@@ -10,7 +10,7 @@
   --dash-cyan: var(--brand);
   --dash-lime: var(--action);
   --dash-success: var(--done);
-  --dash-data-green: var(--done);
+  --dash-data-green: var(--data-green);
   --dash-amber: var(--warn);
   --dash-alert: var(--danger);
   --dash-violet: var(--data-violet);
