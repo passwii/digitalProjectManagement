@@ -80,6 +80,23 @@ export interface ThemeSwapOptions {
   reduced?: boolean;
 }
 
+/**
+ * 过场的「所有权」：每场过场在 root 上领一个自增 token，收尾时只有仍持有 root 的
+ * 那场过场才允许摘属性。
+ *
+ * 为什么需要它（BLF-1292 review 阻塞项 2）：release 挂在 740ms 定时器上，而调用方
+ * ThemeProvider 刻意不登记卸载清理——上一个实例卸载后，它的定时器还在飞。它到点时若
+ * 无条件摘属性，就会摘掉**下一场**过场的属性（方向值相同时更看不出来），正在播的过渡
+ * 被当场掐断：表现为 themeProvider.dom.vitest.test.tsx 的「切到深色时过场方向相反」
+ * 随机红（实测 Node 20 单文件 4 次 3 红）。挂属性的那一次 setMode 与换挡同时发生，
+ * 所以这个竞态在测试里几乎必然命中，不是概率问题。
+ *
+ * 用 WeakMap 而不是往 root 上写数据属性：ThemeSwapRoot 是给 node:test 的最小结构接口，
+ * 不该为了这件事再要求一个字段；WeakMap 以 root 对象为键，root 被回收时条目自然消失。
+ */
+const swapOwner = new WeakMap<object, number>();
+let swapTokenSeed = 0;
+
 /** 把解析后的主题翻译成过场属性值。 */
 export function themeTransitionValue(theme: ResolvedTheme): "to-dark" | "to-light" {
   return theme === "dark" ? "to-dark" : "to-light";
@@ -119,6 +136,9 @@ export function startThemeSwap(options: ThemeSwapOptions): () => void {
   }
 
   const durationMs = options.durationMs ?? THEME_SWAP_MS;
+  // 领 token：从这一刻起，上一场过场（如果还在飞）就失去了摘属性的资格。
+  const token = ++swapTokenSeed;
+  swapOwner.set(root, token);
 
   root.style.setProperty(THEME_MOTION_VARIABLE, `${durationMs}ms`);
   root.setAttribute(THEME_TRANSITION_ATTRIBUTE, themeTransitionValue(direction));
@@ -132,6 +152,9 @@ export function startThemeSwap(options: ThemeSwapOptions): () => void {
     if (handle === null) return;
     clearTimeout(handle);
     handle = null;
+    // 所有权校验：晚到的上一场过场只能收自己的尾，摘别人的属性会把新过场掐断。
+    if (swapOwner.get(root) !== token) return;
+    swapOwner.delete(root);
     root.removeAttribute(THEME_TRANSITION_ATTRIBUTE);
     root.style.removeProperty(THEME_MOTION_VARIABLE);
   };

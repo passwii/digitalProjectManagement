@@ -52,6 +52,37 @@
   transition: transform 460ms var(--ease-console);
 }
 
+/*
+ * 过场窗口内把指示条自己接管回来（BLF-1292 review 阻塞项 1）。
+ *
+ * globals.css 的 `:root[data-theme-transition] *` 会把**全站** transition-property
+ * 收敛成只剩颜色类属性（好让颜色慢速插值），它的特异性是 (0,2,0)，高于上面 `.thumb`
+ * 的 (0,1,0)。而「换挡导致 thumb 位移」和「挂过场属性」由同一次 setMode 触发，两者必然
+ * 同时发生——于是用户每次真正切明暗时，指示条都是直接跳到位，460ms 平移根本不播。
+ *
+ * 这里用 (0,3,0) 的选择器在过场窗口内把它接管回来，并分两种节奏：
+ *   · transform —— 自己的 460ms + --ease-console：看得见它「滑」过去，不必跟全站同速；
+ *   · 底色 / 描边 —— 跟全站一样的 var(--motion-theme) 慢速曲线：它们是颜色，理应跟旁边
+ *     的文字一起「化」过去（这条选择器会把全局那条整条替掉，所以颜色得在这里一并写下，
+ *     否则指示条自己是硬切——正是这次要消灭的东西）。
+ *
+ * 所以用三条长写属性而不是一条 transition 简写：一条简写只能给一个时长，两种节奏写不下。
+ * 460ms 与上面的基础规则必须一致（同一段时长写两处会漂移），颜色那条缓动曲线与
+ * globals.css 必须一致（否则指示条会比旁边晚一点点定色，看得出错拍）；
+ * lib/themeTransition.test.ts 的契约守卫把这两件事都钉住。
+ *
+ * 为什么不去把 transform 加进全局列表：那样过场窗口内所有 transform 都会被拉成 680ms，
+ * 包括下面 `.option:active` 的 1px 按压反馈——而按压反馈恰恰是「用户刚按下拾取器」那一刻
+ * 发生的事，按钮会明显陷下去。
+ */
+:global(:root[data-theme-transition]) .thumb {
+  transition-property: transform, background-color, border-color;
+  transition-duration: 460ms, var(--motion-theme, 680ms), var(--motion-theme, 680ms);
+  transition-timing-function:
+    var(--ease-console), cubic-bezier(.22, .61, .36, 1), cubic-bezier(.22, .61, .36, 1);
+  transition-delay: 0s;
+}
+
 .option {
   position: relative;
   /* 压在指示条之上，文字与图标不被它盖住 */

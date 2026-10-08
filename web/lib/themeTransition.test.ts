@@ -58,6 +58,10 @@ function globalsCss(): string {
   return readFileSync(resolve(process.cwd(), "app/globals.css"), "utf8");
 }
 
+function pickerCss(): string {
+  return readFileSync(resolve(process.cwd(), "components/theme/ThemeModePicker.module.css"), "utf8");
+}
+
 describe("主题切换过场", () => {
   it("方向值把解析后的主题翻成 CSS 认得的两档", () => {
     assert.equal(themeTransitionValue("dark"), "to-dark");
@@ -172,6 +176,53 @@ describe("主题切换过场", () => {
       mock.timers.reset();
     }
   });
+
+  it("上一场过场的定时器到点后不得摘掉新过场的属性（所有权守卫）", () => {
+    mock.timers.enable({ apis: ["setTimeout"] });
+    try {
+      const root = fakeRoot();
+      // 第一个实例起了过场后就被卸载，没人调用它的 release（ThemeProvider 刻意不登记
+      // 卸载清理），它的定时器留在原地等 740ms。
+      startThemeSwap({ root, direction: "light", apply: () => applyTheme(root, "light") });
+
+      // 200ms 后第二个实例起了新的一场过场
+      mock.timers.tick(200);
+      startThemeSwap({ root, direction: "dark", apply: () => applyTheme(root, "dark") });
+      assert.equal(root.attributes.get(THEME_TRANSITION_ATTRIBUTE), "to-dark");
+
+      // 到了旧定时的点：它只能收自己的尾，不能把新过场的属性摘掉
+      mock.timers.tick(THEME_SWAP_HOLD_MS - 200);
+      assert.equal(
+        root.attributes.get(THEME_TRANSITION_ATTRIBUTE),
+        "to-dark",
+        "晚到的上一场过场摘掉了新过场的属性 → 新过场刚起步就被掐断（DOM 测试里就是那个随机红）",
+      );
+      assert.equal(root.variables.get(THEME_MOTION_VARIABLE), `${THEME_SWAP_MS}ms`);
+
+      // 新过场自己的定时器到点，正常收尾
+      mock.timers.tick(200);
+      assert.equal(root.attributes.has(THEME_TRANSITION_ATTRIBUTE), false);
+      assert.equal(root.variables.has(THEME_MOTION_VARIABLE), false);
+    } finally {
+      mock.timers.reset();
+    }
+  });
+
+  it("被新过场顶掉的旧句柄再调用也摘不掉属性（只收自己的尾）", () => {
+    mock.timers.enable({ apis: ["setTimeout"] });
+    try {
+      const root = fakeRoot();
+      const staleRelease = startThemeSwap({ root, direction: "light", apply: () => applyTheme(root, "light") });
+      startThemeSwap({ root, direction: "dark", apply: () => applyTheme(root, "dark") });
+
+      staleRelease();
+
+      assert.equal(root.attributes.get(THEME_TRANSITION_ATTRIBUTE), "to-dark");
+      assert.equal(root.variables.get(THEME_MOTION_VARIABLE), `${THEME_SWAP_MS}ms`);
+    } finally {
+      mock.timers.reset();
+    }
+  });
 });
 
 describe("主题过场的 TS ↔ CSS 契约", () => {
@@ -208,7 +259,7 @@ describe("主题过场的 TS ↔ CSS 契约", () => {
   });
 
   it("拾取器滑块由 TSX 的 data-active-index 与 CSS 的 --active-index 对接", () => {
-    const css = readFileSync(resolve(process.cwd(), "components/theme/ThemeModePicker.module.css"), "utf8");
+    const css = pickerCss();
     const tsx = readFileSync(resolve(process.cwd(), "components/theme/ThemeModePicker.tsx"), "utf8");
 
     assert.match(tsx, /data-active-index=\{activeIndex\}/);
@@ -219,5 +270,31 @@ describe("主题过场的 TS ↔ CSS 契约", () => {
       /transform:\s*translateX\(calc\(var\(--active-index\)/,
       "指示条必须靠 --active-index 平移，否则换挡又变回「旧高亮消失、新高亮出现」",
     );
+  });
+
+  it("过场窗口内指示条被更高特异性接管回来：位移 460ms、颜色跟全站慢速插值", () => {
+    const css = pickerCss();
+
+    const override = /:global\(:root\[data-theme-transition\]\)\s*\.thumb\s*\{([^}]*)\}/.exec(css)?.[1];
+    assert.ok(
+      override,
+      "globals.css 的 `:root[data-theme-transition] *`（(0,2,0)）会盖掉 .thumb（(0,1,0)）的 transition-property，\n" +
+        "而换挡与挂属性由同一次 setMode 触发，指示条会直接跳到位——必须有一条 (0,3,0) 的规则在过场窗口内接管回来",
+    );
+    assert.match(override, /transition-property:[^;]*transform/);
+    assert.match(
+      override,
+      /transition-duration:[^;]*var\(--motion-theme/,
+      "指示条自己的底色 / 描边也要走全站那条慢速插值，不能又变成硬切",
+    );
+
+    // 同一段时长写在两处（基础规则 + 过场覆盖），这里钉住它们相等，避免改一处漏另一处
+    const durations = [...css.matchAll(/transition(-duration)?:\s*(?:transform\s+)?460ms/g)].map((m) => m[0]);
+    assert.equal(durations.length, 2, "基础规则与过场覆盖都应声明 460ms 的 transform 过渡");
+
+    // 颜色那条缓动曲线必须与 globals.css 一致，否则指示条会比旁边的文字错拍定色
+    const curve = /cubic-bezier\(\.22,\s*\.61,\s*\.36,\s*1\)/;
+    assert.match(override, curve);
+    assert.match(globalsCss(), curve, "两处颜色插值的曲线必须一致");
   });
 });
