@@ -16,23 +16,23 @@ colors:
   dark-success: "#c6ff72"
   dark-neutral-state: "#9cb4c4"
   dark-data-violet: "#bda6ff"
-  light-canvas: "#f6f7f5"
+  light-canvas: "#f1f5f7"
   light-surface: "#ffffff"
-  light-raised: "#f0f2ee"
-  light-rail: "#f0f2ee"
-  light-ink: "#252724"
-  light-ink-secondary: "#565c55"
-  light-ink-muted: "#646d62"
-  light-divider: "#dde1d9"
-  light-signal: "#245e7a"
-  light-action: "#cadb9a"
-  light-warning: "#805515"
-  light-danger: "#ac3e36"
-  light-success: "#356344"
-  light-neutral-state: "#646d62"
+  light-raised: "#e8eef2"
+  light-rail: "#142f40"
+  light-ink: "#1c2c38"
+  light-ink-secondary: "#526575"
+  light-ink-muted: "#5e707d"
+  light-divider: "#d8e1e7"
+  light-signal: "#17617d"
+  light-action: "#c6df7b"
+  light-warning: "#805518"
+  light-danger: "#a23e39"
+  light-success: "#356b4b"
+  light-neutral-state: "#5e707d"
   light-data-violet: "#6d4cc2"
-  light-control-border: "#7d8579"
-  light-action-border: "#708044"
+  light-control-border: "#82939e"
+  light-action-border: "#adc95d"
   light-data-green: "#587839"
 typography:
   body:
@@ -126,11 +126,11 @@ components:
 
 ## Overview
 
-**Creative North Star: “信号日光台（Signal Daylight Console）”**
+**Creative North Star: “雾白与深海蓝（Mist & Deep-Sea Console）”**
 
 数科云办公是一套供团队治理项目、推进执行并核对交付事实的工作台。视觉语言以清晰的工作面和可读的数据为先：深海军蓝承载暗色工作环境，冷白与蓝灰构成浅色工作面；青色标记信息路径和当前焦点，酸橙色只标记可执行动作与完成状态。深浅主题共享同一组语义职责与版式，不是两套互不相干的皮肤。
 
-界面以黑体中文、紧凑的操作型信息层级、直角边界和克制的阴影建立控制台感。浅色以矿物灰白画布、白色内容面和灰绿 raised surface 区分工作区、卡片与导航；蓝色承担信息信号，低饱和鼠尾草酸橙只强调主要行动。项目列表、表格、审批和浮层必须清楚地区分画布、内容表面、导航和状态。主题由根节点的 `data-theme` 驱动；新工作台界面应消费语义颜色，而不是复制某个主题下的硬编码颜色。
+界面以黑体中文、紧凑的操作型信息层级、直角边界和克制的阴影建立控制台感。浅色以冷调雾白画布和白色内容面建立清晰工作区，以深海蓝侧栏与顶栏形成品牌骨架；信号青承载信息路径，柔和青柠只强调主要行动。项目列表、表格、审批和浮层必须清楚地区分画布、内容表面、导航和状态。主题由根节点的 `data-theme` 驱动；新工作台界面应消费语义颜色，而不是复制某个主题下的硬编码颜色。
 
 **Key Characteristics:**
 - 深浅双主题共用语义色职责，切换不改变信息层级或布局。
@@ -145,7 +145,7 @@ components:
 调色板以状态明确、主题等价为原则。前置 YAML 中的颜色 token 对应 `web/app/globals.css` 的 `:root` 深色默认值和 `:root[data-theme="light"]` 覆盖值；切换主题时按语义角色换色，不改变控件含义。
 
 ### Primary
-- **信号青**：深色使用 `dark-signal`，浅色使用 `light-signal`。用于链接、焦点、当前导航、选择边界和信息路径；浅色采用更深的青色以维持文字和细线对比。
+- **信号青**：深色使用 `dark-signal`，浅色使用 `light-signal`。用于链接、焦点、选择边界和内容区信息路径；深海蓝导航使用柔和青柠作为当前入口信号，以满足深色表面上的可读性。
 - **执行酸橙**：深色使用 `dark-action`，浅色使用 `light-action`。浅色只用于主要行动按钮背景；完成状态使用 `light-success`，绿色数据系列使用 `light-data-green`，不可将行动底色作为前景文字。
 
 ### Secondary
@@ -160,13 +160,13 @@ components:
 - **工作区画布**：`dark-canvas` / `light-canvas` 是页面底层。
 - **内容表面**：`dark-surface` / `light-surface` 用于表单、卡片、表格和弹窗主体。
 - **抬高表面**：浅色用 `light-raised` 表示表头、工具区和次级面；深色对应 `--th-bg` 的半透明内容表面。
-- **导航表面**：使用 `dark-rail` / `light-rail`，导航文字另用 `--nav-ink` 与 `--nav-muted` 语义 token。
+- **导航表面**：使用 `dark-rail` / `light-rail`，浅色主工作区沿用深海蓝导航框架，深色使用深海军蓝；文字和状态另用 `--nav-ink`、`--nav-muted`、`--nav-active-ink`、`--nav-active-accent` 语义 token。
 - **文字与分隔线**：主文字、次级文字、弱文字和分隔分别映射到对应主题的 ink 与 divider token；浅色内容区使用 `light-divider`，需要更明确边界的控件使用 `light-control-border`。浅色按钮边缘使用 `light-action-border`；弱文字不承担唯一状态或操作信息。
 - **中性状态**：使用 `dark-neutral-state` / `light-neutral-state` 表示待处理、暂停等非活动状态。
 
 **The Two-Theme Parity Rule.** 主题切换只替换语义颜色，不反转组件职责；同一控件在两种主题下都必须保有相同的重点、可读性和状态表达。
 
-**The Signal / Action Rule.** 青色负责“看哪里、当前在哪里”，酸橙负责“现在可以做什么、什么已完成”。不要把这两个角色混为装饰色。
+**The Signal / Action Rule.** 内容区信号青负责“看哪里”，导航当前入口使用高对比文字与青柠色标记，酸橙行动色负责“现在可以做什么”；完成状态使用独立成功绿。不要把这些职责混为装饰色。
 
 ## Typography
 
@@ -211,7 +211,7 @@ components:
 
 ### Buttons
 按钮采用方正、紧凑的工作台形态，标签单行显示。
-- **Primary:** 深色用酸橙填充；浅色用低饱和鼠尾草酸橙 `light-action`，以 `light-action-border` 收边并搭配 `light-ink` 前景。行动底色不用于正文或小图标；hover 使用稍深的行动底色。高度 38px，水平内边距 16px。
+- **Primary:** 深色用酸橙填充；浅色用柔和青柠 `light-action`，以 `light-action-border` 收边并搭配深色前景。行动底色不用于正文或小图标；hover 使用稍深的行动底色。高度 38px，水平内边距 16px。
 - **Secondary / Ghost:** 使用内容表面、细边框和主文字；高度 38px，水平内边距 13px。悬停时以信号青强化边界与文字，不增加发光装饰。
 - **Hover / Focus:** 鼠标 hover 显示边界或背景状态；键盘焦点使用全局可见焦点环。按下反馈轻微，不改变周边布局。
 - **Disabled:** 降低对比并明确禁止态，不只靠颜色暗示。

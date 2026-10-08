@@ -10,8 +10,8 @@
   max-width: 520px;
   margin: 0 auto;
   padding: 12px 14px 12px 12px;
-  color: var(--ink);
-  background: var(--navy);
+  color: var(--nav-ink);
+  background: var(--nav-bg);
   border: 1px solid var(--line-blue);
   border-radius: 0;
   box-shadow: var(--shadow-float);

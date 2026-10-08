@@ -161,7 +161,7 @@
 :global(:root[data-theme="light"]) .shell[data-console-shell="true"] .navLink.active {
   background: var(--nav-active-bg);
 }
-:global(:root[data-theme="light"]) .shell[data-console-shell="true"] .navActive {
+:global(:root[data-theme="light"]) .shell[data-console-shell="true"] .navLink.active .navActive {
   box-shadow: none;
 }
 :global(:root[data-theme="light"]) .shell[data-console-shell="true"] .navLink.active::before {
@@ -169,10 +169,11 @@
   inset: 7px auto 7px 0;
   width: 2px;
   content: "";
-  background: var(--brand);
+  background: var(--nav-active-accent);
 }
-:global(:root[data-theme="light"]) .navActive {
-  box-shadow: none;
+:global(:root[data-theme="light"]) .shell[data-console-shell="true"] .navLink.active svg {
+  color: var(--nav-active-accent);
+  opacity: 1;
 }
 .navLink.active svg { color: var(--brand); opacity: 1; }
 .navLink:active { transform: translateY(1px) scale(.995); }
@@ -241,11 +242,22 @@
 
 .shell[data-console-shell="true"] .brandSeal {
   border-radius: 0;
-  border-color: var(--line-blue);
-  color: var(--brand);
 }
 
 .shell[data-console-shell="true"] .brandSeal::before { border-radius: 0; }
+
+:global(:root[data-theme="light"]) .shell[data-console-shell="true"] .brandSeal {
+  border-color: var(--nav-border);
+  color: var(--nav-ink);
+}
+
+:global(:root[data-theme="light"]) .shell[data-console-shell="true"] .brandSeal::before {
+  border-color: var(--nav-border);
+}
+
+:global(:root[data-theme="light"]) .shell[data-console-shell="true"] .brandSealBar {
+  background: var(--nav-active-accent);
+}
 
 .shell[data-console-shell="true"] .navGroupLabel {
   color: var(--nav-muted);
