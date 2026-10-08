@@ -312,6 +312,33 @@
 .shell[data-console-shell="true"] .userChipText b { color: var(--nav-ink); }
 .shell[data-console-shell="true"] .userChip:hover,
 .shell[data-console-shell="true"] .userChip[aria-expanded="true"] { background: var(--brand-soft); }
+:global(:root[data-theme="light"]) .shell[data-console-shell="true"] .topbar {
+  color: var(--ink);
+  background: var(--card);
+  border-bottom-color: var(--line);
+  box-shadow: none;
+}
+:global(:root[data-theme="light"]) .shell[data-console-shell="true"] .crumb { color: var(--ink-3); }
+:global(:root[data-theme="light"]) .shell[data-console-shell="true"] .crumb b,
+:global(:root[data-theme="light"]) .shell[data-console-shell="true"] .userChipText b { color: var(--ink); }
+:global(:root[data-theme="light"]) .shell[data-console-shell="true"] .topDate { color: var(--ink-3); }
+:global(:root[data-theme="light"]) .shell[data-console-shell="true"] .userChip:hover .avatarSkel,
+:global(:root[data-theme="light"]) .shell[data-console-shell="true"] .userChip[aria-expanded="true"] .avatarSkel,
+:global(:root[data-theme="light"]) .shell[data-console-shell="true"] .userChip:hover .nameSkel,
+:global(:root[data-theme="light"]) .shell[data-console-shell="true"] .userChip[aria-expanded="true"] .nameSkel {
+  background: var(--ink-2);
+  animation: none;
+  opacity: 1;
+}
+:global(:root[data-theme="light"]) .shell[data-console-shell="true"] .navRetry {
+  border-color: var(--nav-border);
+  color: var(--nav-ink);
+  background: var(--nav-bg);
+}
+:global(:root[data-theme="light"]) .shell[data-console-shell="true"] .navRetry:hover {
+  color: var(--nav-active-ink);
+  background: var(--nav-active-bg);
+}
 .shell[data-console-shell="true"] .userMenu,
 .shell[data-console-shell="true"] .userMenuItem,
 .shell[data-console-shell="true"] .navError,
