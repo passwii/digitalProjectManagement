@@ -31,11 +31,25 @@ function ModeIcon({ mode }: { mode: ThemeMode }) {
   );
 }
 
+/**
+ * 三档显示模式选择（BLF-1292）。
+ *
+ * 三挡是「同一条轨道上的三个位置」，所以选中态不再由 `.option.selected` 自己画背景 +
+ * 描边（旧实现是旧高亮消失、新高亮出现，切换时闪两下），而是交给 `.thumb`：一条指示条
+ * 从旧挡**平移**到新挡（460ms）。位置由 `data-active-index` → CSS 变量 `--active-index`
+ * 驱动，这里只负责把当前挡位如实写上去。
+ */
 export default function ThemeModePicker({ mode, onChange }: { mode: ThemeMode; onChange: (mode: ThemeMode) => void }) {
+  const activeIndex = Math.max(
+    0,
+    OPTIONS.findIndex((option) => option.value === mode),
+  );
+
   return (
-    <div className={styles.picker} role="group" aria-label="显示模式">
+    <div className={styles.picker} role="group" aria-label="显示模式" data-active-index={activeIndex}>
       <div className={styles.title}>显示模式</div>
       <div className={styles.options}>
+        <span className={styles.thumb} aria-hidden="true" />
         {OPTIONS.map((option) => {
           const selected = mode === option.value;
           return (
@@ -49,7 +63,10 @@ export default function ThemeModePicker({ mode, onChange }: { mode: ThemeMode; o
               className={`${styles.option} ${selected ? styles.selected : ""}`}
               onClick={() => onChange(option.value)}
             >
-              <ModeIcon mode={option.value} />
+              {/* 图标单独包一层：换挡时让图标轻轻转进来，而不是整块文字跟着动 */}
+              <span className={styles.icon}>
+                <ModeIcon mode={option.value} />
+              </span>
               <span>{option.label}</span>
               {selected && <span className={styles.dot} aria-hidden="true" />}
             </button>

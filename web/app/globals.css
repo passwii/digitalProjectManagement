@@ -95,6 +95,15 @@
  --motion-chart: 500ms;
  --ease-console: cubic-bezier(0.2, 0.72, 0.2, 1);
  /*
+   * 主题切换过场时长（BLF-1292）。比 --motion(140ms) 慢得多——用户反馈「切换太生硬、
+   * 动画要更慢一点」，明暗过渡就是靠这个值变柔和的。
+   *
+   * 唯一真源是 lib/themeTransition.ts 的 THEME_SWAP_MS：startThemeSwap() 会在过场期间
+   * 把真实值以内联 `--motion-theme` 写到 <html> 上，这里只是兜底副本（也让读 CSS 的人
+   * 看得见这个数）。lib/themeTransition.test.ts 守着两边一致，改一边不改另一边会红。
+   */
+ --motion-theme: 680ms;
+ /*
    * 手机壳令牌（BLF-1127 设计契约 §7）。只在 ≤767px 的手机壳里生效。
    * 断点取 767px 而不是上面那几个 900px：900px 更多是平板 / 窄窗口的
    * 「窄屏适配」，767px 才是手机（安全区 / 触控尺寸 / 底部 Dock 的适用面）。
@@ -1124,6 +1133,97 @@ th.num {
  *::after {
   transition: none !important;
   animation: none !important;
+ }
+}
+
+/* ---------- 主题切换过场（BLF-1292） ---------- */
+/*
+ * 明暗切换原本是硬切：一次样式重算把所有颜色直接换掉。现在由挂在 <html> 上的
+ * `data-theme-transition="to-dark|to-light"` 驱动两件事——属性由 lib/themeTransition.ts
+ * 的 startThemeSwap() 在切换瞬间挂上、THEME_SWAP_HOLD_MS 后摘掉：
+ *
+ *   ① 颜色类属性接管到 --motion-theme 的曲线上 →「更柔和、更慢」的主体；
+ *   ② body::after 播一次方向性光晕 →「过场动画」。
+ *
+ * 三个「为什么」值得写下来：
+ *
+ * · 为什么只在属性存在时接管：组件自己的过渡是 140~220ms 的**交互**节奏。过场只该慢这一次，
+ *   所以只在过场窗口内接管；属性摘下后一切回到原速，不会把整个应用的 hover / focus
+ *   一起拖成 680ms。
+ *
+ * · 为什么靠特异性（(0,2,0)）而不靠 !important：本仓库里声明了过渡的规则没有一条高于
+ *   (0,2,0)，所以这条足以接管颜色类属性；唯三同为 (0,2,0) 的规则——`.zoneMore
+ *   span:last-child`、`.ptr` / `.ptr-ring`、`.submit::before`——都只动 transform / opacity，
+ *   与颜色无关（而且它们要么在别的文件、要么排在本段之后，同特异性下是它们赢，也不影响
+ *   颜色）。真正的 !important 只用在了 transition-delay 上（见下），没往 transition-property 上放。
+ *   代价要写清楚：这条会把**全站**的 transition-property 收敛成只剩颜色，也就是说过场窗口的
+ *   740ms 内，其它刚开始的 transform / opacity 过渡会被掐断。所以需要保留自己那点位移过渡的
+ *   组件，用更高特异性（(0,3,0)）在过场窗口内把 transform 抢回去——
+ *   components/theme/ThemeModePicker.module.css 的 `:global(:root[data-theme-transition]) .thumb`
+ *   就是范例（指示条每次切明暗都会动，是唯一一处用户必然看到的）。
+ *
+ * · 为什么 transition-delay 带 !important：这条规则自己不带 !important，所以任何同样带
+ *   !important 的 delay 声明会赢过它。把 delay 也压成 0s 是为了让过场里的颜色插值从同一个
+ *   起点起跑（错峰的入场延迟落在主题色上，看起来像分两批变色）。全仓库现在只有 SparkShell
+ *   写过一次 `transition-delay: 0ms`，属于纯防御，改了不至于有人中标。
+ *
+ * · 为什么自己再包一层 no-preference：本文件靠后的 reduce 段会把所有过渡 / 动画关掉，
+ *   但那条选择器（`*`）特异性低于这里的 `:root[data-theme-transition] *`，光靠它盖不住。
+ *   startThemeSwap() 在减少动效下压根不挂属性，这里再兜一道，双保险。
+ */
+@media (prefers-reduced-motion: no-preference) {
+ :root[data-theme-transition] *,
+ :root[data-theme-transition] *::before,
+ :root[data-theme-transition] *::after {
+  transition-property:
+   background-color, border-color, color, fill, stroke, box-shadow,
+   outline-color, text-decoration-color;
+  transition-duration: var(--motion-theme, 680ms);
+  transition-timing-function: cubic-bezier(.22, .61, .36, 1);
+  transition-delay: 0s !important;
+ }
+
+ /*
+  * 过场光晕：一个固定定位、不吃指针事件的渐变层，按方向「压暗」或「提亮」一次。
+  *
+  * z-index 取 50：在侧栏(30) / Dock(40) 之上，在 Modal(60)、Toast(80) 之下——弹层与提示
+  * 是用户此刻的焦点，不该被主题过场再盖一层。
+  *
+  * 峰值透明度压在 .5：过场要「感觉得到」，而不是「看到一层膜」；配合渐变的低 alpha，
+  * 实际最深处只有约 0.25（两层叠加后），正文始终可读。
+  */
+ :root[data-theme-transition] body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  pointer-events: none;
+  opacity: 0;
+  animation: theme-wash var(--motion-theme, 680ms) cubic-bezier(.33, 0, .2, 1) both;
+ }
+
+ :root[data-theme-transition="to-dark"] body::after {
+  background-image:
+   radial-gradient(120% 88% at 50% 0%, rgba(2, 9, 16, .38), rgba(2, 9, 16, 0) 62%),
+   linear-gradient(rgba(2, 9, 16, .14), rgba(2, 9, 16, 0));
+ }
+
+ :root[data-theme-transition="to-light"] body::after {
+  background-image:
+   radial-gradient(120% 88% at 50% 0%, rgba(255, 255, 255, .52), rgba(255, 255, 255, 0) 62%),
+   linear-gradient(rgba(255, 255, 255, .2), rgba(255, 255, 255, 0));
+ }
+}
+
+@keyframes theme-wash {
+ 0% {
+  opacity: 0;
+ }
+ 34% {
+  opacity: .5;
+ }
+ 100% {
+  opacity: 0;
  }
 }
 
