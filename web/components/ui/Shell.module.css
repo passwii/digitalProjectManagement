@@ -177,6 +177,8 @@
 }
 .navLink.active svg { color: var(--brand); opacity: 1; }
 .navLink:active { transform: translateY(1px) scale(.995); }
+.navLink:focus-visible,
+.collapseBtn:focus-visible { outline-color: var(--nav-active-accent); }
 .collapsed .navLink { justify-content: center; padding: 0; }
 .collapsed .navLink .label { display: none; }
 

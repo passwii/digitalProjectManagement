@@ -5,6 +5,8 @@ import { describe, expect, it } from "vitest";
 const css = readFileSync(resolve(process.cwd(), "app/globals.css"), "utf8");
 const shellCss = readFileSync(resolve(process.cwd(), "components/ui/Shell.module.css"), "utf8");
 const bellCss = readFileSync(resolve(process.cwd(), "components/ui/Bell.module.css"), "utf8");
+const installPromptCss = readFileSync(resolve(process.cwd(), "components/pwa/InstallPrompt.module.css"), "utf8");
+const mobileDockCss = readFileSync(resolve(process.cwd(), "components/mobile/MobileDock.module.css"), "utf8");
 
 /** 测试约束：只提取 light theme 的扁平 token 块，颜色值为纯 hex 或单层 var()。 */
 function lightTokens() {
@@ -47,6 +49,7 @@ describe("浅色主题色彩契约", () => {
     expect(tokens["nav-active-bg"]).toBe("#244657");
     expect(tokens["nav-active-ink"]).toBe("#f4f8fa");
     expect(tokens["nav-active-accent"]).toBe("#c6df7b");
+    expect(tokens["nav-badge-border"]).toBe("var(--nav-ink)");
     expect(tokens.brand).toBe("#17617d");
     expect(tokens.action).toBe("#c6df7b");
   });
@@ -65,6 +68,23 @@ describe("浅色主题色彩契约", () => {
   it("侧栏重试控件使用导航语义色并符合 WCAG AA", () => {
     expect(shellCss).toMatch(/:global\(:root\[data-theme="light"\]\)[\s\S]*?\.navRetry\s*\{[^}]*color:\s*var\(--nav-ink\);\s*background:\s*var\(--nav-bg\)/s);
     expect(contrast(tokens["nav-ink"], tokens["nav-bg"])).toBeGreaterThanOrEqual(4.5);
+  });
+
+  it("深色导航面上的提示文案、焦点环和移动徽标符合组合对比度", () => {
+    expect(installPromptCss).toMatch(/\.prompt\s*\{[^}]*background:\s*var\(--nav-bg\)/s);
+    expect(installPromptCss).toMatch(/\.copy span\s*\{[^}]*color:\s*var\(--nav-muted\)/s);
+    expect(installPromptCss).toMatch(/\.close\s*\{[^}]*color:\s*var\(--nav-muted\)/s);
+    expect(installPromptCss).toMatch(/\.install:focus-visible,[\s\S]*?\.close:focus-visible\s*\{[^}]*outline:\s*2px solid var\(--nav-active-accent\)/s);
+    expect(shellCss).toMatch(/\.navLink:focus-visible,[\s\S]*?\.collapseBtn:focus-visible\s*\{\s*outline-color:\s*var\(--nav-active-accent\)/s);
+    expect(mobileDockCss).toMatch(/\.tab:focus-visible\s*\{\s*outline-color:\s*var\(--nav-active-accent\)/s);
+    expect(mobileDockCss).toMatch(/\.dot,[\s\S]*?\.badge\s*\{[^}]*border:\s*1\.5px solid var\(--nav-badge-border, var\(--navy\)\)/s);
+
+    expect(contrast(tokens["nav-muted"], tokens["nav-bg"])).toBeGreaterThanOrEqual(4.5);
+    expect(contrast(tokens["nav-active-accent"], tokens["nav-bg"])).toBeGreaterThanOrEqual(3);
+    expect(contrast(tokens["nav-active-accent"], tokens["nav-active-bg"])).toBeGreaterThanOrEqual(3);
+    expect(contrast(tokens["nav-badge-border"], tokens["nav-bg"])).toBeGreaterThanOrEqual(3);
+    expect(contrast(tokens["nav-badge-border"], tokens["nav-active-bg"])).toBeGreaterThanOrEqual(3);
+    expect(contrast(tokens["nav-badge-border"], tokens.danger)).toBeGreaterThanOrEqual(3);
   });
 
   it("正文、导航文字和主要操作符合 WCAG AA 对比度", () => {

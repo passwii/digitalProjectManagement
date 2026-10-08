@@ -54,6 +54,7 @@
     transition: color var(--motion-fast) var(--ease-console), background var(--motion-fast) var(--ease-console);
   }
   .tab:hover { color: var(--nav-ink); text-decoration: none; }
+  .tab:focus-visible { outline-color: var(--nav-active-accent); }
 
   .icon { display: block; height: 22px; }
 
@@ -98,7 +99,7 @@
     margin-left: 6px;
     min-width: 16px;
     height: 16px;
-    border: 1.5px solid var(--navy);
+    border: 1.5px solid var(--nav-badge-border, var(--navy));
     border-radius: 999px;
     background: var(--danger);
     color: var(--on-brand);
