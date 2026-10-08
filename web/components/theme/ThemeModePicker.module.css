@@ -1,7 +1,17 @@
 .picker {
+  /* 当前挡位（0 / 1 / 2）；由 ThemeModePicker.tsx 的 data-active-index 写进来 */
+  --active-index: 0;
   margin: 5px 2px 2px;
   padding: 9px 6px 4px;
   border-top: 1px solid var(--line-soft);
+}
+
+.picker[data-active-index="1"] {
+  --active-index: 1;
+}
+
+.picker[data-active-index="2"] {
+  --active-index: 2;
 }
 
 .title {
@@ -13,13 +23,39 @@
 }
 
 .options {
+  /* 指示条的定位基准 */
+  position: relative;
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 4px;
 }
 
+/*
+ * 选中态指示条（BLF-1292）。
+ *
+ * 旧实现把背景 + 描边画在 `.option.selected` 上：换挡时旧的高亮直接消失、新的直接出现，
+ * 两次硬切。这里改成一条滑动指示条——宽度就是单列宽（`(100% - 两个 4px 间距) / 3`），
+ * 位移量 = 自身宽度 + 一个间距，所以 translateX 的百分比正好是「一列」。
+ * 460ms + --ease-console：能看到它滑过去，但不至于让人等。
+ */
+.thumb {
+  position: absolute;
+  z-index: 0;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: calc((100% - 8px) / 3);
+  border: 1px solid var(--line-blue);
+  border-radius: var(--radius-sm);
+  background: var(--brand-soft);
+  transform: translateX(calc(var(--active-index) * (100% + 4px)));
+  transition: transform 460ms var(--ease-console);
+}
+
 .option {
   position: relative;
+  /* 压在指示条之上，文字与图标不被它盖住 */
+  z-index: 1;
   min-width: 0;
   min-height: 34px;
   display: flex;
@@ -37,13 +73,30 @@
 
 .option:hover {
   color: var(--ink);
+}
+
+/* 选中项的底色由 .thumb 提供，hover 时不要再用 row-hover 把它盖掉 */
+.option:not(.selected):hover {
   background: var(--row-hover);
 }
 
 .option.selected {
-  border-color: var(--line-blue);
-  background: var(--brand-soft);
   color: var(--brand);
+}
+
+/* 极轻的按压反馈：手机壳上尤其需要，幅度刻意只有 1px */
+.option:active {
+  transform: translateY(1px);
+}
+
+.icon {
+  display: inline-flex;
+  align-items: center;
+}
+
+/* 换挡时图标轻转进来，比只换颜色更像「切过去了」 */
+.option.selected .icon {
+  animation: picker-icon-in 520ms var(--ease-console) both;
 }
 
 .dot {
@@ -55,6 +108,57 @@
   border-radius: 50%;
   background: currentColor;
   box-shadow: 0 0 8px currentColor;
+  /* 圆点只在选中时挂载，所以每次换挡都会重新播一次 */
+  animation: picker-dot-in 520ms var(--ease-console) both;
+}
+
+/* 选中项外圈的一抹柔光：扩散出去就消失，不留下常驻描边 */
+.option.selected::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border: 1px solid var(--brand);
+  border-radius: var(--radius-sm);
+  opacity: 0;
+  pointer-events: none;
+  animation: picker-ring 620ms var(--ease-console);
+}
+
+@keyframes picker-icon-in {
+  from {
+    opacity: .25;
+    transform: rotate(-16deg) scale(.84);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes picker-dot-in {
+  0% {
+    opacity: 0;
+    transform: scale(.4);
+  }
+  62% {
+    opacity: 1;
+    transform: scale(1.24);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes picker-ring {
+  0% {
+    opacity: .5;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.12);
+  }
 }
 
 @media (max-width: 767px) {
@@ -65,4 +169,8 @@
 
 @media (prefers-reduced-motion: reduce) {
   .option { transition: none; }
+  .thumb { transition: none; }
+  .option.selected .icon,
+  .dot,
+  .option.selected::after { animation: none; }
 }

@@ -1,6 +1,12 @@
 "use client";
 
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import {
+  MEDIA_QUERY,
+  applyTheme,
+  readAppliedTheme,
+  startThemeSwap,
+} from "@/lib/themeTransition";
 import {
   THEME_STORAGE_KEY,
   parseStoredTheme,
@@ -22,20 +28,12 @@ const DEFAULT_THEME_CONTEXT: ThemeContextValue = {
 };
 const ThemeContext = createContext<ThemeContextValue>(DEFAULT_THEME_CONTEXT);
 
-const MEDIA_QUERY = "(prefers-color-scheme: dark)";
-
 function readStoredMode(): ThemeMode {
   try {
     return parseStoredTheme(window.localStorage.getItem(THEME_STORAGE_KEY));
   } catch {
     return "dark";
   }
-}
-
-function applyTheme(theme: ResolvedTheme) {
-  const root = document.documentElement;
-  root.dataset.theme = theme;
-  root.style.colorScheme = theme;
 }
 
 /** 首屏先于 React 读取主题选择，避免浅色用户刷新时看到一帧深色。 */
@@ -56,12 +54,26 @@ export const themeBootstrapScript = `(() => {
 export default function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [mode, setModeState] = useState<ThemeMode>("dark");
   const [prefersDark, setPrefersDark] = useState(false);
+  /**
+   * 首帧主题由 themeBootstrapScript 直接写在 `<html>` 上，而 React 要等挂载 effect 里
+   * 读完 localStorage 才知道用户选了什么（useState 的初值只能给 "dark"，否则服务端渲染
+   * 与客户端首帧不一致）。所以读出来之前不许写 html：否则默认值 "dark" 会盖掉 bootstrap
+   * 写好的浅色，浅色用户刷新时白闪一帧深色——那正是这次要消灭的「生硬」。
+   */
+  const [ready, setReady] = useState(false);
+  /** 上一次真正落到 `<html>` 上的主题：判断这次是不是「用户看得见的切换」，以及过场方向。 */
+  const appliedTheme = useRef<ResolvedTheme | null>(null);
+  /** 进行中的过场收尾句柄；连着快速切换时先把上一场收尾，避免属性叠加。 */
+  const endSwap = useRef<(() => void) | null>(null);
 
   useEffect(() => {
     const media = window.matchMedia(MEDIA_QUERY);
     const onChange = (event: MediaQueryListEvent) => setPrefersDark(event.matches);
     setModeState(readStoredMode());
     setPrefersDark(media.matches);
+    // 以 bootstrap 写在 html 上的值为起点，首帧就不算「切换」，不播过场。
+    appliedTheme.current = readAppliedTheme(document.documentElement) ?? appliedTheme.current;
+    setReady(true);
     media.addEventListener?.("change", onChange);
     if (!media.addEventListener) media.addListener?.(onChange);
     return () => {
@@ -73,8 +85,27 @@ export default function ThemeProvider({ children }: { children: React.ReactNode 
   const resolvedTheme = resolveTheme(mode, prefersDark);
 
   useEffect(() => {
-    applyTheme(resolvedTheme);
-  }, [resolvedTheme]);
+    if (!ready) return;
+    const root = document.documentElement;
+    const previous = appliedTheme.current;
+    appliedTheme.current = resolvedTheme;
+
+    // 首次落主题（bootstrap 没写、或解析结果与它不同）与幂等重放都不算切换：
+    // 直接落，不过场——首屏进来就闪一层光晕是干扰。
+    if (previous === null || previous === resolvedTheme) {
+      applyTheme(root, resolvedTheme);
+      return;
+    }
+
+    endSwap.current?.();
+    endSwap.current = startThemeSwap({
+      root,
+      direction: resolvedTheme,
+      apply: () => applyTheme(root, resolvedTheme),
+    });
+    // 这里不登记卸载清理：startThemeSwap 自己的定时器一定会摘掉过场属性，
+    // 而 effect 清理会在 React 严格模式下把刚起的过场误杀（开发环境就看不到过场了）。
+  }, [ready, resolvedTheme]);
 
   const setMode = useCallback((nextMode: ThemeMode) => {
     setModeState(nextMode);
