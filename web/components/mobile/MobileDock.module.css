@@ -49,11 +49,12 @@
     height: 46px;
     margin: 0 1px;
     border-radius: 0;
-    color: var(--ink-3);
+    color: var(--nav-muted);
     text-decoration: none;
     transition: color var(--motion-fast) var(--ease-console), background var(--motion-fast) var(--ease-console);
   }
-  .tab:hover { color: var(--ink-2); text-decoration: none; }
+  .tab:hover { color: var(--nav-ink); text-decoration: none; }
+  .tab:focus-visible { outline-color: var(--nav-active-accent); }
 
   .icon { display: block; height: 22px; }
 
@@ -68,12 +69,12 @@
     white-space: nowrap;
   }
 
-  /* 选中态：品牌色 + 药丸底。没有 hover 的设备上，颜色是唯一可靠的“我在哪”信号 */
+  /* 选中态：主题语义色 + 导航底色。没有 hover 的设备上仍能辨认当前位置 */
   .tabActive,
-  .tabActive:hover { color: var(--brand); }
+  .tabActive:hover { color: var(--nav-active-accent, var(--brand)); }
   .tabActive .label { font-weight: 700; }
   .tabOpen,
-  .tabOpen:hover { color: var(--brand); }
+  .tabOpen:hover { color: var(--nav-active-accent, var(--brand)); }
   .tabOpen .label { font-weight: 700; }
 
   .pill {
@@ -81,7 +82,7 @@
     inset: 2px 3px;
     z-index: -1;
     border-radius: 12px;
-    background: var(--brand-soft);
+    background: var(--nav-active-bg, var(--brand-soft));
     opacity: 0;
     transform: scale(.9);
     transition: opacity 180ms var(--ease-console), transform 180ms var(--ease-console);
@@ -98,7 +99,7 @@
     margin-left: 6px;
     min-width: 16px;
     height: 16px;
-    border: 1.5px solid var(--navy);
+    border: 1.5px solid var(--nav-badge-border, var(--navy));
     border-radius: 999px;
     background: var(--danger);
     color: var(--on-brand);

@@ -1,0 +1,327 @@
+<!doctype html>
+<html lang="zh-CN" data-palette="proposal">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>数慧智科 · Light Mode 色彩提案预览</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --canvas: #f1f5f7;
+      --surface: #fff;
+      --surface-raised: #e8eef2;
+      --ink: #1c2c38;
+      --ink-secondary: #526575;
+      --ink-muted: #637785;
+      --line: #d8e1e7;
+      --line-soft: #e7edf1;
+      --signal: #17617d;
+      --signal-soft: #e6f0f4;
+      --action: #c6df7b;
+      --action-ink: #26351a;
+      --nav: #142f40;
+      --nav-ink: #f4f8fa;
+      --nav-muted: #bdcbd3;
+      --nav-selected: #244657;
+      --success: #356b4b;
+      --success-soft: #e9f2eb;
+      --warning: #805518;
+      --warning-soft: #f7f0df;
+      --danger: #a23e39;
+      --danger-soft: #f7eae8;
+      --shadow: 0 14px 34px rgba(28, 52, 67, .07);
+      --radius: 3px;
+    }
+    html[data-palette="existing"] {
+      --canvas: #f6f7f5;
+      --surface: #fff;
+      --surface-raised: #f0f2ee;
+      --ink: #252724;
+      --ink-secondary: #565c55;
+      --ink-muted: #646d62;
+      --line: #dde1d9;
+      --line-soft: #e7e9e4;
+      --signal: #245e7a;
+      --signal-soft: #e8eff3;
+      --action: #cadb9a;
+      --action-ink: #25321b;
+      --nav: #f0f2ee;
+      --nav-ink: #252724;
+      --nav-muted: #565c55;
+      --nav-selected: #e1e9e9;
+      --success: #356344;
+      --success-soft: #edf4ec;
+      --warning: #805515;
+      --warning-soft: #fbf3e2;
+      --danger: #ac3e36;
+      --danger-soft: #fbefec;
+      --shadow: none;
+      --radius: 0px;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: #e8edf0;
+      color: var(--ink);
+      font: 14px/1.55 "Noto Sans SC", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    button { font: inherit; }
+    .page { max-width: 1440px; margin: 0 auto; padding: 38px 42px 52px; }
+    .intro { display: flex; justify-content: space-between; align-items: end; gap: 24px; margin-bottom: 23px; }
+    .eyebrow { margin: 0 0 8px; color: #4c6878; font-size: 11px; font-weight: 700; letter-spacing: .14em; }
+    h1 { margin: 0; color: #182b38; font-size: clamp(24px, 3vw, 34px); line-height: 1.2; letter-spacing: -.035em; }
+    .intro-copy { max-width: 610px; margin: 9px 0 0; color: #526575; font-size: 13px; }
+    .switcher { display: inline-flex; flex: none; gap: 3px; padding: 4px; border: 1px solid #d6dfe4; background: #f8fafb; }
+    .switcher button { min-height: 36px; padding: 0 13px; border: 1px solid transparent; background: transparent; color: #526575; cursor: pointer; font-size: 12px; }
+    .switcher button[aria-pressed="true"] { border-color: #cddae1; background: #fff; color: #183d51; font-weight: 700; box-shadow: 0 1px 2px rgba(24,43,56,.05); }
+    .switcher button:focus-visible { outline: 2px solid #17617d; outline-offset: 2px; }
+    .preview-label { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 14px; border: 1px solid #d6dfe4; border-bottom: 0; background: #f8fafb; color: #536979; font-size: 11px; }
+    .preview-label strong { color: #243c4b; font-size: 12px; }
+    .preview-label .sample-note { color: #637785; }
+    .frame { display: grid; grid-template-columns: 212px minmax(0, 1fr); min-height: 650px; overflow: hidden; border: 1px solid #d6dfe4; background: var(--canvas); box-shadow: 0 22px 54px rgba(26,46,60,.10); transition: background-color 180ms ease; }
+    .rail { display: flex; flex-direction: column; padding: 20px 13px 14px; background: var(--nav); color: var(--nav-ink); transition: background-color 180ms ease, color 180ms ease; }
+    .brand { display: flex; align-items: center; gap: 10px; padding: 0 7px 21px; border-bottom: 1px solid color-mix(in srgb, var(--nav-muted) 18%, transparent); }
+    .brand-mark { display: grid; width: 31px; height: 31px; place-items: center; border: 1px solid color-mix(in srgb, var(--nav-muted) 36%, transparent); color: #d5e9f0; font: 700 9px/1 ui-monospace, monospace; letter-spacing: -.06em; }
+    .brand-name { font-size: 13px; font-weight: 700; letter-spacing: .06em; }
+    .brand-sub { display: block; margin-top: 1px; color: var(--nav-muted); font-size: 9px; font-weight: 500; letter-spacing: .12em; }
+    .nav-section { margin: 21px 9px 7px; color: var(--nav-muted); font-size: 9px; font-weight: 700; letter-spacing: .16em; }
+    .nav-list { display: grid; gap: 3px; }
+    .nav-item { position: relative; display: flex; align-items: center; gap: 10px; min-height: 38px; padding: 0 10px; color: var(--nav-muted); font-size: 12px; }
+    .nav-item .marker { width: 15px; color: #a7bfca; text-align: center; font-size: 13px; }
+    .nav-item.active { background: var(--nav-selected); color: var(--nav-ink); }
+    .nav-item.active::before { position: absolute; inset: 7px auto 7px 0; width: 2px; background: var(--action); content: ""; }
+    .nav-item.active .marker { color: var(--action); }
+    .rail-foot { margin-top: auto; padding: 14px 8px 2px; border-top: 1px solid color-mix(in srgb, var(--nav-muted) 18%, transparent); color: var(--nav-muted); font-size: 10px; }
+    .workspace { min-width: 0; }
+    .topbar { display: flex; align-items: center; justify-content: space-between; min-height: 58px; padding: 0 26px; border-bottom: 1px solid var(--line); background: var(--surface); }
+    .crumb { color: var(--ink-muted); font-size: 11px; }
+    .crumb b { color: var(--ink); font-weight: 650; }
+    .top-right { display: flex; align-items: center; gap: 17px; color: var(--ink-secondary); font-size: 11px; }
+    .avatar { display: grid; width: 28px; height: 28px; place-items: center; border: 1px solid var(--line); background: var(--surface-raised); color: var(--signal); font-size: 10px; font-weight: 700; }
+    .content { padding: 26px 27px 30px; }
+    .page-head { display: flex; align-items: end; justify-content: space-between; gap: 18px; margin-bottom: 21px; }
+    .page-head h2 { margin: 0; font-size: 22px; line-height: 1.3; letter-spacing: -.03em; }
+    .page-head p { margin: 4px 0 0; color: var(--ink-muted); font-size: 11px; }
+    .actions { display: flex; align-items: center; gap: 8px; }
+    .period { display: flex; align-items: center; min-height: 34px; padding: 0 10px; border: 1px solid var(--line); background: var(--surface); color: var(--ink-secondary); font-size: 10px; }
+    .primary { min-height: 34px; padding: 0 13px; border: 1px solid #adc95d; background: var(--action); color: var(--action-ink); font-size: 11px; font-weight: 700; white-space: nowrap; }
+    .section-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin: 0 0 10px; }
+    .section-heading h3 { margin: 0; font-size: 13px; font-weight: 700; }
+    .section-heading span { color: var(--ink-muted); font-size: 10px; }
+    .metrics { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 10px; margin-bottom: 17px; }
+    .metric { min-width: 0; padding: 14px 14px 12px; border: 1px solid var(--line); border-top: 2px solid var(--signal); background: var(--surface); box-shadow: var(--shadow); }
+    .metric:nth-child(2) { border-top-color: var(--warning); }
+    .metric:nth-child(3) { border-top-color: #778a98; }
+    .metric:nth-child(4) { border-top-color: var(--success); }
+    .metric-label { color: var(--ink-secondary); font-size: 10px; }
+    .metric-value { margin-top: 6px; color: var(--ink); font: 650 23px/1.15 ui-monospace, "SFMono-Regular", Consolas, monospace; letter-spacing: -.045em; }
+    .metric-detail { margin-top: 8px; color: var(--ink-muted); font-size: 9px; }
+    .metric-detail b { color: var(--success); font-weight: 650; }
+    .body-grid { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(205px, .8fr); gap: 12px; }
+    .panel { min-width: 0; border: 1px solid var(--line); background: var(--surface); box-shadow: var(--shadow); }
+    .panel-head { display: flex; justify-content: space-between; align-items: center; min-height: 43px; padding: 0 14px; border-bottom: 1px solid var(--line-soft); }
+    .panel-head h3 { margin: 0; font-size: 12px; font-weight: 700; }
+    .panel-head a { color: var(--signal); font-size: 10px; text-decoration: none; }
+    .project-list { padding: 1px 13px 5px; }
+    .project { display: grid; grid-template-columns: minmax(0, 1fr) 86px 56px; align-items: center; gap: 10px; min-height: 52px; border-bottom: 1px solid var(--line-soft); }
+    .project:last-child { border-bottom: 0; }
+    .project-title { overflow: hidden; color: var(--ink); font-size: 10px; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
+    .project-code { margin-top: 2px; color: var(--ink-muted); font: 9px ui-monospace, monospace; }
+    .progress-wrap { height: 4px; background: var(--surface-raised); }
+    .progress { height: 100%; background: var(--signal); }
+    .progress.p2 { background: var(--warning); }
+    .progress.p3 { background: var(--success); }
+    .status { justify-self: end; padding: 3px 6px; background: var(--success-soft); color: var(--success); font-size: 9px; white-space: nowrap; }
+    .status.warn { background: var(--warning-soft); color: var(--warning); }
+    .status.alert { background: var(--danger-soft); color: var(--danger); }
+    .health { padding: 15px; }
+    .health-kicker { color: var(--ink-muted); font-size: 10px; }
+    .health-number { margin: 2px 0 12px; font: 650 28px/1.2 ui-monospace, monospace; letter-spacing: -.05em; }
+    .health-number small { color: var(--ink-secondary); font: 10px/1.4 "Noto Sans SC", "PingFang SC", sans-serif; letter-spacing: 0; }
+    .health-row { display: flex; justify-content: space-between; gap: 8px; padding: 8px 0; border-top: 1px solid var(--line-soft); color: var(--ink-secondary); font-size: 10px; }
+    .health-row b { color: var(--ink); font: 600 10px ui-monospace, monospace; }
+    .sparkline { display: grid; grid-template-columns: repeat(8, 1fr); align-items: end; gap: 6px; height: 65px; margin-top: 15px; padding: 0 3px; border-bottom: 1px solid var(--line); }
+    .sparkline i { display: block; min-height: 8px; background: #b8ced8; }
+    .sparkline i:nth-child(5), .sparkline i:nth-child(6), .sparkline i:nth-child(7), .sparkline i:nth-child(8) { background: var(--signal); }
+    .chart-labels { display: flex; justify-content: space-between; padding: 5px 2px 0; color: var(--ink-muted); font: 8px ui-monospace, monospace; }
+    .token-area { display: grid; grid-template-columns: minmax(0,1fr) 1.2fr; gap: 22px; margin-top: 23px; padding: 20px 22px; border: 1px solid #d6dfe4; background: #f8fafb; }
+    .token-area h3 { margin: 0 0 4px; color: #243c4b; font-size: 12px; }
+    .token-area p { max-width: 450px; margin: 0; color: #5b6e7b; font-size: 11px; line-height: 1.7; }
+    .swatches { display: grid; grid-template-columns: repeat(5, minmax(0,1fr)); gap: 8px; }
+    .swatch { min-width: 0; }
+    .swatch-color { height: 27px; border: 1px solid rgba(28,44,56,.10); background: var(--swatch); }
+    .swatch-name { display: block; margin-top: 5px; color: #536979; font-size: 9px; }
+    .swatch-hex { display: block; margin-top: 1px; color: #71818c; font: 8px ui-monospace, monospace; }
+    .proposed .swatch:nth-child(1) { --swatch: #f1f5f7; }
+    .proposed .swatch:nth-child(2) { --swatch: #ffffff; }
+    .proposed .swatch:nth-child(3) { --swatch: #142f40; }
+    .proposed .swatch:nth-child(4) { --swatch: #17617d; }
+    .proposed .swatch:nth-child(5) { --swatch: #c6df7b; }
+    .existing .swatch:nth-child(1) { --swatch: #f6f7f5; }
+    .existing .swatch:nth-child(2) { --swatch: #ffffff; }
+    .existing .swatch:nth-child(3) { --swatch: #f0f2ee; }
+    .existing .swatch:nth-child(4) { --swatch: #245e7a; }
+    .existing .swatch:nth-child(5) { --swatch: #cadb9a; }
+    .note { margin: 12px 0 0; color: #6a7c87; font-size: 10px; }
+    @media (max-width: 1060px) {
+      .page { padding: 28px 24px 40px; }
+      .frame { grid-template-columns: 174px minmax(0,1fr); }
+      .content { padding: 22px 18px 25px; }
+      .topbar { padding: 0 18px; }
+      .metrics { grid-template-columns: repeat(2, minmax(0,1fr)); }
+      .body-grid { grid-template-columns: minmax(0,1fr); }
+      .token-area { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 700px) {
+      .page { padding: 23px 14px 30px; }
+      .intro { align-items: flex-start; flex-direction: column; gap: 15px; }
+      .frame { grid-template-columns: 1fr; }
+      .rail { display: none; }
+      .topbar { min-height: 48px; padding: 0 13px; }
+      .content { padding: 19px 13px 22px; }
+      .page-head { align-items: flex-start; flex-direction: column; }
+      .actions { width: 100%; }
+      .period { flex: 1; }
+      .metrics { gap: 7px; }
+      .metric { padding: 11px 10px; }
+      .metric-value { font-size: 20px; }
+      .project { grid-template-columns: minmax(0,1fr) 58px 48px; gap: 7px; }
+      .token-area { padding: 16px; }
+      .swatches { gap: 5px; }
+      .swatch-name { font-size: 8px; }
+      .swatch-hex { font-size: 7px; }
+      .preview-label { align-items: flex-start; flex-direction: column; gap: 2px; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <header class="intro">
+      <div>
+        <p class="eyebrow">数慧智科 / 视觉提案 01</p>
+        <h1>让浅色工作面，也有清晰的品牌性格。</h1>
+        <p class="intro-copy">以冷调雾白梳理内容层级，以深海蓝建立工作台骨架，再用信号青与柔和青柠分别标记焦点和行动。下面可切换查看当前配色与提案。</p>
+      </div>
+      <div class="switcher" role="group" aria-label="选择浅色配色预览">
+        <button type="button" data-choice="existing" aria-pressed="false">当前配色</button>
+        <button type="button" data-choice="proposal" aria-pressed="true">新配色提案</button>
+      </div>
+    </header>
+
+    <div class="preview-label">
+      <strong id="preview-title">方案预览 · 雾白 / 深海蓝 / 信号青</strong>
+      <span class="sample-note">界面内容为示意数据，仅用于比较色彩与层级</span>
+    </div>
+    <section class="frame" aria-label="浅色主题工作台界面预览">
+      <aside class="rail">
+        <div class="brand">
+          <span class="brand-mark">SHZK</span>
+          <span class="brand-name">数慧智科<span class="brand-sub">PROJECT OFFICE</span></span>
+        </div>
+        <div class="nav-section">工作空间</div>
+        <nav class="nav-list" aria-label="主导航">
+          <div class="nav-item active"><span class="marker">⌂</span> 工作台</div>
+          <div class="nav-item"><span class="marker">▤</span> 项目管理</div>
+          <div class="nav-item"><span class="marker">◷</span> 进度跟踪</div>
+          <div class="nav-item"><span class="marker">◇</span> 费用管理</div>
+          <div class="nav-item"><span class="marker">✓</span> 审批中心</div>
+        </nav>
+        <div class="nav-section">协作</div>
+        <nav class="nav-list" aria-label="协作导航">
+          <div class="nav-item"><span class="marker">▦</span> 合作伙伴</div>
+          <div class="nav-item"><span class="marker">◎</span> 通讯录</div>
+        </nav>
+        <div class="rail-foot">数慧智科 · 项目运营平台</div>
+      </aside>
+
+      <div class="workspace">
+        <div class="topbar">
+          <div class="crumb">工作台　/　<b>项目总览</b></div>
+          <div class="top-right"><span>2026年10月08日</span><span class="avatar" aria-label="当前用户：张明">张明</span></div>
+        </div>
+        <div class="content">
+          <header class="page-head">
+            <div><h2>项目总览</h2><p>关注关键进度与需要推进的事项。</p></div>
+            <div class="actions"><span class="period">本季度　⌄</span><button class="primary" type="button">＋ 新建项目</button></div>
+          </header>
+          <div class="section-heading"><h3>工作态势</h3><span>截至 10 月 08 日</span></div>
+          <section class="metrics" aria-label="工作态势指标">
+            <article class="metric"><div class="metric-label">进行中项目</div><div class="metric-value">18</div><div class="metric-detail"><b>＋2</b> 较上月</div></article>
+            <article class="metric"><div class="metric-label">逾期任务</div><div class="metric-value">03</div><div class="metric-detail">其中 <b style="color:var(--warning)">1 项</b> 需优先处理</div></article>
+            <article class="metric"><div class="metric-label">待我审批</div><div class="metric-value">06</div><div class="metric-detail">最近更新　今天 10:24</div></article>
+            <article class="metric"><div class="metric-label">本月已核销</div><div class="metric-value">¥128k</div><div class="metric-detail">预算使用　<b>稳步推进</b></div></article>
+          </section>
+
+          <div class="body-grid">
+            <section class="panel" aria-labelledby="projects-title">
+              <div class="panel-head"><h3 id="projects-title">重点项目</h3><a href="#palette">查看全部　→</a></div>
+              <div class="project-list">
+                <div class="project"><div><div class="project-title">智慧园区一期建设</div><div class="project-code">XM-2026-018　·　计划 12月 20日</div></div><div class="progress-wrap"><div class="progress" style="width:72%"></div></div><span class="status">按计划</span></div>
+                <div class="project"><div><div class="project-title">供应链数据中台升级</div><div class="project-code">XM-2026-014　·　计划 11月 05日</div></div><div class="progress-wrap"><div class="progress p2" style="width:46%"></div></div><span class="status warn">需关注</span></div>
+                <div class="project"><div><div class="project-title">客户服务系统优化</div><div class="project-code">XM-2026-011　·　计划 11月 18日</div></div><div class="progress-wrap"><div class="progress p3" style="width:84%"></div></div><span class="status">按计划</span></div>
+                <div class="project"><div><div class="project-title">区域运营平台一期</div><div class="project-code">XM-2026-009　·　计划 10月 30日</div></div><div class="progress-wrap"><div class="progress" style="width:31%"></div></div><span class="status alert">已逾期</span></div>
+              </div>
+            </section>
+            <section class="panel" aria-labelledby="health-title">
+              <div class="panel-head"><h3 id="health-title">交付健康度</h3><span style="color:var(--ink-muted);font-size:10px">近 6 个月</span></div>
+              <div class="health">
+                <div class="health-kicker">累计项目支出</div>
+                <div class="health-number">¥842,600 <small>元</small></div>
+                <div class="health-row"><span>按计划</span><b style="color:var(--success)">14</b></div>
+                <div class="health-row"><span>需要关注</span><b style="color:var(--warning)">03</b></div>
+                <div class="health-row"><span>已逾期</span><b style="color:var(--danger)">01</b></div>
+                <div class="sparkline" role="img" aria-label="近八个月支出趋势示意图"><i style="height:25%"></i><i style="height:36%"></i><i style="height:32%"></i><i style="height:51%"></i><i style="height:43%"></i><i style="height:70%"></i><i style="height:60%"></i><i style="height:87%"></i></div>
+                <div class="chart-labels"><span>3月</span><span>6月</span><span>10月</span></div>
+              </div>
+            </section>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="palette" class="token-area" aria-labelledby="palette-title">
+      <div>
+        <h3 id="palette-title">浅色主题 · 核心色板</h3>
+        <p id="palette-description">画布与内容面拉开轻微冷暖差，导航回归深海蓝以加强品牌识别；信号青负责链接与选中态，青柠色只用于主要操作。</p>
+      </div>
+      <div class="swatches proposed" id="swatches" aria-label="提案色板">
+        <div class="swatch"><div class="swatch-color"></div><span class="swatch-name">工作画布</span><span class="swatch-hex" data-proposal="#F1F5F7" data-existing="#F6F7F5">#F1F5F7</span></div>
+        <div class="swatch"><div class="swatch-color"></div><span class="swatch-name">内容表面</span><span class="swatch-hex" data-proposal="#FFFFFF" data-existing="#FFFFFF">#FFFFFF</span></div>
+        <div class="swatch"><div class="swatch-color"></div><span class="swatch-name">导航骨架</span><span class="swatch-hex" data-proposal="#142F40" data-existing="#F0F2EE">#142F40</span></div>
+        <div class="swatch"><div class="swatch-color"></div><span class="swatch-name">信号青</span><span class="swatch-hex" data-proposal="#17617D" data-existing="#245E7A">#17617D</span></div>
+        <div class="swatch"><div class="swatch-color"></div><span class="swatch-name">行动青柠</span><span class="swatch-hex" data-proposal="#C6DF7B" data-existing="#CADB9A">#C6DF7B</span></div>
+      </div>
+    </section>
+    <p class="note">本文件仅为交互式配色提案，不会修改现有页面。确认方向后，再按现有语义 token 与组件结构实施并做全站浅色模式校验。</p>
+  </main>
+  <script>
+    const root = document.documentElement;
+    const swatches = document.getElementById("swatches");
+    const title = document.getElementById("preview-title");
+    const description = document.getElementById("palette-description");
+    const buttons = Array.from(document.querySelectorAll("[data-choice]"));
+
+    function setPalette(palette) {
+      root.dataset.palette = palette;
+      const existing = palette === "existing";
+      swatches.className = `swatches ${palette}`;
+      title.textContent = existing ? "当前浅色方案 · 矿物灰白 / 青蓝 / 鼠尾草" : "方案预览 · 雾白 / 深海蓝 / 信号青";
+      description.textContent = existing
+        ? "当前浅色以矿物灰白、浅色导航与低饱和鼠尾草行动色为主，整体克制、统一。"
+        : "画布与内容面拉开轻微冷暖差，导航回归深海蓝以加强品牌识别；信号青负责链接与选中态，青柠色只用于主要操作。";
+      document.querySelectorAll(".swatch-hex").forEach((node) => {
+        const value = node.dataset[palette];
+        node.textContent = value;
+      });
+      buttons.forEach((button) => button.setAttribute("aria-pressed", String(button.dataset.choice === palette)));
+    }
+
+    buttons.forEach((button) => button.addEventListener("click", () => setPalette(button.dataset.choice)));
+  </script>
+</body>
+</html>

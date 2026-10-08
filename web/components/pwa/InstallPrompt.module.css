@@ -10,8 +10,8 @@
   max-width: 520px;
   margin: 0 auto;
   padding: 12px 14px 12px 12px;
-  color: var(--ink);
-  background: var(--navy);
+  color: var(--nav-ink);
+  background: var(--nav-bg);
   border: 1px solid var(--line-blue);
   border-radius: 0;
   box-shadow: var(--shadow-float);
@@ -42,7 +42,7 @@
   letter-spacing: 0.01em;
 }
 .copy span {
-  color: var(--ink-2);
+  color: var(--nav-muted);
   font-size: 12px;
   line-height: 1.45;
 }
@@ -72,7 +72,7 @@
 }
 .install:focus-visible,
 .close:focus-visible {
-  outline: 2px solid var(--brand);
+  outline: 2px solid var(--nav-active-accent);
   outline-offset: 3px;
 }
 
@@ -81,7 +81,7 @@
   width: 24px;
   height: 24px;
   padding: 0;
-  color: var(--ink-2);
+  color: var(--nav-muted);
   background: transparent;
   border: 1px solid transparent;
   border-radius: 0;
