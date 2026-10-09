@@ -38,6 +38,22 @@ def items(r):
     return data["items"] if isinstance(data, dict) else data
 
 
+def scope_user(client, db, username, modules=()):
+    """建一个显式分配指定模块的普通用户并登录（见 test_mvp._scope_user 的说明）。"""
+    from api.core.security import hash_password
+    from api.models import User, UserModule
+
+    with db() as session:
+        user = User(username=username, pwd_hash=hash_password("abc12345"),
+                    real_name=username, must_change_pwd=False, modules_assigned=True)
+        session.add(user)
+        session.flush()
+        for module in modules:
+            session.add(UserModule(user_id=user.id, module=module))
+        session.commit()
+    return login(client, username, pwd="abc12345")
+
+
 def set_params(client, h, **kw):
     assert client.put("/api/v1/admin/params", headers=h, json=kw).status_code == 200
 
@@ -308,7 +324,7 @@ def test_expense_voucher_roundtrip(client, db):
     """凭证附件：上传 → 申请人可见可下载 → 越权人不可见 → 删除。"""
     h = login(client, "pm")
     ha = login(client, "admin")
-    ho = login(client, "outsider")
+    ho = scope_user(client, db, "13800002301")
     p = mkproject(client, h, "P4AVoucher")
     set_params(client, ha, expense_approval_on="1")
     e = client.post("/api/v1/expenses",
@@ -330,7 +346,7 @@ def test_expense_voucher_roundtrip(client, db):
     assert len(lst.json()) == 1 and lst.json()[0]["filename"] == "发票.png"
     dl = client.get(f"/api/v1/expenses/{e['id']}/vouchers/{vid}/download", headers=h)
     assert dl.status_code == 200 and dl.content == b"fakeinvoice"
-    # 非参与人：支出不可见（项目级 403/404），凭证列表与下载同样被拒
+    # 非参与人（零模块用户）：支出不可见（项目级 403/404），凭证列表与下载同样被拒
     assert client.get(f"/api/v1/expenses/{e['id']}/vouchers", headers=ho).status_code in (403, 404)
     assert client.get(f"/api/v1/expenses/{e['id']}/vouchers/{vid}/download",
                       headers=ho).status_code in (403, 404)

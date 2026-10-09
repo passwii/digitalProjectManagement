@@ -14,7 +14,7 @@ import {
   failureToast,
   type TransferFailure,
 } from "@/lib/uploadErrors";
-import { useMe, useMenus, useMeta } from "@/lib/useMeta";
+import { useMenus, useMeta } from "@/lib/useMeta";
 import {
   contractStatusLabel,
   expenseStatusLabel,
@@ -67,8 +67,7 @@ function ProjectDetail({ pid }: { pid: number }) {
   const router = useRouter();
   const search = useSearchParams();
   const { userName } = useMeta();
-  const { me } = useMe();
-  const { isAdmin } = useMenus();
+  const { hasProjectScope, isSuperAdmin } = useMenus();
   const toast = useToast();
   const { beginActivity } = useActivity();
   const [tab, setTab] = useState<Tab>(() => parseProjectTab(search.get("tab")));
@@ -508,9 +507,8 @@ function ProjectDetail({ pid }: { pid: number }) {
   if (!project) return <Empty title="项目不存在" hint="项目可能已删除，或当前账号无权访问。" />;
 
   const owner = project.owner_name || userName(project.owner_id);
-  const canWriteProject = Boolean(
-    isAdmin || (me && (me.id === project.owner_id || project.member_ids.includes(me.id))),
-  );
+  // 与后端 check_project_access 同判定：任一项目内容模块即全局可写，不再要求是负责人/成员
+  const canWriteProject = hasProjectScope;
   const spent = expenses
     .filter((x) => ["approved", "exception"].includes(x.status))
     .reduce((sum, x) => sum + x.amount, 0);
@@ -829,7 +827,7 @@ function ProjectDetail({ pid }: { pid: number }) {
           key={pid}
           projectId={pid}
           canWrite={canWriteProject && project.status !== "archived"}
-          canDelete={isAdmin && project.status !== "archived"}
+          canDelete={isSuperAdmin && project.status !== "archived"}
           onChanged={reloadChanges}
         />
       )}

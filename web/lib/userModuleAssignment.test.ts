@@ -78,3 +78,28 @@ test("useMenus 暴露 hasModule，导航不再按管理员分组", () => {
   excludes(layout, /ADMIN_HREFS/, "导航不得按管理员角色分组");
   excludes(layout, /仅管理员可见/, "导航文案不得依赖管理员角色");
 });
+
+test("项目数据全局范围与后端 PROJECT_SCOPE_MODULES 同源", () => {
+  const projectsDetail = readFileSync(
+    join(root, "app/(dashboard)/projects/[id]/page.tsx"), "utf8");
+  const backendScope = backendModules.slice(
+    backendModules.indexOf("PROJECT_SCOPE_MODULES = ("),
+    backendModules.indexOf(")", backendModules.indexOf("PROJECT_SCOPE_MODULES = (")));
+  const frontendScope = useMeta.slice(
+    useMeta.indexOf("PROJECT_SCOPE_MODULE_KEYS = ["),
+    useMeta.indexOf("]", useMeta.indexOf("PROJECT_SCOPE_MODULE_KEYS = [")));
+
+  contains(useMeta, /hasProjectScope: boolean/, "菜单 hook 应暴露项目数据全局范围");
+  assert.ok(backendScope, "后端应集中声明项目内容模块集合");
+  for (const key of ["opportunities", "projects", "assets", "reports"]) {
+    contains(backendScope, new RegExp(`MODULE_${key.toUpperCase()}`),
+      `后端项目内容模块应包含 ${key}`);
+    contains(frontendScope, new RegExp(`"${key}"`),
+      `前端项目内容模块应包含 ${key}`);
+  }
+  // 页面写入口必须跟模块范围同判定，不得再回落到「负责人/成员」关系
+  contains(projectsDetail, /const canWriteProject = hasProjectScope/,
+    "项目详情写入口应取 hasProjectScope");
+  excludes(projectsDetail, /project\.member_ids\.includes/,
+    "项目详情不得再按成员关系判定写权限");
+});

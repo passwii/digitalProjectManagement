@@ -31,6 +31,30 @@ def mkprojects(client, h, n, prefix="PPg"):
     return [mkproject(client, h, f"{prefix}{i:03d}") for i in range(n)]
 
 
+def _scope_user(client, db, username, modules, pwd="abc12345"):
+    """建一个指定功能模块的普通用户并登录。
+
+    Stage 6 起，基础模块（商机/项目/资产/报表）决定**项目数据是否全局可见可写**：
+    拥有任一即为全局范围，未拥有则回落到「负责人/成员」参与范围。
+    需要验证成员边界的用例必须显式声明零模块用户，不能再借用默认回落的存量账号。
+
+    直接写库建号（不走 `/admin/users`）：创建接口需要超级管理员令牌，而为建号再登录
+    一次会推进 admin 的 `session_version`，让用例先前拿到的管理员令牌当场失效。
+    """
+    from api.core.security import hash_password
+    from api.models import User, UserModule
+
+    with db() as session:
+        u = User(username=username, pwd_hash=hash_password(pwd), real_name=username,
+                 must_change_pwd=False, modules_assigned=True)
+        session.add(u)
+        session.flush()
+        for module in modules:
+            session.add(UserModule(user_id=u.id, module=module))
+        session.commit()
+    return login(client, username, pwd=pwd)
+
+
 # 1. 未登录一律 401
 def test_unauth_401(client):
     r = client.get("/api/v1/projects")
@@ -106,11 +130,11 @@ def test_status_machine(client):
     assert r2.status_code == 200 and r2.json()["status"] == "filed"
 
 
-# 5. 越权 403（非成员读项目）
-def test_rbac_forbidden(client):
+# 5. 成员范围用户的越权 403（Stage 6：基础模块持有者已全局可读，这里显式用零模块用户）
+def test_rbac_forbidden(client, db):
     h = login(client, "pm")
     p = mkproject(client, h, name="PRBAC")
-    ho = login(client, "outsider")
+    ho = _scope_user(client, db, "13800002101", modules=[])
     r = client.get(f"/api/v1/projects/{p['id']}", headers=ho)
     assert r.status_code == 403
 
@@ -442,8 +466,8 @@ def test_fts_keyword_snippet(client):
     assert short["total"] >= 1  # 2 字关键词经 LIKE 回退仍能命中
 
 
-# 24. 分页信封 + 权限下推（不可见项目不出现）
-def test_paging_and_visibility(client):
+# 24. 分页信封 + 权限下推（成员范围用户看不到他人项目）
+def test_paging_and_visibility(client, db):
     h = login(client, "pm")
     p = mkproject(client, h, "PPage")
     for i in range(3):
@@ -451,10 +475,9 @@ def test_paging_and_visibility(client):
                                                          "amount": 100 + i, "exp_date": "2026-06-01"})
     page = client.get(f"/api/v1/expenses?project_id={p['id']}&page=1&size=2", headers=h).json()
     assert page["total"] == 3 and len(page["items"]) == 2
-    # outsider 不是成员、部门也不同 → 看不到该项目
-    ho = login(client, "outsider")
-    ids = [x["id"] for x in client.get("/api/v1/projects", headers=ho).json()["items"]]
-    assert p["id"] not in ids
+    # 零模块用户：项目内容入口整体被模块门禁拦下（Stage 6：项目台账按模块开放，无模块即无入口）
+    ho = _scope_user(client, db, "13800002102", modules=[])
+    assert client.get("/api/v1/projects", headers=ho).status_code == 403
     assert client.get(f"/api/v1/projects/{p['id']}", headers=ho).status_code == 403
 
 
@@ -660,9 +683,10 @@ def test_reserved_roles_have_no_admin_privilege(client, db):
 
     for name in ("cost", "exec", "deptm", "outsider"):
         hh = login(client, name)
-        # 无全局读：非参与人一律 403（部门隔离/高层只读/成本全局权限规则已取消）
-        assert client.get(f"/api/v1/projects/{p['id']}", headers=hh).status_code == 403
-        # 「待我审批」恒为 0，不泄漏全局待办计数
+        # Stage 6：项目数据范围由功能模块决定，不再由角色决定。
+        # 这些存量账号默认持有四个基础模块 → 项目台账全局可读（旧「保留角色无全局读」契约已取消）。
+        assert client.get(f"/api/v1/projects/{p['id']}", headers=hh).status_code == 200
+        # 角色不授予管理与审批：「待我审批」恒为 0，不泄漏全局待办计数
         assert client.get("/api/v1/dashboard/summary", headers=hh).json()["kpi"]["pending_approvals"] == 0
         # 单一入口：菜单里没有管理与审批入口
         mm = client.get("/api/v1/meta/me/menus", headers=hh).json()
@@ -769,15 +793,15 @@ def test_child_lists_apply_visibility_boundary(client, db):
     assert any(x["id"] == tid for x in items(client.get("/api/v1/tasks", headers=ha)))
     assert any(x["project_id"] == p["id"] for x in items(client.get("/api/v1/progress-logs", headers=ha)))
 
-    # 非参与人（含保留角色）：不带 project_id 的列表必须是空，不得泄漏其他项目数据
-    for name in ("outsider", "exec", "deptm", "cost"):
-        hh = login(client, name)
-        assert items(client.get("/api/v1/budgets", headers=hh)) == [], name
-        assert items(client.get("/api/v1/budget-adjusts", headers=hh)) == [], name
-        assert items(client.get("/api/v1/expenses", headers=hh)) == [], name
-        assert items(client.get("/api/v1/milestones", headers=hh)) == [], name
-        assert items(client.get("/api/v1/tasks", headers=hh)) == [], name
-        assert items(client.get("/api/v1/progress-logs", headers=hh)) == [], name
+    # 零模块用户（未分配任何基础模块）：不带 project_id 的列表必须是空，不得泄漏其他项目数据
+    for username in ("13800002103", "13800002104"):
+        hh = _scope_user(client, db, username, modules=[])
+        assert items(client.get("/api/v1/budgets", headers=hh)) == [], username
+        assert items(client.get("/api/v1/budget-adjusts", headers=hh)) == [], username
+        assert items(client.get("/api/v1/expenses", headers=hh)) == [], username
+        assert items(client.get("/api/v1/milestones", headers=hh)) == [], username
+        assert items(client.get("/api/v1/tasks", headers=hh)) == [], username
+        assert items(client.get("/api/v1/progress-logs", headers=hh)) == [], username
         # 也不能用 project_id / task_id 绕过项目边界
         for url in (f"/api/v1/budgets?project_id={p['id']}",
                     f"/api/v1/budget-adjusts?project_id={p['id']}",
@@ -786,7 +810,7 @@ def test_child_lists_apply_visibility_boundary(client, db):
                     f"/api/v1/tasks?project_id={p['id']}",
                     f"/api/v1/progress-logs?project_id={p['id']}",
                     f"/api/v1/progress-logs?task_id={tid}"):
-            assert client.get(url, headers=hh).status_code == 403, f"{name} {url}"
+            assert client.get(url, headers=hh).status_code == 403, f"{username} {url}"
     # 参与路径未被收敛：负责人自己仍然看得到
     assert any(x["id"] == bid for x in items(client.get("/api/v1/budgets", headers=h)))
     assert any(x["project_id"] == p["id"] for x in items(client.get("/api/v1/progress-logs", headers=h)))
@@ -1051,10 +1075,10 @@ def test_paging_boundaries_and_stable_sort(client):
 
 
 # 34. 筛选组合、越权项目查询、软删除边界与注入式输入
-def test_list_filters_scope_and_safe_inputs(client):
+def test_list_filters_scope_and_safe_inputs(client, db):
     ha = login(client, "admin")
     h = login(client, "pm")
-    ho = login(client, "outsider")
+    ho = _scope_user(client, db, "13800002105", modules=[])
     p1 = mkproject(client, h, "PScopeA")
     assert client.post(f"/api/v1/projects/{p1['id']}/status", headers=ha,
                        json={"status": "filed"}).status_code == 200
@@ -1108,17 +1132,17 @@ def test_list_filters_scope_and_safe_inputs(client):
 
 
 # 35. 项目选择器最小字段接口 + meta 字典边界
-def test_project_options_and_meta_contract(client):
+def test_project_options_and_meta_contract(client, db):
     h = login(client, "pm")
-    ho = login(client, "outsider")
+    ho = _scope_user(client, db, "13800002106", modules=[])
     mkprojects(client, h, 25, prefix="POpt")
     data = client.get("/api/v1/projects/options?keyword=POpt&page=1&size=10", headers=h).json()
     assert paged_keys(data) and data["total"] == 25 and len(data["items"]) == 10
     assert set(data["items"][0].keys()) == {"id", "code", "name", "status", "owner_id", "dept_id"}
     assert client.get("/api/v1/projects/options?page=0", headers=h).status_code == 400
     assert client.get("/api/v1/projects/options?size=101", headers=h).status_code == 400
-    # 选择器不泄漏不可见项目
-    assert client.get("/api/v1/projects/options?keyword=POpt", headers=ho).json()["items"] == []
+    # 零模块用户没有项目台账入口：选择器随 projects 路由一并被模块门禁拦下
+    assert client.get("/api/v1/projects/options?keyword=POpt", headers=ho).status_code == 403
     # 人员字典：最小字段 + 服务端硬上限；选择器用分页搜索接口
     users = client.get("/api/v1/meta/users", headers=h).json()
     assert isinstance(users, list) and users

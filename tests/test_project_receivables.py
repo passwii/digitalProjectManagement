@@ -58,6 +58,30 @@ def add_payment(client, headers, project_id, receivable_id, amount, **values):
     )
 
 
+def scope_user(client, db, username, modules=()):
+    """建一个显式分配指定模块的普通用户并登录。
+
+    Stage 6：任一基础模块（商机/项目/资产/报表）即授予项目数据全局读写，
+    故「非参与人」边界用例必须用零模块用户，不能借用默认回落的存量账号。
+    直接写库建号：为建号登录一次会推进 admin 的 session_version，让用例此前的令牌失效。
+    """
+    from api.core.security import hash_password
+    from api.models import UserModule
+
+    with db() as session:
+        user = User(username=username, pwd_hash=hash_password("abc12345"),
+                    real_name=username, must_change_pwd=False, modules_assigned=True)
+        session.add(user)
+        session.flush()
+        for module in modules:
+            session.add(UserModule(user_id=user.id, module=module))
+        session.commit()
+    response = client.post("/api/v1/auth/login",
+                           json={"username": username, "password": "abc12345"})
+    assert response.status_code == 200, response.text
+    return {"Authorization": f"Bearer {response.json()['access_token']}"}
+
+
 def test_project_receivable_tracks_partial_and_full_payments_and_rejects_overpayment(client):
     user = login(client, "pm")
     project = create_project(client, user)
@@ -182,7 +206,7 @@ def test_project_receivable_permissions_and_soft_delete_keep_payment_history(cli
         ), {"id": payment["id"]}).scalar_one() == pm_id
     finally:
         session.close()
-    outsider = login(client, "outsider")
+    outsider = scope_user(client, db, "13800002201")
     administrator = login(client, "admin")
 
     assert client.get(
@@ -521,7 +545,7 @@ def test_project_receivable_archived_project_is_read_only(client, db):
 
 def test_project_receivable_nonmember_cannot_write_and_deleted_project_is_unreadable(client, db):
     member = login(client, "pm")
-    outsider = login(client, "outsider")
+    outsider = scope_user(client, db, "13800002202")
     project = create_project(client, member, name="软删除应收项目")
     receivable = create_receivable(client, member, project["id"])
 

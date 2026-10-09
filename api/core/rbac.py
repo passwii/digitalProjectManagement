@@ -6,8 +6,9 @@
     opportunities/projects/assets/reports/contacts/partners/approvals/finance 模块控制。
   · 财务模块统一控制全部财务路由；account_book_members 账套成员记录不授予访问权限。
   · 审批能力由 approvals 模块决定；权限拒绝在业务读写前稳定返回 403。
-  · 普通用户仍按「项目负责人 / 项目成员」参与业务（立项、任务、进度填报、跟进、预算/支出登记），
-    本轮不收敛该参与路径。
+  · 项目数据范围（Stage 6）：拥有任一基础业务模块（opportunities/projects/assets/reports）
+    即获得项目数据全局读写（项目台账/支出报表/工作台及其子资源）；未分配基础模块的用户
+    仍按「项目负责人 / 项目成员」参与业务（任务、进度填报、跟进、预算/支出登记）。
   · 角色目录、user_roles、账套成员模型继续保留以兼容历史记录；角色字段当前不参与系统授权判定。
 """
 from fastapi import HTTPException
@@ -79,6 +80,23 @@ def has_module(user, module: str) -> bool:
     return module in effective_modules(user)
 
 
+# 项目内容模块：拥有任一即解锁项目数据全局范围（项目台账 / 支出报表 / 工作台及其子资源）。
+# 与 main.py 中 projects / reports 路由门禁使用的模块集合保持同源。
+PROJECT_SCOPE_MODULES = (MODULE_OPPORTUNITIES, MODULE_PROJECTS, MODULE_ASSETS, MODULE_REPORTS)
+
+
+def has_project_scope(user) -> bool:
+    """是否拥有项目数据全局范围：超级管理员，或拥有任一项目内容模块。
+
+    模块决定「看整个项目台账」：分配了基础模块的用户，其可见项目范围与管理员一致
+    （跨部门、跨项目），不依赖负责人/成员关系。未分配基础模块的用户仍按
+    「项目负责人 / 项目成员」参与业务——该路径未被取消。
+    """
+    if is_super_admin(user):
+        return True
+    return bool(effective_modules(user) & set(PROJECT_SCOPE_MODULES))
+
+
 def require_module(user, *modules: str) -> None:
     """模块门禁：至少拥有其中一个模块才放行（超级管理员天然全量）。
 
@@ -126,22 +144,22 @@ def member_ids(project) -> set:
 
 
 def can_read_project(user, project, db=None) -> bool:
-    """读权限：超级管理员全局；其他用户仅限自己负责或参与的项目。"""
-    if is_admin(user):
+    """读权限：具备项目数据全局范围者全局可读；否则仅限自己负责或参与的项目。"""
+    if has_project_scope(user):
         return True
     return user.id in member_ids(project)
 
 
 def check_project_access(user, project, write: bool = False, db=None,
                          hidden_msg: str = "项目不存在") -> None:
-    """读：可见即可；写：超级管理员或项目参与人。
+    """读：可见即可；写：具备项目数据全局范围者，或项目参与人。
 
     传 db 时额外执行演示数据门禁：演示开关关闭时，演示项目视为不存在（404），
     与列表/统计口径保持一致，避免「列表里看不到、直接访问 URL 却能打开」。
     """
     if db is not None and is_demo_hidden(project, db):
         raise HTTPException(404, hidden_msg)
-    if is_admin(user):
+    if has_project_scope(user):
         return
     if not can_read_project(user, project):
         raise HTTPException(403, "无权访问该项目")
@@ -152,14 +170,15 @@ def check_project_access(user, project, write: bool = False, db=None,
 def visible_project_condition(user):
     """把「可见项目」规则下推为 SQL 条件（避免全表载入后在 Python 过滤）。
 
-    返回 None 表示无需过滤：仅超级管理员，全局可见（跨部门、跨项目、不限成员）。
+    返回 None 表示无需过滤：具备项目数据全局范围者（超级管理员，或拥有任一项目内容
+    模块的用户），全局可见（跨部门、跨项目、不限成员）。
     其余用户：负责人 或 项目成员；部门隔离规则已随本次契约收敛取消。
     """
     from sqlalchemy import exists, or_
 
     from ..models import ProjectMember
 
-    if is_admin(user):
+    if has_project_scope(user):
         return None
     return or_(
         Project.owner_id == user.id,
