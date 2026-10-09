@@ -1,0 +1,66 @@
+# python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+venv/
+.venv/
+
+# node / next
+node_modules/
+.next/
+out/
+*.tsbuildinfo
+.env
+.env.*
+!.env.docker.example
+.env.local
+
+# 本地附件与运行数据
+data/
+
+# agent 运行产物（日志/截图/本地凭据），绝不进仓库
+.multica/
+
+# 本地代码索引运行数据
+.codegraph/
+
+# 项目使用 npm；忽略误生成的 pnpm workspace 文件
+/web/pnpm-lock.yaml
+/web/pnpm-workspace.yaml
+/web/public/pdf-cmaps/
+/web/public/pdf-standard-fonts/
+
+# os
+.DS_Store
+
+# 前端测试编译产物
+.test-dist/
+
+# ===== ↑ 以上同步自 .gitignore（「从 .gitignore 同步」只重写以上部分）=====
+.git/
+.hg/
+.svn/
+bower_components/
+jspm_packages/
+site-packages/
+coverage/
+htmlcov/
+lcov-report/
+cmakefiles/
+cmake-build-*/
+bazel-*/
+pods/
+deriveddata/
+storybook-static/
+playwright-report/
+test-results/
+allure-results/
+allure-report/
+cdk.out/
+*.egg-info/
+*.dist-info/
+eggs/
+pip-wheel-metadata/
+wheels/
+# ----- ↑ 以上为 ZCode 默认排除规则（自定义规则请写在本行下方，不会被同步/恢复改动）-----
+# 自定义规则写在下方（本行提示可删除）

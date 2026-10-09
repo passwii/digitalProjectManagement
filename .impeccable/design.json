@@ -568,6 +568,16 @@
         "name": "ease-console",
         "value": "cubic-bezier(0.2, 0.72, 0.2, 1)",
         "purpose": "主控制台交互的缓出曲线。"
+      },
+      {
+        "name": "sidebar-collapse",
+        "value": "240ms cubic-bezier(0.16, 1, 0.3, 1)",
+        "purpose": "桌面侧栏与工作区同步收起或展开，减少动态效果偏好下缩短至 1ms。"
+      },
+      {
+        "name": "sidebar-label",
+        "value": "150ms opacity, 180ms transform",
+        "purpose": "品牌和导航标签随侧栏状态渐隐/显现，减少动态效果偏好下缩短至 1ms。"
       }
     ],
     "breakpoints": [
