@@ -521,7 +521,6 @@ def delete_category(code: str, db: Session = Depends(get_db), user: User = Depen
 
 @router.post("/inbound")
 def inbound(body: BatchIn, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    require_admin(user)
     if not body.items:
         raise HTTPException(400, "入库设备不能为空")
     for item in body.items:

@@ -201,6 +201,16 @@ describe("资产页面分页和刷新", () => {
     }));
   });
 
+  it("允许非管理员在资产模块内登记入库", async () => {
+    cleanup();
+    isAdmin.mockReturnValue(false);
+    setup();
+    fireEvent.click(await screen.findByRole("tab", { name: "入库" }));
+
+    expect(screen.getByRole("heading", { name: "单件设备入库" })).toBeTruthy();
+    expect(screen.queryByText("入库登记仅对管理员开放。")).toBeNull();
+  });
+
   it("单件入库可选择已有批次并将设备关联到台账", async () => {
     cleanup();
     setup();

@@ -10,7 +10,7 @@ from sqlalchemy import text
 
 from api.core.timeutil import app_today
 from api.models import AuditLog, Dict, EquipmentAsset, EquipmentEvent, EquipmentBatch, User
-from test_mvp import login
+from test_mvp import _scope_user, login
 
 
 ROOT = "/api/v1/equipment-assets"
@@ -265,6 +265,19 @@ def test_force_delete_of_clean_asset_is_not_flagged_in_audit(client, db, locked_
 
 def test_batch_and_unique_codes(client, db):
     admin = login(client, "admin")
+    asset_user = _scope_user(client, db, "asset_inbound_user", modules=["assets"])
+    response = client.post(f"{ROOT}/inbound", headers=asset_user, json={
+        "name": "模块用户采购批次", "items": [{"name": "模块用户设备", "category_code": "monitor"}],
+    })
+    assert response.status_code == 200, response.text
+    assert response.json()["items"][0]["name"] == "模块用户设备"
+
+    no_assets_module = _scope_user(client, db, "no_asset_inbound_user", modules=[])
+    assert client.post(f"{ROOT}/", headers=no_assets_module).status_code == 403
+    assert client.post(f"{ROOT}/inbound", headers=no_assets_module, json={
+        "name": "无权限批次", "items": [{"name": "不应入库", "category_code": "monitor"}],
+    }).status_code == 403
+
     response = client.post(f"{ROOT}/inbound", headers=admin, json={
         "name": "采购批次 A", "source": "采购单 1", "items": [{"name": "显示器", "category_code": "monitor"}, {"name": "显示器", "category_code": "monitor"}]
     })
@@ -275,7 +288,7 @@ def test_batch_and_unique_codes(client, db):
     assert response.json()["acceptance_status"] == "accepted"
     assert response.json()["name"] == "采购批次 A"
     assert all(item["status"] == "available" for item in items)
-    assert client.post(f"{ROOT}/inbound", headers=login(client, "pm"), json={"items": []}).status_code == 403
+    assert client.post(f"{ROOT}/inbound", headers=login(client, "pm"), json={"items": []}).status_code == 400
 
 
 def test_inventory_inbound_outbound_tracks_source_quantity_and_shipment(client, db):
