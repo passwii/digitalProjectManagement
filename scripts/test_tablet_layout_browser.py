@@ -190,7 +190,7 @@ class TabletLandscapeBrowserTest(unittest.TestCase):
             self.page.locator('[data-page-header="true"]').wait_for(state="visible", timeout=10_000)
         self.page.wait_for_timeout(100)
 
-    def test_projects_and_finance_tablet_headers_do_not_overlap_actions_or_filters(self):
+    def test_projects_and_finance_tablet_headers_keep_title_in_viewport_and_filters_below_actions(self):
         for route in ("/projects", "/finance"):
             with self.subTest(route=route):
                 self._open(route, 1180, 820)
@@ -199,12 +199,15 @@ class TabletLandscapeBrowserTest(unittest.TestCase):
                       const header = document.querySelector('[data-page-header="true"]');
                       const box = (e) => { if (!e) return null; const r=e.getBoundingClientRect(); return {x:r.x,y:r.y,right:r.right,bottom:r.bottom,width:r.width,height:r.height}; };
                       const actions = header.querySelector('[data-page-header-actions="true"]');
-                      const title = header.querySelector('[data-page-header-title="true"]');
+                      const title = document.querySelector('[data-page-title="true"]');
                       const filters = header.querySelector('[data-page-header-filters="true"]');
-                      return {header:box(header),title:box(title),actions:box(actions),filters:box(filters)};
+                      return {header:box(header),title:box(title),actions:box(actions),filters:box(filters),viewportWidth:innerWidth};
                     }"""
                 )
-                self.assertLessEqual(result["title"]["right"], result["actions"]["x"] + 1, json.dumps(result, ensure_ascii=False))
+                self.assertIsNotNone(result["title"], json.dumps(result, ensure_ascii=False))
+                self.assertGreater(result["title"]["width"], 0, json.dumps(result, ensure_ascii=False))
+                self.assertGreaterEqual(result["title"]["x"], -1, json.dumps(result, ensure_ascii=False))
+                self.assertLessEqual(result["title"]["right"], result["viewportWidth"] + 1, json.dumps(result, ensure_ascii=False))
                 self.assertGreaterEqual(result["filters"]["y"], result["actions"]["bottom"] - 1, json.dumps(result, ensure_ascii=False))
 
     def test_finance_header_filter_label_does_not_overlap_select_at_tablet_width(self):
@@ -274,13 +277,15 @@ class TabletLandscapeBrowserTest(unittest.TestCase):
                 value = self.page.evaluate(
                     """() => {
                       const h=document.querySelector('[data-page-header="true"]');
-                      const title=h.querySelector('[data-page-header-title="true"]');
+                      const title=document.querySelector('[data-page-title="true"]');
                       const actions=h.querySelector('[data-page-header-actions="true"]');
                       const b=e=>{if(!e)return null;const r=e.getBoundingClientRect();return{x:r.x,y:r.y,right:r.right,bottom:r.bottom,w:r.width,h:r.height}};
                       return {header:b(h),title:b(title),actions:b(actions),docW:document.documentElement.scrollWidth,innerWidth};
                     }"""
                 )
                 self.assertLessEqual(value["docW"], width + 1, json.dumps(value, ensure_ascii=False))
+                self.assertIsNotNone(value["title"], json.dumps(value, ensure_ascii=False))
+                self.assertGreater(value["title"]["w"], 0, json.dumps(value, ensure_ascii=False))
                 self.assertLessEqual(value["title"]["right"], width + 1, json.dumps(value, ensure_ascii=False))
                 self.assertLessEqual(value["actions"]["right"], width + 1, json.dumps(value, ensure_ascii=False))
 

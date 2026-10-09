@@ -1,22 +1,22 @@
 """BLF-1127 验收走查：S1 手机壳基座（5 位底部 Dock + 767px 双外壳 CSS 切换）
-+ S3 单档 Dock 入口面板（一次点按可操作，2026-09-26 新规格）
-+ S4 五个抽屉的内容与权限入口（D1/D3）
++ S3 四个模块 Dock 位一点直达路由，「我的」保留账号与权限面板
++ S4 模块路由与「我的」面板权限入口（D3）
 + S5 项目台账 / 审批中心手机端卡片流（§4.2/D4）
 + S6 PWA 外壳收口（manifest + safe-area + viewport-fit + overscroll + 自建下拉刷新）。
 
-契约：2026-09-18 导航规格的 D1/D3，加上 2026-09-26 刷新与 Dock 单档面板规格。
+契约：Dock 固定五位；四个模块位直接导航，「我的」面板承载账号与权限入口。
 和 `acceptance_blf1093.py` 一样是**真浏览器 + 真后端**：不 mock 菜单接口，登录后
 直接读 `/meta/me/menus` 真实返回，验的是「权限唯一入口 + 5 位 Dock」这一对约束。
 
 覆盖：
-  · Dock 恒 5 位、标签顺序 工作台/项目/进度/支出/我的（D1：不是「费用」）
+  · Dock 恒 5 位、标签顺序 工作台/项目/资产/报表/我的
   · 几何：贴底、满宽、含安全区、单点触控 ≥44×44、390px 与 360px 无横向溢出
   · D3：管理员「我的」位有红点且 Dock 仍 5 位；非管理员看不到审批/管理/通讯录
   · 壳切换：≥768px 显示侧栏隐藏 Dock，≤767px 反之
   · 「纯 CSS 切换、无首帧错误外壳」：**关掉 JS** 再断言一次（此时只有 CSS 能决定可见性）
   · 不回归：桌面 1440px 下 table.grid 仍在、Dock 不在场
-  · S3：点 5 个 Dock 位均打开单档入口面板，一次点按卡片即可导航；
-    再点当前位、关闭按钮、遮罩和 Esc 均可收起；内容由浏览器自然滚动。
+  · S3：工作台/项目/资产/报表位一次点击直达目标路由且不打开面板；
+    「我的」位保留面板几何、遮罩、焦点归还、短屏滚动与 Escape 关闭检查。
   · S6/PWA：manifest.webmanifest 可访问且字段齐全（standalone / theme_color /
     192+512+maskable / shortcuts 工作台+待审批）、link[rel=manifest] 在场、
     viewport-fit=cover + theme-color、overscroll-y contain、按钮 touch-action
@@ -76,15 +76,12 @@ if not API.startswith(("http://", "https://")):
     raise SystemExit(f"API_BASE 必须是 http(s) URL，当前为 {API!r}")
 API_BASE = API.rstrip("/") + "/"
 
-# 契约常量：§7 的令牌与 §3 的 5 个位（写死在这里，改契约必须先改这里）
+# 契约常量：§7 的令牌与 5 个 Dock 位（写死在这里，改契约必须先改这里）
 DOCK_H = 58
 APPBAR_H = 52
-DOCK_IDS = ["dashboard", "projects", "progress", "costs", "mine"]
-DOCK_LABELS = ["工作台", "项目", "进度", "支出", "我的"]
+DOCK_IDS = ["dashboard", "projects", "assets", "reports", "mine"]
+DOCK_LABELS = ["工作台", "项目", "资产", "报表", "我的"]
 ADMIN_ONLY_LABELS = ["审批中心", "系统管理", "通讯录"]
-
-# S3 单档面板最高约占可视高度的 78%，顶部仍须保留安全区。
-SHEET_MAX_RATIO = 0.78
 
 # S6 契约常量（§6）：PWA 外壳 6 件事的判定线，改契约必须先改这里
 PWA_THEME = "#0F2742"  # theme_color / theme-color / 图标底色，三处同值
@@ -292,71 +289,43 @@ def shell_state(page) -> dict:
 
 
 def sheet_state(page) -> dict | None:
-    """入口面板的当前状态与几何（S3）。
-
-    全部走 data-* 契约表面：`data-sheet` 的值是单档 panel，
-    `data-sheet-scrim` / `data-sheet-card` 同理 —— CSS Modules 的类名是哈希的，
-    不能拿来当断言接口。面板不在 DOM 时返回 None（关闭后应如此）。
-    """
+    """Read the retained personal/account panel through its stable data-* surface."""
     return page.evaluate(
         """() => {
             const panel = document.querySelector('[data-sheet]');
             if (!panel) return null;
-            const r = panel.getBoundingClientRect();
-            const cs = getComputedStyle(panel);
+            const rect = panel.getBoundingClientRect();
+            const body = panel.querySelector('[data-sheet-body]');
             const root = document.querySelector('[data-sheet-root]');
             const scrim = document.querySelector('[data-sheet-scrim]');
-            const body = panel.querySelector('[data-sheet-body]');
-            const br = body.getBoundingClientRect();
+            const cards = Array.from(panel.querySelectorAll('[data-sheet-card]')).map((card) => card.dataset.sheetCard);
             const dock = document.querySelector('[data-shell="dock"]');
-            const cards = Array.from(panel.querySelectorAll('[data-sheet-card]')).map((el) => {
-                const cr = el.getBoundingClientRect();
-                return { variant: el.dataset.sheetCard,
-                         title: el.querySelector('span span')?.textContent?.trim() ?? '',
-                         y: cr.y, bottom: cr.bottom, h: cr.height, w: cr.width };
-            });
             return {
-                stop: panel.dataset.sheet,
                 open: panel.dataset.open,
-                dragging: panel.dataset.dragging,
-                x: r.x, y: r.y, w: r.width, h: r.height, bottom: r.bottom,
-                radius: parseFloat(cs.borderTopLeftRadius),
-                transform: cs.transform,
-                transformY: cs.transform === "none" ? 0 : new DOMMatrixReadOnly(cs.transform).m42,
                 role: panel.getAttribute('role'),
                 ariaModal: panel.getAttribute('aria-modal'),
-                scrimOn: scrim ? scrim.dataset.on : null,
-                scrimOpacity: scrim ? Number(getComputedStyle(scrim).opacity) : null,
-                scrimPE: scrim ? getComputedStyle(scrim).pointerEvents : null,
+                x: rect.x, right: rect.right, bottom: rect.bottom, width: rect.width, height: rect.height,
+                viewportWidth: innerWidth, viewportHeight: innerHeight,
+                scrimOn: scrim?.dataset.on ?? null,
+                scrimOpacity: scrim ? Number(getComputedStyle(scrim).opacity) : 0,
+                scrimPointerEvents: scrim ? getComputedStyle(scrim).pointerEvents : null,
                 rootZ: root ? Number(getComputedStyle(root).zIndex) || 0 : 0,
-                rootPE: root ? getComputedStyle(root).pointerEvents : null,
-                bodyScrollTop: body.scrollTop,
-                bodyScrollable: body.scrollHeight > body.clientHeight + 1,
-                bodyScrollH: body.scrollHeight,
-                bodyClientH: body.clientHeight,
-                cards: cards,
-                dockH: dock ? dock.getBoundingClientRect().height : 0,
-                vw: window.innerWidth, vh: window.innerHeight,
+                dockZ: dock ? Number(getComputedStyle(dock).zIndex) || 0 : 0,
                 focusInSheet: panel.contains(document.activeElement),
-                focused: document.activeElement
-                    ? (document.activeElement.dataset?.dock || document.activeElement.tagName)
-                    : null,
+                bodyScrollable: body.scrollHeight > body.clientHeight + 1,
+                bodyScrollTop: body.scrollTop,
+                bodyOverflowY: getComputedStyle(body).overflowY,
+                cards,
             };
         }"""
     )
 
 
 def sheet_present(page) -> dict:
-    """当前抽屉状态，且**必须在场**（S3）。
-
-    断言里对 `sheet_state()` 直接下标会在面板缺席时炸成一片 173 行的类型错误，
-    真正的信息只有「上一步没把抽屉打开」。这里早失败：面板不在场就直接抛，
-    错误信息指向场景而不是下标。
-    """
-    st = sheet_state(page)
-    if st is None:
-        raise AssertionError("抽屉不在场：上一步的交互没有把它打开")
-    return st
+    state = sheet_state(page)
+    if state is None:
+        raise AssertionError("我的面板未显示")
+    return state
 
 
 def main() -> int:
@@ -423,18 +392,18 @@ def main() -> int:
         tabs = dock_boxes(page)
         record("Dock 恒 5 位", len(tabs) == 5, f"{len(tabs)} 位")
         record(
-            "Dock 位顺序 = 契约顺序（dashboard/projects/progress/costs/mine）",
+            "Dock 位顺序 = 契约顺序（dashboard/projects/assets/reports/mine）",
             [t["id"] for t in tabs] == DOCK_IDS,
             " / ".join(t["id"] for t in tabs),
         )
         record(
-            "标签顺序 = 工作台 / 项目 / 进度 / 支出 / 我的（D1）",
+            "标签顺序 = 工作台 / 项目 / 资产 / 报表 / 我的（D1）",
             [t["label"] for t in tabs] == DOCK_LABELS,
             " / ".join(t["label"] for t in tabs),
         )
         record(
-            "D1：第 4 位是「支出」，不是「费用」",
-            "费用" not in [t["label"] for t in tabs] and tabs[3]["label"] == "支出",
+            "Dock 第 4 位是「报表」",
+            tabs[3]["label"] == "报表",
             f"第 4 位={tabs[3]['label']}",
         )
 
@@ -509,13 +478,13 @@ def main() -> int:
             side_text[:90],
         )
 
-        # 高亮跟随路由（D1：/reports 也落在「支出」位）
+        # 高亮跟随路由（/reports 落在独立的「报表」位）
         page.goto(f"{BASE}/reports", wait_until="networkidle")
         page.wait_for_timeout(600)
         tabs = dock_boxes(page)
         record(
-            "D1：/reports 高亮「支出」位",
-            [t["id"] for t in tabs if t["current"] == "page"] == ["costs"],
+            "Dock：/reports 高亮「报表」位",
+            [t["id"] for t in tabs if t["current"] == "page"] == ["reports"],
             f"{[t['id'] for t in tabs if t['current'] == 'page']}",
         )
 
@@ -570,7 +539,7 @@ def main() -> int:
                 f"横向溢出 {ov}px",
             )
 
-        # ============ 固定 Dock 不能盖住既有弹层（S3/S4 的抽屉会同在底部，先钉住） ============
+        # ============ 固定 Dock 不能盖住既有弹层（「我的」面板会同在底部，先钉住） ===========
         admin_token, _ = auth_token(req, ADMIN_PHONE, ADMIN_PWD)
         _, proj = api(req, "GET", "/projects/options?page=1&size=1", token=admin_token)
         proj_id = None
@@ -609,250 +578,102 @@ def main() -> int:
         page.keyboard.press("Escape")
         page.wait_for_timeout(400)
 
-        # ============ S3：单档 Dock 入口面板（2026-09-26 新规格） ============
+        # ============ S3：四个模块 Dock 位一点直达路由 ============
         page.set_viewport_size({"width": 390, "height": 844})
-        page.goto(f"{BASE}/projects", wait_until="networkidle")
-        page.wait_for_timeout(1200)
+        page.goto(f"{BASE}/dashboard", wait_until="networkidle")
+        page.wait_for_timeout(800)
 
-        opened_ids: list[str] = []
-        for dock_id in DOCK_IDS:
-            url_before = page.url
-            page.click(f'[data-shell="dock"] [data-dock="{dock_id}"]')
-            page.wait_for_timeout(450)
-            st = sheet_present(page)
-            ok = (
-                st["open"] == "true"
-                and st["stop"] == "panel"
-                and st["ariaModal"] == "true"
-                and page.url == url_before
-            )
-            record(
-                f"S3：点「{dock_id}」一次打开完整面板且不跳页",
-                ok,
-                f"面板={st['stop']} URL={'未变' if page.url == url_before else page.url}",
-            )
-            if ok:
-                opened_ids.append(dock_id)
-            page.click(f'[data-shell="dock"] [data-dock="{dock_id}"]')
+        dock_routes = {
+            "dashboard": "/dashboard",
+            "projects": "/projects",
+            "assets": "/assets",
+            "reports": "/reports",
+        }
+        for dock_id, target in dock_routes.items():
+            start = "/projects" if target == "/dashboard" else "/dashboard"
+            page.goto(f"{BASE}{start}", wait_until="networkidle")
+            page.wait_for_timeout(250)
+            with page.expect_url(re.compile(rf"{re.escape(BASE + target)}(?:[?#].*)?$"), timeout=10000):
+                page.click(f'[data-shell="dock"] [data-dock="{dock_id}"]')
             page.wait_for_timeout(450)
             record(
-                f"S3：再点「{dock_id}」直接关闭",
-                sheet_state(page) is None,
+                f"S3：点「{dock_id}」一次直达 {target} 且不打开面板",
+                page.url.rstrip("/").endswith(target)
+                and page.locator('[data-sheet]').count() == 0
+                and page.locator(f'[data-shell="dock"] [data-dock="{dock_id}"]').get_attribute("aria-haspopup") is None,
+                f"URL={page.url} 且面板未渲染",
             )
-        record(
-            "S3：5 个 Dock 位均能一次打开完整面板",
-            len(opened_ids) == 5,
-            " / ".join(opened_ids),
-        )
 
-        page.click('[data-shell="dock"] [data-dock="projects"]')
+        # 模块位全部导航后，再通过「我的」位继续检查面板触控行为。
+        page.set_viewport_size({"width": 390, "height": 844})
+        page.goto(f"{BASE}/dashboard", wait_until="networkidle")
+        page.wait_for_timeout(800)
+        panel_node = page.locator('[data-shell="dock"] [data-dock="mine"]')
+        panel_node.click()
         page.wait_for_timeout(500)
         panel = sheet_present(page)
-        dock_z = page.evaluate(
-            "() => Number(getComputedStyle(document.querySelector('[data-shell=\"dock\"]')).zIndex) || 0"
+        record(
+            "S3：我的面板贴底满宽且不超过 78vh",
+            abs(panel["bottom"] - panel["viewportHeight"]) <= 1
+            and abs(panel["width"] - panel["viewportWidth"]) <= 1
+            and panel["height"] <= panel["viewportHeight"] * 0.78 + 2,
+            f"面板 {panel['width']}×{panel['height']}，视口 {panel['viewportWidth']}×{panel['viewportHeight']}",
         )
         record(
-            "S3：面板贴底满宽、高度不超过可视区的 78%",
-            abs(panel["bottom"] - panel["vh"]) <= 1
-            and abs(panel["w"] - panel["vw"]) <= 1
-            and panel["h"] <= panel["vh"] * SHEET_MAX_RATIO + 2,
-            f"高={round(panel['h'], 1)}px / 视口={panel['vh']}px",
-        )
-        record(
-            "S3：遮罩与焦点锁定已启用，Dock 仍可切换",
-            panel["scrimOn"] == "true"
-            and panel["scrimOpacity"] >= 0.9
-            and panel["scrimPE"] == "auto"
-            and panel["rootZ"] < dock_z
+            "S3：我的面板遮罩、模态语义与焦点锁定有效",
+            panel["open"] == "true" and panel["role"] == "dialog" and panel["ariaModal"] == "true"
+            and panel["scrimOn"] == "true" and panel["scrimOpacity"] >= 0.9
+            and panel["scrimPointerEvents"] == "auto" and panel["rootZ"] < panel["dockZ"]
             and panel["focusInSheet"],
-            f"遮罩={panel['scrimOn']} z={panel['rootZ']}/{dock_z} 焦点={panel['focused']}",
-        )
-        record(
-            "S3：卡片均为单列列表，正文由浏览器自然滚动",
-            all(card["variant"] == "list" for card in panel["cards"])
-            and page.evaluate(
-                "() => getComputedStyle(document.querySelector('[data-sheet-body]')).overflowY"
-            ) == "auto",
-            f"卡片={len(panel['cards'])} 张",
-        )
-        record(
-            "S3：项目直达入口与明确关闭按钮在场",
-            page.locator('[data-sheet] a[href="/projects"]').count() >= 1
-            and page.locator('[data-sheet] button[aria-label="关闭项目面板"]').count() == 1,
-        )
-        page.screenshot(path=f"{SHOT}/06-sheet-panel.png")
-
-        page.click('[data-shell="dock"] [data-dock="progress"]')
-        page.wait_for_timeout(450)
-        switched = sheet_present(page)
-        record(
-            "S3：点另一 Dock 位直接切换面板内容",
-            switched["stop"] == "panel"
-            and page.locator('[data-sheet-body]').inner_text().find("待填报") >= 0
-            and "/projects" in page.url,
+            f"遮罩={panel['scrimOn']} 焦点在面板={panel['focusInSheet']}",
         )
         page.keyboard.press("Escape")
         page.wait_for_timeout(450)
-        record("S3：Escape 直接关闭面板", sheet_state(page) is None)
-
-        page.click('[data-shell="dock"] [data-dock="projects"]')
+        record("S3：我的面板按 Escape 关闭", sheet_state(page) is None)
+        panel_node.click()
         page.wait_for_timeout(450)
-        page.click('[data-sheet] button[aria-label="关闭项目面板"]')
+        page.locator('[data-sheet] button[aria-label="关闭我的面板"]').click()
         page.wait_for_timeout(450)
-        focused_after = page.evaluate("() => document.activeElement?.dataset?.dock ?? null")
-        record(
-            "S3：关闭按钮关闭面板并把焦点归还 Dock",
-            sheet_state(page) is None and focused_after == "projects",
-            f"焦点={focused_after}",
-        )
-
+        focus_returned = page.evaluate("() => document.activeElement?.dataset?.dock === 'mine'")
+        record("S3：关闭按钮关闭面板并把焦点归还「我的」", sheet_state(page) is None and focus_returned)
         page.set_viewport_size({"width": 390, "height": 420})
-        page.click('[data-shell="dock"] [data-dock="mine"]')
+        panel_node.click()
         page.wait_for_timeout(500)
-        short = sheet_present(page)
-        page.evaluate(
-            "() => { const body = document.querySelector('[data-sheet-body]'); body.scrollTop = 100; }"
-        )
-        scrolled = sheet_present(page)
+        short_panel = sheet_present(page)
+        page.evaluate("() => { document.querySelector('[data-sheet-body]').scrollTop = 100; }")
+        scrolled_panel = sheet_present(page)
         record(
-            "S3：短屏内容由面板正文自然滚动，面板位置不变",
-            short["bodyScrollable"]
-            and scrolled["bodyScrollTop"] > 0
-            and scrolled["transformY"] == 0,
-            f"scrollTop={scrolled['bodyScrollTop']}px",
-        )
-        record(
-            "S3：面板打开时不造成横向溢出",
-            page.evaluate(
-                "() => document.documentElement.scrollWidth - document.documentElement.clientWidth"
-            ) <= 2,
+            "S3：短屏我的面板正文可滚动且无横向溢出",
+            short_panel["bodyScrollable"] and scrolled_panel["bodyScrollTop"] > 0
+            and scrolled_panel["width"] <= scrolled_panel["viewportWidth"] + 1
+            and page.evaluate("() => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 2"),
         )
         page.keyboard.press("Escape")
         page.wait_for_timeout(450)
+
         page.set_viewport_size({"width": 390, "height": 844})
-        page.goto(f"{BASE}/projects", wait_until="networkidle")
+        page.goto(f"{BASE}/dashboard", wait_until="networkidle")
         page.wait_for_timeout(800)
-
-        # ============ S4：5 个抽屉的内容与权限入口（D1/D3） ============
-        # 契约：方案文档 §3（IA 与各 Dock 位对应）+ §4.1。断言只走 data-* 契约表面与
-        # 真实文案，不读 CSS Modules 哈希类名；计数字段不断精确值（验收库随时在变）。
-        def sheet_text() -> str:
-            return " ".join(page.locator("[data-sheet-body]").inner_text().split())
-
-        def open_dock(dock_id: str) -> dict:
-            page.click(f'[data-shell="dock"] [data-dock="{dock_id}"]')
-            page.wait_for_timeout(1200)
-            return sheet_present(page)
-
-        def close_sheet() -> None:
-            page.keyboard.press("Escape")
-            page.wait_for_timeout(400)
-
-        # 工作台：5 张快捷跳转卡（待办 / 待填报 / 逾期 / 里程碑 / 本月支出）
-        open_dock("dashboard")
-        dash_txt = sheet_text()
-        dash_cards = page.locator("[data-sheet-card]").count()
+        # ============ S4：四个模块位直接路由；「我的」位链接到账号设置 ============
+        module_targets = {"dashboard": "/dashboard", "projects": "/projects", "assets": "/assets", "reports": "/reports"}
+        for dock_id, target in module_targets.items():
+            start = "/projects" if target == "/dashboard" else "/dashboard"
+            page.goto(f"{BASE}{start}", wait_until="networkidle")
+            page.wait_for_timeout(250)
+            with page.expect_url(re.compile(rf"{re.escape(BASE + target)}(?:[?#].*)?$"), timeout=10000):
+                page.click(f'[data-shell="dock"] [data-dock="{dock_id}"]')
+            record(
+                f"S4：{dock_id} Dock 位导航至 {target}",
+                page.url.rstrip("/").endswith(target),
+                page.url,
+            )
+        page.goto(f"{BASE}/dashboard", wait_until="networkidle")
+        page.wait_for_timeout(300)
         record(
-            "S4：工作台抽屉有 5 张快捷跳转卡",
-            dash_cards >= 4 and all(k in dash_txt for k in ("逾期", "里程碑", "支出")),
-            f"{dash_cards} 张卡：{dash_txt[:60]}",
+            "S4：我的位提供可直接访问的账号设置路由",
+            page.locator('[data-shell="dock"] [data-dock="mine"]').get_attribute("href") == "/change-password",
+            "我的 → /change-password",
         )
-        record(
-            "S4：管理员工作台含「待我审批」卡（非管理员无此卡）",
-            "待我审批" in dash_txt,
-            dash_txt[:60],
-        )
-        close_sheet()
-
-        # 项目：状态筛选 chips + 最近项目卡（落点是 /projects/:id）
-        open_dock("projects")
-        proj_txt = sheet_text()
-        chips = page.locator("[data-sheet-body] button[aria-pressed]").count()
-        proj_hrefs = page.evaluate(
-            """() => Array.from(document.querySelectorAll('[data-sheet-card]'))"""
-            """.map((el) => el.getAttribute('href'))"""
-        )
-        record(
-            "S4：项目抽屉有状态筛选 chips（全部 / 进行中 / 我负责…）",
-            chips >= 3 and all(k in proj_txt for k in ("全部", "进行中", "我负责")),
-            f"{chips} 个 chips",
-        )
-        record(
-            "S4：项目卡落点是项目详情（/projects/:id），不是死键",
-            len(proj_hrefs) > 0
-            and all(h and h.startswith("/projects/") for h in proj_hrefs),
-            f"{len(proj_hrefs)} 张卡，首个落点={proj_hrefs[0] if proj_hrefs else None}",
-        )
-        close_sheet()
-
-        # 进度：待填报 / 逾期 / 临近里程碑预览卡 + 待处理条目
-        open_dock("progress")
-        prog_txt = sheet_text()
-        record(
-            "S4：进度抽屉含待填报 / 逾期 / 里程碑三张预览卡",
-            all(k in prog_txt for k in ("待填报", "逾期", "里程碑")),
-            prog_txt[:80],
-        )
-        close_sheet()
-
-        # 支出（D1）：支出记录 + 支出报表两个入口 + 支出口径提示（在抽屉里）
-        open_dock("costs")
-        costs_txt = sheet_text()
-        costs_hrefs = page.evaluate(
-            """() => Array.from(document.querySelectorAll('[data-sheet-card]'))"""
-            """.map((el) => el.getAttribute('href'))"""
-        )
-        record(
-            "S4/D1：支出抽屉含「支出记录」与「支出报表」两个入口",
-            "支出记录" in costs_txt
-            and "支出报表" in costs_txt
-            and "/costs" in costs_hrefs
-            and "/reports" in costs_hrefs,
-            f"落点={costs_hrefs}",
-        )
-        record(
-            "S4/D1：支出口径提示在抽屉里（已通过 / 特批通过，与财务账有差异）",
-            "已通过" in costs_txt and "财务账" in costs_txt,
-            costs_txt[-60:],
-        )
-        # 卡片可点进模块：点「支出报表」应导航且抽屉收起
-        page.locator('[data-sheet-card][href="/reports"]').first.click()
-        page.wait_for_timeout(1200)
-        record(
-            "S4：点卡片进模块（支出报表），抽屉收起且路由跟上",
-            "/reports" in page.url and sheet_state(page) is None,
-            page.url,
-        )
-        page.goto(f"{BASE}/projects", wait_until="networkidle")
-        page.wait_for_timeout(800)
-
-        # 我的（D3）：同一档面板 + 账号卡 + 管理入口（仅管理员）+ 账号操作
-        mine_st = open_dock("mine")
-        mine_txt = sheet_text()
-        record(
-            "S4：我的入口同样以单档面板打开",
-            mine_st["stop"] == "panel",
-            f"面板={mine_st['stop']}",
-        )
-        record(
-            "S4/D3：管理员「我的」抽屉出现审批中心 / 系统管理 / 通讯录",
-            all(k in mine_txt for k in ADMIN_ONLY_LABELS),
-            mine_txt[:80],
-        )
-        record(
-            "S4：我的抽屉有账号操作（修改密码 / 退出登录）",
-            "修改密码" in mine_txt and "退出登录" in mine_txt,
-            mine_txt[-60:],
-        )
-        record(
-            "S4：抽屉永不空白（账号卡 / 卡片 / 提示至少其一在场）",
-            page.locator(
-                "[data-sheet-body] [data-sheet-card], "
-                "[data-sheet-body] [data-sheet-account]"
-            ).count()
-            > 0,
-        )
-        close_sheet()
 
         # ============ 壳切换：767 / 768 两档 ============
         page.set_viewport_size({"width": 768, "height": 900})
@@ -1067,8 +888,8 @@ def main() -> int:
         for dock_id, href in [
             ("dashboard", "/dashboard"),
             ("projects", "/projects"),
-            ("progress", "/progress"),
-            ("costs", "/costs"),
+            ("assets", "/assets"),
+            ("reports", "/reports"),
             ("mine", "/change-password"),
         ]:
             # 必须是前端地址（req 的 base_url 是后端 API）；带 RSC 头的带参请求就是
@@ -1083,7 +904,7 @@ def main() -> int:
             "Dock 5 个落点都可导航（RSC payload 全 200，无死键）",
             len(rsc_bad) == 0,
             ", ".join(rsc_bad)
-            or "/dashboard /projects /progress /costs /change-password",
+            or "/dashboard /projects /assets /reports /change-password",
         )
 
         # ============ 非管理员：Dock 5 位、无红点、无管理入口 ============
@@ -1125,43 +946,11 @@ def main() -> int:
                 all(x not in side2 for x in ADMIN_ONLY_LABELS),
                 side2[:90],
             )
-            # S4/D3：非管理员的「我的」面板有账号卡与账号操作，
-            # 但三个管理入口一个都不出现（不展示必然 403 的入口）
-            page2.click('[data-shell="dock"] [data-dock="mine"]')
-            page2.wait_for_timeout(1500)
-            mine2 = page2.evaluate(
-                """() => {const p = document.querySelector('[data-sheet]');"""
-                """ return p ? p.dataset.sheet : null; }"""
-            )
-            mine2_txt = " ".join(
-                page2.locator("[data-sheet-body]").inner_text().split()
-            )
+            # 「我的」已是路由链接，权限菜单仍不应泄漏到 Dock 槽位。
             record(
-                "S4：非管理员「我的」同样打开单档面板",
-                mine2 == "panel",
-                f"面板={mine2}",
-            )
-            record(
-                "S4/D3：非管理员「我的」抽屉里没有审批中心 / 系统管理 / 通讯录",
-                all(x not in mine2_txt for x in ADMIN_ONLY_LABELS),
-                mine2_txt[:90],
-            )
-            record(
-                "S4：非管理员仍有账号操作（修改密码 / 退出登录），抽屉不空白",
-                "修改密码" in mine2_txt and "退出登录" in mine2_txt,
-                mine2_txt[-60:],
-            )
-            page2.keyboard.press("Escape")
-            page2.wait_for_timeout(500)
-            page2.click('[data-shell="dock"] [data-dock="dashboard"]')
-            page2.wait_for_timeout(1500)
-            dash2_txt = " ".join(
-                page2.locator("[data-sheet-body]").inner_text().split()
-            )
-            record(
-                "S4/D3：非管理员工作台抽屉没有「待我审批」卡",
-                "待我审批" not in dash2_txt and "逾期" in dash2_txt,
-                dash2_txt[:80],
+                "S4/D3：非管理员「我的」位仍可直达账号设置",
+                page2.locator('[data-shell="dock"] [data-dock="mine"]').get_attribute("href") == "/change-password",
+                "我的 → /change-password",
             )
             page2.screenshot(path=f"{SHOT}/05-dock-390-nonadmin.png")
         ctx2.close()

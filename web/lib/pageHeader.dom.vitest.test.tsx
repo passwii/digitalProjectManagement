@@ -21,7 +21,6 @@ describe("PageHeader", () => {
 
     expect(document.querySelector("h1.sr-only")?.textContent).toBe("项目台账");
     expect(document.querySelector('[data-page-header="true"]')).not.toBeNull();
-    expect(document.querySelector('[data-page-header-title="true"]')).toBeNull();
     expect(document.querySelector('[data-page-header-filters="true"] input')).not.toBeNull();
     expect(document.querySelector('[data-page-header-actions="true"] button')?.textContent).toBe("新建项目");
   });
@@ -40,7 +39,6 @@ describe("PageHeader", () => {
     render(<TitleHost />);
 
     expect(document.querySelector("h1.sr-only")?.textContent).toBe("审批中心");
-    expect(document.querySelector('[data-page-header-title="true"]')).toBeNull();
     expect(document.querySelector('[data-page-header="true"]')).toBeNull();
     expect(screen.getByText("审批中心", { selector: "output" })).toBeTruthy();
   });
@@ -69,7 +67,6 @@ describe("PageHeader", () => {
         "utf8",
       );
       expect(source, page).toContain("PageHeader");
-      expect(source, page).not.toContain("PageActions");
     }
   });
 

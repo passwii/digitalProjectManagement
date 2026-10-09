@@ -20,7 +20,6 @@
 
 .commandHeader[data-page-header="true"] {
   align-items: flex-end;
-  min-height: 72px;
   margin-bottom: 20px;
   padding: 0 0 16px;
 }
@@ -36,10 +35,6 @@
   align-items: center;
   padding-left: 0;
   border-left: 0;
-}
-
-.commandHeader :global([data-page-header-title="true"]) > span {
-  font-size: clamp(24px, 2.1vw, 32px);
 }
 
 .headerState {
@@ -382,7 +377,7 @@
 }
 
 @media (max-width: 767px) {
-  .commandHeader[data-page-header="true"] { display: block; min-height: 0; padding-bottom: 16px; }
+  .commandHeader[data-page-header="true"] { display: block; padding-bottom: 16px; }
   .commandHeader :global([data-page-header-actions="true"]) { margin-top: 16px; padding: 14px 0 0; border-top: 1px solid var(--dash-line-soft); border-left: 0; }
   .headerButton,
   .approvalButton { min-height: 44px; }

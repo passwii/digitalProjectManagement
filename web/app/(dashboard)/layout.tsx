@@ -529,7 +529,7 @@ function DashboardShell({ children, modal }: { children: React.ReactNode; modal?
         <header className={s.topbar} data-shell="topbar">
           <div className={s.topContext}>
             <span className={s.topTitleMark} aria-hidden="true" />
-            <span className={s.topTitle} aria-live="polite">{pageTitle}</span>
+            <span className={s.topTitle} data-page-title="true">{pageTitle}</span>
           </div>
           <div className={s.topActions}>
             <span className={s.topDate}>{today}</span>
@@ -558,7 +558,6 @@ function DashboardShell({ children, modal }: { children: React.ReactNode; modal?
         ready={permsReady}
         failed={Boolean(permsError)}
         canApprove={canApprove}
-        isAdmin={isAdmin}
       />
     </div>
     </PageTitleContext.Provider>

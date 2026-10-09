@@ -188,10 +188,20 @@ def route_main_visible(route: str, state: dict[str, Any]) -> bool:
     return shell_element_visible_in_viewport(element, viewport_width)
 
 
-def page_header_overlap_passes(route: str, state: dict[str, Any]) -> bool:
-    if _is_spark(route) or not state["shell"].get("pageHeader"):
+def page_title_within_viewport_passes(route: str, state: dict[str, Any]) -> bool:
+    if _is_spark(route):
         return True
-    return state.get("titlePrimaryOverlap") is not True
+    title = state.get("pageTitle")
+    if not title:
+        return False
+    rect = title.get("rect") or {}
+    width = state.get("viewport", {}).get("width")
+    return bool(
+        width is not None
+        and rect.get("width", 0) > 0
+        and rect.get("x", rect.get("left", 0)) >= -1
+        and rect.get("right", rect.get("x", 0) + rect.get("width", 0)) <= width + 1
+    )
 
 
 def tablet_filter_layout_valid(fields: list[dict[str, Any]]) -> bool:
@@ -255,26 +265,25 @@ def measure_page(page: Page) -> dict[str, Any]:
               className: typeof node.className === 'string' ? node.className : '', tagName: node.tagName,
             }));
           }
-          const title = document.querySelector('[data-page-header-title="true"], .page-head h1, h1:not(.sr-only)');
-          const primary = document.querySelector('[data-page-header-actions="true"] button, .page-head .actions button, main button:not([aria-label="关闭"])');
-          const overlap = title && primary && (() => { const a = rect(title), b = rect(primary); return a && b && a.left < b.right - 1 && a.right > b.left + 1 && a.top < b.bottom - 1 && a.bottom > b.top + 1; })();
+          const pageTitle = visible(document.querySelector('[data-page-title="true"]'));
           const overflowCandidates = [...document.querySelectorAll('body *')].filter((node) => node.scrollWidth > node.clientWidth + 1).slice(0, 20)
             .map((node) => ({ selector: node.tagName.toLowerCase() + (typeof node.className === 'string' && node.className.trim() ? '.' + node.className.trim().split(/\\s+/).join('.') : ''), scrollWidth: node.scrollWidth, clientWidth: node.clientWidth, rect: rect(node) }));
           const tables = [...document.querySelectorAll('table.grid')].slice(0, 8).map((table) => {
             const frame = table.closest('.table-scroll, [data-desktop-table-frame="true"]');
             return { table: rect(table), tableScrollWidth: table.scrollWidth, frame: rect(frame), frameClientWidth: frame?.clientWidth ?? null, frameScrollWidth: frame?.scrollWidth ?? null, frameOverflowX: frame ? getComputedStyle(frame).overflowX : null };
           });
-          const filters = [...document.querySelectorAll('[data-page-header-filters="true"] > *')].map((field) => {
+          const filters = [...document.querySelectorAll('[data-page-header-filters="true"] > *, .asset-filters > *')].map((field) => {
             const root = field.matches('.toolbar-field') ? field : (field.querySelector('.toolbar-field') || field);
+            const control = root.matches('input, select, button, [role="combobox"]')
+              ? root : root.querySelector('input, select, button, [role="combobox"]');
             const label = root.querySelector(':scope > span');
-            const control = root.querySelector('input, select, button, [role="combobox"]');
             return { text: (field.innerText || '').trim().slice(0, 80), labelBox: rect(label), control: rect(control), field: rect(field) };
           });
           return {
             url: location.href, title: document.title,
             viewport: { width: innerWidth, height: innerHeight, documentWidth: document.documentElement.scrollWidth, bodyWidth: document.body.scrollWidth },
             shell: { sidebar: visible(document.querySelector('[data-shell="sidebar"]')), topbar: visible(document.querySelector('[data-shell="topbar"]')), dock: visible(document.querySelector('[data-shell="dock"]')), main: visible(document.querySelector('#main-content')), sparkMain: visible(document.querySelector('#spark-main')), pageHeader: visible(document.querySelector('[data-page-header="true"], .page-head')) },
-            titlePrimaryOverlap: overlap, accountMenu: visible(document.querySelector('[role="menu"]')), tables, filters, overflowCandidates, elements,
+            pageTitle, accountMenu: visible(document.querySelector('[role="menu"]')), tables, filters, overflowCandidates, elements,
           };
         }""", INTERESTING_ELEMENTS,
     )
@@ -354,9 +363,8 @@ def _route_checks(page: Page, route: str, width: int, height: int) -> tuple[int,
         checks.append(("业务侧栏可见且 Dock 隐藏" if shown == "sidebar" else "手机 Dock 可见且侧栏隐藏", visible_pair, "检查导航外壳可见性与视口交集"))
         checks.append(("顶栏可见且位于视口内", topbar_within_viewport(state["shell"].get("topbar"), width), "检查 topbar visibility/bounds"))
     if (width, height) == (1180, 820) and not _is_spark(route):
-        if state["shell"]["pageHeader"]:
-            checks.append(("页面标题与首个主操作不相交", page_header_overlap_passes(route, state), "标题/操作矩形"))
-            checks.append(("筛选字段与控件不相交", tablet_filter_layout_valid(state["filters"]), json.dumps(state["filters"], ensure_ascii=False)[:240]))
+        checks.append(("顶栏标题不溢出视口", page_title_within_viewport_passes(route, state), "标题矩形/视口宽度"))
+        checks.append(("筛选字段与控件不相交", tablet_filter_layout_valid(state["filters"]), json.dumps(state["filters"], ensure_ascii=False)[:240]))
     for label, passed, extra in checks:
         if not _emit(f"{prefix} {label}", passed, extra if not passed else ""):
             failures += 1

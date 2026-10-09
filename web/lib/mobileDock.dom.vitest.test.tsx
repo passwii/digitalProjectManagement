@@ -16,7 +16,7 @@ vi.mock("next/link", () => ({
 afterEach(() => cleanup());
 
 describe("MobileDock 直接导航", () => {
-  it("模块位保留原路由链接，不要求先打开抽屉再确认", () => {
+  it("所有 Dock 位都保留可直接导航的路由，不要求先打开抽屉再确认", () => {
     render(<MobileDock menus={[]} ready failed={false} canApprove={false} />);
 
     const projects = screen.getByRole("link", { name: "项目" });
@@ -25,6 +25,8 @@ describe("MobileDock 直接导航", () => {
     expect(projects.hasAttribute("aria-expanded")).toBe(false);
     expect(screen.getByRole("link", { name: "资产" }).getAttribute("href")).toBe("/assets");
     expect(screen.getByRole("link", { name: "报表" }).getAttribute("href")).toBe("/reports");
+    expect(screen.getByRole("link", { name: "工作台" }).getAttribute("href")).toBe("/dashboard");
+    expect(screen.getByRole("link", { name: "我的" }).getAttribute("href")).toBe("/change-password");
     expect(screen.queryByRole("dialog")).toBeNull();
   });
 });
