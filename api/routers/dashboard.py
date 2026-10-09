@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 from ..core.costs import PASS
 from ..core.database import get_db
 from ..core.deps import get_current_user
-from ..core.rbac import can_approve, is_admin, project_scope_condition
+from ..core.rbac import can_approve, has_project_scope, project_scope_condition
 from ..core.timeutil import app_now, app_today, iso, to_db
 from ..models import (
     Budget,
@@ -69,8 +69,9 @@ def summary(db: Session = Depends(get_db), user: User = Depends(get_current_user
 
     # 我参与的项目（成员或负责人）
     my_ids = {m.project_id for m in db.query(ProjectMember).filter_by(user_id=user.id).all()}
-    # 管理员的数据范围是「全局」，不依赖成员关系；若仍按成员统计会恒为 0，与看板其余数字自相矛盾
-    if is_admin(user):
+    # 具备项目数据全局范围的用户（超级管理员，或拥有任一项目内容模块）不依赖成员关系；
+    # 若仍按成员统计会恒为 0，与看板其余数字自相矛盾
+    if has_project_scope(user):
         my_projects = list(projects)
     else:
         my_projects = [p for p in projects if p.id in my_ids or p.owner_id == user.id]

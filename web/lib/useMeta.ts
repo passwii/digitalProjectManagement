@@ -238,6 +238,9 @@ export function useMe(): MeState {
 
 // ---------------- 权限单一入口：/meta/me/menus ----------------
 
+/** 项目内容模块：与 api/core/rbac.PROJECT_SCOPE_MODULES 同源，决定项目数据全局范围。 */
+const PROJECT_SCOPE_MODULE_KEYS = ["opportunities", "projects", "assets", "reports"] as const;
+
 let menusCache: MenuResp | null = null;
 let menusInflight: Promise<MenuResp> | null = null;
 
@@ -300,6 +303,14 @@ export interface MenuState {
    * 判定来源就是后端返回的可见菜单 key，与接口门禁同源，不新增角色判断。
    */
   hasModule: (key: string) => boolean;
+  /**
+   * 当前用户是否拥有项目数据的全局范围（后端 `has_project_scope` 的镜像）。
+   *
+   * Stage 6 起，项目台账/支出报表/工作台的内容范围由**功能模块**决定：拥有
+   * 商机/项目/资产/报表 任一模块即全局可见可写，不再要求是项目负责人或成员。
+   * 页面内的写入口据此放行，与后端 `check_project_access` 同一判定。
+   */
+  hasProjectScope: boolean;
   /** 演示数据开关是否打开（决定列表是否包含演示数据） */
   demoOn: boolean;
   /** 当前用户是否可切换演示开关（仅管理员） */
@@ -355,6 +366,9 @@ export function useMenus(): MenuState {
     canApprove: !!data?.can_approve,
     canFinance: !!data?.can_finance,
     hasModule: (key: string) => (data?.menus ?? []).some((m) => m.key === key),
+    // 与后端 rbac.PROJECT_SCOPE_MODULES 对齐：任一模块即项目数据全局范围
+    hasProjectScope: Boolean(data?.is_super_admin) ||
+      PROJECT_SCOPE_MODULE_KEYS.some((key) => (data?.menus ?? []).some((m) => m.key === key)),
     demoOn: !!data?.demo_on,
     canToggleDemo: !!data?.can_toggle_demo,
     loading,

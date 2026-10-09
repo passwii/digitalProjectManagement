@@ -159,8 +159,8 @@ def test_project_owner_options_mirror_displayed_names(client, db):
 
 
 def test_project_owner_options_cover_account_only_rows_and_scope(client, db):
-    """`owner_name` 为空、只挂账号的行按账号姓名归组；非管理员只看得到自己的项目。"""
-    from api.models import Project
+    """`owner_name` 为空、只挂账号的行按账号姓名归组；选项范围与列表的模块边界一致。"""
+    from api.models import Project, User, UserModule
 
     admin = login(client, "admin")
     wang_id = _mkuser(db, "13800007777", "王五")
@@ -172,10 +172,19 @@ def test_project_owner_options_cover_account_only_rows_and_scope(client, db):
     # 选项里的姓名必须筛得出来（账号兜底名与台账展示的 userName(owner_id) 同口径）
     assert _names(client.get("/api/v1/projects?owner=王五", headers=admin)) == {"OPT-EMPTY"}
 
-    # 权限范围与列表一致：非管理员只看到自己负责/参与的项目
-    wang = login_raw(client, "13800007777", "x1234567")
-    assert [row["name"] for row in client.get("/api/v1/projects/owners", headers=wang).json()] == [
-        "王五"]
+    # Stage 6：项目数据范围由功能模块决定。显式分配 projects 模块即为全局范围，
+    # 选项范围与列表同步放大（不再是「非管理员只看自己的项目」）。
+    session = db()
+    try:
+        wang = session.query(User).filter_by(id=wang_id).one()
+        wang.modules_assigned = True
+        session.add(UserModule(user_id=wang.id, module="projects"))
+        session.commit()
+    finally:
+        session.close()
+    wang_h = login_raw(client, "13800007777", "x1234567")
+    assert {row["name"] for row in client.get("/api/v1/projects/owners", headers=wang_h).json()} == {
+        "王五"}
     session = db()
     try:
         session.add(Project(code="PJ-OWN-HIDDEN", name="OPT-HIDDEN",
@@ -183,8 +192,17 @@ def test_project_owner_options_cover_account_only_rows_and_scope(client, db):
         session.commit()
     finally:
         session.close()
-    assert [row["name"] for row in client.get("/api/v1/projects/owners", headers=wang).json()] == [
-        "王五"]
+    assert {row["name"] for row in client.get("/api/v1/projects/owners", headers=wang_h).json()} == {
+        "王五", "别人的项目"}
+
+    # 回收模块后项目台账入口整体收口（选项接口同门禁），不再有「看自己项目」的中间态
+    session = db()
+    try:
+        session.query(UserModule).filter_by(user_id=wang_id).delete()
+        session.commit()
+    finally:
+        session.close()
+    assert client.get("/api/v1/projects/owners", headers=wang_h).status_code == 403
 
     from api.models import Project, ProjectChange
 

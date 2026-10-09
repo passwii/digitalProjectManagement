@@ -14,8 +14,7 @@ from .core.rbac import (
     MODULE_FINANCE,
     MODULE_OPPORTUNITIES,
     MODULE_PARTNERS,
-    MODULE_PROJECTS,
-    MODULE_REPORTS,
+    PROJECT_SCOPE_MODULES,
     require_module,
 )
 from .core.storage import storage_profile, validate_storage_settings
@@ -166,17 +165,17 @@ def _module_guard(*modules: str):
 #   · reports 被支出页用于预算执行汇总，故同时放行 projects 等基础模块；
 #   · tasks/milestones/budgets/expenses 是项目详情/进度/支出子页面的子资源，无独立导航模块，保持开放；
 #   · finance / finance_accounting 由 finance 模块统一门禁，业务校验保留在各端点中。
+# 门禁集合与 rbac.PROJECT_SCOPE_MODULES 同源：能进项目内容路由 ⇔ 拥有项目数据全局范围，
+# 避免「入口可见但只有自己参与的项目」这种半开状态。
 _ROUTER_MODULES: list[tuple[object, tuple[str, ...]]] = [
     (contacts.router, (MODULE_CONTACTS,)),
     (partners.router, (MODULE_PARTNERS,)),
     (approvals.router, (MODULE_APPROVALS,)),
     (opportunities.router, (MODULE_OPPORTUNITIES,)),
     (equipment_assets.router, (MODULE_ASSETS,)),
-    (reports.router, (MODULE_REPORTS, MODULE_PROJECTS, MODULE_OPPORTUNITIES, MODULE_ASSETS)),
-    (project_receivables.router, (MODULE_OPPORTUNITIES, MODULE_PROJECTS, MODULE_ASSETS,
-                                  MODULE_REPORTS)),
-    (projects.router, (MODULE_OPPORTUNITIES, MODULE_PROJECTS, MODULE_ASSETS,
-                       MODULE_REPORTS)),
+    (reports.router, PROJECT_SCOPE_MODULES),
+    (project_receivables.router, PROJECT_SCOPE_MODULES),
+    (projects.router, PROJECT_SCOPE_MODULES),
 ]
 
 for r in (
