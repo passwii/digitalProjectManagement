@@ -38,12 +38,12 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   min-width: 0;
   max-width: 100%;
 }
 
-.size { width: auto; height: 32px; font-size: 13px; }
+.size { width: 110px; max-width: 110px; height: 32px; font-size: 13px; }
 
 @media (max-width: 640px) {
   .wrap { gap: 8px; }
@@ -61,8 +61,7 @@
   color: var(--ink);
   font-size: 13px;
 }
-.btn:first-child,
-.btn:last-child { padding: 0 7px; font-size: 16px; }
+.btn:first-child { padding: 0 10px; }
 .btn:hover:not(:disabled) { border-color: var(--brand); color: var(--brand); }
 .btn:disabled { color: var(--ink-3); background: var(--th-bg); cursor: not-allowed; }
 
