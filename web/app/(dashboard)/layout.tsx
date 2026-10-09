@@ -445,7 +445,7 @@ function DashboardShell({ children, modal }: { children: React.ReactNode; modal?
       data-dashboard-shell={pathname === "/dashboard" ? "true" : undefined}
     >
       <aside className={s.sidebar} data-shell="sidebar">
-        <div className={s.ws}>
+        <div className={s.ws} data-testid="sidebar-brand">
           <div className={s.wsName} title="数科云办公">
             {/*
               侧栏印章与 PWA 图标（app/icon.svg）同源：双层细框 + 加粗字标 +
@@ -460,6 +460,17 @@ function DashboardShell({ children, modal }: { children: React.ReactNode; modal?
               <b>数科云办公</b>
             </span>
           </div>
+          <button
+            className={s.collapseBtn}
+            onClick={() => setCollapsed((v) => !v)}
+            aria-expanded={!collapsed}
+            aria-label={collapsed ? "展开侧边栏" : "收起侧边栏"}
+            title={collapsed ? "展开侧边栏" : "收起侧边栏"}
+          >
+            <svg viewBox="0 0 20 20" aria-hidden="true">
+              {collapsed ? <path d="m7.5 4.5 5.5 5.5-5.5 5.5" /> : <path d="m12.5 4.5-5.5 5.5 5.5 5.5" />}
+            </svg>
+          </button>
         </div>
         <nav className={s.nav} aria-label="主导航" aria-busy={permsLoading}>
           {navItems.map((n) => {
@@ -499,20 +510,6 @@ function DashboardShell({ children, modal }: { children: React.ReactNode; modal?
             <button className={s.navRetry} onClick={reloadMenus}>重试</button>
           </div>
         )}
-        {/*
-          侧栏底部只剩折叠开关（BLF-1141）：身份区与「登出」已搬到顶栏右上角的账号菜单，
-          这里不再有用户名 / 角色 / 登出按钮。
-        */}
-        <div className={s.collapseBar}>
-          <button
-            className={s.collapseBtn}
-            onClick={() => setCollapsed((v) => !v)}
-            aria-expanded={!collapsed}
-            aria-label={collapsed ? "展开侧边栏" : "收起侧边栏"}
-          >
-            {collapsed ? "展开 »" : "« 收起"}
-          </button>
-        </div>
       </aside>
 
       <div className={s.main}>

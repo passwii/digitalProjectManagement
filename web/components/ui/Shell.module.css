@@ -31,10 +31,12 @@
   color: var(--nav-ink);
   background: var(--nav-bg);
   border-right: 1px solid var(--nav-border);
+  transition: width 240ms cubic-bezier(0.16, 1, 0.3, 1), flex-basis 240ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 .collapsed .sidebar { width: var(--sidebar-width); flex-basis: var(--sidebar-width); }
 
 .ws {
+  position: relative;
   flex: none;
   /* 与 .topbar 读同一个 --shell-head-h，两条下划线必然平齐。
      注意这里用 height 而不是 min-height：min-height 允许 .ws 变高，
@@ -92,7 +94,7 @@
   background: var(--brand);
   opacity: .65;
 }
-.brandText { min-width: 0; display: flex; flex-direction: column; }
+.brandText { min-width: 0; display: flex; flex-direction: column; transition: opacity 150ms ease, transform 180ms ease; }
 .brandText b {
   color: var(--nav-ink);
   font-family: var(--font-brand);
@@ -100,7 +102,8 @@
   font-weight: 700;
   letter-spacing: .06em;
 }
-.collapsed .brandText { display: none; }
+.collapsed .brandText { opacity: 0; transform: translateX(-5px); visibility: hidden; }
+.collapsed .wsName { max-width: calc(100% - 24px); }
 
 .nav {
   flex: 1;
@@ -138,6 +141,7 @@
 .navLink > .label {
   position: relative;
   z-index: 1;
+  transition: opacity 130ms ease, transform 180ms ease;
 }
 .navActive {
   position: absolute;
@@ -180,7 +184,7 @@
 .navLink:focus-visible,
 .collapseBtn:focus-visible { outline-color: var(--nav-active-accent); }
 .collapsed .navLink { justify-content: center; padding: 0; }
-.collapsed .navLink .label { display: none; }
+.collapsed .navLink .label { opacity: 0; transform: translateX(-5px); visibility: hidden; }
 
 .navError {
   margin: 0 10px 10px;
@@ -204,26 +208,27 @@
 }
 .collapsed .navError { display: none; }
 
-/*
-  侧栏底部只剩折叠开关（BLF-1141）：身份区与「登出」已搬到顶栏右上角的用户菜单。
-  这里只留一条分隔 + 内边距，`.nav` 依旧 `flex: 1` 吃掉剩余高度 ——
-  删掉用户区后不会出现塌陷或多余空白。
-*/
-.collapseBar {
-  flex: none;
-  padding: 10px 12px 16px;
-  border-top: 1px solid var(--nav-border);
-}
+/* Brand row owns the desktop collapse control; no footer row is needed. */
 .collapseBtn {
-  width: 100%;
+  position: absolute;
+  top: 26px;
+  right: 10px;
+  width: 30px;
   height: 30px;
-  border: 0;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  border: 1px solid transparent;
   border-radius: var(--radius-sm);
   color: var(--nav-muted);
-  background: var(--nav-hover-bg);
-  font-size: 12px;
+  background: transparent;
+  cursor: pointer;
+  transition: color 140ms ease, background-color 140ms ease, border-color 140ms ease, transform 100ms ease;
 }
-.collapseBtn:hover { color: var(--nav-ink); background: var(--nav-hover-bg); }
+.collapseBtn svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.collapseBtn:hover { color: var(--nav-ink); background: var(--nav-hover-bg); border-color: var(--nav-border); }
+.collapseBtn:active { transform: scale(.94); }
+.collapsed .collapseBtn { right: 23px; }
 
 .main {
   min-width: 0;
@@ -231,6 +236,7 @@
   margin-left: var(--sidebar-width);
   display: flex;
   flex-direction: column;
+  transition: margin-left 240ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 /* 所有已登录路由继承 Login / Dashboard 的控制环境。 */
@@ -510,7 +516,8 @@
     padding: 12px 14px;
   }
   .wsName { flex: 1; margin: 0; }
-  .collapsed .brandText { display: flex; }
+  .collapsed .brandText { opacity: 1; transform: none; visibility: visible; }
+  .collapseBtn { display: none; }
   .nav {
     flex-direction: row;
     padding: 8px 14px 10px;
@@ -523,10 +530,9 @@
     min-height: 38px;
     padding: 0 12px;
   }
-  .collapsed .navLink .label { display: inline; }
+  .collapsed .navLink .label { opacity: 1; transform: none; visibility: visible; }
   .navActive { box-shadow: inset 0 0 14px var(--brand-soft); }
   .navGroupLabel,
-  .collapseBar,
   .navError { display: none; }
   .topbar {
     height: 58px;
@@ -556,6 +562,13 @@
   .content { padding: 24px 22px 42px; }
 }
 
+@media (prefers-reduced-motion: reduce) {
+  .shell[data-console-shell="true"] .sidebar,
+  .shell[data-console-shell="true"] .main,
+  .shell[data-console-shell="true"] .wsName > .brandText,
+  .shell[data-console-shell="true"] .navLink > .label,
+  .shell[data-console-shell="true"] .collapseBtn { transition-duration: 1ms; }
+}
 @media (max-width: 520px) {
   .brandText b { font-size: 15px; }
   .crumb { max-width: 210px; }

@@ -318,7 +318,7 @@ describe("BLF-1141 顶栏账号菜单（身份区已从侧栏搬走）", () => {
     await waitFor(() => expect(screen.getAllByText("张伟").length).toBeGreaterThan(0));
   }
 
-  it("侧栏底部不再有身份区与登出按钮（只剩折叠开关）", async () => {
+  it("侧栏没有身份区或登出按钮，折叠开关在品牌区", async () => {
     await mountSignedIn();
 
     const sidebar = document.querySelector('[data-shell="sidebar"]') as HTMLElement;
@@ -326,9 +326,24 @@ describe("BLF-1141 顶栏账号菜单（身份区已从侧栏搬走）", () => {
     expect(sidebar.textContent).not.toContain("张伟");
     expect(sidebar.textContent).not.toContain("登出");
     expect(sidebar.textContent).not.toContain("管理员");
-    // 侧栏里唯一剩下的按钮是折叠开关；旧版登出按钮（aria-label=退出登录）已不存在
     const buttons = Array.from(sidebar.querySelectorAll("button"));
     expect(buttons.map((b) => b.getAttribute("aria-label"))).toEqual(["收起侧边栏"]);
+    expect(sidebar.querySelector('[data-testid="sidebar-brand"]')?.contains(buttons[0])).toBe(true);
+  });
+
+  it("侧栏按钮位于品牌区并能切换展开状态", async () => {
+    await mountSignedIn();
+
+    const sidebar = document.querySelector('[data-shell="sidebar"]') as HTMLElement;
+    const button = screen.getByRole("button", { name: "收起侧边栏" });
+    expect(sidebar.querySelector('[data-testid="sidebar-brand"]')?.contains(button)).toBe(true);
+    expect(button.getAttribute("aria-expanded")).toBe("true");
+
+    fireEvent.click(button);
+    expect(screen.getByRole("button", { name: "展开侧边栏" }).getAttribute("aria-expanded")).toBe("false");
+
+    fireEvent.click(screen.getByRole("button", { name: "展开侧边栏" }));
+    expect(screen.getByRole("button", { name: "收起侧边栏" }).getAttribute("aria-expanded")).toBe("true");
   });
 
   it("菜单与顶栏 chip 都不再出现角色权限文案", async () => {
