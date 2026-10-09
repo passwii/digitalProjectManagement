@@ -34,7 +34,14 @@
   .busyDot { animation: none; opacity: .8; }
 }
 
-.right { display: inline-flex; align-items: center; gap: 6px; }
+.right {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  min-width: 0;
+  max-width: 100%;
+}
 
 .size { width: auto; height: 32px; font-size: 13px; }
 
