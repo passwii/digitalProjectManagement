@@ -7,11 +7,8 @@
 // 桌面侧栏，或桌面上闪一条底部导航）。所以两份外壳都渲染，由 767px 断点的 display
 // 决定谁在场 —— 隐藏的那一份不占位，也不进无障碍树。
 //
-// 分组与红点在 `lib/mobileNav.ts`；点按任一位打开完整入口面板。
-//
-// 抽屉内容在 S4 落到 `sheets/`（见下面 `SheetContent`）：§3 表里每位的
-// 预览卡 / 筛选 chips / 账号卡按位拆成五个组件，数据走现有 hook / api；
-// D3 的权限过滤仍由 `visible` 承担，`MineSheet` 只消费它，不做角色判断。
+// 分组与红点在 `lib/mobileNav.ts`；四个模块位直接路由跳转，「我的」保留账号与权限面板。
+// 抽屉组件继续消费既有菜单与权限判定；Dock 不自行判断角色。
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -26,7 +23,6 @@ import BottomSheet from "./BottomSheet";
 import { SHEET_CONTENT, SHEET_META } from "./sheets";
 import s from "./MobileDock.module.css";
 
-/** 抽屉的 DOM id：Dock 位用 `aria-controls` 指向它（同一个 Dock 只有一张抽屉） */
 const SHEET_ID = "mobile-sheet";
 
 /**
@@ -138,11 +134,6 @@ function Badge({ badge }: { badge: number | true }) {
   );
 }
 
-/**
- * 这一位的抽屉内容（S4 的接缝，`sheets/index.ts`）。
- *
- * 五个按位拆分的内容组件沿用原数据与权限；卡片始终以整宽列表呈现。
- */
 function SheetContent({
   id,
   onSelect,
@@ -152,7 +143,7 @@ function SheetContent({
   onSelect: () => void;
 } & DockMenuInput & { onReloadMenus?: () => void; isAdmin?: boolean }) {
   const items = buildDockItems(menus);
-  const item = items.find((i) => i.id === id);
+  const item = items.find((candidate) => candidate.id === id);
   if (!item) return null;
   const Content = SHEET_CONTENT[id];
   return (
@@ -168,27 +159,21 @@ function SheetContent({
   );
 }
 
-/**
- * 手机壳退场的兜底：≥768px 时收起抽屉。
- *
- * 抽屉是手机外壳的一部分 —— 用户在 767px 打开后横屏 / 拉宽窗口，桌面外壳上场，
- * 抽屉不能悬在桌面屏上。这也是「桌面端不渲染该组件」的可验证形式。
- */
 function useCloseOnDesktop(open: boolean, close: () => void) {
   useEffect(() => {
     if (!open) return;
-    const mq = window.matchMedia("(min-width: 768px)");
+    const media = window.matchMedia("(min-width: 768px)");
     const sync = () => {
-      if (mq.matches) close();
+      if (media.matches) close();
     };
     sync();
-    mq.addEventListener("change", sync);
-    return () => mq.removeEventListener("change", sync);
+    media.addEventListener("change", sync);
+    return () => media.removeEventListener("change", sync);
   }, [open, close]);
 }
 
 /**
- * 底部 Dock：恒 5 位（§3 / D3），不随角色变形。
+ * 底部 Dock：恒 5 位（§3 / D3），不随角色变形。模块位直接导航；「我的」承载账号与管理入口。
  *
  * 角色只影响「我的」位的红点与那个位的可见菜单（`visible`，S4 的抽屉消费）；
  * 非管理员在 `/meta/me/menus` 里本就拿不到管理与审批三项，Dock 不会凭空多出或
@@ -198,9 +183,9 @@ function useCloseOnDesktop(open: boolean, close: () => void) {
  * 保证侧栏与 Dock 不会各自拿到不同批次的权限状态。
  */
 export interface MobileDockProps extends DockMenuInput {
-  /** 是否管理员角色（`useMenus().isAdmin`）：仅用于「我的」抽屉身份展示 */
+  /** 是否管理员角色（仅用于「我的」面板的身份展示） */
   isAdmin?: boolean;
-  /** 权限重试（`useMenus().reload`）：「我的」抽屉降级行的「重试」按钮用 */
+  /** 菜单权限加载失败时的重试回调 */
   onReloadMenus?: () => void;
 }
 
@@ -208,40 +193,26 @@ export default function MobileDock(props: MobileDockProps) {
   const pathname = usePathname();
   const items = buildDockItems(props);
   const current = dockIdForPath(pathname);
-
-  // 「哪一位 + 开没开」分成两个状态：关闭时 slot 不清空，退场动画那 260ms 里
-  // 面板还得渲染这一位的内容，否则会看到一张空面板滑下去。
-  const [slot, setSlot] = useState<DockId | null>(null);
   const [open, setOpen] = useState(false);
-  // 会话号：只在「关着 → 打开」时递增，作为 BottomSheet 的 key。
-  // 抽屉在退场动画里被重新打开时换一个实例，才能重新捕捉「焦点归还落点」
-  // （`useModalBehavior` 只在打开那一次记触发元素）。
   const [session, setSession] = useState(0);
-  const shown = items.find((item) => item.id === slot) ?? null;
-
+  const mine = items.find((item) => item.id === "mine") ?? null;
   const close = useCallback(() => setOpen(false), []);
 
-  // 路由变了就收起：客户端导航不会卸载 layout，抽屉会悬在新页面上
   useEffect(() => {
     setOpen(false);
   }, [pathname]);
-
   useCloseOnDesktop(open, close);
 
-  /**
-   * 点一次打开完整面板；再点当前位关闭，点另一位直接换内容。
-   * href 仍供无 JS、新标签页与长按菜单使用。
-   */
   function onDockTap(event: React.MouseEvent<HTMLAnchorElement>, id: DockId) {
+    if (id !== "mine") return;
     if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
     event.preventDefault();
     event.currentTarget.focus({ preventScroll: true });
-    if (open && slot === id) {
+    if (open) {
       setOpen(false);
       return;
     }
-    setSlot(id);
-    if (!open) setSession((n) => n + 1);
+    setSession((value) => value + 1);
     setOpen(true);
   }
 
@@ -250,18 +221,18 @@ export default function MobileDock(props: MobileDockProps) {
       <nav className={s.dock} aria-label="主导航" data-shell="dock">
         {items.map((item) => {
           const active = current === item.id;
-          const expanded = open && slot === item.id;
+          const expanded = item.id === "mine" && open;
           return (
             <Link
               key={item.id}
               href={item.href}
               className={`${s.tab} ${active ? s.tabActive : ""} ${expanded ? s.tabOpen : ""}`}
-              // "page" 才是「当前页」的规范取值；原型里的 "true" 只对 aria-current 的
-              // 布尔语义成立，读屏在两处会读成不同的话。
               aria-current={active ? "page" : undefined}
-              // 点按展开抽屉：对读屏是一个「展开 / 收起」的开关，不是一个页面链接
-              aria-expanded={expanded}
-              aria-haspopup="dialog"
+              aria-expanded={item.id === "mine" ? expanded : undefined}
+              aria-haspopup={item.id === "mine" ? "dialog" : undefined}
+              aria-label={item.id === "mine" && item.badge !== undefined
+                ? `我的，${item.badge === true ? "有待办" : `${item.badge} 条待办`}`
+                : undefined}
               aria-controls={expanded ? SHEET_ID : undefined}
               data-dock={item.id}
               onClick={(event) => onDockTap(event, item.id)}
@@ -276,41 +247,17 @@ export default function MobileDock(props: MobileDockProps) {
           );
         })}
       </nav>
-
       <BottomSheet
         key={session}
         id={SHEET_ID}
         open={open}
         onClose={close}
-        title={shown?.label ?? ""}
-        subtitle={slot ? SHEET_META[slot].subtitle : undefined}
-        action={
-          slot && SHEET_META[slot].action ? (
-            <Link
-              href={SHEET_META[slot].action!.href}
-              className={s.sheetGo}
-              onClick={close}
-            >
-              {SHEET_META[slot].action!.label}
-              <svg
-                width="11"
-                height="11"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2.4"
-                strokeLinecap="round"
-                aria-hidden="true"
-              >
-                <path d="M9 5l7 7-7 7" />
-              </svg>
-            </Link>
-          ) : undefined
-        }
+        title={mine?.label ?? "我的"}
+        subtitle={SHEET_META.mine.subtitle}
       >
-        {shown && slot && (
+        {open && mine && (
           <SheetContent
-            id={slot}
+            id="mine"
             onSelect={close}
             menus={props.menus}
             ready={props.ready}

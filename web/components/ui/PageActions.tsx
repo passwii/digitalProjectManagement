@@ -10,6 +10,7 @@
 // 没有主操作的页签（例如系统管理的「日志」）不传 actions，避免渲染出一条空行。
 import type { ReactNode } from "react";
 import MotionReveal from "@/components/motion/MotionReveal";
+import { useRegisterPageTitle } from "./PageTitleContext";
 
 export default function PageActions({
   title,
@@ -20,6 +21,8 @@ export default function PageActions({
   /** 页面主操作按钮；不传则不渲染操作行 */
   actions?: ReactNode;
 }) {
+  useRegisterPageTitle(title);
+
   return (
     <>
       <h1 className="sr-only">{title}</h1>

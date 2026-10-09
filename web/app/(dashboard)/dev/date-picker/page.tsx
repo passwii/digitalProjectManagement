@@ -13,6 +13,7 @@ import { useState } from "react";
 import { DatePicker, DateRangePicker, MonthPicker } from "@/components/ui/DatePicker";
 import Field from "@/components/ui/Field";
 import { Dialog } from "@/components/ui/Modal";
+import { useRegisterPageTitle } from "@/components/ui/PageTitleContext";
 import s from "./date-picker.module.css";
 
 function Row({ title, note, children }: { title: string; note?: string; children: React.ReactNode }) {
@@ -80,6 +81,7 @@ function DialogHost({ onClose }: { onClose: () => void }) {
 }
 
 export default function DatePickerReferencePage() {
+  useRegisterPageTitle("日期组件");
   const [single, setSingle] = useState("2026-09-29");
   const [empty, setEmpty] = useState("");
   const [bounded, setBounded] = useState("");
@@ -92,7 +94,7 @@ export default function DatePickerReferencePage() {
   return (
     <div className={s.page}>
       <header className={s.pageHead}>
-        <h1>日期组件</h1>
+        <h1 className="sr-only">日期组件</h1>
         <p className={s.lede}>
           替代原生 <code className="mono">input[type=date]</code> 的样式化组件。
           值契约与原生一致：单选产出 <code className="mono">YYYY-MM-DD</code>，月份产出{" "}

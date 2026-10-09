@@ -313,8 +313,8 @@
   box-shadow: var(--nav-shadow);
   backdrop-filter: none;
 }
-.shell[data-console-shell="true"] .crumb { color: var(--nav-muted); }
-.shell[data-console-shell="true"] .crumb b { color: var(--nav-ink); }
+.shell[data-console-shell="true"] .topTitle { color: var(--nav-ink); }
+.shell[data-console-shell="true"] .topTitleMark { border-color: var(--nav-active-accent); background: var(--nav-active-bg); }
 .shell[data-console-shell="true"] .topDate { color: var(--nav-muted); }
 .shell[data-console-shell="true"] .userChipWrap { border-left-color: var(--line); }
 .shell[data-console-shell="true"] .userChipText b { color: var(--nav-ink); }
@@ -326,8 +326,7 @@
   border-bottom-color: var(--line);
   box-shadow: none;
 }
-:global(:root[data-theme="light"]) .shell[data-console-shell="true"] .crumb { color: var(--ink-3); }
-:global(:root[data-theme="light"]) .shell[data-console-shell="true"] .crumb b,
+:global(:root[data-theme="light"]) .shell[data-console-shell="true"] .topTitle { color: var(--ink); }
 :global(:root[data-theme="light"]) .shell[data-console-shell="true"] .userChipText b { color: var(--ink); }
 :global(:root[data-theme="light"]) .shell[data-console-shell="true"] .topDate { color: var(--ink-3); }
 :global(:root[data-theme="light"]) .shell[data-console-shell="true"] .userChip:hover .avatarSkel,
@@ -353,15 +352,28 @@
 .shell[data-console-shell="true"] .collapseBtn {
   border-radius: 0;
 }
-.topContext { min-width: 0; display: flex; align-items: baseline; gap: 12px; }
-.crumb {
+.topContext { min-width: 0; display: flex; align-items: center; gap: 12px; }
+.topTitleMark {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border: 1px solid var(--brand);
+  background: var(--brand-soft);
+  box-shadow: 0 0 14px var(--signal-glow);
+}
+:global(:root[data-theme="light"]) .shell[data-console-shell="true"] .topTitleMark {
+  box-shadow: none;
+}
+.topTitle {
   overflow: hidden;
-  color: var(--ink-3);
-  font-size: 13px;
+  color: var(--ink);
+  font-size: 18px;
+  font-weight: 720;
+  letter-spacing: -.015em;
+  line-height: 1.2;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.crumb b { color: var(--ink); font-weight: 650; }
 .topActions { display: flex; align-items: center; gap: 16px; }
 .topDate {
   color: var(--ink-3);
@@ -571,7 +583,7 @@
 }
 @media (max-width: 520px) {
   .brandText b { font-size: 15px; }
-  .crumb { max-width: 210px; }
+  .topTitle { max-width: min(210px, 55vw); font-size: 16px; }
 }
 
 /*

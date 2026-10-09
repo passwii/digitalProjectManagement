@@ -1,9 +1,11 @@
 // @vitest-environment jsdom
+import { useState } from "react";
 import { afterEach, describe, expect, it } from "vitest";
-import { cleanup, render } from "@testing-library/react";
+import { cleanup, render, screen } from "@testing-library/react";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import PageHeader from "../components/ui/PageHeader";
+import { PageTitleContext } from "../components/ui/PageTitleContext";
 
 afterEach(() => cleanup());
 
@@ -19,20 +21,32 @@ describe("PageHeader", () => {
 
     expect(document.querySelector("h1.sr-only")?.textContent).toBe("项目台账");
     expect(document.querySelector('[data-page-header="true"]')).not.toBeNull();
-    expect(document.querySelector('[data-page-header-title="true"]')?.textContent).toBe("项目台账");
+    expect(document.querySelector('[data-page-header-title="true"]')).toBeNull();
     expect(document.querySelector('[data-page-header-filters="true"] input')).not.toBeNull();
     expect(document.querySelector('[data-page-header-actions="true"] button')?.textContent).toBe("新建项目");
   });
 
-  it("没有筛选或操作时不创建空区域", () => {
-    render(<PageHeader title="审批中心" />);
+  it("只注册标题供应用顶栏显示，不在正文重复渲染标题", () => {
+    function TitleHost() {
+      const [title, setTitle] = useState("控制台");
+      return (
+        <PageTitleContext.Provider value={setTitle}>
+          <PageHeader title="审批中心" />
+          <output>{title}</output>
+        </PageTitleContext.Provider>
+      );
+    }
 
-    expect(document.querySelector('[data-page-header-filters="true"]')).toBeNull();
-    expect(document.querySelector('[data-page-header-actions="true"]')).toBeNull();
+    render(<TitleHost />);
+
+    expect(document.querySelector("h1.sr-only")?.textContent).toBe("审批中心");
+    expect(document.querySelector('[data-page-header-title="true"]')).toBeNull();
+    expect(document.querySelector('[data-page-header="true"]')).toBeNull();
+    expect(screen.getByText("审批中心", { selector: "output" })).toBeTruthy();
   });
 
   it("把自定义 class 连接到头部视觉容器", () => {
-    render(<PageHeader title="报表" className="reports-header" />);
+    render(<PageHeader title="报表" className="reports-header" actions={<button type="button">刷新</button>} />);
     expect(document.querySelector('[data-page-header="true"].reports-header')).not.toBeNull();
   });
 

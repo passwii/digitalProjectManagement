@@ -37,6 +37,7 @@ import Badge from "@/components/ui/Badge";
 import Empty from "@/components/ui/Empty";
 import { CardItem, CardList, DesktopTable } from "@/components/ui/CardList";
 import { LoadingBlock } from "@/components/ui/PageState";
+import { useRegisterPageTitle } from "@/components/ui/PageTitleContext";
 import FileDropZone from "@/components/ui/FileDropZone";
 import { useToast } from "@/components/ui/Toast";
 import MotionTabs from "@/components/motion/MotionTabs";
@@ -72,6 +73,7 @@ function ProjectDetail({ pid }: { pid: number }) {
   const { beginActivity } = useActivity();
   const [tab, setTab] = useState<Tab>(() => parseProjectTab(search.get("tab")));
   const [project, setProject] = useState<Project | null>(null);
+  useRegisterPageTitle(project?.name ?? "项目档案");
   const [content, setContent] = useState("");
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
   /** 项目级附件（`ref_type=""`）：图片进素材墙，其余（PDF/Word/Excel）进附件资料列表。 */
@@ -517,11 +519,9 @@ function ProjectDetail({ pid }: { pid: number }) {
     <div>
       <div className="page-head project-detail-head">
         <div>
-          <h1>
-            <span className="ellipsis" title={project.name}>{project.name}</span>
-            <span className="sub mono">{project.code}</span>
-          </h1>
+          <h1 className="sr-only">{project.name}</h1>
           <div className="project-meta">
+            <span className="mono">{project.code}</span>
             <span>负责人：{owner || "-"}</span>
             <span>客户：{project.client || "-"}</span>
             <span>合同：{project.contract_status ? contractStatusLabel(project.contract_status) : "未登记"}</span>
