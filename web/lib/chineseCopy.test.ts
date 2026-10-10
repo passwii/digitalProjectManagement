@@ -75,7 +75,8 @@ describe("生产端中文界面文案", () => {
       assert.doesNotMatch(assets, new RegExp(redundantCopy));
     }
     assert.match(assets, /永久删除会连带清除该资产的设备流水，无法恢复/);
-    assert.match(changelog, /<h1>功能更新<\/h1>/);
+    assert.match(changelog, /<h1 className="sr-only">功能更新<\/h1>/);
+    assert.match(changelog, /useRegisterPageTitle\("功能更新"\)/);
     assert.doesNotMatch(changelog, /记录每一次重要能力的上线与迭代/);
     assert.doesNotMatch(changelog, /从项目管理基本盘，到财务与移动协同，持续推进/);
   });

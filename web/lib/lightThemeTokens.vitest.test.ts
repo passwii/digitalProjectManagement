@@ -56,7 +56,7 @@ describe("浅色主题色彩契约", () => {
 
   it("已确认的白色顶栏及其控件在浅色主题下保持可读", () => {
     expect(shellCss).toMatch(/:global\(:root\[data-theme="light"\]\)\s*\.shell\[data-console-shell="true"\]\s*\.topbar\s*\{[^}]*background:\s*var\(--card\)/s);
-    expect(shellCss).toMatch(/:global\(:root\[data-theme="light"\]\)[\s\S]*?\.crumb b,[\s\S]*?\.userChipText b\s*\{\s*color:\s*var\(--ink\);/);
+    expect(shellCss).toMatch(/:global\(:root\[data-theme="light"\]\)\s*\.shell\[data-console-shell="true"\]\s*\.topTitle\s*\{\s*color:\s*var\(--ink\);\s*\}/);
     expect(shellCss).toMatch(/\.userChip:hover \.avatarSkel,[\s\S]*?\.userChip\[aria-expanded="true"\] \.nameSkel\s*\{[^}]*background:\s*var\(--ink-2\)/s);
     expect(bellCss).toMatch(/\.bell\s*\{[^}]*color:\s*var\(--ink-2\)/s);
     expect(contrast(tokens["ink-2"], tokens.card)).toBeGreaterThanOrEqual(3);

@@ -16,6 +16,7 @@ import { ToastProvider } from "@/components/ui/Toast";
 import ActivityBar from "@/components/motion/ActivityBar";
 import MotionProvider from "@/components/motion/MotionProvider";
 import MobileDock from "@/components/mobile/MobileDock";
+import { PageTitleContext } from "@/components/ui/PageTitleContext";
 import s from "@/components/ui/Shell.module.css";
 
 /**
@@ -100,6 +101,8 @@ const LABEL: Record<string, string> = {
   "/dashboard": "工作台",
   "/projects": "项目台账",
   "/opportunities": "商机管理",
+  "/progress": "进度跟踪",
+  "/costs": "支出记录",
   "/assets": "资产管理",
   "/reports": "支出报表",
   "/approvals": "审批中心",
@@ -114,8 +117,6 @@ const LABEL: Record<string, string> = {
 
 /** 工作台恒可见；权限同步失败时退回这组参与性入口，绝不因同步失败就清空导航 */
 const BASE_HREFS = ["/dashboard", "/opportunities", "/projects", "/assets", "/reports"];
-
-const CRUMB: Record<string, string> = LABEL;
 
 interface NavItem {
   href: string;
@@ -370,7 +371,18 @@ function DashboardShell({ children, modal }: { children: React.ReactNode; modal?
   const { menus, isAdmin, ready: permsReady, loading: permsLoading, error: permsError, reload: reloadMenus, canApprove } = useMenus();
   const reduced = useReducedMotion();
 
-  const current = Object.keys(CRUMB).find((k) => pathname === k || pathname.startsWith(k + "/"));
+  const current = Object.keys(LABEL).find((k) => pathname === k || pathname.startsWith(k + "/"));
+  const [registeredTitle, setRegisteredTitle] = useState<{ pathname: string; title: string } | null>(null);
+  const pageTitle = registeredTitle?.pathname === pathname
+    ? registeredTitle.title
+    : current ? LABEL[current] : "控制台";
+  const registerPageTitle = useCallback((title: string) => {
+    setRegisteredTitle((previous) =>
+      previous?.pathname === pathname && previous.title === title
+        ? previous
+        : { pathname, title },
+    );
+  }, [pathname]);
   const today = new Date().toISOString().slice(0, 10);
 
   const navItems = useMemo<NavItem[]>(() => {
@@ -437,13 +449,14 @@ function DashboardShell({ children, modal }: { children: React.ReactNode; modal?
 
   return (
     <>
-    <a className="skip-link" href="#main-content">跳到主要内容</a>
-    <div
-      className={`${s.shell} ${collapsed ? s.collapsed : ""}`}
-      data-console-shell="true"
-      data-console-route={pathname}
-      data-dashboard-shell={pathname === "/dashboard" ? "true" : undefined}
-    >
+    <PageTitleContext.Provider value={registerPageTitle}>
+      <a className="skip-link" href="#main-content">跳到主要内容</a>
+      <div
+        className={`${s.shell} ${collapsed ? s.collapsed : ""}`}
+        data-console-shell="true"
+        data-console-route={pathname}
+        data-dashboard-shell={pathname === "/dashboard" ? "true" : undefined}
+      >
       <aside className={s.sidebar} data-shell="sidebar">
         <div className={s.ws} data-testid="sidebar-brand">
           <div className={s.wsName} title="数科云办公">
@@ -515,7 +528,8 @@ function DashboardShell({ children, modal }: { children: React.ReactNode; modal?
       <div className={s.main}>
         <header className={s.topbar} data-shell="topbar">
           <div className={s.topContext}>
-            <span className={s.crumb}>数科云办公 / <b>{current ? CRUMB[current] : "控制台"}</b></span>
+            <span className={s.topTitleMark} aria-hidden="true" />
+            <span className={s.topTitle} data-page-title="true">{pageTitle}</span>
           </div>
           <div className={s.topActions}>
             <span className={s.topDate}>{today}</span>
@@ -538,26 +552,15 @@ function DashboardShell({ children, modal }: { children: React.ReactNode; modal?
           </div>
         </main>
       </div>
-
-      {/*
-        手机外壳（BLF-1127 §7）：与上面 <aside> 里的侧栏**同时**在 DOM 里，
-        由 767px 断点的 CSS 决定谁在场——SSR 首帧判断不了断点，用 matchMedia
-        切外壳会先闪一次错误外壳（手机上闪一下桌面侧栏）。
-        权限状态复用上面同一个 useMenus()：两个外壳不会各自拿到不同批次的菜单。
-
-        顶栏 / 通知铃铛不在这里重复一份：它们本来就在 .main 里，≤767px 由
-        Shell.module.css 收窄成手机顶栏即可——重复渲染会得到两个 aria-label 相同的
-        铃铛（读屏与既有走查脚本都会撞上），并让未读数每分钟轮询两次。
-      */}
       {modal}
       <MobileDock
         menus={menus}
         ready={permsReady}
         failed={Boolean(permsError)}
         canApprove={canApprove}
-        isAdmin={isAdmin}
       />
     </div>
+    </PageTitleContext.Provider>
     </>
   );
 }

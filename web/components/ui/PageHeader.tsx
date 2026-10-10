@@ -1,6 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
+import { useRegisterPageTitle } from "./PageTitleContext";
 import s from "./PageHeader.module.css";
 
 export default function PageHeader({
@@ -14,27 +15,28 @@ export default function PageHeader({
   actions?: ReactNode;
   className?: string;
 }) {
+  useRegisterPageTitle(title);
+
   return (
     <>
       <h1 className="sr-only">{title}</h1>
-      <header
-        className={`${s.pageHeader}${className ? ` ${className}` : ""}`}
-        data-page-header="true"
-      >
-        <div className={s.titleWrap} data-page-header-title="true">
-          <span className={s.title}>{title}</span>
-        </div>
-        {filters && (
-          <div className={s.filters} data-page-header-filters="true">
-            {filters}
-          </div>
-        )}
-        {actions && (
-          <div className={`${s.actions} no-print`} data-page-header-actions="true">
-            {actions}
-          </div>
-        )}
-      </header>
+      {(filters || actions) && (
+        <header
+          className={`${s.pageHeader}${className ? ` ${className}` : ""}`}
+          data-page-header="true"
+        >
+          {filters && (
+            <div className={s.filters} data-page-header-filters="true">
+              {filters}
+            </div>
+          )}
+          {actions && (
+            <div className={`${s.actions} no-print`} data-page-header-actions="true">
+              {actions}
+            </div>
+          )}
+        </header>
+      )}
     </>
   );
 }

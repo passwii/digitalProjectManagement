@@ -55,6 +55,7 @@
   }
   .tab:hover { color: var(--nav-ink); text-decoration: none; }
   .tab:focus-visible { outline-color: var(--nav-active-accent); }
+  .tab:active { background: var(--nav-hover-bg); }
 
   .icon { display: block; height: 22px; }
 
@@ -115,28 +116,4 @@
 
 @media (prefers-reduced-motion: reduce) {
   .pill { transition: none; }
-}
-
-/* 抽屉头部的「进入模块」动作（S4）：随抽屉开合，不属于 Dock 本体，
-   放媒体查询外 —— BottomSheet 只在手机外壳打开时渲染 */
-.sheetGo {
-  flex: none;
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  min-height: var(--m-tap);
-  padding: 0 12px;
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  background: var(--card);
-  color: var(--ink-2);
-  font-size: 12.5px;
-  font-weight: 650;
-  text-decoration: none;
-  white-space: nowrap;
-}
-.sheetGo:hover {
-  border-color: var(--brand);
-  color: var(--brand);
-  text-decoration: none;
 }

@@ -13,7 +13,7 @@ from scripts.acceptance_tablet_landscape import (
     is_safe_fixture_browser_request,
     internal_table_scroll_valid,
     topbar_within_viewport,
-    page_header_overlap_passes,
+    page_title_within_viewport_passes,
     rects_overlap,
     route_main_visible,
     routes_for_viewport,
@@ -168,16 +168,17 @@ class TabletLandscapeAcceptanceHelpersTest(unittest.TestCase):
         self.assertTrue(route_main_visible("/spark/dashboard", {"shell": {"sparkMain": {"rect": {"width": 1, "height": 1}, "style": {}}}}))
         self.assertFalse(route_main_visible("/spark/dashboard", {"shell": {"main": None, "sparkMain": None}}))
 
-    def test_title_overlap_is_checked_only_when_page_header_exists(self):
-        self.assertTrue(page_header_overlap_passes("/projects", {"titlePrimaryOverlap": False, "shell": {"pageHeader": True}}))
-        self.assertFalse(page_header_overlap_passes("/projects", {"titlePrimaryOverlap": True, "shell": {"pageHeader": True}}))
-        self.assertTrue(page_header_overlap_passes("/projects", {"titlePrimaryOverlap": None, "shell": {"pageHeader": None}}))
-        self.assertTrue(page_header_overlap_passes("/spark/dashboard", {"titlePrimaryOverlap": True, "shell": {"pageHeader": True}}))
+    def test_registered_page_title_must_exist_and_fit_inside_viewport(self):
+        visible_title = {"rect": {"width": 180, "left": 252, "right": 432}}
+        self.assertTrue(page_title_within_viewport_passes("/projects", {"pageTitle": visible_title, "viewport": {"width": 1180}}))
+        self.assertFalse(page_title_within_viewport_passes("/projects", {"pageTitle": None, "viewport": {"width": 1180}}))
+        self.assertFalse(page_title_within_viewport_passes("/projects", {"pageTitle": {"rect": {"width": 180, "left": 252, "right": 1182}}, "viewport": {"width": 1180}}))
+        self.assertFalse(page_title_within_viewport_passes("/projects", {"pageTitle": {"rect": {"width": 0, "left": 252, "right": 252}}, "viewport": {"width": 1180}}))
+        self.assertTrue(page_title_within_viewport_passes("/spark/dashboard", {"pageTitle": None, "viewport": {"width": 1180}}))
 
-    def test_page_header_flex_copies_finance_filter_and_controls_into_first_row(self):
+    def test_page_header_flex_copies_finance_filters_and_controls_into_first_row(self):
         stylesheet = __import__("pathlib").Path("web/components/ui/PageHeader.module.css").read_text()
         self.assertIn("grid-template-columns: minmax(0, 1fr) auto", stylesheet)
-        self.assertIn(".titleWrap", stylesheet)
         self.assertIn(".filters", stylesheet)
         self.assertIn("grid-row: 2", stylesheet)
         self.assertIn(".actions", stylesheet)
