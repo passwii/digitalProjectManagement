@@ -107,7 +107,11 @@
   background: var(--brand);
   opacity: .65;
 }
-.brandText { min-width: 0; display: flex; flex-direction: column; transition: opacity 150ms ease, transform 180ms ease; }
+/*
+  展开动画期间窄栏会把品牌文字压成 0 宽：nowrap 防止它折行撑高头部，
+  overflow 让文字随栏宽揭开，而不是溢出印章或画到侧栏外。
+*/
+.brandText { min-width: 0; display: flex; flex-direction: column; overflow: hidden; white-space: nowrap; }
 .brandText b {
   color: var(--nav-ink);
   font-family: var(--font-brand);
@@ -116,11 +120,11 @@
   letter-spacing: .06em;
 }
 /*
-  收起时品牌文字脱离流式布局：76px 窄栏里若仍占位，会被压成 0 宽并把 34px
-  印章挤出容器、顶到侧栏左缘，与下方居中的导航图标错位。absolute 后印章独占
-  一行，由 .wsNameCollapsed 居中，与导航图标同轴。
+  收起时品牌文字与导航标签直接退场。不要改成 visibility/opacity「隐藏」：
+  那样标签仍占布局，56px 行宽里 14px 的中文标签会折成 3-4 行，把 42px 的
+  导航行撑到三倍高，图标间隔随之失控。退场后印章与图标各自居中、同一条轴线。
 */
-.collapsed .brandText { position: absolute; opacity: 0; transform: translateX(-5px); visibility: hidden; }
+.collapsed .brandText { display: none; }
 
 .nav {
   flex: 1;
@@ -148,6 +152,9 @@
   display: flex;
   align-items: center;
   gap: 11px;
+  /* 展开动画期间栏宽从 76px 长回来，nowrap 标签靠这里裁切渐进显现，
+     不然文字会在窄行里折行、行高跳动。 */
+  overflow: hidden;
   border-radius: 0;
   color: var(--nav-muted);
   font-size: 13px;
@@ -158,8 +165,8 @@
 .navLink > .label {
   position: relative;
   z-index: 1;
-  transition: opacity 130ms ease, transform 180ms ease;
 }
+.navLink > .label { white-space: nowrap; }
 .navActive {
   position: absolute;
   inset: 0;
@@ -201,7 +208,7 @@
 .navLink:focus-visible,
 .collapseBtn:focus-visible { outline-color: var(--nav-active-accent); }
 .collapsed .navLink { justify-content: center; padding: 0; }
-.collapsed .navLink .label { opacity: 0; transform: translateX(-5px); visibility: hidden; }
+.collapsed .navLink .label { display: none; }
 
 .navError {
   margin: 0 10px 10px;
@@ -548,8 +555,8 @@
   .brandSealToggle { border-radius: 5px; }
   .collapsed .brandSealToggle { cursor: default; }
   .collapsed .brandSealToggle:hover { background: transparent; }
-  /* ≤900px 收起态文字仍然可见，必须回到流式布局抵消上面的 absolute */
-  .collapsed .brandText { position: static; opacity: 1; transform: none; visibility: visible; }
+  /* ≤900px 横向导航：收起态文字仍然可见，必须抵消桌面那份 display:none */
+  .collapsed .brandText { display: flex; }
   .collapseBtn { display: none; }
   .nav {
     flex-direction: row;
@@ -563,7 +570,7 @@
     min-height: 38px;
     padding: 0 12px;
   }
-  .collapsed .navLink .label { opacity: 1; transform: none; visibility: visible; }
+  .collapsed .navLink .label { display: inline; }
   .navActive { box-shadow: inset 0 0 14px var(--brand-soft); }
   .navGroupLabel,
   .navError { display: none; }
@@ -598,10 +605,9 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+  /* 标签显隐已回到 display 切换（无过渡），这里只需压掉剩下的宽度/位移过渡 */
   .shell[data-console-shell="true"] .sidebar,
   .shell[data-console-shell="true"] .main,
-  .shell[data-console-shell="true"] .wsName > .brandText,
-  .shell[data-console-shell="true"] .navLink > .label,
   .shell[data-console-shell="true"] .collapseBtn { transition-duration: 1ms; }
 }
 @media (max-width: 520px) {
