@@ -29,6 +29,17 @@ export const CHANGELOG_VERSIONS: ChangelogVersion[] = [
     summary: "围绕项目管理基本盘，扩展财务、主题切换、商机与演示能力，持续打磨移动端、登录、附件预览和协同体验。",
     days: [
       {
+        date: "2026-10-10",
+        entries: [
+          {
+            kind: "优化",
+            title: "侧边栏收起与展开交互优化",
+            description:
+              "支持收起和展开侧边栏；收起后点击品牌图标可重新展开，方便在精简导航与完整导航之间切换。",
+          },
+        ],
+      },
+      {
         date: "2026-10-08",
         entries: [
           {
