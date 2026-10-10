@@ -459,31 +459,46 @@ function DashboardShell({ children, modal }: { children: React.ReactNode; modal?
       >
       <aside className={s.sidebar} data-shell="sidebar">
         <div className={s.ws} data-testid="sidebar-brand">
-          <div className={s.wsName} title="数科云办公">
+          <div className={`${s.wsName} ${collapsed ? s.wsNameCollapsed : ""}`} title="数科云办公">
             {/*
               侧栏印章与 PWA 图标（app/icon.svg）同源：双层细框 + 加粗字标 +
               字下一根短线。图标里的深色大底和底部小字在 34px 下会糊成一团，
               这里只取三处识别特征，字标右侧仍由 .brandText 承担。
             */}
-            <span className={s.brandSeal} aria-hidden="true">
-              <span className={s.brandSealWord}>SHZK</span>
-              <span className={s.brandSealBar} />
-            </span>
+            {collapsed ? (
+              <button
+                className={`${s.brandSeal} ${s.brandSealToggle}`}
+                type="button"
+                onClick={() => setCollapsed(false)}
+                aria-label="展开侧边栏"
+                title="展开侧边栏"
+              >
+                <span className={s.brandSealWord}>SHZK</span>
+                <span className={s.brandSealBar} />
+              </button>
+            ) : (
+              <span className={s.brandSeal} aria-hidden="true">
+                <span className={s.brandSealWord}>SHZK</span>
+                <span className={s.brandSealBar} />
+              </span>
+            )}
             <span className={s.brandText}>
               <b>数科云办公</b>
             </span>
           </div>
-          <button
-            className={s.collapseBtn}
-            onClick={() => setCollapsed((v) => !v)}
-            aria-expanded={!collapsed}
-            aria-label={collapsed ? "展开侧边栏" : "收起侧边栏"}
-            title={collapsed ? "展开侧边栏" : "收起侧边栏"}
-          >
-            <svg viewBox="0 0 20 20" aria-hidden="true">
-              {collapsed ? <path d="m7.5 4.5 5.5 5.5-5.5 5.5" /> : <path d="m12.5 4.5-5.5 5.5 5.5 5.5" />}
-            </svg>
-          </button>
+            {collapsed ? null : (
+              <button
+                className={s.collapseBtn}
+                onClick={() => setCollapsed(true)}
+                aria-expanded="true"
+                aria-label="收起侧边栏"
+                title="收起侧边栏"
+              >
+                <svg viewBox="0 0 20 20" aria-hidden="true">
+                  <path d="m12.5 4.5-5.5 5.5 5.5 5.5" />
+                </svg>
+              </button>
+            )}
         </div>
         <nav className={s.nav} aria-label="主导航" aria-busy={permsLoading}>
           {navItems.map((n) => {

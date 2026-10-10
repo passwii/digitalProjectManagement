@@ -335,15 +335,18 @@ describe("BLF-1141 顶栏账号菜单（身份区已从侧栏搬走）", () => {
     await mountSignedIn();
 
     const sidebar = document.querySelector('[data-shell="sidebar"]') as HTMLElement;
-    const button = screen.getByRole("button", { name: "收起侧边栏" });
-    expect(sidebar.querySelector('[data-testid="sidebar-brand"]')?.contains(button)).toBe(true);
-    expect(button.getAttribute("aria-expanded")).toBe("true");
+    const collapseButton = screen.getByRole("button", { name: "收起侧边栏" });
+    expect(sidebar.querySelector('[data-testid="sidebar-brand"]')?.contains(collapseButton)).toBe(true);
+    expect(collapseButton.getAttribute("aria-expanded")).toBe("true");
 
-    fireEvent.click(button);
-    expect(screen.getByRole("button", { name: "展开侧边栏" }).getAttribute("aria-expanded")).toBe("false");
+    fireEvent.click(collapseButton);
+    const brandToggle = screen.getByRole("button", { name: "展开侧边栏" });
+    expect(sidebar.querySelector('[data-testid="sidebar-brand"]')?.contains(brandToggle)).toBe(true);
+    expect(sidebar.querySelectorAll("button")).toHaveLength(1);
 
-    fireEvent.click(screen.getByRole("button", { name: "展开侧边栏" }));
+    fireEvent.click(brandToggle);
     expect(screen.getByRole("button", { name: "收起侧边栏" }).getAttribute("aria-expanded")).toBe("true");
+    expect(screen.queryByRole("button", { name: "展开侧边栏" })).toBeNull();
   });
 
   it("菜单与顶栏 chip 都不再出现角色权限文案", async () => {
