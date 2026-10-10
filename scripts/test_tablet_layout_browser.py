@@ -356,7 +356,8 @@ class TabletLandscapeBrowserTest(unittest.TestCase):
         for width, height in TABLET_VIEWPORTS:
             for route in routes:
                 with self.subTest(width=width, route=route):
-                    self._open(route, width, height, require_page_header=route not in {"/changelog", "/admin"})
+                    # /assets 总览态无 header 是有意的；PageHeader 仅在有筛选项或操作时渲染。
+                    self._open(route, width, height, require_page_header=route not in {"/changelog", "/admin", "/assets"})
                     state = self.page.evaluate(
                         """() => ({width:innerWidth,documentWidth:document.documentElement.scrollWidth,
                           sidebar:getComputedStyle(document.querySelector('[data-shell="sidebar"]')).display,

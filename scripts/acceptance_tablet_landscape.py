@@ -282,7 +282,7 @@ def measure_page(page: Page) -> dict[str, Any]:
           return {
             url: location.href, title: document.title,
             viewport: { width: innerWidth, height: innerHeight, documentWidth: document.documentElement.scrollWidth, bodyWidth: document.body.scrollWidth },
-            shell: { sidebar: visible(document.querySelector('[data-shell="sidebar"]')), topbar: visible(document.querySelector('[data-shell="topbar"]')), dock: visible(document.querySelector('[data-shell="dock"]')), main: visible(document.querySelector('#main-content')), sparkMain: visible(document.querySelector('#spark-main')), pageHeader: visible(document.querySelector('[data-page-header="true"], .page-head')) },
+            shell: { sidebar: visible(document.querySelector('[data-shell="sidebar"]')), topbar: visible(document.querySelector('[data-shell="topbar"]')), dock: visible(document.querySelector('[data-shell="dock"]')), main: visible(document.querySelector('#main-content')), sparkMain: visible(document.querySelector('#spark-main')) },
             pageTitle, accountMenu: visible(document.querySelector('[role="menu"]')), tables, filters, overflowCandidates, elements,
           };
         }""", INTERESTING_ELEMENTS,

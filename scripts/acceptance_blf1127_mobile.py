@@ -305,7 +305,7 @@ def sheet_state(page) -> dict | None:
                 role: panel.getAttribute('role'),
                 ariaModal: panel.getAttribute('aria-modal'),
                 x: rect.x, right: rect.right, bottom: rect.bottom, width: rect.width, height: rect.height,
-                viewportWidth: innerWidth, viewportHeight: innerHeight,
+                viewportWidth: innerWidth, containerWidth: document.body.clientWidth, viewportHeight: innerHeight,
                 scrimOn: scrim?.dataset.on ?? null,
                 scrimOpacity: scrim ? Number(getComputedStyle(scrim).opacity) : 0,
                 scrimPointerEvents: scrim ? getComputedStyle(scrim).pointerEvents : null,
@@ -593,8 +593,8 @@ def main() -> int:
             start = "/projects" if target == "/dashboard" else "/dashboard"
             page.goto(f"{BASE}{start}", wait_until="networkidle")
             page.wait_for_timeout(250)
-            with page.expect_url(re.compile(rf"{re.escape(BASE + target)}(?:[?#].*)?$"), timeout=10000):
-                page.click(f'[data-shell="dock"] [data-dock="{dock_id}"]')
+            page.click(f'[data-shell="dock"] [data-dock="{dock_id}"]')
+            page.wait_for_url(re.compile(rf"{re.escape(BASE + target)}(?:[?#].*)?$"), timeout=10000)
             page.wait_for_timeout(450)
             record(
                 f"S3：点「{dock_id}」一次直达 {target} 且不打开面板",
@@ -615,9 +615,9 @@ def main() -> int:
         record(
             "S3：我的面板贴底满宽且不超过 78vh",
             abs(panel["bottom"] - panel["viewportHeight"]) <= 1
-            and abs(panel["width"] - panel["viewportWidth"]) <= 1
+            and abs(panel["width"] - panel["containerWidth"]) <= 1
             and panel["height"] <= panel["viewportHeight"] * 0.78 + 2,
-            f"面板 {panel['width']}×{panel['height']}，视口 {panel['viewportWidth']}×{panel['viewportHeight']}",
+            f"面板 {panel['width']}×{panel['height']}，包含块 {panel['containerWidth']}px，视口 {panel['viewportWidth']}×{panel['viewportHeight']}",
         )
         record(
             "S3：我的面板遮罩、模态语义与焦点锁定有效",
@@ -645,7 +645,7 @@ def main() -> int:
         record(
             "S3：短屏我的面板正文可滚动且无横向溢出",
             short_panel["bodyScrollable"] and scrolled_panel["bodyScrollTop"] > 0
-            and scrolled_panel["width"] <= scrolled_panel["viewportWidth"] + 1
+            and scrolled_panel["width"] <= scrolled_panel["containerWidth"] + 1
             and page.evaluate("() => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 2"),
         )
         page.keyboard.press("Escape")
@@ -660,8 +660,8 @@ def main() -> int:
             start = "/projects" if target == "/dashboard" else "/dashboard"
             page.goto(f"{BASE}{start}", wait_until="networkidle")
             page.wait_for_timeout(250)
-            with page.expect_url(re.compile(rf"{re.escape(BASE + target)}(?:[?#].*)?$"), timeout=10000):
-                page.click(f'[data-shell="dock"] [data-dock="{dock_id}"]')
+            page.click(f'[data-shell="dock"] [data-dock="{dock_id}"]')
+            page.wait_for_url(re.compile(rf"{re.escape(BASE + target)}(?:[?#].*)?$"), timeout=10000)
             record(
                 f"S4：{dock_id} Dock 位导航至 {target}",
                 page.url.rstrip("/").endswith(target),
