@@ -115,8 +115,12 @@
   font-weight: 700;
   letter-spacing: .06em;
 }
-.collapsed .brandText { opacity: 0; transform: translateX(-5px); visibility: hidden; }
-.collapsed .wsName { max-width: calc(100% - 24px); }
+/*
+  收起时品牌文字脱离流式布局：76px 窄栏里若仍占位，会被压成 0 宽并把 34px
+  印章挤出容器、顶到侧栏左缘，与下方居中的导航图标错位。absolute 后印章独占
+  一行，由 .wsNameCollapsed 居中，与导航图标同轴。
+*/
+.collapsed .brandText { position: absolute; opacity: 0; transform: translateX(-5px); visibility: hidden; }
 
 .nav {
   flex: 1;
@@ -544,7 +548,8 @@
   .brandSealToggle { border-radius: 5px; }
   .collapsed .brandSealToggle { cursor: default; }
   .collapsed .brandSealToggle:hover { background: transparent; }
-  .collapsed .brandText { opacity: 1; transform: none; visibility: visible; }
+  /* ≤900px 收起态文字仍然可见，必须回到流式布局抵消上面的 absolute */
+  .collapsed .brandText { position: static; opacity: 1; transform: none; visibility: visible; }
   .collapseBtn { display: none; }
   .nav {
     flex-direction: row;
@@ -581,6 +586,8 @@
     那正是这次要消除的「两处各写一个高度然后慢慢漂移」。
   */
   .shell { --sidebar-width: 220px; --shell-head-h: 71px; }
+  /* 收起在该档位同样收成 76px 窄栏；否则折叠只会隐藏标签，留下一条 220px 的空轨 */
+  .shell.collapsed { --sidebar-width: 76px; }
   .sidebar,
   .collapsed .sidebar { width: var(--sidebar-width); flex-basis: var(--sidebar-width); }
   .ws { padding: 18px 14px 12px; }
