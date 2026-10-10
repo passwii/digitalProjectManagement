@@ -1,9 +1,9 @@
 .pageHeader {
   display: flex;
-  align-items: flex-end;
+  align-items: center;
+  justify-content: space-between;
   gap: 18px;
   min-width: 0;
-  min-height: 72px;
   margin-bottom: 22px;
   padding: 0 0 16px;
   border: 0;
@@ -11,31 +11,6 @@
   border-radius: 0;
   background: transparent;
   box-shadow: none;
-}
-
-.titleWrap {
-  display: flex;
-  align-items: center;
-  flex: 0 0 auto;
-  min-width: max-content;
-}
-
-.titleWrap::before {
-  width: 8px;
-  height: 8px;
-  margin-right: 10px;
-  border: 1px solid var(--brand);
-  background: var(--brand-soft);
-  box-shadow: 0 0 14px var(--signal-glow);
-  content: "";
-}
-
-.title {
-  color: var(--ink);
-  font-size: clamp(24px, 2.1vw, 32px);
-  font-weight: 740;
-  letter-spacing: -.025em;
-  line-height: 1.2;
 }
 
 .filters {
@@ -95,11 +70,6 @@
     grid-template-columns: minmax(0, 1fr) auto;
     align-items: start;
     gap: 12px 18px;
-  }
-
-  .titleWrap {
-    grid-column: 1;
-    grid-row: 1;
   }
 
   .filters {
@@ -174,8 +144,6 @@
     width: 100%;
     flex: 0 0 auto;
   }
-  .titleWrap { width: 100%; min-width: 0; }
-  .title { overflow-wrap: anywhere; }
   .filters > :global(.toolbar-field) {
     width: 100%;
     flex: 1 1 100%;

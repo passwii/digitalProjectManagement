@@ -9,6 +9,7 @@ import {
   type ChangelogVersionId,
 } from "@/lib/changelog";
 import s from "./changelog.module.css";
+import { useRegisterPageTitle } from "@/components/ui/PageTitleContext";
 
 const KIND_CLASS: Record<ChangelogKind, string> = {
   功能: s.kindFeature,
@@ -81,6 +82,7 @@ function Timeline({ version }: { version: ChangelogVersion }) {
 }
 
 export default function ChangelogPage() {
+  useRegisterPageTitle("功能更新");
   const [activeId, setActiveId] = useState<ChangelogVersionId>("v2");
   const active = CHANGELOG_VERSIONS.find((version) => version.id === activeId) ?? CHANGELOG_VERSIONS[0];
   const updateCount = active.days.reduce((count, day) => count + day.entries.length, 0);
@@ -89,7 +91,7 @@ export default function ChangelogPage() {
     <div className={s.page}>
       <header className={s.hero}>
         <div>
-          <h1>功能更新</h1>
+          <h1 className="sr-only">功能更新</h1>
         </div>
         <div className={s.currentMark} aria-label="V2 当前版本">
           <span>当前版本</span>
