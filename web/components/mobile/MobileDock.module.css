@@ -55,7 +55,9 @@
   }
   .tab:hover { color: var(--nav-ink); text-decoration: none; }
   .tab:focus-visible { outline-color: var(--nav-active-accent); }
-  .tab:active { background: var(--nav-hover-bg); }
+  /* Press feedback must use the same inset rounded shape as the selected pill;
+     a background on .tab itself fills the whole rectangular tap target. */
+  .tab:active .pill { opacity: 1; transform: none; }
 
   .icon { display: block; height: 22px; }
 
