@@ -30,7 +30,7 @@
     grid-auto-flow: column;
     grid-auto-columns: 1fr;
     align-items: center;
-    background: var(--navy);
+    background: var(--dock-bg);
     /* 上边缘一条实线 + 一层很轻的投影：手机上没有 hover，靠这两样造出层次 */
     box-shadow: 0 -1px 0 var(--line), 0 -12px 28px var(--dock-shadow);
     /* 双击缩放会带来 ~300ms 的点击延迟，Dock 是最高频的入口，必须去掉 */
@@ -49,14 +49,13 @@
     height: 46px;
     margin: 0 1px;
     border-radius: 0;
-    color: var(--nav-muted);
+    color: var(--dock-muted);
     text-decoration: none;
     transition: color var(--motion-fast) var(--ease-console), background var(--motion-fast) var(--ease-console);
   }
-  .tab:hover { color: var(--nav-ink); text-decoration: none; }
-  .tab:focus-visible { outline-color: var(--nav-active-accent); }
-  /* Press feedback must use the same inset rounded shape as the selected pill;
-     a background on .tab itself fills the whole rectangular tap target. */
+  .tab:hover { color: var(--dock-ink); text-decoration: none; }
+  .tab:focus-visible { outline-color: var(--dock-focus); }
+  /* Press feedback uses the same inset rounded shape as the selected pill. */
   .tab:active .pill { opacity: 1; transform: none; }
 
   .icon { display: block; height: 22px; }
@@ -72,12 +71,12 @@
     white-space: nowrap;
   }
 
-  /* 选中态：主题语义色 + 导航底色。没有 hover 的设备上仍能辨认当前位置 */
+  /* 选中态：主题语义色 + Dock 底色。没有 hover 的设备上仍能辨认当前位置 */
   .tabActive,
-  .tabActive:hover { color: var(--nav-active-accent, var(--brand)); }
+  .tabActive:hover { color: var(--dock-active-accent, var(--brand)); }
   .tabActive .label { font-weight: 700; }
   .tabOpen,
-  .tabOpen:hover { color: var(--nav-active-accent, var(--brand)); }
+  .tabOpen:hover { color: var(--dock-active-accent, var(--brand)); }
   .tabOpen .label { font-weight: 700; }
 
   .pill {
@@ -85,7 +84,7 @@
     inset: 2px 3px;
     z-index: -1;
     border-radius: 12px;
-    background: var(--nav-active-bg, var(--brand-soft));
+    background: var(--dock-active-bg, var(--brand-soft));
     opacity: 0;
     transform: scale(.9);
     transition: opacity 180ms var(--ease-console), transform 180ms var(--ease-console);
@@ -102,7 +101,7 @@
     margin-left: 6px;
     min-width: 16px;
     height: 16px;
-    border: 1.5px solid var(--nav-badge-border, var(--navy));
+    border: 1.5px solid var(--dock-badge-border, var(--navy));
     border-radius: 999px;
     background: var(--danger);
     color: var(--on-brand);
