@@ -54,6 +54,30 @@ describe("浅色主题色彩契约", () => {
     expect(tokens.action).toBe("#c6df7b");
   });
 
+  it("移动 Dock 在浅色主题下切换到浅色表面和内容语义色", () => {
+    expect(tokens["dock-bg"]).toBe("var(--card)");
+    expect(tokens["dock-ink"]).toBe("var(--ink)");
+    expect(tokens["dock-muted"]).toBe("var(--ink-2)");
+    expect(tokens["dock-hover-bg"]).toBe("var(--row-hover)");
+    expect(tokens["dock-active-bg"]).toBe("var(--brand-soft)");
+    expect(tokens["dock-active-accent"]).toBe("var(--brand)");
+    expect(tokens["dock-focus"]).toBe("var(--brand)");
+    expect(tokens["dock-badge-border"]).toBe("var(--card)");
+
+    expect(mobileDockCss).toMatch(/\.dock\s*\{[^}]*background:\s*var\(--dock-bg\)/);
+    expect(mobileDockCss).toMatch(/\.tab\s*\{[^}]*color:\s*var\(--dock-muted\)/);
+    expect(mobileDockCss).toMatch(/\.tabActive,[\s\S]*?\.tabActive:hover\s*\{[^}]*color:\s*var\(--dock-active-accent/);
+    expect(mobileDockCss).toMatch(/\.pill\s*\{[^}]*background:\s*var\(--dock-active-bg/);
+    expect(mobileDockCss).toMatch(/\.tab:focus-visible\s*\{\s*outline-color:\s*var\(--dock-focus\)/);
+    expect(mobileDockCss).toMatch(/\.dot,[\s\S]*?\.badge\s*\{[^}]*border:\s*1\.5px solid var\(--dock-badge-border, var\(--navy\)\)/);
+
+    expect(contrast(tokens["dock-ink"], tokens["dock-bg"])).toBeGreaterThanOrEqual(4.5);
+    expect(contrast(tokens["dock-muted"], tokens["dock-bg"])).toBeGreaterThanOrEqual(4.5);
+    expect(contrast(tokens["dock-active-accent"], tokens["dock-active-bg"])).toBeGreaterThanOrEqual(4.5);
+    expect(contrast(tokens["dock-focus"], tokens["dock-bg"])).toBeGreaterThanOrEqual(4.5);
+    expect(contrast(tokens["dock-badge-border"], tokens.danger)).toBeGreaterThanOrEqual(3);
+  });
+
   it("已确认的白色顶栏及其控件在浅色主题下保持可读", () => {
     expect(shellCss).toMatch(/:global\(:root\[data-theme="light"\]\)\s*\.shell\[data-console-shell="true"\]\s*\.topbar\s*\{[^}]*background:\s*var\(--card\)/s);
     expect(shellCss).toMatch(/:global\(:root\[data-theme="light"\]\)\s*\.shell\[data-console-shell="true"\]\s*\.topTitle\s*\{\s*color:\s*var\(--ink\);\s*\}/);
@@ -70,14 +94,14 @@ describe("浅色主题色彩契约", () => {
     expect(contrast(tokens["nav-ink"], tokens["nav-bg"])).toBeGreaterThanOrEqual(4.5);
   });
 
-  it("深色导航面上的提示文案、焦点环和移动徽标符合组合对比度", () => {
+  it("导航提示文案、焦点环和移动徽标符合组合对比度", () => {
     expect(installPromptCss).toMatch(/\.prompt\s*\{[^}]*background:\s*var\(--nav-bg\)/s);
     expect(installPromptCss).toMatch(/\.copy span\s*\{[^}]*color:\s*var\(--nav-muted\)/s);
     expect(installPromptCss).toMatch(/\.close\s*\{[^}]*color:\s*var\(--nav-muted\)/s);
     expect(installPromptCss).toMatch(/\.install:focus-visible,[\s\S]*?\.close:focus-visible\s*\{[^}]*outline:\s*2px solid var\(--nav-active-accent\)/s);
     expect(shellCss).toMatch(/\.navLink:focus-visible,[\s\S]*?\.collapseBtn:focus-visible\s*\{\s*outline-color:\s*var\(--nav-active-accent\)/s);
-    expect(mobileDockCss).toMatch(/\.tab:focus-visible\s*\{\s*outline-color:\s*var\(--nav-active-accent\)/s);
-    expect(mobileDockCss).toMatch(/\.dot,[\s\S]*?\.badge\s*\{[^}]*border:\s*1\.5px solid var\(--nav-badge-border, var\(--navy\)\)/s);
+    expect(mobileDockCss).toMatch(/\.tab:focus-visible\s*\{\s*outline-color:\s*var\(--dock-focus\)/);
+    expect(mobileDockCss).toMatch(/\.dot,[\s\S]*?\.badge\s*\{[^}]*border:\s*1\.5px solid var\(--dock-badge-border, var\(--navy\)\)/);
 
     expect(contrast(tokens["nav-muted"], tokens["nav-bg"])).toBeGreaterThanOrEqual(4.5);
     expect(contrast(tokens["nav-active-accent"], tokens["nav-bg"])).toBeGreaterThanOrEqual(3);
