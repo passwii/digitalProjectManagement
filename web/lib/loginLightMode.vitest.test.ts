@@ -185,9 +185,38 @@ describe("登录页浅色适配契约（BLF-1343）", () => {
     expect(passwordInputCss).toContain('data-theme="light"');
     const toggle = lightRule(passwordInputCss, ".toggle");
     expect(toggle).toMatch(/color:\s*var\(--ink-2\)/);
-    expect(lightRule(passwordInputCss, ".toggle:hover")).toMatch(/border-color:\s*var\(--brand\)/);
+    expect(lightRule(passwordInputCss, ".toggle:hover:not(:disabled)")).toMatch(/border-color:\s*var\(--brand\)/);
     expect(lightRule(passwordInputCss, ".toggle:focus-visible")).toMatch(/outline-color:\s*var\(--brand\)/);
     // 白底卡片上的眼睛图标：`--ink-2` 实测 6:1，远高于图标类 3:1 的下限
     expect(contrast(lightTokens["ink-2"], lightTokens.card)).toBeGreaterThanOrEqual(3);
+  });
+
+  it("密码可见性按钮在浅色下仍看得出禁用态（hover 不再套到 disabled 上）", () => {
+    // 本段选择器的特异性从 (0,3,0) 起，会压过上文的 `.toggle:disabled` (0,2,0)，
+    // 所以「交互态只作用于可用态」「禁用态另有覆盖」两件事都必须在浅色段里显式写出来。
+    const hover = lightRule(passwordInputCss, ".toggle:hover:not(:disabled)");
+    expect(hover).toMatch(/border-color:\s*var\(--brand\)/);
+    expect(hover).toMatch(/background:\s*var\(--brand-soft\)/);
+    expect(hover).toMatch(/color:\s*var\(--ink\)/);
+
+    const disabled = lightRule(passwordInputCss, ".toggle:disabled");
+    // 弱文字 token + 降透明度；且不得出现交互态的强调色
+    expect(disabled).toMatch(/color:\s*var\(--ink-3\)/);
+    expect(Number(disabled.match(/opacity:\s*([\d.]+)/)?.[1])).toBeLessThan(1);
+    expect(disabled).not.toMatch(/--brand/);
+    // 禁用的 <button> 实测仍会命中 `:hover`，上文深色 `.toggle:hover` 会因此给浅色页面
+    // 套上青色边界 / 底色；这两条把它收回透明（与基础 `.toggle` 完全同形，不位移）
+    expect(disabled).toMatch(/border-color:\s*transparent/);
+    expect(disabled).toMatch(/background:\s*transparent/);
+
+    // 可用态 / 禁用态不是同一个颜色：禁用色更接近白底（对比度更低），且仍在 3:1 以上
+    const tokenOf = (block: string) => block.match(/color:\s*var\(--([\w-]+)\)/)?.[1];
+    const enabledToken = tokenOf(lightRule(passwordInputCss, ".toggle"));
+    const disabledToken = tokenOf(disabled);
+    expect(disabledToken).not.toBe(enabledToken);
+    expect(contrast(lightTokens[disabledToken!], lightTokens.card)).toBeLessThan(
+      contrast(lightTokens[enabledToken!], lightTokens.card),
+    );
+    expect(contrast(lightTokens[disabledToken!], lightTokens.card)).toBeGreaterThanOrEqual(3);
   });
 });
