@@ -7,6 +7,10 @@
   --login-dim: rgba(201, 227, 235, 0.38);
   --login-signal: #6cf3ff;
   --login-active: #c6ff72;
+  /*
+   * 上面这一套是**深色真源**；浅色（`data-theme="light"`）的覆盖全部集中在文件末尾的
+   * 「浅色适配（BLF-1343）」一段，两处一起看才算完整配色。
+   */
   min-height: 100vh;
   display: grid;
   grid-template-columns: minmax(0, 1.14fr) minmax(440px, 0.86fr);
@@ -719,4 +723,299 @@
   .cardBadge { width: 38px; height: 38px; }
   .card h1,
   .card h2 { font-size: 18px; }
+}
+
+/* ---------------------------------------------------------------------------
+ * 浅色适配（BLF-1343）
+ *
+ * 这段之前并不存在：整个模块只有一套深色硬编码，`data-theme="light"` 下登录页仍是
+ * 深色世界，与工作台（`globals.css` 的 `:root[data-theme="light"]`）割裂。本段是
+ * **唯一的浅色真源**——上面所有深色默认值一行未动，这里只做覆盖；选择器一律带
+ * `:global(:root[data-theme="light"])`，靠更高特异性压过上文的 `.xxx`。
+ *
+ * 两栏在浅色下各归其位：
+ *   · 左栏 `.story`（品牌栏）——沿用工作台侧栏的深海蓝导航骨架（`--nav-bg` #142f40）：
+ *     浅色主题的导航同样保留深蓝导轨，只把文字与信号换成 nav 语义色，品牌身份不丢；
+ *   · 右栏 `.auth` / `.card`（工作区）——冷白画布 + 白色内容面 + 深墨文字，
+ *     边界、焦点、错误与完成态全部取 `:root[data-theme="light"]` 的语义 token。
+ *
+ * 两条浅色纪律（本段所有规则共用）：
+ *   1. 高饱和色不再大面积铺陈——深色里那些装饰性发光（glow）在浅色下收敛为边界与细线；
+ *   2. 酸橙只留主按钮（`--login-active` → `--action`）与完成态（`--success-ink`），
+ *      浅色卡面上的徽记改用信号青 + 完成绿，否则浅色青柠在白底上几乎不可见。
+ *
+ * 覆盖顺序与上文的规则顺序一一对应，找某个类直接往下搜同名选择器即可。
+ * 对比度由 `lib/loginLightMode.vitest.test.ts` 守着（正文/标签/按钮/错误态 ≥ 4.5）。
+ * ------------------------------------------------------------------------- */
+
+:global(:root[data-theme="light"]) .wrap {
+  /* 工作区（右栏）：交接回主题语义 token，上文所有 `--login-*` 规则自动换色 */
+  --login-bg: var(--bg);
+  --login-surface: var(--card);
+  --login-line: var(--line);
+  --login-ink: var(--ink);
+  --login-muted: var(--ink-2);
+  --login-dim: var(--ink-3);
+  --login-signal: var(--brand);
+  --login-active: var(--action);
+  /* 品牌栏（左栏）：浅色下仍是深海蓝导航面，文字取 nav 语义色 */
+  --login-story-bg: var(--nav-bg);
+  --login-story-ink: var(--nav-ink);
+}
+
+/* 改密页壳（`.solo`）：与登录页同一套冷白画布，只是没有左栏 */
+:global(:root[data-theme="light"]) .solo {
+  background:
+    radial-gradient(circle at 50% 0%, rgba(23, 97, 125, 0.09), transparent 52%),
+    var(--login-bg);
+}
+
+/* `.solo` 的 `.auth` 由外层铺底，别再叠一层渐变 */
+:global(:root[data-theme="light"]) .solo .auth {
+  background: none;
+}
+
+/* 品牌栏：深海蓝底 + 冷白点阵，装饰透明度整体压低（浅色下不做大面积发光） */
+:global(:root[data-theme="light"]) .story {
+  background:
+    radial-gradient(circle at 63% 46%, rgba(244, 248, 250, 0.06), transparent 38%),
+    radial-gradient(circle at 0% 100%, rgba(7, 19, 31, 0.42), transparent 44%),
+    var(--login-story-bg);
+}
+
+:global(:root[data-theme="light"]) .story::before {
+  opacity: 0.42;
+  background-image:
+    radial-gradient(circle at 16% 20%, rgba(244, 248, 250, 0.5) 0 1px, transparent 1.6px),
+    radial-gradient(circle at 58% 13%, rgba(198, 223, 123, 0.42) 0 1px, transparent 1.5px),
+    radial-gradient(circle at 74% 72%, rgba(244, 248, 250, 0.34) 0 1px, transparent 1.6px),
+    radial-gradient(circle at 28% 76%, rgba(244, 248, 250, 0.24) 0 1px, transparent 1.5px),
+    radial-gradient(circle at 92% 28%, rgba(244, 248, 250, 0.3) 0 1px, transparent 1.5px);
+}
+
+:global(:root[data-theme="light"]) .story::after {
+  border-color: rgba(244, 248, 250, 0.12);
+  box-shadow:
+    0 0 0 44px rgba(244, 248, 250, 0.03),
+    0 0 0 126px rgba(244, 248, 250, 0.02);
+}
+
+:global(:root[data-theme="light"]) .storyGrid {
+  background-image:
+    linear-gradient(rgba(244, 248, 250, 0.07) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(244, 248, 250, 0.07) 1px, transparent 1px);
+}
+
+/* 品牌徽记（左栏）：深蓝底上用冷白三竖 + 青柠中竖，去掉青色霓虹 */
+:global(:root[data-theme="light"]) .brandGlyph {
+  border-color: rgba(198, 223, 123, 0.42);
+  background: rgba(198, 223, 123, 0.06);
+  box-shadow: none;
+}
+
+:global(:root[data-theme="light"]) .brandGlyph::before,
+:global(:root[data-theme="light"]) .brandGlyph::after {
+  background: var(--login-story-ink);
+}
+
+:global(:root[data-theme="light"]) .brandGlyph i {
+  background: var(--login-story-ink);
+  box-shadow: none;
+}
+
+:global(:root[data-theme="light"]) .brandGlyph i:nth-child(2) {
+  background: var(--nav-active-accent);
+}
+
+:global(:root[data-theme="light"]) .mark {
+  color: var(--login-story-ink);
+}
+
+:global(:root[data-theme="light"]) .storyMain h1 {
+  color: var(--login-story-ink);
+}
+
+/* 主标题第二行取 `--login-active`（浅色 = 青柠导航强调色），浅色下不再叠发光 */
+:global(:root[data-theme="light"]) .storyMain h1 span {
+  text-shadow: none;
+}
+
+/* 工作区右栏：冷白画布 + 信号青细线，装饰环换成低透明度青色轮廓 */
+:global(:root[data-theme="light"]) .auth {
+  background:
+    radial-gradient(circle at 20% 36%, rgba(23, 97, 125, 0.07), transparent 42%),
+    linear-gradient(112deg, rgba(23, 97, 125, 0.05), transparent 16%),
+    var(--login-bg);
+}
+
+:global(:root[data-theme="light"]) .auth::before {
+  background: linear-gradient(transparent, rgba(23, 97, 125, 0.3), transparent);
+  box-shadow: none;
+}
+
+:global(:root[data-theme="light"]) .auth::after {
+  border-color: rgba(23, 97, 125, 0.12);
+  box-shadow:
+    0 0 0 18px rgba(23, 97, 125, 0.035),
+    0 0 0 46px rgba(23, 97, 125, 0.02);
+}
+
+/* 卡片：白色内容面 + 冷灰边界 + 极浅网格，浮起一层柔和中性阴影 */
+:global(:root[data-theme="light"]) .card {
+  border-color: var(--line);
+  background:
+    linear-gradient(90deg, rgba(23, 97, 125, 0.045) 1px, transparent 1px),
+    var(--card);
+  background-size: 32px 32px, auto;
+  box-shadow: var(--shadow-float);
+}
+
+/* 卡片上下两条装饰线：浅色下一律走信号青（酸橙归还给主按钮），并去掉发光 */
+:global(:root[data-theme="light"]) .card::before {
+  box-shadow: none;
+}
+
+:global(:root[data-theme="light"]) .card::after {
+  background: var(--login-signal);
+  box-shadow: none;
+}
+
+/* 卡片徽记：信号青三竖 + 完成绿中竖（对应深色里的青 + 酸橙） */
+:global(:root[data-theme="light"]) .cardBadge {
+  border-color: rgba(23, 97, 125, 0.42);
+  background: var(--brand-soft);
+  box-shadow: none;
+}
+
+:global(:root[data-theme="light"]) .cardBadge::before,
+:global(:root[data-theme="light"]) .cardBadge::after {
+  background: var(--login-signal);
+}
+
+:global(:root[data-theme="light"]) .cardBadge i {
+  background: var(--login-signal);
+  box-shadow: none;
+}
+
+:global(:root[data-theme="light"]) .cardBadge i:nth-child(2) {
+  background: var(--success-ink);
+}
+
+/* 表单控件：白底 + `--control-border` 给足边界，光标与焦点改用信号青 */
+:global(:root[data-theme="light"]) .field input {
+  border-color: var(--control-border);
+  background: var(--card);
+  caret-color: var(--login-signal);
+}
+
+:global(:root[data-theme="light"]) .field input::placeholder {
+  color: var(--login-dim);
+}
+
+:global(:root[data-theme="light"]) .field input:hover {
+  border-color: var(--login-signal);
+}
+
+:global(:root[data-theme="light"]) .field input:focus {
+  border-color: var(--login-signal);
+  background: var(--card);
+  box-shadow: 0 0 0 3px var(--signal-glow);
+}
+
+/* 错误提示：低饱和错误底 + 错误色文字（`//` 前缀与正文同色） */
+:global(:root[data-theme="light"]) .alert {
+  border-color: var(--line-danger);
+  background: var(--danger-bg);
+  color: var(--danger);
+}
+
+:global(:root[data-theme="light"]) .alert::before {
+  color: var(--danger);
+}
+
+/* 主按钮：柔和青柠填充 + `--action-border` 收边 + 深前景 */
+:global(:root[data-theme="light"]) .submit {
+  border-color: var(--action-border);
+  background: var(--login-active);
+  color: var(--on-action);
+}
+
+/* hover 只加深底色，不加发光 */
+:global(:root[data-theme="light"]) .submit:hover {
+  border-color: var(--action-border);
+  background: var(--action-hover);
+  box-shadow: none;
+}
+
+/* 载入中（`:disabled`）：降到次级表面 + 次文字，状态文案仍须可读 */
+:global(:root[data-theme="light"]) .submit:disabled {
+  border-color: var(--separator);
+  background: var(--th-bg);
+  color: var(--ink-2);
+  box-shadow: none;
+}
+
+/* 成功态：独立成功绿 + 完成底色（酸橙只留在默认态的主按钮上） */
+:global(:root[data-theme="light"]) .submit[data-phase="success"] {
+  border-color: var(--line-done);
+  background: var(--done-bg);
+  color: var(--success-ink);
+  box-shadow: none;
+}
+
+/* 手机壳（≤767px）：品牌栏不再铺深海蓝（见上文 `.wrap[data-login-page] .story`），
+   底色统一由 `.wrap` 提供，字标与徽记因此改回工作区的深墨 / 信号青 / 完成绿。 */
+@media (max-width: 767px) {
+  :global(:root[data-theme="light"]) .wrap {
+    background:
+      radial-gradient(120% 60% at 50% -10%, rgba(23, 97, 125, 0.1), transparent 74%),
+      var(--login-bg);
+  }
+
+  :global(:root[data-theme="light"]) .wrap[data-login-page] .auth {
+    background: none;
+  }
+
+  /* 手机壳里 `.story` 原本就不铺底（见上文 `.wrap[data-login-page] .story { background: none }`），
+     浅色同样交还给 `.wrap` 的画布，别把深海蓝重新铺回来（否则字标是深墨文字压在深蓝上） */
+  :global(:root[data-theme="light"]) .wrap[data-login-page] .story {
+    background: none;
+  }
+
+  :global(:root[data-theme="light"]) .wrap[data-login-page] .story::before {
+    opacity: 0.32;
+    background-image:
+      radial-gradient(circle at 16% 20%, rgba(23, 97, 125, 0.55) 0 1px, transparent 1.6px),
+      radial-gradient(circle at 74% 72%, rgba(23, 97, 125, 0.4) 0 1px, transparent 1.6px),
+      radial-gradient(circle at 92% 28%, rgba(23, 97, 125, 0.34) 0 1px, transparent 1.5px);
+    background-size: 260px 240px, 420px 360px, 510px 430px;
+  }
+
+  :global(:root[data-theme="light"]) .wrap[data-login-page] .storyGrid {
+    background-image:
+      linear-gradient(rgba(23, 97, 125, 0.09) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(23, 97, 125, 0.09) 1px, transparent 1px);
+  }
+
+  :global(:root[data-theme="light"]) .wrap[data-login-page] .mark {
+    color: var(--ink);
+  }
+
+  :global(:root[data-theme="light"]) .wrap[data-login-page] .brandGlyph {
+    border-color: rgba(23, 97, 125, 0.42);
+    background: var(--brand-soft);
+  }
+
+  :global(:root[data-theme="light"]) .wrap[data-login-page] .brandGlyph::before,
+  :global(:root[data-theme="light"]) .wrap[data-login-page] .brandGlyph::after {
+    background: var(--login-signal);
+  }
+
+  :global(:root[data-theme="light"]) .wrap[data-login-page] .brandGlyph i {
+    background: var(--login-signal);
+  }
+
+  :global(:root[data-theme="light"]) .wrap[data-login-page] .brandGlyph i:nth-child(2) {
+    background: var(--success-ink);
+  }
 }
