@@ -26,6 +26,10 @@ data/
 # 本地代码索引运行数据
 .codegraph/
 
+# 设计评审运行产物（本地快照与 live 会话配置）；`.impeccable/design.json` 是设计系统 sidecar，需要入库
+.impeccable/critique/
+web/.impeccable/
+
 # 项目使用 npm；忽略误生成的 pnpm workspace 文件
 /web/pnpm-lock.yaml
 /web/pnpm-workspace.yaml
