@@ -90,6 +90,10 @@ export default function Select({
   const typeaheadRef = useRef({ query: "", at: 0 });
   const id = useId().replace(/:/g, "");
   const listId = `select-list-${id}`;
+  // 弹层通过 aria-labelledby 指向触发器，名字因此沿用触发器的可访问名来源：
+  // 显式 aria-label，或外层 <label> / Field 包裹。包裹式写法下 ariaLabel 为空，
+  // 直接写 aria-label 会让弹层匿名。
+  const triggerId = `select-trigger-${id}`;
   const optionId = (index: number) => `select-option-${id}-${index}`;
 
   const close = useCallback(() => {
@@ -279,6 +283,7 @@ export default function Select({
     >
       <button
         ref={triggerRef}
+        id={triggerId}
         type="button"
         role="combobox"
         aria-haspopup="listbox"
@@ -323,7 +328,7 @@ export default function Select({
           ref={listRef}
           id={listId}
           role="listbox"
-          aria-label={ariaLabel}
+          aria-labelledby={triggerId}
           className={`${styles.listbox} ${surface === "spark" ? styles.spark : styles.console}`}
           style={position}
           onMouseDown={(event) => event.preventDefault()}
