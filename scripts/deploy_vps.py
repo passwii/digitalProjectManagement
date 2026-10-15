@@ -4,12 +4,29 @@
 from __future__ import annotations
 
 import argparse
+import ipaddress
+import socket
 import subprocess
 import sys
 
-
 VPS_USER = "root"
-VPS_HOST = "145.79.143.98"
+
+# 两条链路，顺序即优先级。机房侧 IPv4 曾整段不通而 IPv6 正常，这种时候不该
+# 让人先去判断「今晚该填哪个地址」——脚本自己按序探活，谁通走谁。
+VPS_HOST_V4 = "145.79.143.98"
+VPS_HOST_V6 = "2a0e:97c0:3f0:1::2cba"
+VPS_HOSTS = (VPS_HOST_V4, VPS_HOST_V6)
+# 单数形式保留给旧调用方（docs/ 与测试里出现过）。
+VPS_HOST = VPS_HOST_V4
+
+SSH_PORT = 22
+# 第一级：TCP 探活只是便宜的预筛（连接超时通常 5 秒内就知道）。
+PROBE_TIMEOUT = 5
+# 第二级：真握手一次。2026-02 实测 v4 处在「SYN 有人接、SSH banner 永远不来」
+# 的半死状态——只看 TCP 会把这种链路判成可用，然后在部署时才炸。
+SSH_PROBE_TIMEOUT = 8
+SSH_PROBE_GRACE = 5
+SSH_CONNECT_TIMEOUT = 20
 
 DEFAULT_APP_DIR = "/opt/pm"
 DEFAULT_BRANCH = "main"
@@ -81,13 +98,97 @@ echo "部署完成"
 """
 
 
+def describe_host(host: str) -> str:
+    """给日志加个 IPv4/IPv6 标签，出问题时一眼看出走的是哪条链路。"""
+    try:
+        return f"{host} (IPv{ipaddress.ip_address(host).version})"
+    except ValueError:
+        return host
+
+
+def tcp_port_open(
+    host: str, port: int = SSH_PORT, timeout: float = PROBE_TIMEOUT
+) -> bool:
+    """TCP 探活。比 `ping` 忠实：ping 通不代表 22 端口有人接。
+
+    但反过来说，端口有人接也不代表 sshd 能用——所以它只当预筛。
+    """
+    try:
+        with socket.create_connection((host, port), timeout=timeout):
+            return True
+    except OSError:
+        return False
+
+
+def ssh_ready(
+    target: str, timeout: int = SSH_PROBE_TIMEOUT
+) -> tuple[bool, str]:
+    """跑一条 `true` 真的握一次手，返回（是否可用, 失败原因）。
+
+    这条命令同时覆盖了 banner、密钥协商、公钥认证三件事，且退出码 0 代表
+    远端真的能执行命令。stderr 会被吃掉——只把最后一行带进日志，免得每条
+    候选都刷一屏 warnings。
+    """
+    command = [
+        "ssh",
+        "-o",
+        "BatchMode=yes",
+        "-o",
+        f"ConnectTimeout={timeout}",
+        target,
+        "true",
+    ]
+    try:
+        result = subprocess.run(
+            command,
+            capture_output=True,
+            text=True,
+            timeout=timeout + SSH_PROBE_GRACE,
+            check=False,
+        )
+    except FileNotFoundError:
+        return False, "未找到 ssh 命令"
+    except subprocess.TimeoutExpired:
+        return False, f"{timeout + SSH_PROBE_GRACE} 秒内未完成握手"
+
+    if result.returncode == 0:
+        return True, ""
+
+    lines = (result.stderr or "").strip().splitlines()
+    return False, lines[-1] if lines else f"ssh 退出码 {result.returncode}"
+
+
+def probe_host(host: str) -> tuple[bool, str]:
+    """两级探活：先看端口，再握手。两级都过才算「这条链路能用」。"""
+    if not tcp_port_open(host, SSH_PORT, PROBE_TIMEOUT):
+        return False, f"{PROBE_TIMEOUT:g} 秒内连不上 {SSH_PORT} 端口"
+    return ssh_ready(f"{VPS_USER}@{host}", SSH_PROBE_TIMEOUT)
+
+
+def select_host(
+    hosts: tuple[str, ...] = VPS_HOSTS,
+    probe=probe_host,
+    log=print,
+) -> str | None:
+    """按序返回第一个真正可用的地址；全都不通时返回 None。probe 可注入，便于测试。"""
+    for host in hosts:
+        ok, reason = probe(host)
+        if ok:
+            log(f"链路可用：{describe_host(host)}")
+            return host
+        log(f"链路不可达，fallback 到下一个：{describe_host(host)}（{reason}）")
+    return None
+
+
 def build_ssh_command(target: str, script: str) -> list[str]:
+    # 注意 target 里的 IPv6 不加方括号：`root@[::1]` 会被 ssh 当成主机名去解析
+    # 而直接报 "Could not resolve hostname"，known_hosts 里存的也是裸地址。
     return [
         "ssh",
         "-o",
         "BatchMode=yes",
         "-o",
-        "ConnectTimeout=20",
+        f"ConnectTimeout={SSH_CONNECT_TIMEOUT}",
         # 构建镜像可能几分钟没输出。没有保活会被中间设备静默掐断，
         # 表现成「本地莫名超时」而不是「远端还在构建」。
         "-o",
@@ -98,21 +199,41 @@ def build_ssh_command(target: str, script: str) -> list[str]:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="把 main 部署到 VPS")
+    parser = argparse.ArgumentParser(description="把 main 部署到 VPS（v4 优先，v6 兜底）")
     parser.add_argument(
         "--dry-run",
         action="store_true",
         help="只打印将要执行的远端脚本，不连接服务器",
     )
+    parser.add_argument(
+        "--host",
+        help="跳过探活，强制使用指定地址（默认按序探活："
+        + " → ".join(VPS_HOSTS)
+        + "）",
+    )
     args = parser.parse_args(argv)
 
     script = build_remote_script()
-    target = f"{VPS_USER}@{VPS_HOST}"
+    candidates = (args.host,) if args.host else VPS_HOSTS
 
     if args.dry_run:
         print(script)
+        print(
+            "# 候选链路（按序探活）："
+            + " → ".join(describe_host(host) for host in candidates)
+        )
         return 0
 
+    host = args.host or select_host(candidates)
+    if host is None:
+        print(
+            "部署失败：v4 和 v6 都探不通，先确认本机网络与服务器状态。候选："
+            + ", ".join(candidates),
+            file=sys.stderr,
+        )
+        return 2
+
+    target = f"{VPS_USER}@{host}"
     print(f"正在部署 {DEFAULT_BRANCH} 到 {target}:{DEFAULT_APP_DIR}", flush=True)
 
     try:
@@ -122,6 +243,14 @@ def main(argv: list[str] | None = None) -> int:
         return 1
     except subprocess.CalledProcessError as exc:
         print(f"部署失败，退出码：{exc.returncode}", file=sys.stderr)
+        if exc.returncode == 255:
+            # 255 是 ssh 自己的「链路层失败」，不是远端脚本的退出码。
+            print(
+                f"ssh 未能建立到 {describe_host(host)} 的连接；"
+                "其余候选未被尝试（避免在远端已执行一半时重复部署），"
+                "可手动指定 --host 重试。",
+                file=sys.stderr,
+            )
         return exc.returncode
 
     return 0
