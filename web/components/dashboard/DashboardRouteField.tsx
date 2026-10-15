@@ -26,7 +26,7 @@ export default function DashboardRouteField({ health }: { health: HealthRow[] })
   if (health.length === 0) {
     return (
       <div className={s.empty}>
-        <Empty title="暂无项目航迹" hint="新建项目后，交付状态会在这里建立坐标。" />
+        <Empty title="暂无项目航迹" hint="新建项目后，交付状态会显示在这里。" />
       </div>
     );
   }
