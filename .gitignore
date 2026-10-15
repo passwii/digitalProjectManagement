@@ -41,3 +41,6 @@ web/.impeccable/
 
 # 前端测试编译产物
 .test-dist/
+
+# 误提交的嵌套仓库引用（已移除，防止再次被 add）
+/digitalProjectManagement/
