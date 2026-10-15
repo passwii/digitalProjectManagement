@@ -28,6 +28,14 @@ SSH_PROBE_TIMEOUT = 8
 SSH_PROBE_GRACE = 5
 SSH_CONNECT_TIMEOUT = 20
 
+# 每轮部署都会把上一版的 `pm-web` 项掉 tag，变成无标签的悬空镜像（实测单个
+# 955MB，本机总盘 15G）。回收规则：悬空镜像只留最新一个做回滚窗口，其余全清。
+#
+# 为什么不是 `prune -a` / `system prune`：本机除了 /opt/pm 还跑着
+# /opt/pm-staging、new-api、cliproxyapi、nezha 几套栈，连 -a 都可能把别人停着
+# 的容器依赖的镜像删掉；`pm-pg-data` / `pm-staging-data` 两个 volume 更是碰不得。
+PRUNE_KEEP_SPARE = 1
+
 DEFAULT_APP_DIR = "/opt/pm"
 DEFAULT_BRANCH = "main"
 DEFAULT_COMPOSE_FILES = ("docker-compose.yml", "docker-compose.prod.yml")
@@ -46,16 +54,66 @@ HEALTH_ATTEMPTS = 45
 HEALTH_INTERVAL = 2
 
 
+def build_prune_block(keep_spare: int = PRUNE_KEEP_SPARE) -> str:
+    """渲染收尾的镜像回收片段。keep_spare=0 表示悬空镜像全清、不留回滚窗口。
+
+    只碰 `dangling=true`：有 tag 的镜像一律不动，volume 一概不碰。
+    整体保证退出码 0——回收出任何毛病都不能把一个健康的部署判成失败。
+    """
+    return f"""# ---- 回收悬空镜像（被新构建项掉 tag 的旧镜像）----
+prune_dangling_images() {{
+  # 先分开「列表读不到」和「确实没有悬空镜像」，否则 docker 挂了会被报告成
+  # 一句太平的「没有悬空镜像可回收」。
+  if ! ids=$(docker images -f dangling=true -q); then
+    printf '警告：读取悬空镜像列表失败，本次跳过回收\n' >&2
+    return 0
+  fi
+  if [ -z "$ids" ]; then
+    echo "没有悬空镜像可回收"
+    return 0
+  fi
+  # `docker images` 默认按创建时间倒序，所以先遇上的就是最近一版。
+  # 实测注：基于既有镜像构建出来的镜像会继承基础镜像的创建时间，所以「最近一版」
+  # 未必恰好是上一轮部署的 app 镜像。这里只承诺「只留一代、其余回收」，
+  # 不承诺留的是哪一代——反正有 tag 的镜像和 volume 一概不碰。
+  n=0
+  for id in $ids; do
+    n=$((n + 1))
+    if [ "$n" -le {keep_spare} ]; then
+      printf '保留上一版镜像备回滚：%s\n' "$id"
+      continue
+    fi
+    if docker image rm "$id" >/dev/null 2>&1; then
+      printf '已回收悬空镜像：%s\n' "$id"
+    else
+      printf '警告：镜像 %s 回收失败，跳过\n' "$id" >&2
+    fi
+  done
+  return 0
+}}
+# 回收是收尾动作：搞坏了也不能把已经成功的部署判成失败。
+prune_dangling_images || printf '警告：镜像回收出错，本次部署不受影响\n' >&2
+# 同样不能裸跑：docker 挂了的话它会变成整个部署脚本的退出码。
+docker system df || printf '警告：docker system df 读取失败\n' >&2"""
+
+
 def build_remote_script(
     app_dir: str = DEFAULT_APP_DIR,
     branch: str = DEFAULT_BRANCH,
     compose_files: tuple[str, ...] = DEFAULT_COMPOSE_FILES,
+    prune_spare: int | None = PRUNE_KEEP_SPARE,
 ) -> str:
-    """渲染远端要执行的脚本。纯字符串拼装，方便测试直接断言内容。"""
+    """渲染远端要执行的脚本。纯字符串拼装，方便测试直接断言内容。
+
+    `prune_spare=None` 则整段跳过回收，用于排查时就地复现上一次的行为。
+    """
     compose_args = " ".join(f"-f {name}" for name in compose_files)
     health_checks = "\n".join(
         f'wait_for_health "{url}" "{label}" "{HEALTH_ATTEMPTS}"'
         for label, url in HEALTH_TARGETS
+    )
+    prune_block = (
+        "\n" + build_prune_block(prune_spare) + "\n" if prune_spare is not None else ""
     )
     return f"""set -euo pipefail
 cd {app_dir}
@@ -94,6 +152,7 @@ wait_for_health() {{
 }}
 
 {health_checks}
+{prune_block}
 echo "部署完成"
 """
 
