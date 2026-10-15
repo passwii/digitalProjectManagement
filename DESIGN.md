@@ -124,6 +124,11 @@ components:
 
 # Design System: 数科云办公
 
+## Review and Polish Direction
+
+当前前端进入「系统化 Review 与设计基线固化」阶段，为后续可能进行的一轮较大打磨做准备。本轮以评审为先：先盘点既有界面与共享模式，记录有证据的不一致与质量缺口，再固化可复用的设计基线，最后才考虑改动全站视觉。后续打磨可以演进界面，但必须保留产品事实、工作流程、权限边界，以及既有的移动端与无障碍约定。`/login` 与 `/spark` 等独立视觉区域按本规范记录的例外处理，不把它们的专属样式静默并入已登录工作台。
+
+
 ## Overview
 
 **Creative North Star: “雾白与深海蓝（Mist & Deep-Sea Console）”**
