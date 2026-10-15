@@ -205,18 +205,18 @@ describe("DashboardPage 刷新状态", () => {
       .mockImplementationOnce(() => new Promise((resolve) => { resolveRefresh = resolve; }));
 
     render(<DashboardPage />);
-    const refresh = await screen.findByRole("button", { name: "刷新坐标" });
+    const refresh = await screen.findByRole("button", { name: "刷新数据" });
     const page = document.querySelector('[data-dashboard-page="true"]');
     expect(page?.getAttribute("aria-busy")).toBe("false");
 
     fireEvent.click(refresh);
-    const refreshing = screen.getByRole("button", { name: "校准中" });
+    const refreshing = screen.getByRole("button", { name: "刷新中" });
     expect(refreshing.hasAttribute("disabled")).toBe(true);
     expect(screen.getByText("我的项目")).not.toBeNull();
     expect(page?.getAttribute("aria-busy")).toBe("true");
 
     await act(async () => resolveRefresh(summary({ my_projects: 7 })));
-    await waitFor(() => expect(screen.getByRole("button", { name: "刷新坐标" }).hasAttribute("disabled")).toBe(false));
+    await waitFor(() => expect(screen.getByRole("button", { name: "刷新数据" }).hasAttribute("disabled")).toBe(false));
     expect(page?.getAttribute("aria-busy")).toBe("false");
   });
 
@@ -226,11 +226,11 @@ describe("DashboardPage 刷新状态", () => {
       .mockRejectedValueOnce(new Error("服务暂不可用"));
 
     render(<DashboardPage />);
-    const refresh = await screen.findByRole("button", { name: "刷新坐标" });
+    const refresh = await screen.findByRole("button", { name: "刷新数据" });
 
     fireEvent.click(refresh);
     const alert = await screen.findByRole("alert");
-    expect(alert.textContent).toContain("链路未完成校准。 以下为上次成功数据。服务暂不可用");
+    expect(alert.textContent).toContain("数据刷新失败，以下为上次成功数据。服务暂不可用");
     expect(screen.getByText("我的项目")).not.toBeNull();
     expect(screen.getByRole("button", { name: "重试" })).not.toBeNull();
   });

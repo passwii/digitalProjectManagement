@@ -223,6 +223,15 @@ export function ProjectsListContent({
                         className="btn-ghost btn-xs"
                         onClick={(e) => {
                           e.stopPropagation();
+                          onSelect?.(p);
+                        }}
+                      >
+                        查看
+                      </button>
+                      <button
+                        className="btn-ghost btn-xs"
+                        onClick={(e) => {
+                          e.stopPropagation();
                           onEdit?.(p);
                         }}
                       >

@@ -164,23 +164,23 @@ export default function DashboardPage() {
     if (loading) {
       return (
         <div className={s.bootLoading} role="status" aria-live="polite" aria-busy="true">
-          <LoadingBlock title={false} kpis={4} label="正在接入交付坐标盘…" />
+          <LoadingBlock title={false} kpis={4} label="正在加载工作台数据…" />
         </div>
       );
     }
     return (
       <div className={s.initialError} role="alert">
         <span className={s.errorSignal} aria-hidden="true" />
-        <strong>交付坐标盘暂时无法接入</strong>
+        <strong>暂时无法加载工作台数据</strong>
         <span>{err || "暂时无法获取工作台数据。"}</span>
-        <button className={s.headerButton} type="button" onClick={() => void load()}>重新接入</button>
+        <button className={s.headerButton} type="button" onClick={() => void load()}>重新加载</button>
       </div>
     );
   }
 
   const k = data.kpi;
   const trendData = data.trend.map((point) => ({ ...point, label: point.month.slice(5) + "月" }));
-  const actionState = loading ? "校准中" : err ? "待检查" : "已接入";
+  const actionState = loading ? "刷新中" : err ? "需注意" : "已更新";
   const routeRows = [...data.health].sort(rankRoutes).slice(0, ROUTE_LIMIT);
   const hiddenRoutes = data.health.length - routeRows.length;
 
@@ -199,7 +199,7 @@ export default function DashboardPage() {
               disabled={loading}
               aria-busy={loading}
             >
-              {loading ? "校准中" : "刷新坐标"}
+              {loading ? "刷新中" : "刷新数据"}
             </button>
             {canApprove && k.pending_approvals > 0 && (
               <Link className={s.approvalButton} href="/approvals">
@@ -211,7 +211,7 @@ export default function DashboardPage() {
       />
       {err && (
         <div className={s.staleBanner} role="alert">
-          <span><b>链路未完成校准。</b> 以下为上次成功数据。{err}</span>
+          <span><b>数据刷新失败，以下为上次成功数据。</b>{err}</span>
           <button className={s.headerButton} type="button" onClick={() => void load()} disabled={loading}>重试</button>
         </div>
       )}
