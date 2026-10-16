@@ -19,6 +19,10 @@ ENV NEXT_PUBLIC_API_BASE=$NEXT_PUBLIC_API_BASE
 COPY web/package.json web/package-lock.json ./
 RUN npm ci --registry="${NPM_REGISTRY}" --maxsockets 2
 
+# `next.config.mjs` 靠这个开关才输出 standalone 产物；不设的话 `next start` 仍能用，
+# 但镜像里就不会有 `.next/standalone`，下面 COPY 会直接报错——两种失败都不会静默。
+ENV NEXT_BUILD_STANDALONE=1
+
 COPY web ./
 RUN npm run build
 

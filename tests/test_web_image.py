@@ -58,8 +58,28 @@ class WebImageBuildTest(unittest.TestCase):
         self.assertIn("USER node", self.directives)
         self.assertEqual(self.directives.count("--chown=node:node"), 3)
 
-    def test_next_config_emits_standalone(self):
-        self.assertIn('output: "standalone"', NEXT_CONFIG.read_text())
+    def test_next_config_only_emits_standalone_when_asked(self):
+        """`next start` 与 standalone 不兼容，所以这个开关不能写死。
+
+        本地 docker-compose.local.yml 的 web 走 `npm run build && npm run start`，
+        写死会让本地开发也推上不受支持的组合。
+        """
+        config = NEXT_CONFIG.read_text()
+
+        self.assertIn("NEXT_BUILD_STANDALONE", config)
+        self.assertIn('? "standalone" : undefined', config)
+        self.assertNotIn('output: "standalone"', config)
+
+    def test_builder_turns_the_standalone_switch_on(self):
+        """两边必须一起改：漏了开关，COPY .next/standalone 会直接构建失败。"""
+        self.assertIn("ENV NEXT_BUILD_STANDALONE=1", self.directives)
+
+    def test_builder_stage_installs_before_copying_sources(self):
+        """依赖层要能在源码变动时命中缓存，否则每轮构建都重新 npm ci。"""
+        npm_ci = self.directives.index("RUN npm ci")
+        copy_sources = self.directives.index("COPY web ./")
+
+        self.assertLess(npm_ci, copy_sources)
 
 
 if __name__ == "__main__":
