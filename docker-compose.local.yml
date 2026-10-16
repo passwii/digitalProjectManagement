@@ -1,6 +1,9 @@
 # 本地开发覆盖配置：通过 Docker 内 SSH 隧道访问 VPS 上的 PostgreSQL。
 # 用法：
 #   docker compose -f docker-compose.yml -f docker-compose.local.yml up --build
+#
+# 隧道地址不用再手改：scripts/db_tunnel.sh 会按序探活，v4 不通自动走 v6
+# （机房侧 v4 出现过半死状态）。临时强制某个地址：VPS_SSH_HOST=...
 
 services:
   db-tunnel:
@@ -9,19 +12,18 @@ services:
       dockerfile: docker/db-tunnel.Dockerfile
       network: host
     restart: unless-stopped
-    command:
-      - >
-        exec ssh -N
-        -o BatchMode=yes
-        -o ExitOnForwardFailure=yes
-        -o ServerAliveInterval=15
-        -o ServerAliveCountMax=3
-        -i /root/.ssh/id_ed25519
-        -L 0.0.0.0:5432:127.0.0.1:5432
-        ${VPS_SSH_USER:-root}@${VPS_SSH_HOST:-145.79.143.98}
+    environment:
+      # 这三个是给 scripts/db_tunnel.sh 的覆盖入口，默认值只写在脚本里
+      VPS_SSH_USER: "${VPS_SSH_USER:-}"
+      VPS_SSH_HOST: "${VPS_SSH_HOST:-}"
+      VPS_SSH_HOSTS: "${VPS_SSH_HOSTS:-}"
+    # 显式用 sh 跑：脚本一旦被登录 shell 执行，就会踩到 zsh/bash 词分割不一致
+    # 那类坑（悬空镜像回收刚被咬过一次）。
+    command: ["sh", "/scripts/db_tunnel.sh"]
     volumes:
       - ${HOME}/.ssh/id_ed25519:/root/.ssh/id_ed25519:ro
       - ${HOME}/.ssh/known_hosts:/root/.ssh/known_hosts:ro
+      - ./scripts/db_tunnel.sh:/scripts/db_tunnel.sh:ro
     healthcheck:
       test: ["CMD-SHELL", "nc -z 127.0.0.1 5432"]
       interval: 5s
