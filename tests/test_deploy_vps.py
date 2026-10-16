@@ -1,4 +1,5 @@
 import os
+import shutil
 import socket
 import subprocess
 import sys
@@ -18,6 +19,16 @@ def script_commands(script: str) -> list[str]:
         for line in script.splitlines()
         if line.strip() and not line.strip().startswith("#")
     ]
+
+
+def installed_shells() -> list[str]:
+    """本机装了哪些 shell。
+
+    部署脚本由服务器上的登录 shell 执行，zsh 与 bash 在词分割上不一致（实测
+    害过一次静默失效），所以回收片段的测试要按实际存在的 shell 各跑一遍，
+    而不是假定 bash。
+    """
+    return [shell for shell in ("bash", "zsh") if shutil.which(shell)]
 
 from scripts.deploy_vps import (  # noqa: E402
     DEFAULT_APP_DIR,
@@ -198,8 +209,13 @@ class DeployVpsImageReclaimTest(unittest.TestCase):
 class DeployVpsImageReclaimShellTest(unittest.TestCase):
     """把回收片段真的跑一遍（docker 打桩）。
 
-    字符串断言看不出退出码：`docker system df` 曾把整段收尾变成非零退出，
-    于是一个已经完全健康的部署会被报成失败。这种回归只能靠真跑拦住。
+    两个只能靠真跑拦住的回归：
+    · 退出码：`docker system df` 曾把整段收尾变成非零退出，于是一个已经完全
+      健康的部署会被报成失败；
+    · shell 语义：部署脚本由服务器上的登录 shell 执行（这台机器是 zsh），而
+      `for id in $ids` 在 zsh 下不做词分割——循环只跑一次、$id 是整段多行
+      字符串，一个镜像都删不掉，日志却看着像「保留了一版」。本地只有 bash
+      时这个问题永远不出现，所以下面按 bash / zsh 各跑一遍。
     """
 
     def run_block(
@@ -208,6 +224,7 @@ class DeployVpsImageReclaimShellTest(unittest.TestCase):
         keep_spare: int = PRUNE_KEEP_SPARE,
         docker_exit: int = 0,
         rm_conflict: str = "",
+        shell: str = "bash",
     ) -> tuple[subprocess.CompletedProcess, str]:
         with tempfile.TemporaryDirectory() as tmp:
             bin_dir = Path(tmp) / "bin"
@@ -242,7 +259,7 @@ esac
             )
             env = {**os.environ, "PATH": f"{bin_dir}{os.pathsep}{os.environ['PATH']}"}
             result = subprocess.run(
-                ["bash", str(script)],
+                [shell, str(script)],
                 capture_output=True,
                 text=True,
                 env=env,
@@ -258,6 +275,27 @@ esac
         self.assertNotIn("image rm aaaa1111", calls)
         self.assertIn("image rm bbbb2222", calls)
         self.assertIn("image rm cccc3333", calls)
+
+    def test_reclaims_the_same_way_under_the_login_shell(self):
+        """部署脚本由服务器登录 shell 执行，行为必须与 bash 完全一致。
+
+        zsh 不对未加引号的参数展开做词分割，`for id in $ids` 会静默退化成
+        「只迭代一次」——所以这里逐行读的写法要两个 shell 都验。
+        """
+        self.assertIn("zsh", installed_shells(), "本机没有 zsh，这条保护没生效")
+        self.assertIn("bash", installed_shells())
+        for shell in installed_shells():
+            with self.subTest(shell=shell):
+                result, calls = self.run_block(
+                    dangling="aaaa1111 bbbb2222 cccc3333", shell=shell
+                )
+
+                self.assertEqual(result.returncode, 0)
+                self.assertIn("保留上一版镜像备回滚：aaaa1111", result.stdout)
+                self.assertNotIn("image rm aaaa1111", calls)
+                self.assertIn("image rm bbbb2222", calls)
+                self.assertIn("image rm cccc3333", calls)
+                self.assertNotIn("aaaa1111 bbbb2222", result.stdout)
 
     def test_does_nothing_without_dangling_images(self):
         result, calls = self.run_block()

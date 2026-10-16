@@ -65,36 +65,38 @@ prune_dangling_images() {{
   # 先分开「列表读不到」和「确实没有悬空镜像」，否则 docker 挂了会被报告成
   # 一句太平的「没有悬空镜像可回收」。
   if ! ids=$(docker images -f dangling=true -q); then
-    printf '警告：读取悬空镜像列表失败，本次跳过回收\n' >&2
+    printf '警告：读取悬空镜像列表失败，本次跳过回收\\n' >&2
     return 0
   fi
   if [ -z "$ids" ]; then
     echo "没有悬空镜像可回收"
     return 0
   fi
-  # `docker images` 默认按创建时间倒序，所以先遇上的就是最近一版。
-  # 实测注：基于既有镜像构建出来的镜像会继承基础镜像的创建时间，所以「最近一版」
-  # 未必恰好是上一轮部署的 app 镜像。这里只承诺「只留一代、其余回收」，
-  # 不承诺留的是哪一代——反正有 tag 的镜像和 volume 一概不碰。
+  # 用 `while read` 而不是 `for id in $ids`：这段脚本由服务器上的**登录 shell**
+  # 执行（这台机器上是 zsh），而 zsh 默认不对未加引号的参数展开做词分割——
+  # `for` 只会迭代一次、`$id` 是整段多行字符串，结果一个镜像都删不掉，
+  # 而日志看起来像「保留了一版」（实测踩过：三行 ID 被当成一版打印出来）。
+  # 本地测试用 bash 跑，永远看不到这个问题，所以必须按行读。
+  # `n` 在子 shell 里累加就够了：循环外不需要这个值。
   n=0
-  for id in $ids; do
+  printf '%s\n' "$ids" | while IFS= read -r id; do
     n=$((n + 1))
     if [ "$n" -le {keep_spare} ]; then
-      printf '保留上一版镜像备回滚：%s\n' "$id"
+      printf '保留上一版镜像备回滚：%s\\n' "$id"
       continue
     fi
     if docker image rm "$id" >/dev/null 2>&1; then
-      printf '已回收悬空镜像：%s\n' "$id"
+      printf '已回收悬空镜像：%s\\n' "$id"
     else
-      printf '警告：镜像 %s 回收失败，跳过\n' "$id" >&2
+      printf '警告：镜像 %s 回收失败，跳过\\n' "$id" >&2
     fi
   done
   return 0
 }}
 # 回收是收尾动作：搞坏了也不能把已经成功的部署判成失败。
-prune_dangling_images || printf '警告：镜像回收出错，本次部署不受影响\n' >&2
+prune_dangling_images || printf '警告：镜像回收出错，本次部署不受影响\\n' >&2
 # 同样不能裸跑：docker 挂了的话它会变成整个部署脚本的退出码。
-docker system df || printf '警告：docker system df 读取失败\n' >&2"""
+docker system df || printf '警告：docker system df 读取失败\\n' >&2"""
 
 
 def build_remote_script(
