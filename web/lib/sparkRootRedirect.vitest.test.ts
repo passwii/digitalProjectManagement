@@ -39,4 +39,11 @@ describe("Spark public entry route", () => {
     });
     expect(responses.redirect).toHaveBeenCalledTimes(1);
   });
+
+  it("allows unauthenticated requests for PWA icons", () => {
+    const response = middleware(makeRequest("/icons/apple-touch-icon.png"));
+
+    expect(response).toEqual({ type: "next" });
+    expect(responses.redirect).not.toHaveBeenCalled();
+  });
 });

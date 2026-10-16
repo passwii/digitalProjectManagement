@@ -2,7 +2,8 @@
 
 源设计：web/app/icon.svg（深海军蓝底 + SHZK 印章）。
 产物：web/public/icons/icon-192.png / icon-512.png（purpose any，圆角透明底）
-     + icon-512-maskable.png（purpose maskable，全 bleed 底 + 中央安全区作画）。
+     + icon-512-maskable.png（purpose maskable，全 bleed 底 + 中央安全区作画）
+     + apple-touch-icon.png（iOS 主屏幕图标，180×180）。
 
 maskable 安全区：Android 自适应图标遮罩最多裁掉四周各约 18%（圆形遮罩），
 所以字母主体只占中央 ~64%，四周留纯色底——系统怎么裁都不会裁掉字母。
@@ -27,12 +28,21 @@ NAVY = (15, 39, 66, 255)  # #0F2742，与 manifest theme_color 同值
 ICE = (140, 188, 255, 255)  # #8CBCFF
 RING = (104, 174, 255, 90)  # 描边光晕，低透明度
 
-# Verdana Bold：macOS 自带；Linux 上若缺失，回落到 Pillow 内置位图字体
-#（笔画细一点，但几何与配色不变，不断言字体本身）。
+# SHZK 使用 Verdana Bold。中文副标需要真实 CJK 字体：不能回退到 Pillow
+# 内置位图字体（不含中文，会把品牌名渲染成缺字框）。
 CANDIDATES = [
     "/System/Library/Fonts/Supplemental/Verdana Bold.ttf",
     "/System/Library/Fonts/Verdana Bold.ttf",
     "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+]
+CJK_CANDIDATES = [
+    "/System/Library/Fonts/PingFang.ttc",
+    "/System/Library/Fonts/STHeiti Medium.ttc",
+    "/System/Library/Fonts/STHeiti Light.ttc",
+    "/System/Library/Fonts/Supplemental/Arial Unicode.ttf",
+    "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
+    "/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc",
+    "C:/Windows/Fonts/msyh.ttc",
 ]
 
 
@@ -56,25 +66,40 @@ def load_font(size: int):
     return ImageFont.load_default()
 
 
+def load_cjk_font(size: int):
+    for path in CJK_CANDIDATES:
+        if os.path.exists(path):
+            try:
+                return ImageFont.truetype(path, size)
+            except OSError:
+                continue
+    raise IconBuildError("未找到可用的中文字体（macOS STHeiti / Windows 微软雅黑 / Linux Noto Sans CJK）")
+
+
 def draw_mark(draw: ImageDraw.ImageDraw, box: int, scale: float) -> None:
-    """在 box×box 画布中央画 SHZK 印章 + 装饰线（scale 缩放作画区）。"""
+    """画 SHZK 字标、分隔线与中文品牌名（scale 缩放作画区）。"""
     cx = box / 2
     font = load_font(_px(box * 0.20 * scale))
     text = "SHZK"
-    # 顶部基线：字母中心落在 46% 高度
-    draw.text((cx, box * 0.44), text, font=font, fill=ICE, anchor="mm")
-    # 装饰线：宽 24%，高 ~2%
+    # 顶部基线：字母中心落在 44% 高度
+    draw.text((cx, box * 0.43), text, font=font, fill=ICE, anchor="mm")
+    # 元素分隔线
     lw, lh = box * 0.24 * scale, max(2, _px(box * 0.018 * scale))
     draw.rounded_rectangle(
-        [cx - lw / 2, box * 0.62 - lh / 2, cx + lw / 2, box * 0.62 + lh / 2],
+        [cx - lw / 2, box * 0.60 - lh / 2, cx + lw / 2, box * 0.60 + lh / 2],
         radius=lh // 2,
         fill=(104, 174, 255, 165),
     )
+    # 中文品牌名置于分隔线下方；maskable 版本也位于中心安全区内。
+    label = "数科云办公"
+    label_font = load_cjk_font(_px(box * 0.060 * scale))
+    draw.text((cx, box * 0.72), label, font=label_font, fill=(214, 228, 249, 230), anchor="mm")
 
 
-def make_any(size: int) -> Image.Image:
-    """purpose any：圆角 navy 底 + 透明圆角外（主屏幕直接可用）。"""
-    img = Image.new("RGBA", (size, size), (0, 0, 0, 0))
+def make_any(size: int, *, transparent_corners: bool = True) -> Image.Image:
+    """purpose any：圆角 navy 底；可选透明圆角外（manifest 主屏幕图标）。"""
+    background = (0, 0, 0, 0) if transparent_corners else NAVY
+    img = Image.new("RGBA", (size, size), background)
     draw = ImageDraw.Draw(img)
     r = _px(size * 0.22)
     draw.rounded_rectangle([0, 0, size, size], radius=r, fill=NAVY)
@@ -105,6 +130,7 @@ def main() -> None:
         ("icon-192.png", lambda: make_any(192)),
         ("icon-512.png", lambda: make_any(512)),
         ("icon-512-maskable.png", lambda: make_maskable(512)),
+        ("apple-touch-icon.png", lambda: make_any(180, transparent_corners=False)),
     ]
     failed = False
     for name, build in targets:

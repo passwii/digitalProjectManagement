@@ -6,6 +6,7 @@ const PUBLIC_PATHS = [
   "/change-password",
   "/spark",
   "/icon.svg",
+  "/icons",
   "/manifest.webmanifest",
   "/sw.js",
   "/pdf-cmaps",

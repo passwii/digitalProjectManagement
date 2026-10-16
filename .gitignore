@@ -20,6 +20,7 @@ data/
 
 # agent 运行产物（日志/截图/本地凭据），绝不进仓库
 .multica/
+.blf-*-comment.md
 .zcode/
 .zcodeignore
 
