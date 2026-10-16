@@ -51,6 +51,8 @@
     border-radius: 0;
     color: var(--dock-muted);
     text-decoration: none;
+    /* iOS Safari paints its native rectangular tap highlight over the rounded press pill. */
+    -webkit-tap-highlight-color: transparent;
     transition: color var(--motion-fast) var(--ease-console), background var(--motion-fast) var(--ease-console);
   }
   .tab:hover { color: var(--dock-ink); text-decoration: none; }

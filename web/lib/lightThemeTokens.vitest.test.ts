@@ -54,6 +54,10 @@ describe("浅色主题色彩契约", () => {
     expect(tokens.action).toBe("#c6df7b");
   });
 
+  it("移动 Dock 按压时禁用 Safari 默认的矩形触控高亮", () => {
+    expect(mobileDockCss).toMatch(/\.tab\s*\{[\s\S]*?-webkit-tap-highlight-color:\s*transparent/);
+  });
+
   it("移动 Dock 在浅色主题下切换到浅色表面和内容语义色", () => {
     expect(tokens["dock-bg"]).toBe("var(--card)");
     expect(tokens["dock-ink"]).toBe("var(--ink)");
