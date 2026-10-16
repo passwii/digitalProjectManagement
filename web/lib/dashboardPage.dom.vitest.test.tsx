@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import type { ReactNode } from "react";
 import type { DashboardSummary, Weekly } from "./api";
 
@@ -140,7 +140,10 @@ describe("DashboardPage 刷新状态", () => {
 
     render(<DashboardPage />);
 
-    expect(await screen.findByTestId("dashboard-zone-readouts")).not.toBeNull();
+    const readouts = await screen.findByTestId("dashboard-zone-readouts");
+    expect(readouts.getAttribute("aria-label")).toBe("工作台关键指标");
+    expect(within(readouts).queryByRole("heading", { name: "当前工作态势" })).toBeNull();
+    expect(readouts.querySelectorAll('[data-testid="dashboard-readout"]')).toHaveLength(4);
     expect(screen.getByTestId("dashboard-zone-routes")).not.toBeNull();
     expect(screen.getByTestId("dashboard-zone-interventions")).not.toBeNull();
     expect(screen.getByTestId("dashboard-zone-pulse")).not.toBeNull();

@@ -217,10 +217,7 @@ export default function DashboardPage() {
       )}
 
       <MotionStagger className={s.motion}>
-        <section className={s.readoutZone} data-testid="dashboard-zone-readouts" aria-labelledby="dashboard-readouts-title">
-          <div className={s.zoneHeader}>
-            <h2 id="dashboard-readouts-title">当前工作态势</h2>
-          </div>
+        <section className={s.readoutZone} data-testid="dashboard-zone-readouts" aria-label="工作台关键指标">
           <div className={s.readoutRail}>
             <DashboardReadout
               label="我的项目"

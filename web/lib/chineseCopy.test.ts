@@ -42,13 +42,14 @@ describe("生产端中文界面文案", () => {
     assert.doesNotMatch(admin, /title=\{l\.detail\}/);
   });
 
-  it("工作台与财务页移除重复介绍，保留工作态势标题和会计规则", () => {
+  it("工作台与财务页移除重复介绍和工作态势标题，保留会计规则", () => {
     const dashboard = source("app/(dashboard)/dashboard/page.tsx");
     const finance = source("app/(dashboard)/finance/page.tsx");
     const projectExpenses = source("app/(dashboard)/finance/ProjectExpensePanel.tsx");
 
     assert.doesNotMatch(dashboard, /把项目状态、介入事项与资金脉冲收束在同一张工作面上/);
-    assert.match(dashboard, /当前工作态势/);
+    assert.doesNotMatch(dashboard, /当前工作态势/);
+    assert.match(dashboard, /aria-label="工作台关键指标"/);
     assert.doesNotMatch(finance, /项目成本与财务账独立；已审批支出可在/);
     assert.doesNotMatch(finance, /凭证流水，草稿、待审核和已过账状态由后端控制/);
     assert.doesNotMatch(finance, /凭证审核、过账和账簿取数由后端状态机控制/);
