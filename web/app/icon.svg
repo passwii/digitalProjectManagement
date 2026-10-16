@@ -6,7 +6,7 @@
   <rect x="28" y="28" width="456" height="456" rx="96" fill="none" stroke="#68AEFF" stroke-opacity="0.35" stroke-width="6"/>
   <text
     x="256"
-    y="252"
+    y="220"
     fill="#8CBCFF"
     font-family="Verdana, Geneva, Tahoma, sans-serif"
     font-size="118"
@@ -15,14 +15,14 @@
     text-anchor="middle"
     dominant-baseline="central"
   >SHZK</text>
-  <rect x="196" y="330" width="120" height="10" rx="5" fill="#68AEFF" fill-opacity="0.65"/>
+  <rect x="196" y="307" width="120" height="10" rx="5" fill="#68AEFF" fill-opacity="0.65"/>
   <text
     x="256"
-    y="378"
+    y="369"
     fill="#D6E4F9"
     fill-opacity="0.72"
     font-family="'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', sans-serif"
-    font-size="34"
+    font-size="31"
     letter-spacing="14"
     text-anchor="middle"
     dominant-baseline="central"

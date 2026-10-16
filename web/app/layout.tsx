@@ -13,6 +13,9 @@ export const metadata: Metadata = {
   },
   description: "数科云办公项目台账、进度、合同与支出一体化管理平台",
   // iOS standalone：从主屏幕启动时全屏（无 Safari 地址栏），状态栏透明盖在深色顶栏上。
+  icons: {
+    apple: "/icons/apple-touch-icon.png",
+  },
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",

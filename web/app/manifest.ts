@@ -7,11 +7,12 @@ import type { MetadataRoute } from "next";
  * 不带浏览器地址栏。`theme_color` 与根布局的 `viewport.themeColor` 取同一值
  *（#0F2742），启动闪屏与状态栏才不会出现两截颜色。
  *
- * 图标三件套（`public/icons/`，由脚本 `scripts/gen_pwa_icons.py` 生成，
- * 源设计见 `app/icon.svg`）：
+ * PWA 图标（`public/icons/`，由脚本 `scripts/gen_pwa_icons.py` 生成，
+ * 包含 SHZK、元素分隔线与中文品牌名；源设计见 `app/icon.svg`）：
  *   · 192 / 512（purpose any）—— 主屏幕图标与启动闪屏；
  *   · 512 maskable —— Android 自适应图标（全 bleed 底 + 中央安全区作画，
- *     系统遮罩不会裁掉字母）；
+ *     系统遮罩不会裁掉字标与中文）；
+ *   · 180 Apple touch icon —— iOS 添加到主屏幕使用（在 layout.tsx metadata.icons.apple 声明）；
  *   · `/icon.svg`（sizes any）—— 高分屏与未来尺寸的矢量兜底。
  *
  * shortcuts 指向 Dock 的两个最高频落点（工作台 / 待审批）：长按桌面图标
