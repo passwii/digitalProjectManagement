@@ -12,10 +12,25 @@ export const metadata: Metadata = {
     template: "%s · 数科云办公",
   },
   description: "数科云办公项目台账、进度、合同与支出一体化管理平台",
-  // iOS standalone：从主屏幕启动时全屏（无 Safari 地址栏），状态栏透明盖在深色顶栏上。
+  // 站点图标（BLF-1360）。
+  //
+  // ⚠️ 这里必须把 `icon` 一并写全，不能只写 `apple`。Next 的元数据合并逻辑是：
+  // 文件约定图标（`app/icon.svg`）只在 metadata **没有** `icons` 字段时才会被
+  // 合进 `<head>`（见 next/dist/lib/metadata/resolve-metadata.js 的
+  // `leafSegmentStaticIcons` 分支）。只写 `icons.apple` 会把整个 `icons` 变成
+  // 真值，于是 `app/icon.svg` 被静默丢弃 —— 标签页只剩浏览器默认的地球图标。
+  //
+  // 顺带补上 PNG：Safari / 老 Firefox 不支持 SVG favicon，只给 `icon.svg`
+  // 它们同样显示地球。PNG 与 manifest 的 192/512 是同一批产物。
   icons: {
+    icon: [
+      { url: "/icons/icon-192.png", sizes: "192x192", type: "image/png" },
+      { url: "/icons/icon-512.png", sizes: "512x512", type: "image/png" },
+      { url: "/icon.svg", sizes: "any", type: "image/svg+xml" },
+    ],
     apple: "/icons/apple-touch-icon.png",
   },
+  // iOS standalone：从主屏幕启动时全屏（无 Safari 地址栏），状态栏透明盖在深色顶栏上。
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
