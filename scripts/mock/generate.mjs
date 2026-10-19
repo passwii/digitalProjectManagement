@@ -98,11 +98,11 @@ const offsetDaysAgo = (daysAgo, clockMinute, minute = 0) => {
 // ============================================================
 const ORG = {
   id: "org-001",
-  name: "智能音视频平台",
-  shortName: "AV Platform",
+  name: "Stream Monitor",
+  shortName: "Stream Monitor",
   brandLine: "多模态融合感知 · 全场景智能安防",
   version: "v3.9.0",
-  copyright: "2026 智能音视频平台",
+  copyright: "2026 Stream Monitor",
 };
 
 const SITES = [

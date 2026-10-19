@@ -17,7 +17,7 @@ import {
 } from "@/lib/av/motion";
 
 /**
- * `/av` 的动效状态上下文。
+ * `/stream-monitor` 的动效状态上下文。
  *
  * 两个开关合流成一个「还能不能动」的判定：
  *   · `prefers-reduced-motion: reduce`（系统设置，用 framer 的 useReducedMotion 读）；
@@ -83,8 +83,8 @@ function usePrefersReducedMotion(): boolean {
 /**
  * framer 特性集按需加载（异步）。
  *
- * 为什么不用同步的 `domMax`：它把 drag 也一并打进 `/av` 的首屏 JS —— 实测
- * First Load JS 从 241 kB 涨到 298 kB，而 `/av` 一个拖拽都没有。改成动态 import
+ * 为什么不用同步的 `domMax`：它把 drag 也一并打进 `/stream-monitor` 的首屏 JS —— 实测
+ * First Load JS 从 241 kB 涨到 298 kB，而 `/stream-monitor` 一个拖拽都没有。改成动态 import
  * 之后首屏 281 kB、特性包在 hydration 后单独拉一次，导航高亮 / Tab 滑块 /
  * 列表 FLIP 都在用户真正操作之前就绪。
  *
@@ -156,7 +156,7 @@ export default function AvMotionProvider({ children }: { children: React.ReactNo
           抽屉内容 morph）属于 layout 特性，`domAnimation` 里没有，用 `m` 组件时会
           静默不生效（这是 framer 最典型的坑）。
           `strict` 保证没人从 `motion` 而不是 `m` 里引组件 —— 那样会把整套特性打进
-          每个页面的 chunk，`/av` 的 6 个页面各来一份。
+          每个页面的 chunk，`/stream-monitor` 的 6 个页面各来一份。
         */}
         <LazyMotion features={loadAvMotionFeatures} strict>
           {children}

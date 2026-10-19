@@ -169,7 +169,7 @@ export default function AudioView({ alarm, spectrum, transcript, samples }: Audi
   return (
     <div className={s.page} data-av-page="audio">
       <AvPageHeader
-        route="/av/audio"
+        route="/stream-monitor/audio"
         title="音频分析"
         subtitle="频谱与转写：频谱是二维矩阵（bins × cols），转写按说话人着色；页面从告警详情抽屉进入，不在主导航。"
         aside={
@@ -177,7 +177,7 @@ export default function AudioView({ alarm, spectrum, transcript, samples }: Audi
             {samples.slice(0, 4).map((sample) => (
               <Link
                 key={sample.alarmId}
-                href={`/av/audio?alarm=${sample.alarmId}`}
+                href={`/stream-monitor/audio?alarm=${sample.alarmId}`}
                 className={s.audioPick}
                 aria-current={sample.alarmId === alarm.id}
               >

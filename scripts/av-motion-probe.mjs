@@ -72,7 +72,7 @@ try {
   await send("Emulation.setDeviceMetricsOverride", { width: 1440, height: 1400, deviceScaleFactor: 1, mobile: false });
 
   // ---- 1. layoutId 滑块（动效开启） ----
-  await send("Page.navigate", { url: `${base}/av/alarm` });
+  await send("Page.navigate", { url: `${base}/stream-monitor/alarm` });
   await sleep(3000);
   const layout = await evaluate(`JSON.stringify({
     motion: document.documentElement.getAttribute('data-av-motion'),

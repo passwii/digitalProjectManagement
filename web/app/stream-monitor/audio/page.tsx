@@ -4,12 +4,12 @@ import AudioView from "@/components/av/pages/AudioView";
 import { AvEmpty, AvPageHeader } from "@/components/av/AvUI";
 
 export const metadata: Metadata = {
-  title: "音频分析 · 智能音视频平台",
+  title: "音频分析 · Stream Monitor",
   description: "频谱矩阵与说话人转写（不进主导航，从告警详情进入）",
 };
 
 /**
- * `/av/audio?alarm=AL-00042`：音频分析（不进导航）。
+ * `/stream-monitor/audio?alarm=AL-00042`：音频分析（不进导航）。
  *
  * 频谱整包 638KB，只在真正进入这一页时才读（`getAudioData` 内部 `getSpectra()`），
  * 绝不放进首屏。
@@ -28,7 +28,7 @@ export default async function AudioPage({ searchParams }: { searchParams: { alar
     return (
       <div style={{ display: "grid", gap: 12 }}>
         <AvPageHeader
-          route="/av/audio"
+          route="/stream-monitor/audio"
           title="音频分析"
           subtitle="频谱与转写"
         />

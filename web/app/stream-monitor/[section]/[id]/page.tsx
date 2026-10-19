@@ -6,7 +6,7 @@ import AlarmView from "@/components/av/pages/AlarmView";
 import EventView from "@/components/av/pages/EventView";
 
 /**
- * 深链接：`/av/alarm/AL-00042` 与 `/av/event/EV-20160714`。
+ * 深链接：`/stream-monitor/alarm/AL-00042` 与 `/stream-monitor/event/EV-20160714`。
  *
  * 两个页面共用一条动态路由（`[section]/[id]`），因为除告警 / 事件之外的 section
  * 没有详情语义，直接 404；比再开两个平行目录更不容易和 `[section]` 抢路由。
@@ -16,7 +16,7 @@ import EventView from "@/components/av/pages/EventView";
  */
 
 export function generateMetadata({ params }: { params: { section: string; id: string } }): Metadata {
-  const label = params.section === "alarm" ? "告警详情" : params.section === "event" ? "事件详情" : "智能音视频平台";
+  const label = params.section === "alarm" ? "告警详情" : params.section === "event" ? "事件详情" : "Stream Monitor";
   return { title: `${decodeURIComponent(params.id)} · ${label}` };
 }
 

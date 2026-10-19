@@ -72,7 +72,7 @@ export default function OverviewView(props: OverviewProps) {
   return (
     <div className={s.page} data-av-page="overview">
       <AvPageHeader
-        route="/av/overview"
+        route="/stream-monitor/overview"
         title="总览驾驶舱"
         subtitle="多模态融合感知 · 全场景智能安防。所有数值来自本地 mock 数据集，锚点 2026-10-19 12:00。"
         actions={<AvTabs items={RANGE_TABS} value={range} onChange={setRange} ariaLabel="时间范围" />}
@@ -286,7 +286,7 @@ export default function OverviewView(props: OverviewProps) {
             ))}
           </ul>
           <div className={s.panelLinkRow}>
-            <Link href="/av/alarm" className={s.textLink}>
+            <Link href="/stream-monitor/alarm" className={s.textLink}>
               进入告警中心 →
             </Link>
             <span className={s.softNote}>演示回放：每 8 秒揭示下一条</span>

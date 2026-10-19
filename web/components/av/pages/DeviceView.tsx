@@ -91,7 +91,7 @@ export default function DeviceView({ devices, summary }: DeviceViewProps) {
   return (
     <div className={s.page} data-av-page="device">
       <AvPageHeader
-        route="/av/device"
+        route="/stream-monitor/device"
         title="设备管理"
         subtitle="设备台账、在线率与离线清单。离线时长来自最近心跳偏移；固件与自检历史来自设备画像字段。"
         aside={<span className={s.anchorChip}>OTA {summary.ota.success}/{summary.ota.total} 成功</span>}

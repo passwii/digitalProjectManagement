@@ -27,7 +27,7 @@ import { CORE_FILES } from "./view";
 
 const fetcher: Fetcher = async (url) => JSON.parse(readFileSync(url, "utf8")) as unknown;
 
-describe("AV 服务端数据层", () => {
+describe("Stream Monitor 服务端数据层", () => {
   it("核心数据规模与 Stage 1 交付一致", async () => {
     const [core, index] = await Promise.all([getCore(), getDatasetIndex()]);
     assert.equal(index.counts.sites, 3);

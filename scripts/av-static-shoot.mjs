@@ -4,7 +4,7 @@ import { spawn } from "node:child_process";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { createHash } from "node:crypto";
 
-const url = process.argv[2] ?? "http://127.0.0.1:3111/av/overview?static=1";
+const url = process.argv[2] ?? "http://127.0.0.1:3111/stream-monitor/overview?static=1";
 const outDir = process.argv[3] ?? "/tmp/av-cdp";
 // 本地验收工具：需要一个已安装的 Chrome / Chromium。可用 CHROME_PATH 覆盖，
 // 不给参数时走 macOS 的默认安装位置。

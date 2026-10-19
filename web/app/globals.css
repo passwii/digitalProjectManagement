@@ -2615,7 +2615,7 @@ textarea,
 }
 
 /* ==========================================================================
-   智能音视频平台（/av）语义令牌（BLF-1374）
+   Stream Monitor 语义令牌（BLF-1374）
    --------------------------------------------------------------------------
    这里只做「别名」：每一个 --av-* 都指向主工作台已有的语义 token，因此深浅
    主题自动跟随，不需要在 :root[data-theme="light"] 里再抄一份值。
@@ -2684,7 +2684,7 @@ textarea,
 }
 
 /* ==========================================================================
-   智能音视频平台（/av）动效令牌（Stage 3 / BLF-1375）
+   Stream Monitor 动效令牌（Stage 3 / BLF-1375）
    --------------------------------------------------------------------------
    单一真源是 `lib/av/motion.ts` 的 AV_MOTION / AV_EASE / AV_STAGGER；这里只是把
    同一组值落成 CSS 自定义属性，好让 module.css 与 JS 用同一套时长与曲线
@@ -2717,7 +2717,7 @@ textarea,
 /*
  * `?static=1`（截图 / 录屏）与 `prefers-reduced-motion: reduce` 的统一降级。
  *
- * 属性由 app/av/layout.tsx 的内联脚本在**首帧之前**挂到 <html> 上：等 React
+ * 属性由 app/stream-monitor/layout.tsx 的内联脚本在**首帧之前**挂到 <html> 上：等 React
  * 水合再从 effect 里关动画，第一帧的入场早就被录进去了。
  *
  * 这里同时做两件事：
@@ -2764,7 +2764,7 @@ textarea,
 /*
  * 全局按下态：按钮缩到 0.98（instant）。
  *
- * 放在 globals 而不是各模块里，是因为 `/av` 里有 6 种按钮（ghostButton、
+ * 放在 globals 而不是各模块里，是因为站点里有 6 种按钮（ghostButton、
  * dialogClose、tab、navLink、collapseButton、primaryAction），逐个补会漏。
  * 只作用于真实按钮，`a` 不缩 —— 链接按下就变形会让人以为点错了。
  */
@@ -2780,7 +2780,7 @@ textarea,
 }
 
 /* --------------------------------------------------------------------------
-   /av 共用的帧动画（Stage 3）
+   /stream-monitor 共用的帧动画（Stage 3）
    --------------------------------------------------------------------------
    为什么用 CSS keyframes 而不是 framer 的 initial/animate 做入场：
    framer 的 initial 会把 `opacity:0` 写进 SSR 的 style，JS 没到之前页面是空的；

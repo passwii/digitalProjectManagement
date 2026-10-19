@@ -19,7 +19,7 @@ import { AV_MOTION_ATTRIBUTE } from "@/lib/av/motion";
  */
 
 vi.mock("next/navigation", () => ({
-  usePathname: () => "/av/overview",
+  usePathname: () => "/stream-monitor/overview",
   useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
   useSearchParams: () => new URLSearchParams(),
 }));
@@ -54,7 +54,7 @@ function StateProbe() {
 describe("动效开关（AC2 / AC3）", () => {
   beforeEach(() => {
     mockMatchMedia(false);
-    window.history.pushState({}, "", "/av/overview");
+    window.history.pushState({}, "", "/stream-monitor/overview");
   });
 
   afterEach(() => {
@@ -73,7 +73,7 @@ describe("动效开关（AC2 / AC3）", () => {
   });
 
   it("?static=1：<html> 挂 off、enabled=false、时长归零", async () => {
-    window.history.pushState({}, "", "/av/overview?static=1");
+    window.history.pushState({}, "", "/stream-monitor/overview?static=1");
     render(
       <AvMotionProvider>
         <StateProbe />
@@ -86,7 +86,7 @@ describe("动效开关（AC2 / AC3）", () => {
   });
 
   it("?static=0 不冻结（显式关闭截图模式）", async () => {
-    window.history.pushState({}, "", "/av/overview?static=0");
+    window.history.pushState({}, "", "/stream-monitor/overview?static=0");
     render(
       <AvMotionProvider>
         <StateProbe />
@@ -120,7 +120,7 @@ describe("动效开关（AC2 / AC3）", () => {
   });
 
   it("降级后页面切换不再包动画层（静态页与截图一致）", () => {
-    window.history.pushState({}, "", "/av/overview?static=1");
+    window.history.pushState({}, "", "/stream-monitor/overview?static=1");
     const { container } = render(
       <AvMotionProvider>
         <AvPageTransition>
@@ -189,7 +189,7 @@ describe("动效开关（AC2 / AC3）", () => {
   });
 
   it("KPI 数字在降级时直接给终值（不滚、不闪）", () => {
-    window.history.pushState({}, "", "/av/overview?static=1");
+    window.history.pushState({}, "", "/stream-monitor/overview?static=1");
     render(
       <AvMotionProvider>
         <AvCounter value="14,366" />

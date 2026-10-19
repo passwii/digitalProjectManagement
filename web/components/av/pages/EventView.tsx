@@ -57,7 +57,7 @@ export default function EventView({ rows, detail, initialId, counts, userNames }
     if (id === selectedId) return;
     setPendingId(id);
     startTransition(() => {
-      router.push(`/av/event/${id}`);
+      router.push(`/stream-monitor/event/${id}`);
       setPendingId(null);
     });
   };
@@ -66,7 +66,7 @@ export default function EventView({ rows, detail, initialId, counts, userNames }
   return (
     <div className={s.page} data-av-page="event">
       <AvPageHeader
-        route="/av/event"
+        route="/stream-monitor/event"
         title="事件中心"
         subtitle="跨告警融合与证据链追溯：事件由多条告警按点位与时间窗聚合，时间线保留每一次确认、派发与归档。"
         aside={
@@ -258,7 +258,7 @@ export default function EventView({ rows, detail, initialId, counts, userNames }
                   <ul className={s.evidenceList}>
                     {selected.alarms.map((alarm) => (
                       <li key={alarm.id}>
-                        <Link className={s.evidenceItem} href={`/av/alarm/${alarm.id}`}>
+                        <Link className={s.evidenceItem} href={`/stream-monitor/alarm/${alarm.id}`}>
                           <AvLevelBadge level={alarm.level} label={alarm.levelLabel} />
                           <span className={s.evidenceTitle} title={alarm.title}>{alarm.title}</span>
                           <span className={s.evidenceId}>{alarm.id}</span>

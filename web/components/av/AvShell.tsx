@@ -123,24 +123,24 @@ export default function AvShell({
         <button
           type="button"
           className={s.backdrop}
-          aria-label="关闭智能音视频平台导航"
+          aria-label="关闭 Stream Monitor 导航"
           tabIndex={-1}
           onClick={() => setMobileOpen(false)}
         />
       )}
 
-      <aside className={s.sidebar} aria-label="智能音视频平台侧栏">
-        <Link className={s.brand} href="/av/overview" aria-label="返回智能音视频平台总览">
+      <aside className={s.sidebar} aria-label="Stream Monitor 侧栏">
+        <Link className={s.brand} href="/stream-monitor/overview" aria-label="返回 Stream Monitor 总览">
           <span className={s.brandMark}>
             <AvGlyph name="wave" size={19} />
           </span>
           <span className={`${s.brandCopy} ${motion.sidebarText}`}>
             <strong>{orgName}</strong>
-            <small>AV PLATFORM · {version}</small>
+            <small>STREAM MONITOR · {version}</small>
           </span>
         </Link>
 
-        <nav id="av-navigation" className={s.nav} aria-label="智能音视频平台模块">
+        <nav id="av-navigation" className={s.nav} aria-label="Stream Monitor 模块">
           {groups.map((entry) => (
             <div key={entry.group}>
               <div className={s.groupLabel}>{collapsed ? "—" : entry.group}</div>
@@ -203,7 +203,7 @@ export default function AvShell({
             type="button"
             className={s.menuButton}
             onClick={() => setMobileOpen(true)}
-            aria-label="打开智能音视频平台导航"
+            aria-label="打开 Stream Monitor 导航"
             aria-controls="av-navigation"
             aria-expanded={mobileOpen}
           >
@@ -221,7 +221,7 @@ export default function AvShell({
             onSubmit={(event) => {
               event.preventDefault();
               const value = keyword.trim();
-              router.push(value ? `/av/alarm?q=${encodeURIComponent(value)}` : "/av/alarm");
+              router.push(value ? `/stream-monitor/alarm?q=${encodeURIComponent(value)}` : "/stream-monitor/alarm");
             }}
           >
             <AvGlyph name="search" size={15} />
@@ -286,7 +286,7 @@ export default function AvShell({
         </main>
       </div>
 
-      {/* 可选门禁：只有 /av?gate=1 才会出现，直接访问 /av/overview 不受影响 */}
+      {/* 可选门禁：只有 /stream-monitor?gate=1 才会出现，直接访问 /stream-monitor/overview 不受影响 */}
       <AvGate />
     </div>
   );

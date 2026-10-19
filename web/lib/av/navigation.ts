@@ -1,22 +1,31 @@
 /**
- * 智能音视频平台（/av）的导航契约。
+ * Stream Monitor（/stream-monitor）的导航契约。
  *
  * 这里是「有哪些页面」的唯一真源：壳层侧栏、面包屑、动效挂载点（Stage 3 的
  * `layoutId` 与页面过渡 key）都从这份清单生成，不要再在组件里手写第二份数组。
  *
  * 与 `/spark` 的 SPARK_PAGES 刻意分开：
  *   · Spark 是 NebulaCloud 云电竞演示站，8 个页面、一套独立暗色视觉；
- *   · AV 是智能音视频平台演示站，6 个页面、跟随项目 DESIGN.md 的深浅双主题。
+ *   · 音视频平台是 stream monitor 演示站，6 个页面、跟随项目 DESIGN.md 的深浅双主题。
  * 两者在左侧导航里同属「Spark」分组，但互不共享壳层与路由表。
  */
 
+/**
+ * 站点公开路径前缀。
+ *
+ * BLF-1387 起站点从 `/av` 迁到 `/stream-monitor`。这里**只**放新路径：
+ * 旧路径的兼容重定向由 middleware 负责（见 middleware.ts 的 LEGACY_AV_PREFIX），
+ * 不要在这里留 `/av` 的常量 —— 一旦留了，导航契约就会出现两套前缀。
+ */
+export const AV_BASE_PATH = "/stream-monitor";
+
 /** 独立浏览上下文：避免与 NebulaCloud 演示站抢同一个标签页。 */
-export const AV_WINDOW_TARGET = "av-platform";
+export const AV_WINDOW_TARGET = "stream-monitor";
 
 export const AV_PAGES = [
   {
     slug: "overview",
-    href: "/av/overview",
+    href: `${AV_BASE_PATH}/overview`,
     label: "总览驾驶舱",
     group: "总览",
     icon: "overview",
@@ -24,7 +33,7 @@ export const AV_PAGES = [
   },
   {
     slug: "monitor",
-    href: "/av/monitor",
+    href: `${AV_BASE_PATH}/monitor`,
     label: "实时音视频监控",
     group: "总览",
     icon: "monitor",
@@ -32,7 +41,7 @@ export const AV_PAGES = [
   },
   {
     slug: "alarm",
-    href: "/av/alarm",
+    href: `${AV_BASE_PATH}/alarm`,
     label: "告警中心",
     group: "检测与处置",
     icon: "alarm",
@@ -40,7 +49,7 @@ export const AV_PAGES = [
   },
   {
     slug: "event",
-    href: "/av/event",
+    href: `${AV_BASE_PATH}/event`,
     label: "事件中心",
     group: "检测与处置",
     icon: "event",
@@ -48,7 +57,7 @@ export const AV_PAGES = [
   },
   {
     slug: "device",
-    href: "/av/device",
+    href: `${AV_BASE_PATH}/device`,
     label: "设备管理",
     group: "检测与处置",
     icon: "device",
@@ -56,7 +65,7 @@ export const AV_PAGES = [
   },
   {
     slug: "capability",
-    href: "/av/capability",
+    href: `${AV_BASE_PATH}/capability`,
     label: "能力与场景",
     group: "能力与场景",
     icon: "capability",
@@ -75,8 +84,8 @@ export function avPageForSection(section: string) {
   return AV_PAGES.find((page) => page.slug === section);
 }
 
-/** 默认落地页：`/av`、`/av/` 与未知 section 都收敛到这里。 */
-export const AV_HOME = "/av/overview";
+/** 默认落地页：`/stream-monitor`、`/stream-monitor/` 与未知 section 都收敛到这里。 */
+export const AV_HOME = `${AV_BASE_PATH}/overview`;
 
 /** 不属于导航、但允许直达的两个辅助页（Stage 2 §二）。 */
 export const AV_HIDDEN_ROUTES = [
@@ -90,13 +99,13 @@ export function isAvHiddenRoute(value: string): value is (typeof AV_HIDDEN_ROUTE
 
 /**
  * 所有 `[section]` 可接受的值：6 个导航页 + 2 个辅助页。
- * 其它值一律 404，避免 `/av/whatever` 静默落回总览。
+ * 其它值一律 404，避免 `/stream-monitor/whatever` 静默落回总览。
  */
 export function isAvRoute(value: string): boolean {
   return isAvSection(value) || isAvHiddenRoute(value);
 }
 
-/** 在 AV 内做子页面深链接时的前缀（`/av/alarm` → `/av/alarm/AL-00042`）。 */
+/** 在站点内做子页面深链接时的前缀（`/stream-monitor/alarm` → `/stream-monitor/alarm/AL-00042`）。 */
 export function avDetailHref(section: AvSection, id: string): string {
-  return `/av/${section}/${encodeURIComponent(id)}`;
+  return `${AV_BASE_PATH}/${section}/${encodeURIComponent(id)}`;
 }
