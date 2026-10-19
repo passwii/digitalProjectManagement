@@ -34,6 +34,9 @@
  --done-bg: rgba(198, 255, 114, 0.09);
  --paused: #9cb4c4;
  --paused-bg: rgba(146, 189, 210, 0.08);
+ /* 数据紫系列（图表 / 场景分色）的柔和底。与三级告警的 --doing-bg 分开命名，
+    否则后续多系列图表里「三级告警」和「数据紫」会拿到同一个底色、直接串色。 */
+ --violet-soft: rgba(189, 166, 255, 0.10);
  --radius: 0px;
  --radius-sm: 0px;
  --radius-pill: 999px;
@@ -156,6 +159,7 @@
  --done-bg: #e9f2eb;
  --paused: #5e707d;
  --paused-bg: #e8eef2;
+ --violet-soft: #efeafb;
  --on-brand: #f4f8fa;
  --on-danger: #ffffff;
  --th-bg: #e8eef2;
@@ -2608,4 +2612,73 @@ textarea,
  .detail-tabs button {
   min-height: var(--m-tap);
  }
+}
+
+/* ==========================================================================
+   智能音视频平台（/av）语义令牌（BLF-1374）
+   --------------------------------------------------------------------------
+   这里只做「别名」：每一个 --av-* 都指向主工作台已有的语义 token，因此深浅
+   主题自动跟随，不需要在 :root[data-theme="light"] 里再抄一份值。
+
+   为什么单独一层而不是在组件里直接写 var(--danger)：
+     · AV 的四级告警、三场景分色有固定语义（一级 ≠ 二级 ≠ 三级 ≠ 四级），
+       集中在这里命名一次，页面里只写 var(--av-level-1)，换色只改这一处；
+     · 顺带满足 Stage 2 的硬约束：组件里不允许出现颜色字面量，只能消费变量；
+     · Stage 3 做动效时需要读「当前语义色」画图表，统一前缀让运行时取色也有据可依。
+
+   告警四级（颜色 + 文字双通道，色弱可辨）：
+     一级 = danger 珊瑚 / 二级 = warning 琥珀 / 三级 = signal 信号青 / 四级 = 弱文字
+   场景分色属于数据系列色，不借用告警三色：
+     校园 = 信号青 / 医院 = 数据紫 / 公安 = 中性钢灰
+   ========================================================================== */
+:root {
+  --av-canvas: var(--bg);
+  --av-surface: var(--card);
+  --av-surface-soft: var(--th-bg);
+  --av-rail: var(--nav-bg);
+  --av-ink: var(--ink);
+  --av-ink-2: var(--ink-2);
+  --av-ink-3: var(--ink-3);
+  --av-divider: var(--line);
+  --av-divider-soft: var(--line-soft);
+  --av-signal: var(--brand);
+  --av-action: var(--action);
+  --av-danger: var(--danger);
+  --av-warning: var(--warn);
+  --av-violet: var(--data-violet);
+  --av-success: var(--done);
+  --av-neutral: var(--todo);
+
+  --av-level-1: var(--danger);
+  --av-level-1-soft: var(--danger-bg);
+  --av-level-1-line: var(--line-danger);
+  --av-level-2: var(--warn);
+  --av-level-2-soft: var(--warn-bg);
+  --av-level-2-line: var(--line-warn);
+  --av-level-3: var(--brand);
+  --av-level-3-soft: var(--doing-bg);
+  --av-level-3-line: var(--line-blue);
+  --av-level-4: var(--ink-3);
+  --av-level-4-soft: var(--todo-bg);
+  --av-level-4-line: var(--line-soft);
+
+  --av-tone-signal: var(--av-signal);
+  --av-tone-signal-soft: var(--doing-bg);
+  --av-tone-action: var(--av-action);
+  --av-tone-action-soft: var(--done-bg);
+  --av-tone-danger: var(--av-danger);
+  --av-tone-danger-soft: var(--danger-bg);
+  --av-tone-warning: var(--av-warning);
+  --av-tone-warning-soft: var(--warn-bg);
+  --av-tone-violet: var(--av-violet);
+  --av-tone-violet-soft: var(--violet-soft);
+  --av-tone-neutral: var(--av-neutral);
+  --av-tone-neutral-soft: var(--todo-bg);
+  --av-tone-success: var(--av-success);
+  --av-tone-success-soft: var(--done-bg);
+}
+
+/* 告警 / 设备详情用原生 <dialog> 打开时锁住背景滚动（Esc 关闭后由组件移除该属性） */
+:root[data-av-dialog="open"] {
+  overflow: hidden;
 }

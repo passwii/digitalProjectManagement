@@ -1,0 +1,331 @@
+"use client";
+
+import Link from "next/link";
+import { useEffect, useMemo, useState } from "react";
+import type { OverviewProps } from "@/lib/av/contracts";
+import { AvBar, AvLegend, AvMetric, AvPageHeader, AvPanel, AvTabs, AvLevelBadge, toneVar } from "@/components/av/AvUI";
+import { AvBarChart, AvDonut, AvTrendChart, type DonutDatum } from "@/components/av/AvCharts";
+import { formatCount, formatGb, formatPercent, formatStorage } from "@/lib/av/labels";
+import { toRelative } from "@/lib/av/time";
+import s from "./AvPages.module.css";
+
+type RangeKey = "live" | "today" | "week";
+
+const RANGE_TABS: { value: RangeKey; label: string }[] = [
+  { value: "live", label: "近 24 小时" },
+  { value: "today", label: "今日" },
+  { value: "week", label: "近 7 日" },
+];
+
+export default function OverviewView(props: OverviewProps) {
+  const [range, setRange] = useState<RangeKey>("live");
+  const [revealed, setRevealed] = useState(4);
+  const [paused, setPaused] = useState(false);
+
+  // 实时告警流的「增量插入」：数据是静态回放，每 8 秒揭示下一条，
+  // 结构上给足稳定 key 与固定顺序，Stage 3 只需在这里挂入场动画。
+  useEffect(() => {
+    if (paused || revealed >= props.recent.length) return;
+    const timer = window.setTimeout(() => setRevealed((value) => Math.min(props.recent.length, value + 1)), 8000);
+    return () => window.clearTimeout(timer);
+  }, [paused, revealed, props.recent.length]);
+
+  const heatMax = useMemo(
+    () => Math.max(1, ...props.heatmap.flatMap((day) => day.cells.map((cell) => cell.count))),
+    [props.heatmap],
+  );
+  const sceneTotal = props.scenes.reduce((sum, scene) => sum + scene.value, 0);
+  const sceneDonut: DonutDatum[] = props.scenes.map((scene) => ({
+    label: scene.label,
+    value: scene.value,
+    tone: scene.tone,
+  }));
+  const levelDonut: DonutDatum[] = props.levels.map((row) => ({
+    label: row.label,
+    value: row.total,
+    tone: row.tone,
+  }));
+  const topTypeMax = Math.max(1, ...props.types.map((row) => row.count));
+  const visibleAlarms = props.recent.slice(0, revealed);
+
+  return (
+    <div className={s.page} data-av-page="overview">
+      <AvPageHeader
+        route="/av/overview"
+        title="总览驾驶舱"
+        subtitle="多模态融合感知 · 全场景智能安防。所有数值来自本地 mock 数据集，锚点 2026-10-19 12:00。"
+        actions={<AvTabs items={RANGE_TABS} value={range} onChange={setRange} ariaLabel="时间范围" />}
+        aside={<span className={s.anchorChip}>数据锚点 {props.anchorLabel}</span>}
+      />
+
+      <div className={s.metricGrid}>
+        {props.kpis.map((kpi) => (
+          <AvMetric
+            key={kpi.key}
+            label={kpi.label}
+            value={kpi.value}
+            unit={kpi.unit}
+            detail={kpi.detail}
+            note={kpi.note}
+            tone={kpi.tone}
+          />
+        ))}
+      </div>
+
+      <div className={s.splitWide}>
+        <AvPanel
+          title="告警趋势"
+          subtitle={range === "week" ? "近 7 个自然日的告警与事件" : "每小时告警量与已处置量"}
+          icon="overview"
+          meta={range === "week" ? "按自然日" : "按小时"}
+          motionKey="overview-trend"
+        >
+          {range === "week" ? (
+            <AvBarChart
+              data={props.daily}
+              dataKeys={["alarms", "incidents"]}
+              labels={["告警数", "事件数"]}
+              tones={["signal", "violet"]}
+              height={248}
+              label="近 7 日告警与事件柱状图"
+            />
+          ) : (
+            <AvTrendChart
+              data={range === "today" ? props.todayTrend : props.trend}
+              dataKeys={["alarms", "handled"]}
+              labels={["告警数", "已处置"]}
+              tones={["signal", "success"]}
+              height={248}
+              label="告警趋势折线图"
+            />
+          )}
+          <div className={s.chartFoot}>
+            <AvLegend
+              items={[
+                { label: "告警数", tone: "signal" },
+                { label: range === "week" ? "事件数" : "已处置", tone: range === "week" ? "violet" : "success" },
+              ]}
+            />
+            <span className={s.softNote}>
+              {range === "week"
+                ? `7 日合计 ${formatCount(props.daily.reduce((sum, day) => sum + day.alarms, 0))} 条`
+                : `区间合计 ${formatCount((range === "today" ? props.todayTrend : props.trend).reduce((sum, bucket) => sum + bucket.alarms, 0))} 条`}
+            </span>
+          </div>
+        </AvPanel>
+
+        <AvPanel
+          title="告警分级"
+          subtitle="今日全量 vs 未处置拆分"
+          icon="alarm"
+          meta={`未处置 ${formatCount(props.alarmUnhandled)}`}
+          motionKey="overview-levels"
+        >
+          <AvDonut
+            data={levelDonut}
+            centerValue={formatCount(props.todayAlarmsTotal)}
+            centerLabel="今日告警"
+            label="今日告警分级环形图"
+          />
+          <ul className={s.levelList}>
+            {props.levels.map((row) => (
+              <li key={row.level} className={s.levelRow}>
+                <AvLevelBadge level={row.level} label={row.label} />
+                <span className={s.levelSpacer} />
+                <span className={s.levelTotal}>今日 {formatCount(row.total)}</span>
+                <span className={s.levelSub}>未处置 {formatCount(row.unhandled)}</span>
+              </li>
+            ))}
+          </ul>
+        </AvPanel>
+      </div>
+
+      <div className={s.gridThree}>
+        <AvPanel title="场景分布" subtitle="今日告警按业务场景" icon="capability" meta={`${props.scenes.length} 个场景`} motionKey="overview-scenes">
+          <AvDonut
+            data={sceneDonut}
+            centerValue={formatCount(sceneTotal)}
+            centerLabel="今日合计"
+            label="场景分布环形图"
+          />
+          <AvLegend
+            items={props.scenes.map((scene) => ({
+              label: `${scene.label}（${scene.site}）`,
+              value: formatCount(scene.value),
+              tone: scene.tone,
+            }))}
+          />
+        </AvPanel>
+
+        <AvPanel
+          title="告警热力 · 7 日 × 24 小时"
+          subtitle="颜色越深代表该时段告警越多（UTC+8 时钟）"
+          icon="event"
+          meta={`峰值 ${formatCount(heatMax)} 条/小时`}
+          motionKey="overview-heatmap"
+          className={s.spanTwo}
+        >
+          <div className={s.heatmap} role="img" aria-label="近 7 日每小时告警热力图">
+            <div className={s.heatAxis} aria-hidden="true">
+              <span />
+              <div className={s.heatTicks}>
+                {Array.from({ length: 24 }, (_, hour) => (
+                  <span key={hour}>{[0, 6, 12, 18].includes(hour) ? String(hour).padStart(2, "0") : ""}</span>
+                ))}
+              </div>
+            </div>
+            {props.heatmap.map((day) => (
+              <div key={day.day} className={s.heatRow}>
+                <span className={s.heatDay}>{day.day === 0 ? "今天" : `-${day.day} 天`}</span>
+                <div className={s.heatCells}>
+                  {day.cells.map((cell) => (
+                    <span
+                      key={`${day.day}-${cell.hour}`}
+                      className={s.heatCell}
+                      style={{ opacity: cell.count === 0 ? 0.12 : 0.25 + 0.75 * (cell.count / heatMax) }}
+                      title={`${day.day === 0 ? "今天" : `${day.day} 天前`} ${String(cell.hour).padStart(2, "0")}:00 · ${cell.count} 条`}
+                    />
+                  ))}
+                </div>
+              </div>
+            ))}
+            <div className={s.heatLegend} aria-hidden="true">
+              <span>少</span>
+              {[0.12, 0.35, 0.55, 0.75, 1].map((level) => (
+                <i key={level} style={{ opacity: level }} />
+              ))}
+              <span>多</span>
+            </div>
+          </div>
+        </AvPanel>
+      </div>
+
+      <div className={s.splitWide}>
+        <AvPanel
+          title="GPU 算力资源池"
+          subtitle={`${props.gpu.meta.model} · 显存 ${formatGb(props.gpu.meta.vramTotalGb)} · 利用率 ${formatPercent(props.gpu.meta.utilization)}`}
+          icon="chip"
+          meta={`${props.gpu.cards.length} 张卡`}
+          motionKey="overview-gpu"
+        >
+          <div className={s.gpuList}>
+            {props.gpu.cards.map((card) => (
+              <div key={card.index} className={s.gpuRow} style={{ "--tone": toneVar(card.tone) } as React.CSSProperties}>
+                <span className={s.gpuName}>GPU{card.index}</span>
+                <div
+                  className={s.gpuTrack}
+                  role="progressbar"
+                  aria-valuenow={card.utilization}
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                  aria-label={`GPU${card.index} 利用率`}
+                >
+                  <span className={s.gpuFill} style={{ width: `${Math.min(100, Math.max(0, card.utilization))}%` }} />
+                </div>
+                <strong className={s.gpuValue}>{card.utilization}%</strong>
+                <span className={s.gpuMode}>{card.mode}</span>
+                <span className={s.gpuMeta}>{formatGb(card.vram)} · {card.temperature}°C</span>
+              </div>
+            ))}
+          </div>
+          <div className={s.storageRow}>
+            <AvBar
+              label="热数据"
+              value={props.storage.hotUsedTb}
+              max={props.storage.hotTotalTb}
+              tone="signal"
+              detail={`${formatStorage(props.storage.hotUsedTb)} / ${formatStorage(props.storage.hotTotalTb)}`}
+            />
+            <AvBar
+              label="冷数据"
+              value={props.storage.coldUsedTb}
+              max={props.storage.hotTotalTb}
+              tone="violet"
+              detail={formatStorage(props.storage.coldUsedTb)}
+            />
+          </div>
+        </AvPanel>
+
+        <AvPanel
+          title="实时告警流"
+          subtitle="首屏仅加载 1 页分片；相对时间按数据集锚点换算"
+          icon="alarm"
+          meta={paused ? "已暂停回放" : `已展示 ${visibleAlarms.length} / ${props.recent.length}`}
+          action={
+            <button type="button" className={s.ghostButton} onClick={() => setPaused((value) => !value)}>
+              {paused ? "继续" : "暂停"}
+            </button>
+          }
+          motionKey="overview-stream"
+        >
+          <ul className={s.stream} aria-live="polite">
+            {visibleAlarms.map((alarm) => (
+              <li key={alarm.id} className={s.streamItem} data-motion="stream-item" data-motion-key={alarm.id}>
+                <div className={s.streamTop}>
+                  <AvLevelBadge level={alarm.level} label={alarm.levelLabel} />
+                  <strong className={s.streamTitle}>{alarm.title}</strong>
+                  <span className={s.streamAge}>{toRelative(alarm.offsetMinutes)}</span>
+                </div>
+                <div className={s.streamBottom}>
+                  <span>{alarm.room}</span>
+                  <span className={s.streamDot} aria-hidden="true" />
+                  <span>{alarm.siteName}</span>
+                  <span className={s.streamDot} aria-hidden="true" />
+                  <span className={s.mono}>{alarm.deviceId ?? "无设备"}</span>
+                  <span className={s.streamType}>{alarm.typeName}</span>
+                </div>
+              </li>
+            ))}
+          </ul>
+          <div className={s.panelLinkRow}>
+            <Link href="/av/alarm" className={s.textLink}>
+              进入告警中心 →
+            </Link>
+            <span className={s.softNote}>演示回放：每 8 秒揭示下一条</span>
+          </div>
+        </AvPanel>
+      </div>
+
+      <div className={s.gridTwo}>
+        <AvPanel title="重点点位" subtitle="按告警总量排序（近 180 天）" icon="device" meta="Top 6" motionKey="overview-points">
+          <ul className={s.rankList}>
+            {props.points.map((point, index) => (
+              <li key={point.id} className={s.rankRow}>
+                <span className={s.rankIndex}>{String(index + 1).padStart(2, "0")}</span>
+                <span className={s.rankName} title={point.room}>{point.room}</span>
+                <span className={s.rankBars}>
+                  <i style={{ width: `${Math.round((point.total / Math.max(1, props.points[0]?.total ?? 1)) * 100)}%` }} />
+                </span>
+                <span className={s.rankNum}>{formatCount(point.total)}</span>
+                <span className={s.rankSub}>一级 {point.level1} · 误报 {formatPercent(point.fpRate)}</span>
+              </li>
+            ))}
+          </ul>
+        </AvPanel>
+
+        <AvPanel title="高频告警类型" subtitle="按告警条数排序" icon="capability" meta={`${props.types.length} 类`} motionKey="overview-types">
+          <div className={s.typeList}>
+            {props.types.map((type) => (
+              <AvBar
+                key={type.code}
+                label={`${type.name} · ${type.category}`}
+                value={type.count}
+                max={topTypeMax}
+                tone="signal"
+                detail={formatCount(type.count)}
+              />
+            ))}
+          </div>
+          <div className={s.firmwareRow}>
+            <span className={s.softNote}>固件分布</span>
+            {props.firmware.slice(0, 4).map((item) => (
+              <span key={`${item.model}-${item.version}`} className={s.tagChip}>
+                {item.model} · {item.version} × {item.count}
+              </span>
+            ))}
+          </div>
+        </AvPanel>
+      </div>
+    </div>
+  );
+}
