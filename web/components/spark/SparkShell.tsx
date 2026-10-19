@@ -32,7 +32,7 @@ export default function SparkShell({ children }: { children: React.ReactNode }) 
           className={s.backdrop}
           type="button"
           onClick={() => setMobileOpen(false)}
-          aria-label="关闭 Spark 导航"
+          aria-label="关闭云电竞管理平台导航"
           tabIndex={-1}
         />
       )}
@@ -42,7 +42,7 @@ export default function SparkShell({ children }: { children: React.ReactNode }) 
           <span className={s.brandMark}><SparkGlyph name="spark" size={21} /></span>
           <span className={s.brandCopy}>
             <strong>云电竞<span>管理平台</span></strong>
-            <small>电竞云运营控制台</small>
+            <small>云电竞运营控制台</small>
           </span>
         </Link>
 
@@ -96,7 +96,7 @@ export default function SparkShell({ children }: { children: React.ReactNode }) 
             className={s.mobileMenuButton}
             type="button"
             onClick={() => setMobileOpen(true)}
-            aria-label="打开 Spark 导航"
+            aria-label="打开云电竞管理平台导航"
             aria-controls="spark-navigation"
             aria-expanded={mobileOpen}
           >

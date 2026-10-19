@@ -22,8 +22,10 @@ describe("云电竞管理平台品牌契约", () => {
 
   it("Spark 壳层的品牌、可访问名称和 metadata 使用统一名称", () => {
     assert.match(sparkShell, /aria-label="云电竞管理平台侧栏"/);
+    assert.match(sparkShell, /aria-label="关闭云电竞管理平台导航"/);
+    assert.match(sparkShell, /aria-label="打开云电竞管理平台导航"/);
     assert.match(sparkShell, /<strong>云电竞<span>管理平台<\/span><\/strong>/);
-    assert.doesNotMatch(sparkShell, /NebulaCloud|CLOUD ESPORTS OS/);
+    assert.doesNotMatch(sparkShell, /NebulaCloud|CLOUD ESPORTS OS|Spark 导航/);
     assert.match(sparkMetadata, /title:\s*\{\s*absolute:\s*"云电竞管理平台"/);
     assert.match(sparkMetadata, /description:.*云电竞管理平台/);
     assert.doesNotMatch(sparkMetadata, /NebulaCloud/);
