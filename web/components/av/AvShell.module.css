@@ -41,6 +41,7 @@
 .brand {
   display: flex;
   min-height: var(--av-head-h);
+  overflow: hidden;
   align-items: center;
   gap: 11px;
   padding: 0 16px;
@@ -85,7 +86,13 @@
 }
 
 .shellCollapsed .brandCopy {
-  display: none;
+  /*
+   * 用 opacity 而不是 display:none：display 不可过渡，收栏时文字会「啪」地消失。
+   * 76px 的轨道装不下品牌文案，所以靠 .brand 的 overflow:hidden 裁掉超出部分，
+   * 视觉上就是文案先淡出、轨道再收窄。
+   */
+  opacity: 0;
+  pointer-events: none;
 }
 
 .nav {
@@ -145,6 +152,22 @@
   font-weight: 600;
 }
 
+/*
+ * 动效开启时，底色与左侧色条交给 layoutId 滑块（AvMotion.module.css 的
+ * .navActivePill）绘制；这里把静态底色让出来，否则两层半透明会叠成两倍浓度。
+ */
+.navActiveHost {
+  background: transparent;
+  border-left-color: transparent;
+}
+
+/* 滑块是绝对定位的第一层，文字与图标要压在它上面 */
+.navActiveHost .navText,
+.navActiveHost .navIcon {
+  position: relative;
+  z-index: 1;
+}
+
 .navActive svg {
   color: var(--nav-active-accent);
 }
@@ -159,7 +182,8 @@
 }
 
 .shellCollapsed .navText {
-  display: none;
+  /* 同 .brandCopy：display:none 不可过渡，改为透明度 + 裁切 */
+  opacity: 0;
 }
 
 .navBadge {
@@ -281,6 +305,10 @@
   background: var(--av-canvas);
   color: var(--av-ink-3);
   font-size: 12px;
+  /* 聚焦态（边框 + 光环）用 quick；焦点环本身没有 delay（Stage 3 §六） */
+  transition:
+    border-color var(--av-dur-quick) var(--av-ease-standard),
+    box-shadow var(--av-dur-quick) var(--av-ease-standard);
 }
 
 .searchBox svg {
@@ -438,7 +466,7 @@
   .sidebar {
     width: 268px;
     transform: translateX(-100%);
-    transition: transform 200ms var(--ease-console);
+    transition: transform var(--av-dur-base) var(--av-ease-standard);
   }
   .shellOpen .sidebar {
     transform: translateX(0);
@@ -449,6 +477,11 @@
   .shellOpen .footMeta,
   .shellOpen .navBadge {
     display: flex;
+    /*
+     * 手机抽屉是 268px 的完整侧栏，文字必须真的可见：桌面上收过栏再缩到 900px 以下时，
+     * `.shellCollapsed` 的 opacity:0 还在，光把 display 改回 flex 会让导航变成空白。
+     */
+    opacity: 1;
   }
   .shellOpen .collapseButton span {
     display: inline;
@@ -466,6 +499,8 @@
     display: block;
     border: 0;
     background: var(--overlay);
+    /* 遮罩淡入（base）：与抽屉滑入同一拍，避免「先黑一屏、再滑出侧栏」 */
+    animation: avFadeIn var(--av-dur-base) var(--av-ease-enter) both;
   }
   .content {
     padding: 16px 14px 32px;

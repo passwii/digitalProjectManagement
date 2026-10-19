@@ -15,7 +15,10 @@ import {
   type AvTone,
 } from "@/lib/av/labels";
 import { toAbsolute, toClock, toRelative } from "@/lib/av/time";
-import { AvEmpty, AvKV, AvLevelBadge, AvPageHeader, AvPanel, AvStatusBadge, AvTabs } from "@/components/av/AvUI";
+import { AvEmpty, AvKV, AvLevelBadge, AvPageHeader, AvPanel, AvStatusBadge } from "@/components/av/AvUI";
+import { useAvMotion } from "@/components/av/motion/AvMotionProvider";
+import { AvPanelReveal } from "@/components/av/motion/AvMotion";
+import AvTabs from "@/components/av/AvTabs";
 import s from "./AvPages.module.css";
 import type { EventDetail, EventRow, EventViewProps } from "@/lib/av/contracts";
 
@@ -28,6 +31,7 @@ export default function EventView({ rows, detail, initialId, counts, userNames }
   const [pendingId, setPendingId] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const router = useRouter();
+  const { enabled: motionEnabled } = useAvMotion();
 
   // 选中事件由路由决定（/av/event/:id 是深链接），不在本地复制一份状态
   const selectedId = initialId ?? rows[0]?.id ?? null;
@@ -184,7 +188,7 @@ export default function EventView({ rows, detail, initialId, counts, userNames }
 
         <div className={s.railStack} aria-busy={pending}>
           {selected ? (
-            <>
+            <AvPanelReveal>
               <AvPanel
                 title="事件追溯 · 时间线"
                 subtitle={`${selected.incident.id} · ${selected.siteName}`}
@@ -217,6 +221,13 @@ export default function EventView({ rows, detail, initialId, counts, userNames }
                       className={s.timelineItem}
                       data-motion="timeline-node"
                       data-motion-index={index}
+                      /*
+                        逐个点亮：节点序号即错峰序号（--av-i），延迟 = 60ms × i，
+                        由 CSS 变量算；动效关闭时不写 data-motion-node，
+                        keyframes 根本不参与（不是把时长改 0）。
+                      */
+                      data-motion-node={motionEnabled ? "on" : undefined}
+                      style={{ "--av-i": Math.min(index, 10) } as React.CSSProperties}
                     >
                       <span className={s.timelineTime}>{toClock(node.at_offset_minutes)}</span>
                       <span className={s.timelineMark} aria-hidden="true">
@@ -260,7 +271,7 @@ export default function EventView({ rows, detail, initialId, counts, userNames }
                   </ul>
                 )}
               </AvPanel>
-            </>
+            </AvPanelReveal>
           ) : (
             <AvPanel title="事件追溯" subtitle="选择左侧任意事件" icon="event" motionKey="event-empty">
               <AvEmpty title="未选择事件" hint="点击事件列表中的任意一行，右侧显示时间线与证据链。" />

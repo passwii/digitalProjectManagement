@@ -3,21 +3,31 @@ import AvGlyph from "./AvGlyph";
 import type { AvIconName } from "@/lib/av/navigation";
 import type { AvTone } from "@/lib/av/labels";
 import { levelMeta } from "@/lib/av/labels";
+import { toneVar } from "@/lib/av/tone";
 import s from "./AvUI.module.css";
 
 /**
  * AV 通用视觉件。
  *
- * 两条约定：
+ * 三条约定：
  *   · 颜色只通过 CSS 自定义属性（`--tone` / `--metric-tone` / `--badge-*`）注入，
  *     值一律是 `var(--av-*)` 的引用，本文件里不存在任何颜色字面量；
  *   · 所有会被 Stage 3 加动效的元素都带 `data-motion-*` 标记：稳定的 key + 稳定的
- *     DOM 顺序，动效层只需要挂载，不需要改结构。
+ *     DOM 顺序，动效层只需要挂载，不需要改结构；
+ *   · 动效只在 CSS 里声明（时长取 `--av-dur-*` / 曲线取 `--av-ease-*`），`?static=1`
+ *     与减少动效由根节点的统一开关一次关掉 —— 所以截图、弱网首帧、JS 未水合
+ *     看到的是同一个静态页面。
+ *
+ * 为什么本文件**没有** "use client"：Stage 3 的动效全部落在 CSS 上（时长取
+ * `--av-dur-*`，`?static=1` / 减少动效由根节点的全局开关一次性关掉），所以这一层
+ * 不需要任何 hook。保持「服务端可直接渲染」有两个好处：
+ *   · capability / __stress / audio 空态这些服务端页面不会因为 import 本文件就把
+ *     整棵子树拖进客户端 bundle；
+ *   · 本文件导出的组件里没有函数型 props，不会触发 RSC 的
+ *     「Props must be serializable」告警。
+ * 真正需要 hook / framer 的三件（Tab 滑块、KPI 数字滚动）分别在
+ * `components/av/AvTabs.tsx` 与 `components/av/motion/AvCounter.tsx` 里。
  */
-
-export function toneVar(tone: AvTone): string {
-  return `var(--av-tone-${tone})`;
-}
 
 function toneStyle(tone: AvTone): CSSProperties {
   return { "--tone": toneVar(tone) } as CSSProperties;
@@ -102,7 +112,8 @@ export function AvMetric({
   icon,
 }: {
   label: string;
-  value: string;
+  /** 数字本体：字符串，或调用方传入的滚动组件（`AvCounter`） */
+  value: ReactNode;
   unit?: string;
   detail: string;
   note?: string;
@@ -122,6 +133,7 @@ export function AvMetric({
         {icon && <AvGlyph name={icon} size={15} />}
       </div>
       <div className={s.metricValue}>
+        {/* KPI 数字进入视口时从 0 滚到目标值（slow）；tabular-nums 由 CSS 给，不抖 */}
         <strong>{value}</strong>
         {unit && <span>{unit}</span>}
       </div>
@@ -149,6 +161,11 @@ export function AvLevelBadge({
 }) {
   const meta = levelMeta(level as 1 | 2 | 3 | 4);
   const text = (label ?? "").trim() || meta.label;
+  /*
+   * 一级告警色条的 3s 呼吸由 CSS 按 `data-level="1"` 选中（AvUI.module.css），
+   * 不在 JS 里再判一次：服务端渲染出的 HTML 必须已经带上这个行为，否则
+   * 水合前那一屏就没有呼吸，截图 / 录屏对不上。
+   */
   return (
     <span
       className={s.levelBadge}
@@ -169,43 +186,37 @@ export function AvLevelBadge({
   );
 }
 
-export function AvStatusBadge({ tone, children }: { tone: AvTone; children: ReactNode }) {
-  return (
-    <span className={s.tag} data-tone={tone} style={toneStyle(tone)}>
-      {children}
-    </span>
-  );
-}
-
-export function AvTabs<T extends string>({
-  items,
-  value,
-  onChange,
-  ariaLabel,
+export function AvStatusBadge({
+  tone,
+  children,
+  swap = false,
 }: {
-  items: readonly { value: T; label: string; count?: number }[];
-  value: T;
-  onChange: (value: T) => void;
-  ariaLabel: string;
+  tone: AvTone;
+  children: ReactNode;
+  /**
+   * 是否为「状态变更」播一次弹入（quick，0.9 → 1）。
+   *
+   * 默认关闭：告警列表一屏 50 个徽标，若都带入场动画会变成满屏跳动 ——
+   * 与「多个元素同时持续循环动」是同一类噪音（§五 反面清单）。
+   * 只有真的会变的地方（翻页新增的行、实时告警流逐条揭示）传 true。
+   */
+  swap?: boolean;
 }) {
   return (
-    <div className={s.tabs} role="group" aria-label={ariaLabel}>
-      {items.map((item) => {
-        const active = item.value === value;
-        return (
-          <button
-            key={item.value}
-            type="button"
-            className={`${s.tab} ${active ? s.tabActive : ""}`}
-            aria-pressed={active}
-            onClick={() => onChange(item.value)}
-          >
-            {item.label}
-            {item.count != null && <span className={s.tabCount}>{item.count}</span>}
-          </button>
-        );
-      })}
-    </div>
+    <span
+      /*
+       * `key` 换掉节点让 CSS 动画重播，而不是在内部再套一层动画 wrapper：
+       * DOM 结构不变（`closest("span")` 拿到的仍是带 `--tone` 的徽标本身），
+       * 外面的 `.tag` 样式与主题用例都不受影响。key 是 `String(children)` +
+       * `swap`，服务端与客户端算出来一致，不引入水合差异。
+       */
+      key={`${String(children)}-${swap}`}
+      className={`${s.tag} ${swap ? s.swapIn : ""}`}
+      data-tone={tone}
+      style={toneStyle(tone)}
+    >
+      {children}
+    </span>
   );
 }
 
@@ -237,6 +248,7 @@ export function AvBar({
         aria-valuemax={100}
         aria-label={label}
       >
+        {/* 宽度是最终值（不参与动画）；入场由 `.barFill` 的 scaleX 关键帧完成 */}
         <span className={s.barFill} style={{ width: `${percent}%` }} />
       </div>
     </div>

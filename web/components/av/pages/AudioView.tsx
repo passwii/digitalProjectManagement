@@ -1,12 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Spectrum, Transcript } from "@/lib/av/types";
 import { formatCount, formatPercent, formatSeconds, levelMeta, type AvTone } from "@/lib/av/labels";
 import { useTheme } from "@/components/theme/ThemeProvider";
 import { parseCssColor, spectrumPixels } from "@/lib/av/color";
 import { AvKV, AvLevelBadge, AvPageHeader, AvPanel } from "@/components/av/AvUI";
+import { usePlayhead } from "@/components/av/motion/AvMotion";
 import type { AudioViewProps } from "@/lib/av/contracts";
 import s from "./AvPages.module.css";
 
@@ -113,6 +114,45 @@ function Waveform({ spectrum }: { spectrum: Spectrum }) {
 }
 
 export default function AudioView({ alarm, spectrum, transcript, samples }: AudioViewProps) {
+  /**
+   * 播放游标的位置（秒）与「当前句」。
+   *
+   * 位置只写进 DOM（rAF 直接 transform），**不进 state** —— 每帧 setState 会让
+   * 整个页面（含 46,080 格的频谱与 30 多条转写）重渲染，60fps 直接没戏。
+   * 只有跨越句子边界时才 setState 换高亮，大约每 2~4 秒一次。
+   */
+  const [playing, setPlaying] = useState(false);
+  const [activeSegment, setActiveSegment] = useState(-1);
+  const activeRef = useRef(-1);
+  // useMemo 固定引用：它进 syncSegment 的 useCallback 依赖，每次渲染换新数组
+  // 会让回调重生、进而在播放时反复重建 rAF 循环
+  const segments = useMemo(() => transcript?.segments ?? [], [transcript]);
+
+  const syncSegment = useCallback(
+    (seconds: number) => {
+      const index = segments.findIndex((segment) => seconds >= segment.start && seconds < segment.end);
+      const next = index === -1 && seconds >= (segments.at(-1)?.end ?? 0) ? segments.length - 1 : index;
+      if (next !== activeRef.current) {
+        activeRef.current = next;
+        setActiveSegment(next);
+      }
+    },
+    [segments],
+  );
+
+  // 没有音频文件（mock 数据只有频谱矩阵），游标以「1 倍速走完 spectrum.seconds」演示
+  const { barRef: playheadRef, reset: resetPlayhead } = usePlayhead(spectrum.seconds, playing, syncSegment);
+
+  const togglePlay = () => {
+    // 播完 / 停在末尾后再点播放：从头开始（游标 + 当前句一起归零）
+    if (!playing && activeRef.current >= segments.length - 1) {
+      activeRef.current = -1;
+      setActiveSegment(-1);
+      resetPlayhead();
+    }
+    setPlaying((value) => !value);
+  };
+
   const speakerById = useMemo(
     () => new Map((transcript?.speakers ?? []).map((speaker) => [speaker.id, speaker])),
     [transcript],
@@ -181,14 +221,31 @@ export default function AudioView({ alarm, spectrum, transcript, samples }: Audi
           meta={`${spectrum.colMs}ms / 帧`}
           motionKey="audio-spectrogram"
         >
-          <Spectrogram spectrum={spectrum} />
+          {/*
+            频谱单独包一层：::after 遮罩从下往上收（slow）做「擦除式揭示」。
+            游标是这一层里的独立 span，位置由 rAF 写 transform —— 不重绘 canvas。
+          */}
+          <div className={s.spectroWrap}>
+            <Spectrogram spectrum={spectrum} />
+            <span ref={playheadRef} className={s.playhead} aria-hidden="true" />
+          </div>
+          <div className={s.playRow}>
+            <button
+              type="button"
+              className={s.ghostButton}
+              onClick={togglePlay}
+              aria-pressed={playing}
+              aria-label={playing ? "暂停频谱游标演示" : "播放频谱游标演示"}
+            >
+              {playing ? "暂停" : "播放"}
+            </button>
+            <span className={s.softNote}>
+              mock 数据只有频谱矩阵与转写，没有音频文件：游标按 1 倍速走完 {formatSeconds(spectrum.seconds)}，
+              用于演示「转写跟随游标高亮」的交互（rAF 驱动，不用 CSS transition）。
+            </span>
+          </div>
           <div style={{ marginTop: 10 }}>
             <Waveform spectrum={spectrum} />
-          </div>
-          <div className={s.firmwareRow}>
-            <span className={s.softNote}>
-              静态演示：mock 数据只有频谱矩阵与转写，没有音频文件，因此不提供播放游标（Stage 3 再补交互）。
-            </span>
           </div>
         </AvPanel>
 
@@ -228,7 +285,13 @@ export default function AudioView({ alarm, spectrum, transcript, samples }: Audi
                   const speaker = segment.speaker ? speakerById.get(segment.speaker) : null;
                   const tone = speaker ? SPEAKER_TONES[speaker.index % SPEAKER_TONES.length] : "neutral";
                   return (
-                    <li key={`${segment.start}-${index}`} className={s.transcriptLine} data-motion="transcript-line" data-motion-index={index}>
+                    <li
+                      key={`${segment.start}-${index}`}
+                      className={s.transcriptLine}
+                      data-motion="transcript-line"
+                      data-motion-index={index}
+                      data-active={activeSegment === index ? "true" : undefined}
+                    >
                       <span className={s.transcriptTime}>{(segment.start).toFixed(1)}s</span>
                       <span className={s.speaker} style={{ "--speaker": `var(--av-tone-${tone})` } as React.CSSProperties}>
                         <i aria-hidden="true" />

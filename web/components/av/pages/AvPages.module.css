@@ -457,10 +457,23 @@
 }
 
 .channel {
+  /* hover 上浮 + 边框提亮：进入 quick、离开 instant */
+  transition:
+    transform var(--av-dur-instant) var(--av-ease-exit),
+    border-color var(--av-dur-instant) var(--av-ease-exit);
   display: grid;
   min-width: 0;
   border: 1px solid var(--av-divider);
   background: var(--av-surface);
+}
+
+/* hover / 内部元素聚焦：上浮 1px + 边框提亮（quick），离开时 instant 回位 */
+.channel:hover,
+.channel:focus-within {
+  transform: translateY(-1px);
+  border-color: var(--av-signal);
+  transition-duration: var(--av-dur-quick);
+  transition-timing-function: var(--av-ease-standard);
 }
 
 .channelStage {
@@ -631,6 +644,30 @@
   list-style: none;
 }
 
+/*
+ * 列表项的「让位」容器。
+ *
+ * `<m.li layout>` 会写内联 transform 做 FLIP；`.alarmItem` 不能有自己的
+ * transform / transition，否则两边抢同一个属性（framer 每帧覆盖，CSS 又补回来，
+ * 表现是卡片抽搐）。所以这里只管裁切与定位上下文。
+ */
+.alarmItem {
+  position: relative;
+  min-width: 0;
+}
+
+/* 加载下一页的占位：与一条告警卡同高（52px），避免数据到达时整页跳一下 */
+.alarmSkeleton {
+  display: grid;
+  gap: 8px;
+  padding: 10px 4px;
+}
+
+.alarmSkeletonRow {
+  height: 44px;
+  border: 1px solid var(--av-divider-soft);
+}
+
 .alarmCard {
   display: grid;
   width: 100%;
@@ -791,7 +828,16 @@
   white-space: nowrap;
 }
 
-/* 原生 dialog + backdrop 模糊（Stage 2 §四） */
+/*
+ * 原生 dialog + backdrop 模糊（Stage 2 §四）+ 开合动效（Stage 3 §二.3）。
+ *
+ * 打开：右侧 24px 滑入 + 淡入（base + enter）
+ * 关闭：18px 滑出 + 淡出（quick + exit，比入场快）
+ *
+ * 关闭必须靠 `[data-closing]`：`dialog.close()` 是同步的，元素立刻 display:none，
+ * 没有这一层就永远看不到退场（见 components/av/motion/AvDialog.ts）。
+ * 只动 opacity / transform —— 抽屉宽度在 720px 固定，不需要动 width。
+ */
 .dialog {
   width: min(720px, calc(100vw - 32px));
   max-height: min(86vh, 900px);
@@ -803,9 +849,22 @@
   overflow: auto;
 }
 
+.dialog {
+  animation: avDrawerIn var(--av-dur-base) var(--av-ease-enter) both;
+}
+
+.dialog[data-closing="true"] {
+  animation: avDrawerOut var(--av-dur-quick) var(--av-ease-exit) both;
+}
+
 .dialog::backdrop {
   background: var(--overlay);
   backdrop-filter: blur(6px);
+  animation: avFadeIn var(--av-dur-base) var(--av-ease-enter) both;
+}
+
+.dialog[data-closing="true"]::backdrop {
+  animation: avFadeOut var(--av-dur-quick) var(--av-ease-exit) both;
 }
 
 .dialogHead {
@@ -987,6 +1046,11 @@
   vertical-align: top;
 }
 
+/* 表格行 hover：整行底色淡入（quick），不描边闪烁 */
+.table td {
+  transition: background-color var(--av-dur-quick) var(--av-ease-standard);
+}
+
 .table tbody tr:hover td {
   background: var(--row-hover);
 }
@@ -1120,6 +1184,30 @@
   padding: 0 0 16px;
 }
 
+/*
+ * 时间线「逐个点亮」：节点淡入 + 圆点弹出，连接线从节点向下 scaleY 长出来。
+ * 延迟由 `--av-i`（节点序号）乘 `--av-stagger-timeline`（60ms）算，
+ * 不用 JS 计时器 —— 组件的活只是给每个 li 一个序号。
+ *
+ * 只在 `[data-motion-node]` 上挂（该属性由 EventView 在动效开启时写入），
+ * 因此 `?static=1` / reduced 下连 keyframes 都不参与。
+ */
+.timelineItem[data-motion-node] {
+  animation: avRiseIn var(--av-dur-base) var(--av-ease-enter) backwards;
+  animation-delay: calc(var(--av-stagger-timeline) * var(--av-i, 0));
+}
+
+.timelineItem[data-motion-node] .timelineMark i {
+  animation: avDotPop var(--av-dur-quick) var(--av-ease-enter) both;
+  animation-delay: calc(var(--av-stagger-timeline) * var(--av-i, 0));
+}
+
+.timelineItem[data-motion-node] .timelineMark::after {
+  transform-origin: top center;
+  animation: avGrowY var(--av-dur-base) var(--av-ease-standard) both;
+  animation-delay: calc(var(--av-stagger-timeline) * var(--av-i, 0));
+}
+
 .timelineItem:last-child {
   padding-bottom: 0;
 }
@@ -1206,6 +1294,22 @@
   color: var(--av-ink-2);
   font-size: 11px;
   text-decoration: none;
+}
+
+/* 证据链卡片：轻微放大 1.01 + 阴影加深（quick）；只动 transform / box-shadow */
+.evidenceItem {
+  transition:
+    transform var(--av-dur-instant) var(--av-ease-exit),
+    box-shadow var(--av-dur-instant) var(--av-ease-exit),
+    border-color var(--av-dur-instant) var(--av-ease-exit);
+}
+
+.evidenceItem:hover,
+.evidenceItem:focus-visible {
+  transform: scale(1.01);
+  box-shadow: var(--shadow-card);
+  transition-duration: var(--av-dur-quick);
+  transition-timing-function: var(--av-ease-standard);
 }
 
 .evidenceItem:hover {
@@ -1331,7 +1435,19 @@
   gap: 12px;
 }
 
+/*
+ * 场景卡 / 链路步骤：按 `--av-i` 错峰入场。
+ * 这两块在**服务端组件**（capability 页）里渲染，用不了 hooks/observer，
+ * 所以序号由页面写成内联 `--av-i`，节奏交给 CSS 变量算。
+ */
+.sceneCard,
+.chainStep {
+  animation: avRiseIn var(--av-dur-base) var(--av-ease-enter) both;
+  animation-delay: calc(var(--av-stagger-timeline) * var(--av-i, 0));
+}
+
 .sceneCard {
+  animation-delay: calc(var(--av-stagger-list) * var(--av-i, 0));
   display: grid;
   gap: 10px;
   min-width: 0;
@@ -1600,6 +1716,71 @@
   font-variant-numeric: tabular-nums;
 }
 
+/*
+ * 频谱首次渲染：盖一层与面板同色的遮罩，从下往上「擦除」揭示（slow）。
+ *
+ * 为什么不是 mask-image 动画：mask 每帧都要重新生成遮罩位图，而底下是
+ * 96×480 = 46,080 格的 canvas；用一层 transform: scaleY(1 → 0) 的遮罩块，
+ * 合成器就能完成，不碰 canvas 也不触发 paint。
+ */
+.spectroWrap {
+  position: relative;
+  overflow: hidden;
+}
+
+/*
+ * 遮罩只在「动效开启 + 允许动效」时挂：
+ *   · `?static=1` 时根节点是 data-av-motion="off"，整段不命中；
+ *   · 减少动效时全局把 animation 关掉，scaleY 会停在初始的 1，画面变成一块空白 ——
+ *     所以外面必须再包一层 no-preference。
+ */
+@media (prefers-reduced-motion: no-preference) {
+  :global(:root[data-av-motion="on"]) .spectroWrap::after {
+    position: absolute;
+    inset: 0;
+    background: var(--av-surface);
+    content: "";
+    transform-origin: bottom center;
+    animation: avWipeUp var(--av-dur-slow) var(--av-ease-standard) both;
+    pointer-events: none;
+  }
+}
+
+/* 频谱游标：由 rAF 直接写 transform（不走 CSS transition，否则会滞后于时间轴） */
+.playRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.playhead {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 1px;
+  background: var(--av-signal);
+  pointer-events: none;
+  /*
+   * 刻意**不用** will-change：游标只在用户点播放的几十秒里动，常驻 will-change
+   * 会让这一层一直占着合成层（§三「克制使用，动画结束立即移除」）。
+   * rAF 每帧改 transform 本身已经是合成层动画。
+   */
+}
+
+.playhead::after {
+  position: absolute;
+  top: -1px;
+  left: -2px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--av-signal);
+  content: "";
+}
+
 .spectrogram {
   width: 100%;
   height: auto;
@@ -1637,6 +1818,14 @@
   gap: 10px;
   padding: 7px 0;
   border-bottom: 1px solid var(--av-divider-soft);
+  /* 当前句跟随游标高亮的底：进入 instant、离开 quick（离开不抢注意力） */
+  transition: background-color var(--av-dur-quick) var(--av-ease-exit);
+}
+
+.transcriptLine[data-active="true"] {
+  background: var(--av-tone-signal-soft);
+  transition-duration: var(--av-dur-instant);
+  transition-timing-function: linear;
 }
 
 .transcriptLine:last-child {

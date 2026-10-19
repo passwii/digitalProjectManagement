@@ -3,22 +3,39 @@
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useMemo, useState } from "react";
+import { m } from "framer-motion";
 import { AV_PAGES, AV_WINDOW_TARGET, type AvIconName } from "@/lib/av/navigation";
 import { useTheme } from "@/components/theme/ThemeProvider";
+import { ANCHOR_MS } from "@/lib/av/time";
+import { useAvMotion } from "./motion/AvMotionProvider";
+import { AvPageTransition } from "./motion/AvMotion";
+import motion from "./motion/AvMotion.module.css";
 import AvGlyph from "./AvGlyph";
 import AvGate from "./AvGate";
 import s from "./AvShell.module.css";
 
-/** 顶部时钟：默认跟数据集锚点的「实时」演示时间走，避免演示时看到年份错位。 */
-function useClock(): { time: string; seconds: string } {
+/**
+ * 顶部时钟：默认跟数据集锚点的「实时」演示时间走，避免演示时看到年份错位。
+ *
+ * `frozen`（`?static=1`）时**不打表**，而是直接显示数据集锚点时间。
+ * 为什么不是「打一次表就停」：截图验收要求同一页连截 3 次 MD5 一致，
+ * 而 `new Date()` 每次截图的秒数都不一样 —— 那样这条验收永远过不了。
+ * 锚点时间是常量（2026-10-19 12:00，UTC+8），因此截图之间逐字节相同，
+ * 也与页面上「数据锚点」徽标表达的时间一致。
+ */
+function useClock(frozen: boolean): { time: string; seconds: string } {
   const [now, setNow] = useState<Date | null>(null);
 
   useEffect(() => {
+    if (frozen) {
+      setNow(new Date(ANCHOR_MS));
+      return;
+    }
     const tick = () => setNow(new Date());
     tick();
     const timer = window.setInterval(tick, 1000);
     return () => window.clearInterval(timer);
-  }, []);
+  }, [frozen]);
 
   if (!now) return { time: "--:--:--", seconds: "--" };
   const pad = (value: number) => String(value).padStart(2, "0");
@@ -76,7 +93,8 @@ export default function AvShell({
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const { resolvedTheme, setMode } = useTheme();
-  const clock = useClock();
+  const { enabled: motionEnabled, frozen, duration: motionDuration, ease: motionEase } = useAvMotion();
+  const clock = useClock(frozen);
 
   useEffect(() => setMobileOpen(false), [pathname]);
 
@@ -116,7 +134,7 @@ export default function AvShell({
           <span className={s.brandMark}>
             <AvGlyph name="wave" size={19} />
           </span>
-          <span className={s.brandCopy}>
+          <span className={`${s.brandCopy} ${motion.sidebarText}`}>
             <strong>{orgName}</strong>
             <small>AV PLATFORM · {version}</small>
           </span>
@@ -132,13 +150,28 @@ export default function AvShell({
                   <Link
                     key={page.slug}
                     href={page.href}
-                    className={`${s.navLink} ${active ? s.navActive : ""}`}
+                    className={`${s.navLink} ${active ? s.navActive : ""} ${active && motionEnabled ? s.navActiveHost : ""}`}
                     aria-current={active ? "page" : undefined}
                     title={page.label}
                     onClick={() => setMobileOpen(false)}
                   >
-                    <AvGlyph name={NAV_ICON[page.slug] ?? "overview"} size={17} className={s.navIcon} />
-                    <span className={s.navText}>{page.label}</span>
+                    <AvGlyph name={NAV_ICON[page.slug] ?? "overview"} size={17} className={`${s.navIcon} ${motion.sidebarIcon}`} />
+                    <span className={`${s.navText} ${motion.sidebarText}`}>{page.label}</span>
+                    {/*
+                      共享布局高亮（layoutId="av-nav-active"）：高亮块跟着当前路由在导航项
+                      之间滑动，而不是每条各自淡入淡出。
+                      刻意与 `(dashboard)` 的 `primary-nav-active` 用不同 id —— 两个壳层可能
+                      同屏（浮层 / 新标签页），撞 id 会让高亮跨壳层乱飞。
+                      动效关闭（?static=1 / reduced）时不渲染滑块，`.navActive` 自己带底色。
+                    */}
+                    {active && motionEnabled && (
+                      <m.span
+                        layoutId="av-nav-active"
+                        className={motion.navActivePill}
+                        transition={{ duration: motionDuration("base"), ease: motionEase("standard") }}
+                        aria-hidden="true"
+                      />
+                    )}
                   </Link>
                 );
               })}
@@ -214,7 +247,13 @@ export default function AvShell({
             )}
             <span className={s.clock} aria-label={`当前时间 ${clock.time}:${clock.seconds}`}>
               {clock.time}
-              <span className={s.clockSecond}>:{clock.seconds}</span>
+              {/*
+                秒位每次跳变只闪这一位（key 换 → CSS 动画重播，quick）。
+                整块重渲染会让演示时的时钟看起来在抖，而这一位本来就是注意力之外的信息。
+              */}
+              <span key={clock.seconds} className={`${s.clockSecond} ${motionEnabled ? motion.clockTick : ""}`}>
+                :{clock.seconds}
+              </span>
             </span>
             <div className={s.userBadge}>
               <span className={s.avatar} aria-hidden="true">值</span>
@@ -242,7 +281,8 @@ export default function AvShell({
         </header>
 
         <main className={s.content} id="av-main" tabIndex={-1} data-window-target={AV_WINDOW_TARGET}>
-          {children}
+          {/* 页面切换：内容区 8px 上浮 + 淡入（不横向滑动 —— 数据密集页会晕） */}
+          <AvPageTransition>{children}</AvPageTransition>
         </main>
       </div>
 

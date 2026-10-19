@@ -12,10 +12,14 @@ import {
   type AvTone,
 } from "@/lib/av/labels";
 import { toAbsolute, toRelative } from "@/lib/av/time";
-import { AvBar, AvEmpty, AvKV, AvLegend, AvPageHeader, AvPanel, AvStatusBadge, AvTabs } from "@/components/av/AvUI";
+import { AvBar, AvEmpty, AvKV, AvLegend, AvPageHeader, AvPanel, AvStatusBadge } from "@/components/av/AvUI";
 import { AvDonut, AvSignalChart } from "@/components/av/AvCharts";
 import { attentionAgeText } from "@/lib/av/view";
 import AvGlyph from "@/components/av/AvGlyph";
+import AvTabs from "@/components/av/AvTabs";
+import { closeDialogWithMotion, openDialogWithMotion } from "@/components/av/motion/AvDialog";
+import { staggerProps } from "@/components/av/motion/AvMotion";
+import { useAvMotion } from "@/components/av/motion/AvMotionProvider";
 import s from "./AvPages.module.css";
 import type { DeviceRow, DeviceViewProps } from "@/lib/av/contracts";
 
@@ -28,6 +32,7 @@ export default function DeviceView({ devices, summary }: DeviceViewProps) {
   const [page, setPage] = useState(1);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const dialogRef = useRef<HTMLDialogElement>(null);
+  const { enabled: motionEnabled } = useAvMotion();
 
   const filtered = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -49,11 +54,18 @@ export default function DeviceView({ devices, summary }: DeviceViewProps) {
 
   const openDevice = (device: DeviceRow) => {
     setSelectedId(device.id);
-    dialogRef.current?.showModal();
+    openDialogWithMotion(dialogRef.current);
+    document.documentElement.dataset.avDialog = "open";
   };
+  /**
+   * 关闭设备抽屉：先播退场（quick），再 close()。
+   * 原生 dialog.close() 是同步的，直接调会把退场动画吃掉（见 motion/AvDialog.ts）。
+   */
   const closeDevice = () => {
-    dialogRef.current?.close();
-    setSelectedId(null);
+    closeDialogWithMotion(dialogRef.current, () => {
+      delete document.documentElement.dataset.avDialog;
+      setSelectedId(null);
+    });
   };
 
   const statusTabs = [
@@ -201,8 +213,13 @@ export default function DeviceView({ devices, summary }: DeviceViewProps) {
                   </tr>
                 </thead>
                 <tbody>
-                  {paged.map((device) => (
-                    <tr key={device.id} className={s.eventTableRow} onClick={() => openDevice(device)}>
+                  {paged.map((device, index) => (
+                    <tr
+                      key={device.id}
+                      className={`${s.eventTableRow} ${staggerProps(index, paged.length, motionEnabled).className}`}
+                      style={staggerProps(index, paged.length, motionEnabled).style}
+                      onClick={() => openDevice(device)}
+                    >
                       <td className={s.mono}>
                         <button type="button" className={s.tableButton} onClick={() => openDevice(device)}>
                           {device.id}
