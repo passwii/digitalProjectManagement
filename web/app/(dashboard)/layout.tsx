@@ -91,7 +91,7 @@ const ICON: Record<string, React.ReactNode> = {
     </svg>
   ),
   "/av": (
-    // 多模态波形：与 NebulaCloud 的四角星刻意区分（同一分组下两条入口要一眼分开）
+    // 多模态波形：与云电竞管理平台的四角星刻意区分（同一分组下两条入口要一眼分开）
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
       <path d="M2.5 12h2l1.4-4.6 1.8 9.2 1.9-12.2 1.8 15 1.7-10.4 1.6 3.1h3.1" />
       <path d="M19 9.5v5M22 11v2" />
@@ -120,7 +120,7 @@ const LABEL: Record<string, string> = {
   "/admin": "系统管理",
   "/finance": "财务管理",
   "/dev/date-picker": "日期组件",
-  "/spark": "NebulaCloud 演示站",
+  "/spark": "云电竞管理平台",
   "/av": "智能音视频平台",
 };
 
@@ -409,7 +409,7 @@ function DashboardShell({ children, modal }: { children: React.ReactNode; modal?
       if (out.some((o) => o.href === it.href)) continue;
       out.push({ ...it, icon: ICON[it.href] });
     }
-    // Spark 分组下两条独立演示入口：NebulaCloud（云电竞）与智能音视频平台。
+    // Spark 分组下两条独立演示入口：云电竞管理平台与智能音视频平台。
     // 两者是完全不同的演示产品，各自一个 target，互不抢同一个标签页。
     out.push({ href: "/spark", label: LABEL["/spark"], icon: ICON["/spark"] });
     out.push({ href: "/av", label: LABEL["/av"], icon: ICON["/av"] });

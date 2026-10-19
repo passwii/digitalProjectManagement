@@ -225,8 +225,8 @@ export const CHANGELOG_VERSIONS: ChangelogVersion[] = [
           },
           {
             kind: "功能",
-            title: "免登录 Spark 管理演示站",
-            description: "新增可公开访问的 NebulaCloud 演示站，覆盖运营、门店、算力、计费、内容、安全、运维和权限八个模块，交互使用本地演示数据。",
+            title: "免登录云电竞管理平台",
+            description: "新增可公开访问的云电竞管理平台，覆盖运营、门店、算力、计费、内容、安全、运维和权限八个模块，交互使用本地演示数据。",
           },
         ],
       },

@@ -32,17 +32,17 @@ export default function SparkShell({ children }: { children: React.ReactNode }) 
           className={s.backdrop}
           type="button"
           onClick={() => setMobileOpen(false)}
-          aria-label="关闭 Spark 导航"
+          aria-label="关闭云电竞管理平台导航"
           tabIndex={-1}
         />
       )}
 
-      <aside className={s.sidebar} aria-label="NebulaCloud 演示站侧栏">
-        <Link className={s.brand} href="/spark/dashboard" aria-label="NebulaCloud 运营总览">
+      <aside className={s.sidebar} aria-label="云电竞管理平台侧栏">
+        <Link className={s.brand} href="/spark/dashboard" aria-label="云电竞管理平台运营总览">
           <span className={s.brandMark}><SparkGlyph name="spark" size={21} /></span>
           <span className={s.brandCopy}>
-            <strong>Nebula<span>Cloud</span></strong>
-            <small>CLOUD ESPORTS OS</small>
+            <strong>云电竞<span>管理平台</span></strong>
+            <small>云电竞运营控制台</small>
           </span>
         </Link>
 
@@ -96,7 +96,7 @@ export default function SparkShell({ children }: { children: React.ReactNode }) 
             className={s.mobileMenuButton}
             type="button"
             onClick={() => setMobileOpen(true)}
-            aria-label="打开 Spark 导航"
+            aria-label="打开云电竞管理平台导航"
             aria-controls="spark-navigation"
             aria-expanded={mobileOpen}
           >
