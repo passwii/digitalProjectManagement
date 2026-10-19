@@ -15,7 +15,7 @@ scripts/mock/              生成器 + 校验 + 契约审计（零依赖，Node 
 # 重新生成（固定种子，产出逐字节一致）
 node scripts/mock/generate.mjs
 
-# 一致性校验：154 项（聚合对聚合 + 聚合对明细 + 语义对语义）
+# 一致性校验：158 项（聚合对聚合 + 聚合对明细 + 语义对语义）
 node scripts/mock/validate.mjs
 
 # 前端可消费性审计：P0 必须为 0，否则退出码 1
@@ -38,7 +38,7 @@ npm run mock:audit
 |---|---|
 | 站点 / 场景 | 3（校园 / 医院 / 公安） |
 | 点位 | 268（校园 158 / 医院 66 / 公安 44） |
-| 设备 | 272（含音频、视频、网关；每台带固件、自检历史、OTA、24 点信号序列） |
+| 设备 | 268（含音频、视频、网关；每台带固件、自检历史、OTA、24 点信号序列） |
 | 告警 | 14,366 条 / 180 天（日均 80），切成 9 个分片，单片 ≤ 1.2MB |
 | 事件 | 207 个（含 7 个剧本事件，时间线 3–12 节点） |
 | 剧本 | 8 个（A 校园欺凌闭环 / B 噪声误报 / C 设备离线 / D 医院一键报警 / E 夜间分贝 / F 谈话质量 / G 批量离线 / H 误报降级生效） |
@@ -120,7 +120,7 @@ const spectra = await loadDataset(); // 或者 loadSpectrum("sp-001")
 ```text
 scripts/mock/
 ├─ generate.mjs                  生成器（固定种子 20260701）
-├─ validate.mjs                  154 项一致性校验
+├─ validate.mjs                  158 项一致性校验
 ├─ audit-frontend-contract.mjs   前端可消费性审计（P0/P1/P2）
 └─ lib/dataset.mjs               数据集读取 + 时间换算（校验脚本共用）
 

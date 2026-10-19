@@ -81,6 +81,16 @@ check("audit_logs.user_id / site_id 存在", () => {
   const bad = auditLogs.filter((l) => !uids.has(l.user_id) || !siteIds.has(l.site_id));
   return bad.length === 0 || `${bad.length} 条日志悬空`;
 });
+check("audit_logs 操作人属于日志所在站点（或显式跨站点角色）", () => {
+  const GLOBAL_STAFF = new Set(["u-001", "u-008"]);
+  const userById = new Map(users.map((u) => [u.id, u]));
+  const bad = auditLogs.filter((l) => {
+    const u = userById.get(l.user_id);
+    if (!u) return true;
+    return u.site_id !== null && u.site_id !== l.site_id && !GLOBAL_STAFF.has(u.id);
+  });
+  return bad.length === 0 || `${bad.length}/${auditLogs.length} 条日志的操作人跨站点`;
+});
 check("device.gateway_id 指向真实网关（或 null）", () => {
   const gw = devices.filter((d) => d.kind === "gateway").map((d) => d.id);
   const gwSet = new Set(gw);
@@ -142,6 +152,44 @@ check("事件首节点是 alarm_triggered", () => {
 check("已结案事件的末节点是 archive", () => {
   const bad = incidents.filter((i) => i.status === "closed" && (i.timeline || []).at(-1)?.type !== "archive");
   return bad.length === 0 || `${bad.length} 个 closed 事件没有以归档收尾`;
+});
+
+// —— 时间线末节点 vs 事件内最新告警 ——
+// 「timeline 落在事件时间窗内」是拿时间线跟 started/ended 比，而 started/ended
+// 又是时间线回写出来的（见 generate 的「事件收尾归一」），等于自己跟自己比。
+// 这条独立用告警自身的时间戳重算，才能抓到「归档后又来自己的告警」。
+check("已结案事件的 archive 不早于事件内最新一条告警", () => {
+  const bad = [];
+  for (const i of incidents) {
+    if (i.status !== "closed") continue;
+    const archive = (i.timeline || []).find((n) => n.type === "archive");
+    if (!archive) continue;
+    const newestAlarm = Math.min(...i.alarm_ids.map((id) => alarmById.get(id).ts_offset_minutes));
+    if (archive.at_offset_minutes > newestAlarm) {
+      bad.push(`${i.id} 归档 ${archive.at_offset_minutes} > 最新告警 ${newestAlarm}（差 ${archive.at_offset_minutes - newestAlarm} 分钟）`);
+    }
+  }
+  return bad.length === 0 || `${bad.length} 个事件的归档早于自己的告警：${bad.slice(0, 3).join("，")}`;
+});
+check("事件时间线末节点不早于事件内最新一条告警（在办事件停在最新告警之后）", () => {
+  const bad = incidents.filter((i) => {
+    if (i.script_id) return false;
+    const last = (i.timeline || []).at(-1);
+    if (!last) return true;
+    const newestAlarm = Math.min(...i.alarm_ids.map((id) => alarmById.get(id).ts_offset_minutes));
+    return last.at_offset_minutes > newestAlarm;
+  });
+  return bad.length === 0 || `${bad.length} 个事件的末节点早于自己的最新告警`;
+});
+check("背景事件时间线首节点 = 最早告警（偏移最大）", () => {
+  const bad = incidents.filter((i) => {
+    if (i.script_id) return false; // 剧本时间线是手写的叙事线（如 H 的首节点指向 B 的第 7 次误报）
+    const first = (i.timeline || [])[0];
+    if (!first) return true;
+    const oldestAlarm = Math.max(...i.alarm_ids.map((id) => alarmById.get(id).ts_offset_minutes));
+    return first.at_offset_minutes !== oldestAlarm;
+  });
+  return bad.length === 0 || `${bad.length} 个背景事件的首节点不是最早告警`;
 });
 check("在办（dispatched）事件不归档、其告警不结案", () => {
   const open = incidents.filter((i) => i.status !== "closed");
@@ -797,7 +845,9 @@ check("分片 count 之和 = 告警总数", () => {
   const sum = alarmsIndex.shards.reduce((s, x) => s + x.count, 0);
   return sum === alarms.length || `${sum} != ${alarms.length}`;
 });
-check("分片按「新 → 旧」连续覆盖，无空洞", () => {
+// 分片之间允许存在空隙（该窗口里本来就没有告警），但不允许时间窗交叠；
+// 另一侧由「findShardForOffset 落在空隙取最近分片」的前端单测覆盖。
+check("分片按「新 → 旧」排列，相邻分片时间窗不交叠", () => {
   for (let i = 1; i < alarmsIndex.shards.length; i++) {
     if (alarmsIndex.shards[i].to_offset_minutes < alarmsIndex.shards[i - 1].from_offset_minutes) {
       return `第 ${i} 片与上一片时间窗交叠`;

@@ -58,7 +58,10 @@ export function takeFromShard(
 
 /** 判断某个偏移落在哪个分片（用于「跳到某天」这类按时间定位）
  *
- * 分片边界是「相邻两个分片各自的首尾」，之间可能有几分钟到几十分钟的空隙（该窗口内恰好没有告警）。
+ * 分片边界是「相邻两个分片各自的首尾」：实测 9 个分片之间有 7 处空隙
+ * （首尾相距合计 121 分钟，其间真正没有任何告警的分钟数为 114），
+ * 另外 1 处是相接（`202732` 既是 shard-006 的 to，也是 shard-007 的 from，
+ * 分别属于两条不同告警，id 不重复，无害）。
  * 落在空隙时取**距离最近**的分片，而不是无条件 fallback 到最后一个分片。
  */
 export function findShardForOffset(index: AlarmsIndex, offsetMinutes: number): number {

@@ -82,6 +82,17 @@ const dayDiff = (offset) => ANCHOR_DAY - dayNumber(offset);
 const offsetFor = (d, clockMinute, minute = 0) =>
   d * DAY + (((ANCHOR_CLOCK - (clockMinute + minute)) % DAY) + DAY) % DAY;
 
+/** 「几天前」的某钟点：参数 daysAgo 就是真实的 dayDiff（1 = 昨天，0 = 今天）。
+ *  offsetFor 的 d 是「第 d 个时间槽」，钟点晚于锚点 12:00 时会落到第 d+1 天前；
+ *  凡是叙事里讲「N 天前」的地方一律用这个函数，别再自己减一。
+ */
+const offsetDaysAgo = (daysAgo, clockMinute, minute = 0) => {
+  if (!Number.isInteger(daysAgo) || daysAgo < 1) {
+    throw new Error(`offsetDaysAgo: daysAgo 必须是 ≥ 1 的整数（收到 ${daysAgo}）`);
+  }
+  return Math.max(0, offsetFor(daysAgo, clockMinute, minute) - DAY);
+};
+
 // ============================================================
 // 2. 组织 / 站点
 // ============================================================
@@ -740,11 +751,13 @@ for (const s of expA) {
 }
 
 // —— 剧本 B：噪声点位连续 7 天 21:00 误报（触发 rule-006） ——
-// 放在 8–14 天前，给剧本 H 的「7 天误报观察期」（第 8 天触发 → 第 1 天结束）留出时间轴。
-const B_FIRST_DAY = 8;
-const B_LAST_DAY = 14;
+// 落在 9–15 天前（连续 7 个自然日），给剧本 H 的「7 天误报观察期」
+// （第 9 天触发 → 第 2 天恢复）留出时间轴。
+// 注意用 offsetDaysAgo：参数是「几天前」这个真实 dayDiff，不是旧的 day-slot 心智模型。
+const B_NEWEST_DAYS_AGO = 9;
+const B_OLDEST_DAYS_AGO = 15;
 const B_DEV = devicesByPoint.get(B_POINT.id)[0];
-for (let i = B_FIRST_DAY; i <= B_LAST_DAY; i++) {
+for (let d = B_NEWEST_DAYS_AGO; d <= B_OLDEST_DAYS_AGO; d++) {
   scriptAlarm({
     site_id: "site-01", scene: "campus", point_id: B_POINT.id, point_room: B_POINT.room,
     device_id: B_DEV?.id ?? null, type_code: "decibel_exceed", type_name: "分贝超限", category: "声音检测",
@@ -752,7 +765,7 @@ for (let i = B_FIRST_DAY; i <= B_LAST_DAY; i++) {
     title: `分贝持续超标 · ${rint(71, 82)}dB`,
     detail: `${B_POINT.room} 邻近施工场地噪声（21:00 固定时段）`,
     confidence: Number((0.68 + rng() * 0.12).toFixed(2)),
-    ts_offset_minutes: offsetFor(i, 21 * 60), duration_seconds: rint(40, 120),
+    ts_offset_minutes: offsetDaysAgo(d, 21 * 60), duration_seconds: rint(40, 120),
     decibel: rint(71, 82),
     status: "false_positive", false_positive: true,
     false_positive_reason: "邻近施工场地，非校园内噪声源",
@@ -867,10 +880,11 @@ const gAlarms = [G_GATEWAY, ...G_CHILDREN].map((d) => {
 });
 
 // —— 剧本 H：误报观察降级生效（rule-006 在 B 之后真正跑起来） ——
-// B 的最后一次误报在第 8 天，观察期覆盖第 7 天→第 1 天，恢复记录落在第 1 天。
-const H_SILENT_DAYS = [7, 4];
-const H_RECOVER_DAY = 1;
-const hAlarms = [...H_SILENT_DAYS, H_RECOVER_DAY].map((dayIdx, i) => scriptAlarm({
+// 第 9 天命中 rule-006 → 观察期覆盖第 9 天→第 2 天（7 天）→ 第 2 天恢复，
+// 静默记录落在第 8 / 5 天。天数口径一律「几天前」（offsetDaysAgo）。
+const H_SILENT_DAYS_AGO = [8, 5];
+const H_RECOVER_DAYS_AGO = 2;
+const hAlarms = [...H_SILENT_DAYS_AGO, H_RECOVER_DAYS_AGO].map((daysAgo, i) => scriptAlarm({
   site_id: "site-01", scene: "campus", point_id: B_POINT.id, point_room: B_POINT.room,
   device_id: B_DEV?.id ?? null, type_code: "decibel_exceed", type_name: "分贝超限", category: "声音检测",
   level: i === 2 ? 3 : 4, level_label: LEVEL_NAME[i === 2 ? 3 : 4],
@@ -879,7 +893,7 @@ const hAlarms = [...H_SILENT_DAYS, H_RECOVER_DAY].map((dayIdx, i) => scriptAlarm
     i === 2
       ? `${B_POINT.room} 误报观察期结束，恢复常规阈值与推送`
       : `${B_POINT.room} 处于误报观察期，仅记录不推送（rule-006）`,
-  confidence: 0.72, ts_offset_minutes: offsetFor(dayIdx, 21 * 60), duration_seconds: rint(40, 90),
+  confidence: 0.72, ts_offset_minutes: offsetDaysAgo(daysAgo, 21 * 60), duration_seconds: rint(40, 90),
   decibel: rint(70, 80), keywords: [],
   status: i === 2 ? "closed" : "closed",
   evidence: { audio_seconds: 60, video_clips: 0, spectrum_bins: 0, spectrum_id: null },
@@ -1043,13 +1057,13 @@ incidents.push(evG);
 
 const evH = makeIncident({ group: hAlarms, title: "误报观察降级生效（rule-006 闭环）", level: 3, scriptId: "H", status: "closed" });
 evH.timeline = [
-  { at_offset_minutes: offsetFor(B_FIRST_DAY, 21 * 60), type: "alarm_triggered", actor: null, text: "第 7 次误报入库（7 天误报率 100%，rule-006 计数 7/7）" },
-  { at_offset_minutes: offsetFor(B_FIRST_DAY, 21 * 60) - 10, type: "fusion", actor: null, text: "点位 7 天误报率 100%（7/7）> 25%，命中 rule-006" },
-  { at_offset_minutes: offsetFor(B_FIRST_DAY, 21 * 60) - 20, type: "action", actor: null, text: "该点位进入 7 天误报观察期：仅记录、不推送、不生成工单" },
-  { at_offset_minutes: offsetFor(H_SILENT_DAYS[0], 21 * 60), type: "alarm_triggered", actor: null, text: "静默期告警按四级记录（原始三级），前端可见历史" },
-  { at_offset_minutes: offsetFor(H_SILENT_DAYS[1], 21 * 60), type: "alarm_triggered", actor: null, text: "静默期告警继续按四级记录" },
-  { at_offset_minutes: offsetFor(H_RECOVER_DAY, 21 * 60) - 15, type: "review", actor: "u-002", text: "观察期结束，误报未再增加，确认降级策略有效" },
-  { at_offset_minutes: offsetFor(H_RECOVER_DAY, 21 * 60) - 25, type: "archive", actor: "u-002", text: "恢复常规阈值与推送，规则记录归档" },
+  { at_offset_minutes: offsetDaysAgo(B_NEWEST_DAYS_AGO, 21 * 60), type: "alarm_triggered", actor: null, text: "第 7 次误报入库（7 天误报率 100%，rule-006 计数 7/7）" },
+  { at_offset_minutes: offsetDaysAgo(B_NEWEST_DAYS_AGO, 21 * 60) - 10, type: "fusion", actor: null, text: "点位 7 天误报率 100%（7/7）> 25%，命中 rule-006" },
+  { at_offset_minutes: offsetDaysAgo(B_NEWEST_DAYS_AGO, 21 * 60) - 20, type: "action", actor: null, text: "该点位进入 7 天误报观察期：仅记录、不推送、不生成工单" },
+  { at_offset_minutes: offsetDaysAgo(H_SILENT_DAYS_AGO[0], 21 * 60), type: "alarm_triggered", actor: null, text: "静默期告警按四级记录（原始三级），前端可见历史" },
+  { at_offset_minutes: offsetDaysAgo(H_SILENT_DAYS_AGO[1], 21 * 60), type: "alarm_triggered", actor: null, text: "静默期告警继续按四级记录" },
+  { at_offset_minutes: offsetDaysAgo(H_RECOVER_DAYS_AGO, 21 * 60) - 15, type: "review", actor: "u-002", text: "观察期结束，误报未再增加，确认降级策略有效" },
+  { at_offset_minutes: offsetDaysAgo(H_RECOVER_DAYS_AGO, 21 * 60) - 25, type: "archive", actor: "u-002", text: "恢复常规阈值与推送，规则记录归档" },
 ];
 incidents.push(evH);
 
@@ -1076,28 +1090,26 @@ function buildSerialTimeline(ev, status) {
     steps.push({ type: "pending", actor: siteUser(["duty_officer", "site_admin"]), text: "现场处置中，尚未回单", gap: rint(2, 6) });
   }
 
-  // 时间窗只有 started 分钟可用（不能推到负偏移 / 未来），
-  // 间隔超过可用窗口时等比压缩，保证每个节点仍严格比上一个晚。
+  // 时间线必须落在事件自己的告警时间窗内：started = 最早一条告警（偏移最大），
+  // ended = 最新一条告警（偏移最小）。旧写法把预算取成 started（绝对偏移），只保证
+  // 节点不为负，保证不了末节点不早于最新告警，会生成「归档 5–60 分钟后
+  // 又来自己的告警」这种自相矛盾。现在把整段生命周期按间隔权重铺满
+  // [started, ended]：首节点 = started，末节点（closed 的 archive）= ended。
   const gaps = steps.slice(1);
-  const total = gaps.reduce((sum, s) => sum + s.gap, 0);
-  const available = ev.started_offset_minutes;
-  if (total > available) {
-    const scale = available / total;
-    for (const s of gaps) s.gap = Math.max(1, Math.round(s.gap * scale));
-    let sum = gaps.reduce((a, s) => a + s.gap, 0);
-    while (sum > available) {
-      const widest = gaps.reduce((a, s) => (s.gap > a.gap ? s : a));
-      if (widest.gap <= 1) break;
-      widest.gap -= 1;
-      sum -= 1;
-    }
-  }
-
+  const span = Math.max(0, ev.started_offset_minutes - ev.ended_offset_minutes);
+  const total = gaps.reduce((sum, s) => sum + s.gap, 0) || 1;
   const nodes = [];
-  let clock = ev.started_offset_minutes; // 最早发生（偏移最大）
+  let travelled = 0;
   steps.forEach((s, i) => {
-    if (i > 0) clock = Math.max(0, clock - s.gap);
-    nodes.push({ at_offset_minutes: clock, type: s.type, actor: s.actor, text: s.text });
+    if (i > 0) travelled += s.gap;
+    // 累积取整：时间单调不增（允许相邻同分钟），末段正好落在 ended 上
+    const reached = Math.round((span * travelled) / total);
+    nodes.push({
+      at_offset_minutes: ev.started_offset_minutes - reached,
+      type: s.type,
+      actor: s.actor,
+      text: s.text,
+    });
   });
   return nodes;
 }
@@ -1672,10 +1684,12 @@ const AUDIT_ACTIONS = [
   ["启用人脸比对", "update", "high"], ["导出月度报表", "export", "low"],
 ];
 const AUDIT_LOGS = Array.from({ length: 300 }, (_, i) => {
-  const u = pick(USERS);
+  const site = pick(SITES);
+  // 操作人必须落在日志所属站点（或显式跨站点职责），否则 Stage 2 的操作日志页
+  // 会出现「公安主管操作校园告警」。和事件的 owner 归属同一套规则。
+  const u = pickSiteUser(site.id);
   const [action, actionCode, risk] = pick(AUDIT_ACTIONS);
   const pending = chance(0.12);
-  const site = pick(SITES);
   return {
     id: `log-${String(1000 + i)}`,
     ts_offset_minutes: rint(0, 30 * DAY),
