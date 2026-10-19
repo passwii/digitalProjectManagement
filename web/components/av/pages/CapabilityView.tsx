@@ -10,7 +10,8 @@ import {
   sceneMeta,
   type AvTone,
 } from "@/lib/av/labels";
-import { AvBar, AvLegend, AvPageHeader, AvPanel, AvStatusBadge, toneVar } from "@/components/av/AvUI";
+import { AvBar, AvLegend, AvPageHeader, AvPanel, AvStatusBadge } from "@/components/av/AvUI";
+import { toneVar } from "@/lib/av/tone";
 import s from "./AvPages.module.css";
 import type { CapabilityGroup, CapabilityProps, CapabilityScene } from "@/lib/av/contracts";
 
@@ -34,11 +35,12 @@ export default function CapabilityView({ scenes, groups, rules, chain, totals }:
       />
 
       <div className={s.sceneGrid}>
-        {scenes.map((scene) => (
+        {scenes.map((scene, index) => (
           <article
             key={scene.scene}
             className={s.sceneCard}
-            style={{ "--tone": toneVar(scene.tone) } as CSSProperties}
+            /* 服务端组件没有 hook：错峰序号直接以内联 --av-i 交给 CSS（见 AvPages.module.css） */
+            style={{ "--tone": toneVar(scene.tone), "--av-i": index } as CSSProperties}
             data-motion="scene-card"
             data-motion-key={scene.scene}
           >
@@ -91,7 +93,13 @@ export default function CapabilityView({ scenes, groups, rules, chain, totals }:
       >
         <ol className={s.chain}>
           {chain.map((step, index) => (
-            <li key={step.code} className={s.chainStep} data-motion="chain-step" data-motion-index={index}>
+            <li
+              key={step.code}
+              className={s.chainStep}
+              data-motion="chain-step"
+              data-motion-index={index}
+              style={{ "--av-i": index } as CSSProperties}
+            >
               <span>{step.code}</span>
               <strong>{step.title}</strong>
               <small>{step.detail}</small>

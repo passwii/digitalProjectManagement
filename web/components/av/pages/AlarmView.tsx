@@ -29,9 +29,13 @@ import {
   AvPageHeader,
   AvPanel,
   AvStatusBadge,
-  AvTabs,
 } from "@/components/av/AvUI";
 import AvGlyph from "@/components/av/AvGlyph";
+import AvTabs from "@/components/av/AvTabs";
+import { m } from "framer-motion";
+import { closeDialogWithMotion, openDialogWithMotion } from "@/components/av/motion/AvDialog";
+import { useStaggerIndex } from "@/components/av/motion/AvMotion";
+import { AvInsertedItem, AvSkeleton } from "@/components/av/motion/AvCounter";
 import s from "./AvPages.module.css";
 import type { AlarmSite, AlarmViewProps } from "@/lib/av/contracts";
 
@@ -39,6 +43,14 @@ type LevelFilter = "all" | 1 | 2 | 3 | 4;
 type SceneFilter = "all" | Scene;
 
 const PAGE_SIZE = 50;
+
+/**
+ * 「加载下一页」时占位的行数。
+ *
+ * 写成字符串数组而不是 `[0, 1, 2]`：源码守卫把任何「三通道整数数组」当成颜色
+ * （lib/avSourceGuard 的 canvas 兜底规则），`[0, 1, 2]` 会被误判成 `rgb(0,1,2)`。
+ */
+const SKELETON_ROWS = ["a", "b", "c"] as const;
 
 function statusTone(status: AlarmStatus): AvTone {
   return ALARM_STATUS_TONE[status] as AvTone;
@@ -81,6 +93,12 @@ export default function AlarmView(props: AlarmViewProps) {
   const [query, setQuery] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(props.initialAlarm?.id ?? null);
   const dialogRef = useRef<HTMLDialogElement>(null);
+  /**
+   * 新插入的告警 id（「加载下一页」后新增的那一批）。
+   * 只有它们播「从顶部滑入」，已有条目靠 `layout` 让位 —— 否则每次翻页 50 条
+   * 一起重播入场，看起来像整页刷新。
+   */
+  const freshIds = useRef<Set<string>>(new Set());
 
   /**
    * 顶部全局搜索回车会带 `?q=` 过来。
@@ -107,12 +125,14 @@ export default function AlarmView(props: AlarmViewProps) {
     const dialog = dialogRef.current;
     if (!dialog) return;
     if (selected && !dialog.open) {
-      dialog.showModal();
+      openDialogWithMotion(dialog);
       document.documentElement.dataset.avDialog = "open";
     }
-    if (!selected && dialog.open) {
-      dialog.close();
-      delete document.documentElement.dataset.avDialog;
+    // 关闭走 closeAlarm()（先播退场再 close），这里只兜底「外部把 selected 清空」的路径
+    if (!selected && dialog.open && !dialog.dataset.closing) {
+      closeDialogWithMotion(dialog, () => {
+        delete document.documentElement.dataset.avDialog;
+      });
     }
   }, [selected]);
 
@@ -156,7 +176,9 @@ export default function AlarmView(props: AlarmViewProps) {
       const page = await loadAlarmPage(props.index, cursor, PAGE_SIZE);
       setAlarms((previous) => {
         const seen = new Set(previous.map((alarm) => alarm.id));
-        return [...previous, ...page.alarms.filter((alarm) => !seen.has(alarm.id))];
+        const added = page.alarms.filter((alarm) => !seen.has(alarm.id));
+        for (const alarm of added) freshIds.current.add(alarm.id);
+        return [...previous, ...added];
       });
       setCursor(page.next_cursor);
     } catch (err) {
@@ -171,9 +193,19 @@ export default function AlarmView(props: AlarmViewProps) {
     window.history.replaceState(null, "", `/av/alarm/${alarm.id}`);
   }, []);
 
+  /**
+   * 关闭抽屉：先播 160ms 的退场，再真的 close()。
+   *
+   * URL 与 state 在动画结束时才清 —— 与视觉同步，避免「地址栏已经回到列表、
+   * 抽屉还在滑出」的割裂感（原生 dialog.close() 是同步的，直接调会把退场吃掉）。
+   */
   const closeDialog = useCallback(() => {
-    setSelectedId(null);
-    window.history.replaceState(null, "", "/av/alarm");
+    const dialog = dialogRef.current;
+    closeDialogWithMotion(dialog, () => {
+      delete document.documentElement.dataset.avDialog;
+      setSelectedId(null);
+      window.history.replaceState(null, "", "/av/alarm");
+    });
   }, []);
 
   const unhandledDonut: DonutDatum[] = props.unhandledBreakdown.map((row) => ({
@@ -237,34 +269,28 @@ export default function AlarmView(props: AlarmViewProps) {
               <AvEmpty title="没有匹配的告警" hint="清空搜索或切换级别 / 场景筛选；也可以继续加载下一页。" />
             </div>
           ) : (
-            <ul className={s.alarmList} style={{ marginTop: 6 }}>
-              {filtered.map((alarm) => (
-                <li key={alarm.id}>
-                  <button
-                    type="button"
-                    className={s.alarmCard}
-                    onClick={() => openAlarm(alarm)}
-                    aria-label={`查看告警 ${alarm.id}：${alarm.title}`}
-                  >
-                    <AvLevelBadge level={alarm.level} label={alarm.level_label} downgraded={alarm.downgraded} />
-                    <span className={s.alarmCardMain}>
-                      <span className={s.alarmTitle}>{alarm.title}</span>
-                      <span className={s.alarmFacts}>
-                        <span>{alarm.point_room}</span>
-                        <span className={s.mono}>{alarm.device_id ?? "无关联设备"}</span>
-                        <span>{siteById.get(alarm.site_id)?.name ?? alarm.site_id}</span>
-                        <span className={s.mono}>{alarm.id}</span>
-                      </span>
-                    </span>
-                    <span className={s.alarmAside}>
-                      <span className={s.alarmAge}>{toRelative(alarm.ts_offset_minutes)}</span>
-                      <span className={s.alarmType}>{alarm.type_name}</span>
-                      <AvStatusBadge tone={statusTone(alarm.status)}>{ALARM_STATUS_LABEL[alarm.status]}</AvStatusBadge>
-                    </span>
-                  </button>
-                </li>
+            <m.ul className={s.alarmList} style={{ marginTop: 6 }}>
+              {filtered.map((alarm, index) => (
+                <AlarmRow
+                  key={alarm.id}
+                  alarm={alarm}
+                  index={index}
+                  total={filtered.length}
+                  fresh={freshIds.current.has(alarm.id)}
+                  onOpen={openAlarm}
+                  siteName={siteById.get(alarm.site_id)?.name ?? alarm.site_id}
+                />
               ))}
-            </ul>
+            </m.ul>
+          )}
+
+          {/* 加载下一页时占位：与真实告警卡同高，数据到达后交叉淡入（不跳高度） */}
+          {loading && (
+            <div className={s.alarmSkeleton} aria-hidden="true">
+              {SKELETON_ROWS.map((row) => (
+                <AvSkeleton key={row} className={s.alarmSkeletonRow} />
+              ))}
+            </div>
           )}
 
           <div className={s.alarmFoot}>
@@ -374,6 +400,84 @@ export default function AlarmView(props: AlarmViewProps) {
         )}
       </dialog>
     </div>
+  );
+}
+
+/**
+ * 一条告警卡（列表项）。
+ *
+ * 三种入场行为，合起来才是「告警中心该有的动效」：
+ *   · 历史条目：首次渲染按 index 错峰淡入（前 10 条，`--av-stagger-list`）；
+ *   · 新插入的条目（翻页进来的）：从上方 8px 滑入（`AvInsertedItem`，base）；
+ *   · 筛选切换：整列表用 `layout` FLIP 重排 —— 卡片互相让位，**不是**整列先淡出再淡入
+ *     （那会让"筛掉一半"看起来像页面重新加载）。
+ *
+ * 只有一级告警的色条呼吸（`AvLevelBadge` 内部按 level 判定）。
+ */
+function AlarmRow({
+  alarm,
+  index,
+  total,
+  fresh,
+  onOpen,
+  siteName,
+}: {
+  alarm: Alarm;
+  index: number;
+  total: number;
+  fresh: boolean;
+  onOpen: (alarm: Alarm) => void;
+  siteName: string;
+}) {
+  const stagger = useStaggerIndex(index, total);
+  /*
+   * 入场形态在**首次挂载时**定下来，之后不再变。
+   *
+   * `fresh` 来自一个会累积的 ref：如果每帧都按它切组件类型（AvInsertedItem ↔ m.li），
+   * 一次筛选把行移出再移回就会重播「从顶部插入」，看起来像又来了一条新告警。
+   * 用 ref 记住首次的值，行的形态就稳定了。
+   */
+  const wasFresh = useRef(fresh).current;
+  const card = (
+    <button
+      type="button"
+      className={s.alarmCard}
+      onClick={() => onOpen(alarm)}
+      aria-label={`查看告警 ${alarm.id}：${alarm.title}`}
+    >
+      <AvLevelBadge level={alarm.level} label={alarm.level_label} downgraded={alarm.downgraded} />
+      <span className={s.alarmCardMain}>
+        <span className={s.alarmTitle}>{alarm.title}</span>
+        <span className={s.alarmFacts}>
+          <span>{alarm.point_room}</span>
+          <span className={s.mono}>{alarm.device_id ?? "无关联设备"}</span>
+          <span>{siteName}</span>
+          <span className={s.mono}>{alarm.id}</span>
+        </span>
+      </span>
+      <span className={s.alarmAside}>
+        <span className={s.alarmAge}>{toRelative(alarm.ts_offset_minutes)}</span>
+        <span className={s.alarmType}>{alarm.type_name}</span>
+        <AvStatusBadge tone={statusTone(alarm.status)} swap={fresh}>
+          {ALARM_STATUS_LABEL[alarm.status]}
+        </AvStatusBadge>
+      </span>
+    </button>
+  );
+
+  if (wasFresh) {
+    return <AvInsertedItem className={s.alarmItem}>{card}</AvInsertedItem>;
+  }
+  return (
+    /*
+     * `layout="position"` 而不是裸 `layout`：
+     * 裸 layout 会连**尺寸**一起动画，行高固定的列表在重排时会先被压成
+     * `scale(1, 0.27)` 再弹回来（实测帧里就是这个值），看起来像整列被挤扁了一下。
+     * 我们只想让「卡片换位置」，所以只投影位置。
+     */
+    <m.li layout="position" className={`${s.alarmItem} ${stagger.className}`} style={stagger.style}>
+      {card}
+    </m.li>
   );
 }
 

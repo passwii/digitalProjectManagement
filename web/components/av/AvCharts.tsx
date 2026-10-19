@@ -1,6 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { AV_MOTION } from "@/lib/av/motion";
+import { useAvMotion } from "./motion/AvMotionProvider";
+import { useMotionNow } from "./motion/AvMotion";
+import { AvSkeletonSwap } from "./motion/AvCounter";
+import motionCss from "./motion/AvMotion.module.css";
 import {
   Area,
   AreaChart,
@@ -27,8 +32,13 @@ import s from "./AvCharts.module.css";
  *   所以这里用 getComputedStyle 读 `--av-*` 的计算值，并在主题切换时重读。
  *   于是「组件里不写颜色字面量」这条约束对图表同样成立，深浅主题也不会画错色。
  *
- * Stage 2 统一 `isAnimationActive={false}`：本 Stage 不做动效，截图必须稳定；
- * Stage 3 会在这一层统一接管入场动画，页面不需要改。
+ * 动效（Stage 3）：统一在这一层接管，页面不需要改。
+ *   · 折线用描边动画、柱状从底部生长、饼图从 0 扫过 —— 全部走 recharts 自带的
+ *     `animationBegin` / `animationDuration` / `animationEasing`，不自己写补间；
+ *   · 时长取 `AV_MOTION.slow`（`avDurationMs`），`?static=1` / 减少动效下
+ *     `isAnimationActive` 直接为 false —— 截图必须稳定，同一页连拍 3 次 MD5 一致；
+ *   · `animationBegin` 按系列错峰一点点（第二系列晚 80ms 起步），两条线不会
+ *     像同一个动画复制的；饼图整体一次扫过。
  */
 
 interface Palette {
@@ -101,6 +111,10 @@ function toneColor(palette: Palette, tone: AvTone): string {
   }[tone];
 }
 
+/**
+ * 图表面板：调色板（CSS 令牌）要等首帧 effect 才读得到，所以先渲染**同尺寸骨架**，
+ * 读到令牌后再交叉淡入真图（base）—— 不是「先白一下、再突然出现」。
+ */
 function ChartFrame({
   children,
   height = 230,
@@ -112,10 +126,44 @@ function ChartFrame({
 }) {
   return (
     <div className={s.frame} style={{ height }} role="img" aria-label={label} data-motion="chart">
-      {children ?? <span className={s.framePending} aria-hidden="true" />}
+      {children ? (
+        <AvSkeletonSwap>{children}</AvSkeletonSwap>
+      ) : (
+        <span className={`${s.framePending} ${motionCss.skeleton}`} aria-hidden="true" />
+      )}
     </div>
   );
 }
+
+/**
+ * recharts 的入场动画参数。
+ *
+ * `durationMs` 已经按 `?static=1` / reduced 归零，这里不再写第二套 if；
+ * `isAnimationActive` 用同一个判定，避免「时长为 0 但仍在跑动画对象」。
+ */
+function useChartAnimation(begin = 0) {
+  /*
+   * 用 `useMotionNow`（同步读 `<html data-av-motion>`）而不是上下文里的 enabled：
+   * 图表要等调色板 effect 之后才挂载，那时 `?static=1` 已经由内联脚本写在根节点上，
+   * 但 Provider 的 state 可能还没跟上 —— 而 recharts 的入场动画**只在挂载瞬间**
+   * 读一次 isAnimationActive，晚一帧就晚了（截图会截到画了一半的折线）。
+   */
+  const enabled = useMotionNow();
+  const { durationMs } = useAvMotion();
+  return {
+    isAnimationActive: enabled,
+    animationBegin: begin,
+    animationDuration: durationMs("slow"),
+    animationEasing: "ease-out" as const,
+  };
+}
+
+/**
+ * 第二条系列相对第一条晚这么多毫秒起步（不是时长，是相位差）。
+ * 借用 instant 一档而不是另写一个 80 —— 图表相位差没必要独立成 token，
+ * 但也不能出现裸数字（否则「全站无硬编码时长」的守卫会红）。
+ */
+const CHART_SERIES_OFFSET_MS = AV_MOTION.instant * 1000;
 
 const tooltipStyle = (palette: Palette) => ({
   background: palette.surface,
@@ -143,6 +191,8 @@ export function AvTrendChart({
   label: string;
 }) {
   const palette = useAvPalette();
+  const first = useChartAnimation();
+  const second = useChartAnimation(CHART_SERIES_OFFSET_MS);
   if (!palette) return <ChartFrame height={height} label={label} />;
   return (
     <ChartFrame height={height} label={label}>
@@ -178,7 +228,7 @@ export function AvTrendChart({
             stroke={toneColor(palette, tones[0])}
             strokeWidth={1.6}
             fill={`url(#av-fill-${dataKeys[0]})`}
-            isAnimationActive={false}
+            {...first}
             dot={false}
           />
           <Area
@@ -189,7 +239,7 @@ export function AvTrendChart({
             strokeWidth={1.4}
             strokeDasharray="4 4"
             fill="transparent"
-            isAnimationActive={false}
+            {...second}
             dot={false}
           />
         </AreaChart>
@@ -215,6 +265,8 @@ export function AvBarChart({
   label: string;
 }) {
   const palette = useAvPalette();
+  const first = useChartAnimation();
+  const second = useChartAnimation(CHART_SERIES_OFFSET_MS);
   if (!palette) return <ChartFrame height={height} label={label} />;
   return (
     <ChartFrame height={height} label={label}>
@@ -239,14 +291,14 @@ export function AvBarChart({
             dataKey={dataKeys[0]}
             name={labels[0]}
             fill={toneColor(palette, tones[0])}
-            isAnimationActive={false}
+            {...first}
             maxBarSize={22}
           />
           <Bar
             dataKey={dataKeys[1]}
             name={labels[1]}
             fill={toneColor(palette, tones[1])}
-            isAnimationActive={false}
+            {...second}
             maxBarSize={22}
           />
         </BarChart>
@@ -276,6 +328,7 @@ export function AvDonut({
   label: string;
 }) {
   const palette = useAvPalette();
+  const animation = useChartAnimation();
   if (!palette) return <ChartFrame height={height} label={label} />;
   return (
     <div className={s.donutWrap} data-motion="chart">
@@ -291,7 +344,7 @@ export function AvDonut({
               paddingAngle={1}
               stroke={palette.surface}
               strokeWidth={1}
-              isAnimationActive={false}
+              {...animation}
             >
               {data.map((item) => (
                 <Cell key={item.label} fill={toneColor(palette, item.tone)} />
@@ -320,6 +373,7 @@ export function AvSignalChart({
   label: string;
 }) {
   const palette = useAvPalette();
+  const animation = useChartAnimation();
   if (!palette) return <ChartFrame height={height} label={label} />;
   return (
     <ChartFrame height={height} label={label}>
@@ -349,7 +403,7 @@ export function AvSignalChart({
             strokeWidth={1.5}
             fill={palette.signal}
             fillOpacity={0.12}
-            isAnimationActive={false}
+            {...animation}
             dot={false}
           />
         </AreaChart>

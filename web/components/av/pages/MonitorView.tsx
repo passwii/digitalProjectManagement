@@ -2,11 +2,14 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { AvBar, AvEmpty, AvLegend, AvPageHeader, AvPanel, AvStatusBadge, AvTabs } from "@/components/av/AvUI";
+import { AvBar, AvEmpty, AvLegend, AvPageHeader, AvPanel, AvStatusBadge } from "@/components/av/AvUI";
 import type { AvTone } from "@/lib/av/labels";
 import { compactAge, DEVICE_STATUS_LABEL, DEVICE_STATUS_TONE, formatCount } from "@/lib/av/labels";
 import { toRelative } from "@/lib/av/time";
 import AvGlyph from "@/components/av/AvGlyph";
+import AvTabs from "@/components/av/AvTabs";
+import { staggerProps } from "@/components/av/motion/AvMotion";
+import { useAvMotion } from "@/components/av/motion/AvMotionProvider";
 import s from "./AvPages.module.css";
 import type { MonitorChannel, MonitorProps } from "@/lib/av/contracts";
 
@@ -14,6 +17,7 @@ type KindFilter = "all" | "audio" | "video";
 
 export default function MonitorView({ channels, counts, deviceTotal, signalHealth, models, gateways }: MonitorProps) {
   const [filter, setFilter] = useState<KindFilter>("all");
+  const { enabled: motionEnabled } = useAvMotion();
 
   const visible = useMemo(
     () => (filter === "all" ? channels : channels.filter((channel) => channel.kind === filter)),
@@ -46,12 +50,15 @@ export default function MonitorView({ channels, counts, deviceTotal, signalHealt
         <AvEmpty title="当前筛选下没有通道" hint="切换到「全部通道」查看音频与视频通道。" />
       ) : (
         <div className={s.channelGrid}>
-          {visible.map((channel) => {
+          {visible.map((channel, index) => {
             const statusTone: AvTone = DEVICE_STATUS_TONE[channel.status];
+            // 前 10 路按 index * 30ms 错峰入场（12 路全错峰只会让最后一张晚半秒）
+            const stagger = staggerProps(index, visible.length, motionEnabled);
             return (
               <article
                 key={channel.id}
-                className={s.channel}
+                className={`${s.channel} ${stagger.className}`}
+                style={stagger.style}
                 data-motion="channel"
                 data-motion-key={channel.id}
                 data-kind={channel.kind}

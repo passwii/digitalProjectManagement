@@ -1,0 +1,136 @@
+/*
+ * /av 动效层（Stage 3）。
+ *
+ * 这里的每个类都只做两件事之一：给元素挂上一条 globals.css 里定义的 keyframes，
+ * 或者限定动画的时长与延迟 —— 时长一律取 `--av-dur-*`，延迟一律由 `--av-i`
+ * （列表序号）乘错峰步长算出来。**本文件不出现任何毫秒字面量**，这样
+ * `?static=1` / prefers-reduced-motion 把 `--av-dur-*` 归零时这里自动停摆。
+ *
+ * 为什么入场用 CSS 而不是 framer 的 initial：
+ *   framer 把 `opacity:0` 写进 SSR 的 style，JS 未到时页面是空的（并且截图会截到
+ *   空白帧）。CSS 动画在样式表生效的瞬间就开跑，不需要等水合。
+ */
+
+/* ---------- 页面 / 面板入场 ---------- */
+
+/*
+ * 页面切换：8px 上浮 + 淡入，base（不用 slow —— 演示时每次跳页都等 420ms 会烦）。
+ *
+ * ⚠️ 这里的 fill-mode 必须是 `backwards` 而不是 `both`：
+ * `both` 会在动画结束后**继续把最后一帧的 `transform: none` 钉在元素上**，
+ * 而 CSS 动画的优先级高于 inline style —— framer 的 `layout`（FLIP 重排）正是
+ * 靠 inline transform 实现的，被钉住之后筛选切换就完全看不到「卡片互相让位」。
+ * `backwards` 只在延迟阶段填充首帧，播完即归还元素自身的样式。
+ */
+.pageIn {
+  animation: avPageIn var(--av-dur-base) var(--av-ease-enter) backwards;
+}
+
+/*
+ * 滚动进入视口才播的面板：由 IntersectionObserver 挂 `data-av-inview="on"` 触发。
+ *
+ * 只在 `data-av-motion="on"`（= 动效开启且不是截图模式）时才先把面板藏起来。
+ * 否则 JS 没到 / 动效被关的场合会留下一片永远透明的面板 —— 那种「空白」比没有
+ * 动画严重得多。属性由 app/av/layout.tsx 的内联脚本在首帧前写好。
+ */
+/*
+ * ⚠️ 隐藏只在 `prefers-reduced-motion: no-preference` 下生效。
+ * 减少动效时全局会把 `animation` 全部关掉，若这里仍把 opacity 归零，
+ * 面板就永远停在全透明（比没有动画严重得多）。
+ *
+ * 同理兜底无脚本场景：`scripting: none` 时内联脚本挂的属性没有观察者来摘，
+ * 直接放行（Chrome 120+ / Safari 17+ 支持；不支持的浏览器忽略这段）。
+ */
+@media (prefers-reduced-motion: no-preference) {
+  :global(:root[data-av-motion="on"]) .inView {
+    opacity: 0;
+  }
+  @media (scripting: none) {
+    :global(:root[data-av-motion="on"]) .inView {
+      opacity: 1;
+    }
+  }
+}
+.inView[data-av-inview="on"] {
+  animation: avRiseIn var(--av-dur-slow) var(--av-ease-enter) both;
+  animation-delay: calc(var(--av-stagger-list) * var(--av-i, 0));
+}
+
+/*
+ * 列表项错峰入场：前 10 条按 index 延迟，之后 `--av-i` 被 JS 压成 0。
+ * fill-mode 用 `backwards`（原因见 .pageIn）：这些 li 同时带 framer 的 `layout`，
+ * 一旦动画把 transform 钉死，筛选切换的 FLIP 就失效了。
+ */
+.itemIn {
+  animation: avRiseIn var(--av-dur-base) var(--av-ease-enter) backwards;
+  animation-delay: calc(var(--av-stagger-list) * var(--av-i, 0));
+}
+
+/* 骨架屏：同尺寸占位 + 一条扫过的高光（background-position，不动布局） */
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    var(--skeleton-base) 0%,
+    var(--skeleton-shine) 50%,
+    var(--skeleton-base) 100%
+  );
+  background-size: 200% 100%;
+  animation: avSkeleton var(--av-dur-shimmer) linear infinite;
+}
+
+/* 骨架 → 真数据的交叉淡入（base） */
+.skeletonSwap {
+  animation: avFadeIn var(--av-dur-base) var(--av-ease-standard) both;
+}
+
+/* ---------- Tab 滑块（layoutId） ---------- */
+
+/*
+ * 分段控件的滑块：底色 + 1px 边框画在一个绝对定位的 span 上，位置由 framer 的
+ * layoutId 负责，切换时是「滑过去」而不是「旧的高亮灭、新的亮」。
+ * z-index 0 + 文字 z-index 1，见 AvUI.module.css 的 .tab。
+ */
+.tabSlider {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  border: 1px solid var(--av-divider);
+  background: var(--av-surface);
+  pointer-events: none;
+}
+
+/* ---------- 导航 ---------- */
+
+/*
+ * 侧栏折叠：文字先走、图标后走的错峰淡出（quick）。
+ *
+ * ⚠️ 这里**没有**给折叠做宽度过渡。Stage 3 §二.1 写的是「宽度过渡 base」，
+ * 但 §三把「动 width / height」列为硬禁止：侧栏靠 `width` + 主列 `margin-left`
+ * 布局，宽度一过渡，整列内容（50 行告警表 / recharts）每帧都要重新 layout，
+ * 正是 §三 想避免的那种掉帧。所以取舍是：几何尺寸瞬切（一次 layout），
+ * 观感交给文字的错峰淡出 —— 用户看到的是「字先散开、栏再收窄」，不觉得突兀，
+ * 而页面在折叠那一帧之后不再有 layout。这条取舍在 PR 里写清楚，便于回退。
+ */
+.sidebarText {
+  transition:
+    opacity var(--av-dur-quick) var(--av-ease-exit),
+    transform var(--av-dur-quick) var(--av-ease-exit);
+}
+.sidebarIcon {
+  transition: transform var(--av-dur-base) var(--av-ease-standard) var(--av-dur-quick);
+}
+
+/* 导航高亮滑块（layoutId="av-nav-active"）—— framer 负责位置，这里只管外观 */
+.navActivePill {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: var(--nav-active-bg);
+  border-left: 2px solid var(--nav-active-accent);
+  pointer-events: none;
+}
+
+/* 顶部时钟的秒位：每次跳变闪一帧（quick）。只动 opacity，不重排。 */
+.clockTick {
+  animation: avFadeIn var(--av-dur-quick) var(--av-ease-standard) both;
+}

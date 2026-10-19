@@ -16,6 +16,8 @@ const currentDir = path.dirname(fileURLToPath(import.meta.url));
  *                                   tsconfig.test.json 只收 `.ts`，所以**不能放 JSX**
  *   · `lib/*.vitest.test.ts`     → vitest，需要 vitest 的 expect/mock 或浏览器全局时用（纯逻辑）
  *   · `lib/*.vitest.test.tsx`    → vitest，需要 JSX 渲染真实组件时用（如附件预览弹层、BLF-1125 的身份区）
+ *   · `lib/<子目录>/*.vitest.test.ts` → 同上，但放在子目录里（如 lib/av/ 的动效令牌契约，
+ *                                  与它守的 lib/av/*.ts 同目录，读源码的守卫更好找）
  *   · `lib/activityCore.test.ts` → 历史遗留的 vitest 文件（main 的动效工作引入），
  *                                  保留原名以免与在途 PR 冲突，由下面显式包含
  *
@@ -41,6 +43,14 @@ export default defineConfig({
   },
   test: {
     environment: "node",
-    include: ["lib/*.vitest.test.ts", "lib/*.vitest.test.tsx", "lib/activityCore.test.ts"],
+    include: [
+      "lib/*.vitest.test.ts",
+      "lib/*.vitest.test.tsx",
+      // 子目录里的 vitest 用例（BLF-1375 起）：`**` 不匹配 lib 根下的文件，
+      // 上面的两条仍需保留。
+      "lib/**/*.vitest.test.ts",
+      "lib/**/*.vitest.test.tsx",
+      "lib/activityCore.test.ts",
+    ],
   },
 });

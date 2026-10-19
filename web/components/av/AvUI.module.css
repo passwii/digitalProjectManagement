@@ -194,6 +194,14 @@
   white-space: nowrap;
 }
 
+/* KPI 数字（计数器渲染的 span）：继承 strong 的字号与颜色，只保留等宽数字 */
+.metricValue .metricNumber {
+  color: inherit;
+  font-family: inherit;
+  font-size: inherit;
+  font-variant-numeric: tabular-nums;
+}
+
 .metricValue span {
   color: var(--av-ink-3);
   font-family: var(--font-body);
@@ -242,6 +250,17 @@
   background: var(--badge-tone);
 }
 
+/*
+ * 一级告警的色条缓慢呼吸（3s，opacity 1 ↔ 0.7）。
+ *
+ * 全站只有这一处持续循环：四级同时呼吸会变成满屏闪烁，等于没有重点。
+ * 只给 data-level="1"，二三四级保持静止。`?static=1` 与减少动效由 globals
+ * 的统一开关关掉（animation: none），这里不需要第二套判断。
+ */
+.levelBadge[data-level="1"] .levelSwatch {
+  animation: avBreathe var(--av-dur-breathe) ease-in-out infinite alternate;
+}
+
 .levelBadge svg {
   flex: none;
 }
@@ -263,6 +282,7 @@
 }
 
 .tab {
+  position: relative;
   display: inline-flex;
   min-height: 26px;
   align-items: center;
@@ -278,6 +298,21 @@
   white-space: nowrap;
 }
 
+/* 有滑块时，按钮自己的底色与边框让给滑块（否则两层叠成两倍浓度） */
+.tabActiveHost {
+  border-color: transparent;
+  background: transparent;
+}
+
+/* 文字压在滑块之上 */
+.tabLabel {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
 .tab:hover {
   color: var(--av-ink);
 }
@@ -285,6 +320,8 @@
 .tab:focus-visible {
   outline: 2px solid var(--av-signal);
   outline-offset: -2px;
+  /* 焦点环不能有延迟（Stage 3 §六）：进入即显示，动画只影响颜色插值 */
+  transition: outline-color var(--av-dur-instant) linear;
 }
 
 .tabActive {
@@ -337,6 +374,13 @@
 .barFill {
   height: 100%;
   background: var(--tone, var(--av-signal));
+  /*
+   * 进度条从 0 长到目标宽度（base）：用 `scaleX` 而不是过渡 `width` ——
+   * 宽度过渡每帧都会让整条进度条的布局重算，而 scaleX 只走合成层。
+   * `transform-origin: left` 保证从左侧起长。降级由根节点的统一开关关掉。
+   */
+  transform-origin: left center;
+  animation: avGrowX var(--av-dur-base) var(--av-ease-enter) backwards;
 }
 
 /* ---------------- 图例 / 空态 / 键值 ---------------- */
@@ -371,6 +415,7 @@
 }
 
 .empty {
+  animation: avRiseIn var(--av-dur-slow) var(--av-ease-enter) both;
   display: grid;
   justify-items: center;
   gap: 6px;
@@ -533,6 +578,14 @@
   vertical-align: top;
 }
 
+/*
+ * 表格行 hover：整行底色淡入（quick），不描边闪烁。
+ * 只动 background-color（合成层之外但只影响 paint，且表格行尺寸不变）。
+ */
+.table td {
+  transition: background-color var(--av-dur-quick) var(--av-ease-standard);
+}
+
 .table tbody tr:hover td {
   background: var(--row-hover);
 }
@@ -584,6 +637,11 @@
   color: var(--av-ink-2);
   font-size: 10px;
   white-space: nowrap;
+}
+
+/* 状态徽标变更：从 0.9 弹入（quick）。key 换掉重挂载时 CSS 动画自然重播。 */
+.swapIn {
+  animation: avDotPop var(--av-dur-quick) var(--av-ease-enter) both;
 }
 
 .tag[data-tone] {

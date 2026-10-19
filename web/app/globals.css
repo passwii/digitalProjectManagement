@@ -2682,3 +2682,222 @@ textarea,
 :root[data-av-dialog="open"] {
   overflow: hidden;
 }
+
+/* ==========================================================================
+   智能音视频平台（/av）动效令牌（Stage 3 / BLF-1375）
+   --------------------------------------------------------------------------
+   单一真源是 `lib/av/motion.ts` 的 AV_MOTION / AV_EASE / AV_STAGGER；这里只是把
+   同一组值落成 CSS 自定义属性，好让 module.css 与 JS 用同一套时长与曲线
+   （否则页面里马上会长出第二套 0.2s / 0.3s）。
+
+   数值契约由 `lib/av/motion.vitest.test.ts` 逐条比对：改 TS 不改这里会红。
+
+   三条曲线：
+     --av-ease-standard  = 既有 --ease-console，原地变化（高亮位移 / 颜色 / FLIP）
+     --av-ease-enter     = 先快后缓，元素入场
+     --av-ease-exit      = 先缓后快，元素退场（比入场更快，见 motion.ts 顶部说明）
+   ========================================================================== */
+:root {
+  --av-dur-instant: 90ms;
+  --av-dur-quick: 160ms;
+  --av-dur-base: 240ms;
+  --av-dur-slow: 420ms;
+  /* 一级告警色条呼吸：全站唯一的持续循环（3s）。 */
+  --av-dur-breathe: 3000ms;
+  /* 骨架屏高光扫过的周期（不是入场动画，独立一档）。 */
+  --av-dur-shimmer: 1200ms;
+  /* 列表 / 时间线的错峰步长，用 calc(var(--av-stagger-*) * var(--av-i)) 取延迟。 */
+  --av-stagger-list: 30ms;
+  --av-stagger-timeline: 60ms;
+  --av-ease-standard: cubic-bezier(0.2, 0.72, 0.2, 1);
+  --av-ease-enter: cubic-bezier(0.16, 1, 0.3, 1);
+  --av-ease-exit: cubic-bezier(0.4, 0, 1, 1);
+}
+
+/*
+ * `?static=1`（截图 / 录屏）与 `prefers-reduced-motion: reduce` 的统一降级。
+ *
+ * 属性由 app/av/layout.tsx 的内联脚本在**首帧之前**挂到 <html> 上：等 React
+ * 水合再从 effect 里关动画，第一帧的入场早就被录进去了。
+ *
+ * 这里同时做两件事：
+ *   ① 把四档时长归零 —— module.css 里所有 `var(--av-dur-*)` 一起失效；
+ *   ② 关掉 transition / animation —— 显式写了 `animation: ...` 的帧动画也停。
+ * 选择器必须比文件末尾那条 `@media (prefers-reduced-motion) *` 更具体，
+ * 单靠 `*` 盖不住 `:root[data-av-motion="off"] *`（与 BLF-1292 主题过场同一套思路）。
+ */
+:root[data-av-motion="off"] {
+  --av-dur-instant: 0ms;
+  --av-dur-quick: 0ms;
+  --av-dur-base: 0ms;
+  --av-dur-slow: 0ms;
+  --av-dur-breathe: 0ms;
+  --av-dur-shimmer: 0ms;
+  --av-stagger-list: 0ms;
+  --av-stagger-timeline: 0ms;
+}
+
+:root[data-av-motion="off"] *,
+:root[data-av-motion="off"] *::before,
+:root[data-av-motion="off"] *::after {
+  transition: none !important;
+  animation: none !important;
+  animation-delay: 0s !important;
+  transition-delay: 0s !important;
+  scroll-behavior: auto !important;
+}
+
+/* 减少动效同样把时长归零：CSS 变量是 JS 读不到的那一半开关。 */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --av-dur-instant: 0ms;
+    --av-dur-quick: 0ms;
+    --av-dur-base: 0ms;
+    --av-dur-slow: 0ms;
+    --av-dur-breathe: 0ms;
+    --av-dur-shimmer: 0ms;
+    --av-stagger-list: 0ms;
+    --av-stagger-timeline: 0ms;
+  }
+}
+
+/*
+ * 全局按下态：按钮缩到 0.98（instant）。
+ *
+ * 放在 globals 而不是各模块里，是因为 `/av` 里有 6 种按钮（ghostButton、
+ * dialogClose、tab、navLink、collapseButton、primaryAction），逐个补会漏。
+ * 只作用于真实按钮，`a` 不缩 —— 链接按下就变形会让人以为点错了。
+ */
+@media (prefers-reduced-motion: no-preference) {
+  button:not(:disabled):active {
+    transform: scale(0.98);
+  }
+  button,
+  a {
+    transition-duration: var(--av-dur-quick);
+    transition-timing-function: var(--av-ease-standard);
+  }
+}
+
+/* --------------------------------------------------------------------------
+   /av 共用的帧动画（Stage 3）
+   --------------------------------------------------------------------------
+   为什么用 CSS keyframes 而不是 framer 的 initial/animate 做入场：
+   framer 的 initial 会把 `opacity:0` 写进 SSR 的 style，JS 没到之前页面是空的；
+   CSS 动画在样式表解析时就开始跑，不需要等水合，且 `?static=1` /
+   prefers-reduced-motion 用自己的规则整段关掉即可（见上面的属性开关）。
+
+   ⚠️ 只允许动 transform / opacity —— 动 width / height / top / left 会触发 layout。
+   -------------------------------------------------------------------------- */
+@keyframes avPageIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes avRiseIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+/* 一级告警色条呼吸：3s 一循环、透明度 1 ↔ 0.7，见 AV_BREATH_SECONDS */
+@keyframes avBreathe {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0.7;
+  }
+}
+/* 时间线连接线：从节点向下长出来（scaleY，不动 height） */
+@keyframes avGrowY {
+  from {
+    transform: scaleY(0);
+  }
+  to {
+    transform: scaleY(1);
+  }
+}
+@keyframes avDotPop {
+  from {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+/* 频谱：盖一层与背景同色的遮罩，从下往上收（transform: scaleY）——不是 mask-image，
+   因为 mask 每一帧都要重新生成遮罩位图，48k 格子的 canvas 上会掉帧。 */
+@keyframes avWipeUp {
+  from {
+    transform: scaleY(1);
+  }
+  to {
+    transform: scaleY(0);
+  }
+}
+/* 抽屉：右侧滑入 / 滑出 + 遮罩淡入淡出 */
+@keyframes avDrawerIn {
+  from {
+    opacity: 0;
+    transform: translateX(24px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes avDrawerOut {
+  from {
+    opacity: 1;
+    transform: none;
+  }
+  to {
+    opacity: 0;
+    transform: translateX(18px);
+  }
+}
+@keyframes avFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes avFadeOut {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+/* 骨架屏：一条扫过的高光（用 background-position，不动布局） */
+@keyframes avSkeleton {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: -100% 0;
+  }
+}
+@keyframes avGrowX {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}

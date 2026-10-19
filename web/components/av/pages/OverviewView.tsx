@@ -3,13 +3,30 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import type { OverviewProps } from "@/lib/av/contracts";
-import { AvBar, AvLegend, AvMetric, AvPageHeader, AvPanel, AvTabs, AvLevelBadge, toneVar } from "@/components/av/AvUI";
+import { AvBar, AvLegend, AvMetric, AvPageHeader, AvPanel, AvLevelBadge } from "@/components/av/AvUI";
+import { toneVar } from "@/lib/av/tone";
 import { AvBarChart, AvDonut, AvTrendChart, type DonutDatum } from "@/components/av/AvCharts";
 import { formatCount, formatGb, formatPercent, formatStorage } from "@/lib/av/labels";
 import { toRelative } from "@/lib/av/time";
+import { useAvMotion } from "@/components/av/motion/AvMotionProvider";
+import { AvPanelReveal, useStaggerIndex } from "@/components/av/motion/AvMotion";
+import AvCounter from "@/components/av/motion/AvCounter";
+import ui from "@/components/av/AvUI.module.css";
+import AvTabs from "@/components/av/AvTabs";
 import s from "./AvPages.module.css";
 
 type RangeKey = "live" | "today" | "week";
+
+/** 首屏一次性揭示的告警流条数（与上面 useState 的初值同一个数）。 */
+const INITIAL_STREAM_COUNT = 4;
+
+/**
+ * KPI 数字的样式类（来自 AvUI.module.css）。
+ *
+ * 必须显式传给 `AvCounter`：`.metricValue span` 那条规则是给**单位**用的
+ * （11px + 弱色），计数器渲染的 span 若不带这个类会被它命中，数字变成小号灰字。
+ */
+const metricNumberClass = ui.metricNumber;
 
 const RANGE_TABS: { value: RangeKey; label: string }[] = [
   { value: "live", label: "近 24 小时" },
@@ -19,16 +36,20 @@ const RANGE_TABS: { value: RangeKey; label: string }[] = [
 
 export default function OverviewView(props: OverviewProps) {
   const [range, setRange] = useState<RangeKey>("live");
-  const [revealed, setRevealed] = useState(4);
+  const [revealed, setRevealed] = useState(INITIAL_STREAM_COUNT);
   const [paused, setPaused] = useState(false);
+  const { frozen } = useAvMotion();
 
   // 实时告警流的「增量插入」：数据是静态回放，每 8 秒揭示下一条，
   // 结构上给足稳定 key 与固定顺序，Stage 3 只需在这里挂入场动画。
   useEffect(() => {
-    if (paused || revealed >= props.recent.length) return;
+    // `frozen`（?static=1）下停掉回放：截图 / 录屏要求同一页面连拍 3 次完全一致，
+    // 每 8 秒多一条会让 MD5 对不上。减少动效（reduced）不在这里停 —— 那是动效，
+    // 不是内容，停掉会让用户永远只看得到前 4 条。
+    if (frozen || paused || revealed >= props.recent.length) return;
     const timer = window.setTimeout(() => setRevealed((value) => Math.min(props.recent.length, value + 1)), 8000);
     return () => window.clearTimeout(timer);
-  }, [paused, revealed, props.recent.length]);
+  }, [frozen, paused, revealed, props.recent.length]);
 
   const heatMax = useMemo(
     () => Math.max(1, ...props.heatmap.flatMap((day) => day.cells.map((cell) => cell.count))),
@@ -63,7 +84,7 @@ export default function OverviewView(props: OverviewProps) {
           <AvMetric
             key={kpi.key}
             label={kpi.label}
-            value={kpi.value}
+            value={<AvCounter value={kpi.value} className={metricNumberClass} />}
             unit={kpi.unit}
             detail={kpi.detail}
             note={kpi.note}
@@ -140,7 +161,8 @@ export default function OverviewView(props: OverviewProps) {
         </AvPanel>
       </div>
 
-      <div className={s.gridThree}>
+      {/* 这三块要滚动才看到，所以走「进入视口一次」入场（once，不重播） */}
+      <AvPanelReveal index={0} className={s.gridThree}>
         <AvPanel title="场景分布" subtitle="今日告警按业务场景" icon="capability" meta={`${props.scenes.length} 个场景`} motionKey="overview-scenes">
           <AvDonut
             data={sceneDonut}
@@ -198,7 +220,7 @@ export default function OverviewView(props: OverviewProps) {
             </div>
           </div>
         </AvPanel>
-      </div>
+      </AvPanelReveal>
 
       <div className={s.splitWide}>
         <AvPanel
@@ -259,22 +281,8 @@ export default function OverviewView(props: OverviewProps) {
           motionKey="overview-stream"
         >
           <ul className={s.stream} aria-live="polite">
-            {visibleAlarms.map((alarm) => (
-              <li key={alarm.id} className={s.streamItem} data-motion="stream-item" data-motion-key={alarm.id}>
-                <div className={s.streamTop}>
-                  <AvLevelBadge level={alarm.level} label={alarm.levelLabel} />
-                  <strong className={s.streamTitle}>{alarm.title}</strong>
-                  <span className={s.streamAge}>{toRelative(alarm.offsetMinutes)}</span>
-                </div>
-                <div className={s.streamBottom}>
-                  <span>{alarm.room}</span>
-                  <span className={s.streamDot} aria-hidden="true" />
-                  <span>{alarm.siteName}</span>
-                  <span className={s.streamDot} aria-hidden="true" />
-                  <span className={s.mono}>{alarm.deviceId ?? "无设备"}</span>
-                  <span className={s.streamType}>{alarm.typeName}</span>
-                </div>
-              </li>
+            {visibleAlarms.map((alarm, index) => (
+              <StreamItem key={alarm.id} alarm={alarm} index={index} total={visibleAlarms.length} />
             ))}
           </ul>
           <div className={s.panelLinkRow}>
@@ -327,5 +335,49 @@ export default function OverviewView(props: OverviewProps) {
         </AvPanel>
       </div>
     </div>
+  );
+}
+
+/**
+ * 实时告警流的一条。
+ *
+ * 每 8 秒多揭示一条时，**只有新出现的那条**从上方滑入（`data-fresh`），
+ * 之前的条目重播一遍会让整个流看起来在刷新。错峰只作用于首屏同时出现的那几条
+ * （前 10 条按 30ms 递增），第 11 条起不再延迟。
+ */
+function StreamItem({
+  alarm,
+  index,
+  total,
+}: {
+  alarm: OverviewProps["recent"][number];
+  index: number;
+  total: number;
+}) {
+  const stagger = useStaggerIndex(index, total);
+  // 首屏一起出现的是「历史」，之后逐条揭示的才是「新插入」
+  const fresh = index >= INITIAL_STREAM_COUNT;
+  return (
+    <li
+      className={`${s.streamItem} ${stagger.className}`}
+      style={stagger.style}
+      data-motion="stream-item"
+      data-motion-key={alarm.id}
+      data-fresh={fresh ? "true" : undefined}
+    >
+      <div className={s.streamTop}>
+        <AvLevelBadge level={alarm.level} label={alarm.levelLabel} />
+        <strong className={s.streamTitle}>{alarm.title}</strong>
+        <span className={s.streamAge}>{toRelative(alarm.offsetMinutes)}</span>
+      </div>
+      <div className={s.streamBottom}>
+        <span>{alarm.room}</span>
+        <span className={s.streamDot} aria-hidden="true" />
+        <span>{alarm.siteName}</span>
+        <span className={s.streamDot} aria-hidden="true" />
+        <span className={s.mono}>{alarm.deviceId ?? "无设备"}</span>
+        <span className={s.streamType}>{alarm.typeName}</span>
+      </div>
+    </li>
   );
 }
