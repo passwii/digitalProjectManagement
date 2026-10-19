@@ -10,7 +10,10 @@
     "build": "next build",
     "start": "next start --hostname 0.0.0.0 --port 3001",
     "lint": "next lint",
-    "test:motion": "vitest run"
+    "test:motion": "vitest run",
+    "mock:generate": "node ../scripts/mock/generate.mjs",
+    "mock:validate": "node ../scripts/mock/validate.mjs",
+    "mock:audit": "node ../scripts/mock/audit-frontend-contract.mjs"
   },
   "dependencies": {
     "framer-motion": "^13.4.0",

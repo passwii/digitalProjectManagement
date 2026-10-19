@@ -1,0 +1,82 @@
+[
+  {
+    "id": "u-001",
+    "name": "张*",
+    "role": "platform_admin",
+    "role_name": "平台管理员",
+    "dept": "综合安防运营中心",
+    "site_id": null
+  },
+  {
+    "id": "u-002",
+    "name": "王*",
+    "role": "site_admin",
+    "role_name": "校区安全主管",
+    "dept": "德育处",
+    "site_id": "site-01"
+  },
+  {
+    "id": "u-003",
+    "name": "李*",
+    "role": "duty_officer",
+    "role_name": "值班安保",
+    "dept": "安保处",
+    "site_id": "site-01"
+  },
+  {
+    "id": "u-004",
+    "name": "赵*",
+    "role": "head_teacher",
+    "role_name": "班主任",
+    "dept": "初二年级组",
+    "site_id": "site-01"
+  },
+  {
+    "id": "u-005",
+    "name": "陈*",
+    "role": "site_admin",
+    "role_name": "院区安全主管",
+    "dept": "保卫科",
+    "site_id": "site-02"
+  },
+  {
+    "id": "u-006",
+    "name": "刘*",
+    "role": "duty_officer",
+    "role_name": "值班安保",
+    "dept": "保卫科",
+    "site_id": "site-02"
+  },
+  {
+    "id": "u-007",
+    "name": "杨*",
+    "role": "auditor",
+    "role_name": "合规审计",
+    "dept": "警务督察",
+    "site_id": "site-03"
+  },
+  {
+    "id": "u-008",
+    "name": "黄*",
+    "role": "ops",
+    "role_name": "运维工程师",
+    "dept": "技术支持",
+    "site_id": null
+  },
+  {
+    "id": "u-009",
+    "name": "周*",
+    "role": "duty_officer",
+    "role_name": "值班安保",
+    "dept": "警务保障",
+    "site_id": "site-03"
+  },
+  {
+    "id": "u-010",
+    "name": "吴*",
+    "role": "site_admin",
+    "role_name": "办案区主管",
+    "dept": "执法办案管理中心",
+    "site_id": "site-03"
+  }
+]

@@ -1,0 +1,136 @@
+{
+  "_meta": {
+    "total": 14366,
+    "shard_count": 9,
+    "sorted_by": "ts_offset_minutes asc（新 → 旧）",
+    "note": "首屏只加载本文件；列表按 cursor 懒加载分片，不要一次拉全部。"
+  },
+  "pagination": {
+    "page_size": 50,
+    "max_page_size": 200,
+    "cursor_format": "<shardIndex>:<offsetInShard>",
+    "cursor_example": "0:50",
+    "next_cursor_field": "next_cursor",
+    "empty_cursor": null,
+    "total": 14366
+  },
+  "shards": [
+    {
+      "index": 0,
+      "file": "alarms/shard-000.json",
+      "count": 1636,
+      "bytes": 1199404,
+      "from_offset_minutes": 13,
+      "to_offset_minutes": 30393,
+      "tier_counts": {
+        "script": 34,
+        "related": 35,
+        "noise": 1567
+      }
+    },
+    {
+      "index": 1,
+      "file": "alarms/shard-001.json",
+      "count": 1632,
+      "bytes": 1199827,
+      "from_offset_minutes": 30393,
+      "to_offset_minutes": 60115,
+      "tier_counts": {
+        "script": 0,
+        "related": 25,
+        "noise": 1607
+      }
+    },
+    {
+      "index": 2,
+      "file": "alarms/shard-002.json",
+      "count": 1631,
+      "bytes": 1199622,
+      "from_offset_minutes": 60130,
+      "to_offset_minutes": 87273,
+      "tier_counts": {
+        "script": 0,
+        "related": 21,
+        "noise": 1610
+      }
+    },
+    {
+      "index": 3,
+      "file": "alarms/shard-003.json",
+      "count": 1628,
+      "bytes": 1199762,
+      "from_offset_minutes": 87278,
+      "to_offset_minutes": 116820,
+      "tier_counts": {
+        "script": 0,
+        "related": 30,
+        "noise": 1598
+      }
+    },
+    {
+      "index": 4,
+      "file": "alarms/shard-004.json",
+      "count": 1629,
+      "bytes": 1199839,
+      "from_offset_minutes": 116829,
+      "to_offset_minutes": 145899,
+      "tier_counts": {
+        "script": 0,
+        "related": 25,
+        "noise": 1604
+      }
+    },
+    {
+      "index": 5,
+      "file": "alarms/shard-005.json",
+      "count": 1623,
+      "bytes": 1199587,
+      "from_offset_minutes": 145942,
+      "to_offset_minutes": 175761,
+      "tier_counts": {
+        "script": 0,
+        "related": 24,
+        "noise": 1599
+      }
+    },
+    {
+      "index": 6,
+      "file": "alarms/shard-006.json",
+      "count": 1628,
+      "bytes": 1199505,
+      "from_offset_minutes": 175761,
+      "to_offset_minutes": 202724,
+      "tier_counts": {
+        "script": 0,
+        "related": 19,
+        "noise": 1609
+      }
+    },
+    {
+      "index": 7,
+      "file": "alarms/shard-007.json",
+      "count": 1629,
+      "bytes": 1200057,
+      "from_offset_minutes": 202729,
+      "to_offset_minutes": 234578,
+      "tier_counts": {
+        "script": 0,
+        "related": 22,
+        "noise": 1607
+      }
+    },
+    {
+      "index": 8,
+      "file": "alarms/shard-008.json",
+      "count": 1330,
+      "bytes": 981082,
+      "from_offset_minutes": 234580,
+      "to_offset_minutes": 259195,
+      "tier_counts": {
+        "script": 0,
+        "related": 9,
+        "noise": 1321
+      }
+    }
+  ]
+}

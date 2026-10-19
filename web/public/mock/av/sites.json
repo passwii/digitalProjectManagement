@@ -1,0 +1,47 @@
+[
+  {
+    "id": "site-01",
+    "code": "SY",
+    "name": "示范第一中学",
+    "type": "school",
+    "scene": "campus",
+    "area": "华东",
+    "capacity": 3200,
+    "scene_token": "scene.campus",
+    "buildings": 7,
+    "floors": 21,
+    "points": 158,
+    "devices": 142,
+    "rooms": "7 栋 / 21 个楼层 / 158 个点位"
+  },
+  {
+    "id": "site-02",
+    "code": "HM",
+    "name": "市人民医院",
+    "type": "hospital",
+    "scene": "hospital",
+    "area": "华东",
+    "capacity": 1800,
+    "scene_token": "scene.hospital",
+    "buildings": 1,
+    "floors": 7,
+    "points": 66,
+    "devices": 73,
+    "rooms": "1 栋 / 7 个楼层 / 66 个点位"
+  },
+  {
+    "id": "site-03",
+    "code": "GA",
+    "name": "市执法办案管理中心",
+    "type": "police",
+    "scene": "justice",
+    "area": "华东",
+    "capacity": 260,
+    "scene_token": "scene.justice",
+    "buildings": 1,
+    "floors": 4,
+    "points": 44,
+    "devices": 53,
+    "rooms": "1 栋 / 4 个楼层 / 44 个点位"
+  }
+]

@@ -1,0 +1,182 @@
+{
+  "points": [
+    {
+      "point_id": "PT-HM-5F07",
+      "point_room": "5楼探视等候区",
+      "total": 98,
+      "level1": 14,
+      "false_positive": 11,
+      "fp_rate": 11.2
+    },
+    {
+      "point_id": "PT-HM-4F04",
+      "point_room": "4楼病房 403",
+      "total": 97,
+      "level1": 15,
+      "false_positive": 7,
+      "fp_rate": 7.2
+    },
+    {
+      "point_id": "PT-HM-3F07",
+      "point_room": "3楼骨科候诊区",
+      "total": 93,
+      "level1": 13,
+      "false_positive": 10,
+      "fp_rate": 10.8
+    },
+    {
+      "point_id": "PT-HM-1F06",
+      "point_room": "1楼输液室",
+      "total": 92,
+      "level1": 15,
+      "false_positive": 10,
+      "fp_rate": 10.9
+    },
+    {
+      "point_id": "PT-HM-5F09",
+      "point_room": "5楼医护更衣室",
+      "total": 92,
+      "level1": 15,
+      "false_positive": 7,
+      "fp_rate": 7.6
+    },
+    {
+      "point_id": "PT-HM-1F03",
+      "point_room": "1楼门诊大厅西侧出口",
+      "total": 88,
+      "level1": 14,
+      "false_positive": 8,
+      "fp_rate": 9.1
+    },
+    {
+      "point_id": "PT-HM-3F02",
+      "point_room": "3楼手术室 C 区入口",
+      "total": 88,
+      "level1": 10,
+      "false_positive": 9,
+      "fp_rate": 10.2
+    },
+    {
+      "point_id": "PT-HM-7F06",
+      "point_room": "7楼走廊",
+      "total": 88,
+      "level1": 13,
+      "false_positive": 7,
+      "fp_rate": 8
+    },
+    {
+      "point_id": "PT-HM-1F02",
+      "point_room": "1楼门诊大厅东侧闸机",
+      "total": 87,
+      "level1": 17,
+      "false_positive": 6,
+      "fp_rate": 6.9
+    },
+    {
+      "point_id": "PT-HM-5F05",
+      "point_room": "5楼婴儿室",
+      "total": 87,
+      "level1": 13,
+      "false_positive": 9,
+      "fp_rate": 10.3
+    }
+  ],
+  "types": [
+    {
+      "type_code": "decibel_exceed",
+      "type_name": "分贝超限",
+      "category": "声音检测",
+      "count": 2903
+    },
+    {
+      "type_code": "abnormal_sound",
+      "type_name": "异常声音",
+      "category": "声音检测",
+      "count": 1874
+    },
+    {
+      "type_code": "device_offline",
+      "type_name": "设备离线",
+      "category": "设备",
+      "count": 1118
+    },
+    {
+      "type_code": "cry_scream",
+      "type_name": "哭声 / 呼救",
+      "category": "声音检测",
+      "count": 1112
+    },
+    {
+      "type_code": "fight_conflict",
+      "type_name": "冲突争吵",
+      "category": "声音检测",
+      "count": 999
+    },
+    {
+      "type_code": "intrusion",
+      "type_name": "区域入侵",
+      "category": "行为检测",
+      "count": 992
+    },
+    {
+      "type_code": "bullying_keyword",
+      "type_name": "欺凌关键词",
+      "category": "警情",
+      "count": 982
+    },
+    {
+      "type_code": "people_gather",
+      "type_name": "局部聚集",
+      "category": "行为检测",
+      "count": 935
+    },
+    {
+      "type_code": "device_signal",
+      "type_name": "信号衰减",
+      "category": "设备",
+      "count": 795
+    },
+    {
+      "type_code": "glass_break",
+      "type_name": "玻璃破碎",
+      "category": "声音检测",
+      "count": 789
+    },
+    {
+      "type_code": "sleep_on_duty",
+      "type_name": "睡岗 / 离岗",
+      "category": "行为检测",
+      "count": 716
+    },
+    {
+      "type_code": "fire_smoke",
+      "type_name": "烟火检测",
+      "category": "安全防控",
+      "count": 316
+    },
+    {
+      "type_code": "panic_button",
+      "type_name": "一键报警",
+      "category": "警情",
+      "count": 257
+    },
+    {
+      "type_code": "blacklist_match",
+      "type_name": "黑名单比对命中",
+      "category": "警情",
+      "count": 222
+    },
+    {
+      "type_code": "emotion_abnormal",
+      "type_name": "情绪异常波动",
+      "category": "行为检测",
+      "count": 199
+    },
+    {
+      "type_code": "compliance_risk",
+      "type_name": "合规风险提示",
+      "category": "语义分析",
+      "count": 157
+    }
+  ]
+}

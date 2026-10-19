@@ -1,0 +1,98 @@
+{
+  "generated_by": "scripts/mock/generate.mjs",
+  "seed": 20260701,
+  "anchor": "2026-10-19T12:00:00+08:00",
+  "timezone": "UTC+8",
+  "counts": {
+    "sites": 3,
+    "points": 268,
+    "devices": 268,
+    "users": 10,
+    "alarms": 14366,
+    "alarm_shards": 9,
+    "incidents": 207,
+    "spectra": 12,
+    "transcripts": 5,
+    "audit_logs": 300,
+    "scripts": 8
+  },
+  "scripts": [
+    {
+      "id": "A",
+      "scene": "campus",
+      "title": "校园欺凌完整闭环",
+      "alarm_count": 3
+    },
+    {
+      "id": "B",
+      "scene": "campus",
+      "title": "噪声点位连续 7 天误报",
+      "alarm_count": 7
+    },
+    {
+      "id": "C",
+      "scene": "campus",
+      "title": "设备离线 6 天 5 小时（运维闭环）",
+      "alarm_count": 1
+    },
+    {
+      "id": "D",
+      "scene": "hospital",
+      "title": "医院一键报警闭环",
+      "alarm_count": 4
+    },
+    {
+      "id": "E",
+      "scene": "hospital",
+      "title": "医院夜间分贝超标",
+      "alarm_count": 5
+    },
+    {
+      "id": "F",
+      "scene": "justice",
+      "title": "公安谈话质量评分",
+      "alarm_count": 3
+    },
+    {
+      "id": "G",
+      "scene": "campus",
+      "title": "设备批量离线（网关故障）",
+      "alarm_count": 8
+    },
+    {
+      "id": "H",
+      "scene": "campus",
+      "title": "误报观察降级生效",
+      "alarm_count": 3
+    }
+  ],
+  "files": [
+    "alarms-index.json",
+    "alarms/shard-000.json",
+    "alarms/shard-001.json",
+    "alarms/shard-002.json",
+    "alarms/shard-003.json",
+    "alarms/shard-004.json",
+    "alarms/shard-005.json",
+    "alarms/shard-006.json",
+    "alarms/shard-007.json",
+    "alarms/shard-008.json",
+    "algorithms.json",
+    "audit-logs.json",
+    "device-stats.json",
+    "devices.json",
+    "incidents.json",
+    "kpi.json",
+    "org.json",
+    "points.json",
+    "rankings.json",
+    "rules.json",
+    "scenes.json",
+    "sites.json",
+    "spectra.json",
+    "transcripts.json",
+    "trends.json",
+    "users.json",
+    "index.json"
+  ]
+}

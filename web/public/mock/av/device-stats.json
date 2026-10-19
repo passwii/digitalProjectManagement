@@ -1,0 +1,71 @@
+{
+  "by_status": [
+    {
+      "status": "online",
+      "count": 250
+    },
+    {
+      "status": "offline",
+      "count": 14
+    },
+    {
+      "status": "maintenance",
+      "count": 4
+    }
+  ],
+  "by_site": [
+    {
+      "site_id": "site-01",
+      "total": 142,
+      "online": 129
+    },
+    {
+      "site_id": "site-02",
+      "total": 73,
+      "online": 70
+    },
+    {
+      "site_id": "site-03",
+      "total": 53,
+      "online": 51
+    }
+  ],
+  "by_model": [
+    {
+      "model": "AV-MIC-S6",
+      "type_name": "拾音终端",
+      "count": 103
+    },
+    {
+      "model": "AV-MIC-S8",
+      "type_name": "阵列拾音器",
+      "count": 138
+    },
+    {
+      "model": "AV-CAM-360",
+      "type_name": "全景摄像头",
+      "count": 9
+    },
+    {
+      "model": "AV-CAM-PTZ",
+      "type_name": "球机",
+      "count": 9
+    },
+    {
+      "model": "AV-GW-200",
+      "type_name": "网关",
+      "count": 9
+    }
+  ],
+  "ota_summary": {
+    "total": 288,
+    "success": 253,
+    "failed": 35
+  },
+  "signal_health": {
+    "avg": 74.8,
+    "p10": 56,
+    "p50": 75,
+    "p90": 93
+  }
+}
