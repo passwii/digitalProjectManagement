@@ -1091,19 +1091,30 @@ function buildSerialTimeline(ev, status) {
   }
 
   // 时间线必须落在事件自己的告警时间窗内：started = 最早一条告警（偏移最大），
-  // ended = 最新一条告警（偏移最小）。旧写法把预算取成 started（绝对偏移），只保证
-  // 节点不为负，保证不了末节点不早于最新告警，会生成「归档 5–60 分钟后
+  // ended = 最新一条告警（偏移最小，即最晚的时刻）。旧写法把预算取成 started（绝对偏移），
+  // 只保证节点不为负，保证不了末节点不早于最新告警，会生成「归档 5–60 分钟后
   // 又来自己的告警」这种自相矛盾。现在把整段生命周期按间隔权重铺满
-  // [started, ended]：首节点 = started，末节点（closed 的 archive）= ended。
+  // [started - span, started]：首节点 = started，末节点（closed 的 archive）= started - span。
+  //
+  // span 取 min(max(告警窗口, 各步间隔之和), started)：
+  //   - ≥ 告警窗口：末节点不早于事件内最新一条告警（偏移更小 = 更晚），
+  //     否则 archive 会落在自己的告警之前；
+  //   - ≥ 间隔之和：每一步至少推进 1 分钟，不会因为「告警全在同一分钟」
+  //     把整条生命周期压成一个时间点（旧版 190/207 个事件塌成同一分钟）；
+  //   - ≤ started：节点不会落到数据基准点之前（负偏移）。告警窗口天然 ≤ started，
+  //     所以三者可以同时满足；真正撞到上界的只有「几分钟前刚发生」的事件，
+  //     这种事件的生命周期本来就应该压紧到「此刻归档」。
   const gaps = steps.slice(1);
-  const span = Math.max(0, ev.started_offset_minutes - ev.ended_offset_minutes);
+  const alarmSpan = Math.max(0, ev.started_offset_minutes - ev.ended_offset_minutes);
   const total = gaps.reduce((sum, s) => sum + s.gap, 0) || 1;
+  const span = Math.min(Math.max(alarmSpan, total), ev.started_offset_minutes);
   const nodes = [];
   let travelled = 0;
   steps.forEach((s, i) => {
     if (i > 0) travelled += s.gap;
-    // 累积取整：时间单调不增（允许相邻同分钟），末段正好落在 ended 上
-    const reached = Math.round((span * travelled) / total);
+    // 累积取整：用 ceil 保证每个节点至少比上一步晚 1 分钟（时间单调递增），
+    // 末段正好落在 started - span 上
+    const reached = i === 0 ? 0 : Math.ceil((span * travelled) / total);
     nodes.push({
       at_offset_minutes: ev.started_offset_minutes - reached,
       type: s.type,

@@ -153,6 +153,20 @@ check("已结案事件的末节点是 archive", () => {
   const bad = incidents.filter((i) => i.status === "closed" && (i.timeline || []).at(-1)?.type !== "archive");
   return bad.length === 0 || `${bad.length} 个 closed 事件没有以归档收尾`;
 });
+// —— 时间线不能被压成一个点 ——
+// 只验「单调不增 / 落在时间窗内」时，一条把 5 个节点都放在同一分钟的时间线也算通过，
+// 事件详情页会渲染成「接警 / 处置 / 复核 / 归档 全在同一时刻」。
+check("背景事件时间线每个节点各占一分钟（不塌成一个点）", () => {
+  const bad = [];
+  for (const i of incidents) {
+    if (i.script_id) continue; // 剧本时间线是手写叙事线，允许同分钟（如融合 + 自动处置）
+    const stamps = (i.timeline || []).map((n) => n.at_offset_minutes);
+    if (new Set(stamps).size !== stamps.length) {
+      bad.push(`${i.id} ${stamps.length} 个节点只落在 ${new Set(stamps).size} 个分钟点上`);
+    }
+  }
+  return bad.length === 0 || `${bad.length} 个背景事件时间线塌成一个点：${bad.slice(0, 3).join("，")}`;
+});
 
 // —— 时间线末节点 vs 事件内最新告警 ——
 // 「timeline 落在事件时间窗内」是拿时间线跟 started/ended 比，而 started/ended
@@ -224,6 +238,7 @@ check("所有时间偏移均为非负数", () => {
   const all = [
     ...alarms.map((a) => a.ts_offset_minutes),
     ...incidents.map((i) => i.started_offset_minutes),
+    ...incidents.flatMap((i) => (i.timeline || []).map((n) => n.at_offset_minutes)),
     ...auditLogs.map((l) => l.ts_offset_minutes),
     ...devices.map((d) => d.last_heartbeat_offset_minutes),
   ];

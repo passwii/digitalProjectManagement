@@ -88,6 +88,9 @@ const spectra = await loadDataset(); // 或者 loadSpectrum("sp-001")
 - 事件 `timeline` 既按时间「旧 → 新」，也按**生命周期**推进
   （触发 → 融合 → 动作 → 通知 → 接警 → 派发 → 到场 → 处置 → 复核 → 归档）；
   `closed` 事件以 `archive` 收尾，`dispatched` 事件不含 `archive`、其告警也不置 `closed`。
+- 背景事件的 `timeline` 铺满 `[started - span, started]`，**每个节点各占一分钟**（不会塌成一个时间点）；
+  `span = min(max(告警窗口, 各步间隔之和), started)` —— 末节点不早于事件内最新一条告警，
+  也不会落到错点之前（无负偏移）。
 - 设备 `signal` 是 0–100 的质量分，`signal_series[].rssi_dbm` 是负 dBm；
   两者都用 `0` 作离线哨兵，画图前先按 `status === "offline"` 特判。
 - 列表用 `loadAlarmPage`，不要 `loadAllAlarms`（后者 ≈ 10.1MB，只适合离线分析）。
