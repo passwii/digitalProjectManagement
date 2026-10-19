@@ -15,7 +15,7 @@ scripts/mock/              生成器 + 校验 + 契约审计（零依赖，Node 
 # 重新生成（固定种子，产出逐字节一致）
 node scripts/mock/generate.mjs
 
-# 一致性校验：145 项（聚合对聚合 + 聚合对明细 + 语义对语义）
+# 一致性校验：154 项（聚合对聚合 + 聚合对明细 + 语义对语义）
 node scripts/mock/validate.mjs
 
 # 前端可消费性审计：P0 必须为 0，否则退出码 1
@@ -38,8 +38,8 @@ npm run mock:audit
 |---|---|
 | 站点 / 场景 | 3（校园 / 医院 / 公安） |
 | 点位 | 268（校园 158 / 医院 66 / 公安 44） |
-| 设备 | 268（含音频、视频、网关；每台带固件、自检历史、OTA、24 点信号序列） |
-| 告警 | 14,366 条 / 180 天（日均 80），切成 10 个分片，单片 ≤ 1.2MB |
+| 设备 | 272（含音频、视频、网关；每台带固件、自检历史、OTA、24 点信号序列） |
+| 告警 | 14,366 条 / 180 天（日均 80），切成 9 个分片，单片 ≤ 1.2MB |
 | 事件 | 207 个（含 7 个剧本事件，时间线 3–12 节点） |
 | 剧本 | 8 个（A 校园欺凌闭环 / B 噪声误报 / C 设备离线 / D 医院一键报警 / E 夜间分贝 / F 谈话质量 / G 批量离线 / H 误报降级生效） |
 | 频谱 | 12 段（欺凌 / 争吵 / 哭喊 / 玻璃破碎 / 设备噪声），每段 2,000 桶 min/max 波形 |
@@ -83,7 +83,14 @@ const spectra = await loadDataset(); // 或者 loadSpectrum("sp-001")
 ```
 
 - **首屏只加载 `alarms-index.json`**（3KB）：分片清单 + 游标分页契约 + 各片 tier 统计。
-- 列表用 `loadAlarmPage`，不要 `loadAllAlarms`（后者 ≈ 11MB，只适合离线分析）。
+- `loadCore()` 实测约 **890KB**（`devices.json` 506KB / `incidents.json` 187KB / `points.json` 69KB /
+  `audit-logs.json` 77KB），首屏预算按这个数做懒加载；概览页可以只取 `kpi` + `trends` + `sites`。
+- 事件 `timeline` 既按时间「旧 → 新」，也按**生命周期**推进
+  （触发 → 融合 → 动作 → 通知 → 接警 → 派发 → 到场 → 处置 → 复核 → 归档）；
+  `closed` 事件以 `archive` 收尾，`dispatched` 事件不含 `archive`、其告警也不置 `closed`。
+- 设备 `signal` 是 0–100 的质量分，`signal_series[].rssi_dbm` 是负 dBm；
+  两者都用 `0` 作离线哨兵，画图前先按 `status === "offline"` 特判。
+- 列表用 `loadAlarmPage`，不要 `loadAllAlarms`（后者 ≈ 10.1MB，只适合离线分析）。
 - 排序方向全站统一「新 → 旧」：`alarms` / `incidents` / `audit-logs` / `trends.hourly` / `trends.daily`
   的数组都按偏移升序，`heatmap` 按 `(day asc, hour asc)` 排列。
 - `heatmap[].hour` 是**时钟小时 0..23**，不是「近 24 小时窗口序号」。
@@ -113,7 +120,7 @@ const spectra = await loadDataset(); // 或者 loadSpectrum("sp-001")
 ```text
 scripts/mock/
 ├─ generate.mjs                  生成器（固定种子 20260701）
-├─ validate.mjs                  145 项一致性校验
+├─ validate.mjs                  154 项一致性校验
 ├─ audit-frontend-contract.mjs   前端可消费性审计（P0/P1/P2）
 └─ lib/dataset.mjs               数据集读取 + 时间换算（校验脚本共用）
 

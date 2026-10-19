@@ -11,21 +11,21 @@
   "alarm_last_24h": 73,
   "alarm_natural_day": 50,
   "alarm_today": 50,
-  "alarm_last_week_same_day": 107,
-  "alarm_natural_day_delta_pct": -53.3,
-  "alarm_today_delta_pct": -53.3,
+  "alarm_last_week_same_day": 106,
+  "alarm_natural_day_delta_pct": -52.8,
+  "alarm_today_delta_pct": -52.8,
   "delta_basis": "较上周同一星期几",
-  "alarm_unhandled": 22,
+  "alarm_unhandled": 59,
   "alarm_unhandled_breakdown": [
     {
       "level": 1,
       "label": "一级·严重",
-      "count": 3
+      "count": 17
     },
     {
       "level": 2,
       "label": "二级·紧急",
-      "count": 11
+      "count": 34
     },
     {
       "level": 3,
@@ -42,20 +42,20 @@
     {
       "scene": "campus",
       "name": "示范第一中学",
-      "count": 13
+      "count": 33
     },
     {
       "scene": "hospital",
       "name": "市人民医院",
-      "count": 6
+      "count": 18
     },
     {
       "scene": "justice",
       "name": "市执法办案管理中心",
-      "count": 3
+      "count": 8
     }
   ],
-  "incident_open": 57,
+  "incident_open": 36,
   "level_breakdown_today": [
     {
       "level": 1,

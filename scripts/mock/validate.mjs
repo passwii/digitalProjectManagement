@@ -114,6 +114,64 @@ check("timeline 全部落在事件时间窗内", () => {
   );
   return bad.length === 0 || `${bad.length} 个事件的时间线越界`;
 });
+
+// —— 语义顺序：光验「时间单调」验不出「归档早于接警」，还得验生命周期推进 ——
+const LIFECYCLE_RANK = {
+  alarm_triggered: 0, fusion: 1, action: 2, notify: 3, acknowledge: 4,
+  dispatch: 5, arrive: 6, diagnose: 6, handle: 7, review: 8, pending: 9, archive: 10,
+};
+check("timeline 生命周期语义顺序（触发 → 接警 → 处置 → 复核 → 归档）", () => {
+  const bad = [];
+  for (const i of incidents) {
+    // alarm_triggered 可以在任意时刻重复（处置中又有新告警到达），
+    // 其余节点必须按生命周期单调推进；「归档」之后再出现接警 / 处置就是乱序。
+    const seq = (i.timeline || []).filter((n) => n.type !== "alarm_triggered");
+    for (let k = 1; k < seq.length; k++) {
+      const prev = LIFECYCLE_RANK[seq[k - 1].type];
+      const cur = LIFECYCLE_RANK[seq[k].type];
+      if (prev === undefined || cur === undefined) { bad.push(`${i.id} 出现未知节点类型`); break; }
+      if (cur < prev) { bad.push(`${i.id}：${seq[k - 1].type} → ${seq[k].type}`); break; }
+    }
+  }
+  return bad.length === 0 || `${bad.length} 个事件生命周期乱序：${bad.slice(0, 3).join("，")}`;
+});
+check("事件首节点是 alarm_triggered", () => {
+  const bad = incidents.filter((i) => (i.timeline || [])[0]?.type !== "alarm_triggered");
+  return bad.length === 0 || `${bad.length} 个事件不是从“触发”开始：${bad.slice(0, 3).map((i) => i.id).join(",")}`;
+});
+check("已结案事件的末节点是 archive", () => {
+  const bad = incidents.filter((i) => i.status === "closed" && (i.timeline || []).at(-1)?.type !== "archive");
+  return bad.length === 0 || `${bad.length} 个 closed 事件没有以归档收尾`;
+});
+check("在办（dispatched）事件不归档、其告警不结案", () => {
+  const open = incidents.filter((i) => i.status !== "closed");
+  const withArchive = open.filter((i) => (i.timeline || []).some((n) => n.type === "archive"));
+  if (withArchive.length) return `${withArchive.length} 个在办事件带 archive 节点`;
+  const closed = open.flatMap((i) => i.alarm_ids.map((id) => alarmById.get(id)))
+    .filter((a) => a && (a.status === "closed" || a.status === "false_positive"));
+  return closed.length === 0 || `${closed.length} 条在办事件的告警已被结案`;
+});
+check("事件 owner 属于事件所在站点（或显式跨站点角色）", () => {
+  const GLOBAL_STAFF = new Set(["u-001", "u-008"]); // 平台管理员 / 运维工程师
+  const userById = new Map(users.map((u) => [u.id, u]));
+  const bad = incidents.filter((i) => {
+    const u = userById.get(i.owner_id);
+    if (!u) return true;
+    return u.site_id !== null && u.site_id !== i.site_id && !GLOBAL_STAFF.has(u.id);
+  });
+  return bad.length === 0 || `${bad.length}/${incidents.length} 个事件的 owner 跨站点`;
+});
+check("事件时间线里的操作人与事件同站点（或显式跨站点角色）", () => {
+  const GLOBAL_STAFF = new Set(["u-001", "u-008"]);
+  const userById = new Map(users.map((u) => [u.id, u]));
+  const bad = incidents.filter((i) => (i.timeline || []).some((n) => {
+    if (!n.actor) return false;
+    const u = userById.get(n.actor);
+    if (!u) return true;
+    return u.site_id !== null && u.site_id !== i.site_id && !GLOBAL_STAFF.has(u.id);
+  }));
+  return bad.length === 0 || `${bad.length} 个事件的时间线操作人跨站点`;
+});
 check("所有时间偏移均为非负数", () => {
   const all = [
     ...alarms.map((a) => a.ts_offset_minutes),
@@ -368,6 +426,20 @@ check("每台设备都有自检历史与 OTA 记录字段", () =>
   "有设备缺 self_check_history / ota_records");
 check("每台设备都有 24 点信号序列", () =>
   devices.every((d) => Array.isArray(d.signal_series) && d.signal_series.length === 24) || "有设备信号序列长度 ≠ 24");
+check("离线设备的 signal / signal_series 全部为 0 哨兵", () => {
+  const bad = devices.filter((d) => d.status === "offline" &&
+    (d.signal !== 0 || (d.signal_series || []).some((s) => s.rssi_dbm !== 0)));
+  return bad.length === 0 || `${bad.length} 台离线设备仍有非 0 信号`;
+});
+check("非离线设备的 RSSI 统一为负 dBm（0 只作离线哨兵）", () => {
+  const bad = devices.filter((d) => d.status !== "offline" &&
+    (d.signal_series || []).some((s) => !(s.rssi_dbm < 0)));
+  return bad.length === 0 || `${bad.length} 台在线 / 维护设备出现非负 rssi_dbm`;
+});
+check("非离线设备的 signal 在 1–100（0 只归离线）", () => {
+  const bad = devices.filter((d) => d.status !== "offline" && !(d.signal > 0 && d.signal <= 100));
+  return bad.length === 0 || `${bad.length} 台非离线设备 signal 不在 1–100`;
+});
 check("设备固件版本分布之和 = 设备总数", () => {
   const sum = kpi.firmware_distribution.reduce((s, x) => s + x.count, 0);
   return sum === devices.length || `${sum} != ${devices.length}`;

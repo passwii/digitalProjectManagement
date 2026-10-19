@@ -6,7 +6,7 @@
       "clock_hour": 12,
       "label": "12:00",
       "alarms": 5,
-      "handled": 1
+      "handled": 2
     },
     {
       "window_start_offset_minutes": 60,
@@ -14,7 +14,7 @@
       "clock_hour": 11,
       "label": "11:00",
       "alarms": 11,
-      "handled": 6
+      "handled": 3
     },
     {
       "window_start_offset_minutes": 120,
@@ -22,7 +22,7 @@
       "clock_hour": 10,
       "label": "10:00",
       "alarms": 9,
-      "handled": 8
+      "handled": 7
     },
     {
       "window_start_offset_minutes": 180,
@@ -30,7 +30,7 @@
       "clock_hour": 9,
       "label": "09:00",
       "alarms": 3,
-      "handled": 2
+      "handled": 1
     },
     {
       "window_start_offset_minutes": 240,
@@ -38,7 +38,7 @@
       "clock_hour": 8,
       "label": "08:00",
       "alarms": 11,
-      "handled": 1
+      "handled": 0
     },
     {
       "window_start_offset_minutes": 300,
@@ -62,7 +62,7 @@
       "clock_hour": 5,
       "label": "05:00",
       "alarms": 3,
-      "handled": 2
+      "handled": 3
     },
     {
       "window_start_offset_minutes": 480,
@@ -201,7 +201,7 @@
       "label": "10/19",
       "weekday": "周一",
       "alarms": 50,
-      "incidents": 11
+      "incidents": 10
     },
     {
       "day_offset_minutes": 1440,
@@ -227,8 +227,8 @@
       "date": "2026-10-16",
       "label": "10/16",
       "weekday": "周五",
-      "alarms": 70,
-      "incidents": 0
+      "alarms": 69,
+      "incidents": 1
     },
     {
       "day_offset_minutes": 5760,
@@ -236,8 +236,8 @@
       "date": "2026-10-15",
       "label": "10/15",
       "weekday": "周四",
-      "alarms": 128,
-      "incidents": 5
+      "alarms": 127,
+      "incidents": 3
     },
     {
       "day_offset_minutes": 7200,
@@ -246,7 +246,7 @@
       "label": "10/14",
       "weekday": "周三",
       "alarms": 117,
-      "incidents": 2
+      "incidents": 1
     },
     {
       "day_offset_minutes": 8640,
@@ -254,8 +254,8 @@
       "date": "2026-10-13",
       "label": "10/13",
       "weekday": "周二",
-      "alarms": 100,
-      "incidents": 1
+      "alarms": 99,
+      "incidents": 3
     }
   ],
   "heatmap": [
@@ -727,7 +727,7 @@
     {
       "day": 3,
       "hour": 21,
-      "count": 1
+      "count": 0
     },
     {
       "day": 3,
@@ -847,7 +847,7 @@
     {
       "day": 4,
       "hour": 21,
-      "count": 2
+      "count": 1
     },
     {
       "day": 4,
@@ -1087,7 +1087,7 @@
     {
       "day": 6,
       "hour": 21,
-      "count": 1
+      "count": 0
     },
     {
       "day": 6,

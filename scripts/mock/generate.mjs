@@ -303,7 +303,7 @@ let devSeq = 0;
 const devicePoints = points.filter((p) => p.has_device);
 const devicesByPoint = new Map();
 
-function deviceProfile({ status, offlineOffset, kind, seedIdx }) {
+function deviceProfile({ status, offlineOffset, seedIdx }) {
   const selfCheckCount = rint(2, 4);
   const checks = Array.from({ length: selfCheckCount }, (_, i) => ({
     at_offset_minutes:
@@ -320,11 +320,12 @@ function deviceProfile({ status, offlineOffset, kind, seedIdx }) {
     status: chance(0.88) ? "success" : "failed",
     trigger: pick(["手动", "批量计划任务", "安全补丁"]),
   })).sort((a, b) => a.at_offset_minutes - b.at_offset_minutes);
+  // RSSI 统一是「负 dBm」（在线 / 维护），只有离线设备用 0 当「无上报」哨兵。
+  // 之前按设备类型决定正负号，audio / gateway 会落出 +52~+98 这种物理上不存在的 dBm 值。
   const seriesLen = 24;
   const signalSeries = Array.from({ length: seriesLen }, (_, i) => {
-    const at = i * HOUR;
     const base = status === "online" ? rint(52, 98) : status === "maintenance" ? rint(30, 60) : 0;
-    return { at_offset_minutes: at, rssi_dbm: kind === "video" ? -base : base };
+    return { at_offset_minutes: i * HOUR, rssi_dbm: status === "offline" ? 0 : -base };
   });
   return { self_check_history: checks, ota_records: ota, signal_series: signalSeries };
 }
@@ -364,7 +365,9 @@ for (const p of devicePoints) {
     last_heartbeat_offset_minutes:
       status === "online" ? rint(0, 2) : status === "maintenance" ? rint(60, 600) : offlineOffset,
     uptime_days: status === "online" ? rint(3, 420) : rint(0, 30),
-    signal: status === "online" ? rint(52, 98) : 0,
+    // signal 是 0–100 的信号质量分（不是 dBm）：0 只作离线哨兵
+    // 维护中设备也给一个质量分（不额外消耗随机流，避免后续数据整体漂移）
+    signal: status === "online" ? rint(52, 98) : status === "maintenance" ? 20 + (devSeq % 35) : 0,
     cpu_percent: status === "online" ? rint(18, 88) : 0,
     storage_percent: rint(12, 91),
     mic_sensitivity_dbm: m.kind === "audio" ? -rint(32, 46) : null,
@@ -374,7 +377,7 @@ for (const p of devicePoints) {
     // 场景：至少包含所属站点的场景（多场景能力在平台层表达，不下放到单机）
     scenes: [site.scene],
     gateway_id: null,
-    ...deviceProfile({ status, offlineOffset, kind: m.kind, seedIdx: 1000 + devSeq }),
+    ...deviceProfile({ status, offlineOffset, seedIdx: 1000 + devSeq }),
     _building: p.building,
   };
   devices.push(dev);
@@ -403,7 +406,7 @@ for (const p of devicePoints) {
       self_check: { result: "pass", at_offset_minutes: rint(120, 3000), items: ["镜头", "红外", "存储", "网络"] },
       scenes: [site.scene],
       gateway_id: null,
-      ...deviceProfile({ status: "online", offlineOffset: null, kind: vm.kind, seedIdx: 1000 + devSeq }),
+      ...deviceProfile({ status: "online", offlineOffset: null, seedIdx: 1000 + devSeq }),
       _building: p.building,
     };
     devices.push(cam);
@@ -440,7 +443,7 @@ for (const b of CAMPUS_BUILDINGS.concat([{ code: "HM" }, { code: "GA" }])) {
     self_check: { result: "pass", at_offset_minutes: rint(120, 2000), items: ["上行链路", "下行链路", "存储"] },
     scenes: [SITES.find((s) => s.id === siteId).scene],
     gateway_id: null,
-    ...deviceProfile({ status: "online", offlineOffset: null, kind: "gateway", seedIdx: 1000 + devSeq }),
+    ...deviceProfile({ status: "online", offlineOffset: null, seedIdx: 1000 + devSeq }),
     _building: b.code,
   };
   devices.push(gw);
@@ -487,6 +490,17 @@ const USERS = [
   { id: "u-009", name: "周*", role: "duty_officer", role_name: "值班安保", dept: "警务保障", site_id: "site-03" },
   { id: "u-010", name: "吴*", role: "site_admin", role_name: "办案区主管", dept: "执法办案管理中心", site_id: "site-03" },
 ];
+
+// —— 归属人：事件 / 处置只能落在「本站点的人」或「显式跨站点职责」上 ——
+// 之前一律 pick(USERS)，导致公安事件挂到校园管理员（55% 错配）。
+const GLOBAL_STAFF_IDS = ["u-001", "u-008"]; // 平台管理员、运维工程师：跨站点职责
+const OWNER_ROLES = ["site_admin", "duty_officer", "auditor"];
+function pickSiteUser(siteId, roles = OWNER_ROLES) {
+  const pool = USERS.filter((u) => u.site_id === siteId && roles.includes(u.role));
+  if (pool.length) return pick(pool);
+  const global = USERS.filter((u) => GLOBAL_STAFF_IDS.includes(u.id));
+  return pick(global.length ? global : USERS);
+}
 
 // ============================================================
 // 6. 告警
@@ -726,8 +740,11 @@ for (const s of expA) {
 }
 
 // —— 剧本 B：噪声点位连续 7 天 21:00 误报（触发 rule-006） ——
+// 放在 8–14 天前，给剧本 H 的「7 天误报观察期」（第 8 天触发 → 第 1 天结束）留出时间轴。
+const B_FIRST_DAY = 8;
+const B_LAST_DAY = 14;
 const B_DEV = devicesByPoint.get(B_POINT.id)[0];
-for (let i = 1; i <= 7; i++) {
+for (let i = B_FIRST_DAY; i <= B_LAST_DAY; i++) {
   scriptAlarm({
     site_id: "site-01", scene: "campus", point_id: B_POINT.id, point_room: B_POINT.room,
     device_id: B_DEV?.id ?? null, type_code: "decibel_exceed", type_name: "分贝超限", category: "声音检测",
@@ -809,6 +826,8 @@ const fAlarms = [
     level: s.level, level_label: LEVEL_NAME[s.level], title: s.title, detail: s.detail,
     confidence: s.conf, ts_offset_minutes: s.off, duration_seconds: rint(60, 300),
     keywords: s.kw, evidence: { audio_seconds: 90, video_clips: 1, spectrum_bins: 0, spectrum_id: null },
+    // F 是「在办」剧本：事件还停在复核中，告警状态也必须是未结案
+    status: "dispatched",
     script_id: "F",
   });
 });
@@ -825,6 +844,14 @@ for (const d of [G_GATEWAY, ...G_CHILDREN]) {
   d.cpu_percent = 0;
   d.self_check = { result: "skip", at_offset_minutes: G_BASE, items: ["上行链路", "网络"] };
 }
+// —— 离线设备统一哨兵：signal / cpu / 24 点信号序列全部归 0 ——
+// （8 台被剧本 G 临场置为离线的设备，信号序列还是「在线时」的历史值）
+for (const d of devices) {
+  if (d.status !== "offline") continue;
+  d.signal = 0;
+  d.cpu_percent = 0;
+  d.signal_series = d.signal_series.map((s) => ({ ...s, rssi_dbm: 0 }));
+}
 const gAlarms = [G_GATEWAY, ...G_CHILDREN].map((d) => {
   const pt = points.find((p) => p.id === d.point_id);
   return scriptAlarm({
@@ -840,7 +867,10 @@ const gAlarms = [G_GATEWAY, ...G_CHILDREN].map((d) => {
 });
 
 // —— 剧本 H：误报观察降级生效（rule-006 在 B 之后真正跑起来） ——
-const hAlarms = [8, 9, 15].map((dayIdx, i) => scriptAlarm({
+// B 的最后一次误报在第 8 天，观察期覆盖第 7 天→第 1 天，恢复记录落在第 1 天。
+const H_SILENT_DAYS = [7, 4];
+const H_RECOVER_DAY = 1;
+const hAlarms = [...H_SILENT_DAYS, H_RECOVER_DAY].map((dayIdx, i) => scriptAlarm({
   site_id: "site-01", scene: "campus", point_id: B_POINT.id, point_room: B_POINT.room,
   device_id: B_DEV?.id ?? null, type_code: "decibel_exceed", type_name: "分贝超限", category: "声音检测",
   level: i === 2 ? 3 : 4, level_label: LEVEL_NAME[i === 2 ? 3 : 4],
@@ -887,7 +917,7 @@ for (const a of allAlarms) {
   }
   if (a.status === "closed" || a.status === "false_positive") {
     a.disposition = {
-      by: pick(USERS.filter((u) => ["duty_officer", "site_admin"].includes(u.role))).id,
+      by: pickSiteUser(a.site_id, ["duty_officer", "site_admin"]).id,
       at_offset_minutes: Math.max(0, a.ts_offset_minutes - rint(2, 60)),
       action: a.status === "false_positive" ? "mark_false_positive" : "close",
       note: a.status === "false_positive" ? a.false_positive_reason : "已现场核实并处置",
@@ -899,7 +929,7 @@ for (const a of allAlarms) {
 for (const a of allAlarms) {
   if (a.disposition || (a.status !== "closed" && a.status !== "false_positive")) continue;
   a.disposition = {
-    by: pick(USERS.filter((u) => ["duty_officer", "site_admin"].includes(u.role))).id,
+    by: pickSiteUser(a.site_id, ["duty_officer", "site_admin"]).id,
     at_offset_minutes: Math.max(0, a.ts_offset_minutes - rint(2, 60)),
     action: a.status === "false_positive" ? "mark_false_positive" : "close",
     note: a.status === "false_positive" ? a.false_positive_reason : "已现场核实并处置",
@@ -932,7 +962,7 @@ function makeIncident({ group, title, level, scriptId = null, status = "closed",
     ended_offset_minutes: ended,
     duration_minutes: Math.max(1, started - ended),
     status,
-    owner_id: pick(USERS).id,
+    owner_id: pickSiteUser(first.site_id).id,
     evidence_count: group.reduce((s, a) => s + a.evidence.video_clips + (a.evidence.audio_seconds > 0 ? 1 : 0), 0),
     script_id: scriptId,
     timeline: [],
@@ -1013,14 +1043,64 @@ incidents.push(evG);
 
 const evH = makeIncident({ group: hAlarms, title: "误报观察降级生效（rule-006 闭环）", level: 3, scriptId: "H", status: "closed" });
 evH.timeline = [
-  { at_offset_minutes: offsetFor(7, 21 * 60) - 30, type: "fusion", actor: null, text: "点位 7 天误报率 100%（7/7）> 25%，命中 rule-006" },
-  { at_offset_minutes: offsetFor(7, 21 * 60) - 31, type: "action", actor: null, text: "该点位进入 7 天误报观察期：仅记录、不推送、不生成工单" },
-  { at_offset_minutes: offsetFor(8, 21 * 60), type: "alarm_triggered", actor: null, text: "静默期告警按四级记录（原始三级），前端可见历史" },
-  { at_offset_minutes: offsetFor(9, 21 * 60), type: "alarm_triggered", actor: null, text: "静默期告警继续按四级记录" },
-  { at_offset_minutes: offsetFor(14, 21 * 60), type: "review", actor: "u-002", text: "观察期结束，误报未再增加，确认降级策略有效" },
-  { at_offset_minutes: offsetFor(15, 21 * 60), type: "archive", actor: "u-002", text: "恢复常规阈值与推送，规则记录归档" },
+  { at_offset_minutes: offsetFor(B_FIRST_DAY, 21 * 60), type: "alarm_triggered", actor: null, text: "第 7 次误报入库（7 天误报率 100%，rule-006 计数 7/7）" },
+  { at_offset_minutes: offsetFor(B_FIRST_DAY, 21 * 60) - 10, type: "fusion", actor: null, text: "点位 7 天误报率 100%（7/7）> 25%，命中 rule-006" },
+  { at_offset_minutes: offsetFor(B_FIRST_DAY, 21 * 60) - 20, type: "action", actor: null, text: "该点位进入 7 天误报观察期：仅记录、不推送、不生成工单" },
+  { at_offset_minutes: offsetFor(H_SILENT_DAYS[0], 21 * 60), type: "alarm_triggered", actor: null, text: "静默期告警按四级记录（原始三级），前端可见历史" },
+  { at_offset_minutes: offsetFor(H_SILENT_DAYS[1], 21 * 60), type: "alarm_triggered", actor: null, text: "静默期告警继续按四级记录" },
+  { at_offset_minutes: offsetFor(H_RECOVER_DAY, 21 * 60) - 15, type: "review", actor: "u-002", text: "观察期结束，误报未再增加，确认降级策略有效" },
+  { at_offset_minutes: offsetFor(H_RECOVER_DAY, 21 * 60) - 25, type: "archive", actor: "u-002", text: "恢复常规阈值与推送，规则记录归档" },
 ];
 incidents.push(evH);
+
+// —— 时间线串行构造：按工作流顺序推进，每一步严格比上一步晚（偏移更小） ——
+// 早先版本把 4 个节点各自随机取偏移再排序，结果生命周期会落成
+// trigger → handle → archive → acknowledge。现在从「最早一条告警」往后推时间。
+function buildSerialTimeline(ev, status) {
+  const siteUser = (roles) => pickSiteUser(ev.site_id, roles).id;
+  const steps = [{ type: "alarm_triggered", actor: null, text: "系统自动检测并创建告警" }];
+  const ackActor = siteUser(["duty_officer", "site_admin"]);
+  steps.push({ type: "acknowledge", actor: ackActor, text: "值班人员接警确认", gap: rint(1, 4) });
+  if (status === "closed") {
+    steps.push({ type: "handle", actor: siteUser(["duty_officer", "site_admin"]), gap: rint(4, 20), text: pick([
+      "现场核实，未发现安全问题",
+      "已与当事人沟通并记录",
+      "已联动安保现场处置",
+      "确认为环境噪声，标记误报",
+    ]) });
+    steps.push({ type: "review", actor: siteUser(["site_admin"]), text: "值班主管复核处置记录，确认闭环", gap: rint(3, 10) });
+    steps.push({ type: "archive", actor: siteUser(["site_admin"]), text: "审核通过并归档", gap: rint(2, 8) });
+  } else {
+    // 在办事件：停在「已派单、等待现场回单」，不生成 archive，也不把告警置为 closed
+    steps.push({ type: "dispatch", actor: siteUser(["site_admin"]), text: "已派发至现场处置，等待回单", gap: rint(3, 10) });
+    steps.push({ type: "pending", actor: siteUser(["duty_officer", "site_admin"]), text: "现场处置中，尚未回单", gap: rint(2, 6) });
+  }
+
+  // 时间窗只有 started 分钟可用（不能推到负偏移 / 未来），
+  // 间隔超过可用窗口时等比压缩，保证每个节点仍严格比上一个晚。
+  const gaps = steps.slice(1);
+  const total = gaps.reduce((sum, s) => sum + s.gap, 0);
+  const available = ev.started_offset_minutes;
+  if (total > available) {
+    const scale = available / total;
+    for (const s of gaps) s.gap = Math.max(1, Math.round(s.gap * scale));
+    let sum = gaps.reduce((a, s) => a + s.gap, 0);
+    while (sum > available) {
+      const widest = gaps.reduce((a, s) => (s.gap > a.gap ? s : a));
+      if (widest.gap <= 1) break;
+      widest.gap -= 1;
+      sum -= 1;
+    }
+  }
+
+  const nodes = [];
+  let clock = ev.started_offset_minutes; // 最早发生（偏移最大）
+  steps.forEach((s, i) => {
+    if (i > 0) clock = Math.max(0, clock - s.gap);
+    nodes.push({ at_offset_minutes: clock, type: s.type, actor: s.actor, text: s.text });
+  });
+  return nodes;
+}
 
 // —— 基座告警 → 事件（1–4 条一组，同点位 120 分钟内） ——
 {
@@ -1046,27 +1126,30 @@ incidents.push(evH);
         j += 1;
       }
       if (group.length > 1 || chance(0.35)) {
+        const status = pick(["closed", "closed", "closed", "dispatched"]);
         const ev = makeIncident({
           group,
           title: pick(["言语冲突升级事件", "异常声响核查事件", "区域聚集核查事件", "设备与告警联动核查", "噪声投诉处理事件"]),
           level: Math.min(...group.map((a) => a.level)),
-          status: pick(["closed", "closed", "closed", "dispatched"]),
+          status,
         });
-        ev.timeline = [
-          { at_offset_minutes: ev.started_offset_minutes, type: "alarm_triggered", actor: null, text: "系统自动检测并创建告警" },
-          { at_offset_minutes: ev.started_offset_minutes - rint(1, 4), type: "acknowledge", actor: pick(USERS).id, text: "值班人员接警确认" },
-          { at_offset_minutes: Math.max(ev.ended_offset_minutes, ev.started_offset_minutes - rint(5, 25)), type: "handle", actor: pick(USERS).id, text: pick(["现场核实，未发现安全问题", "已与当事人沟通并记录", "已联动安保现场处置", "确认为环境噪声，标记误报"]) },
-          { at_offset_minutes: ev.ended_offset_minutes - 1, type: "archive", actor: "u-002", text: "审核通过并归档" },
-        ];
+        // 时间线串行生成：从最早一条告警开始，每一步严格比上一步晚（偏移变小）
+        ev.timeline = buildSerialTimeline(ev, status);
         for (const a of group) {
-          a.status = "closed";
-          if (!a.disposition) {
-            a.disposition = {
-              by: pick(USERS.filter((u) => ["duty_officer", "site_admin"].includes(u.role))).id,
-              at_offset_minutes: Math.max(0, a.ts_offset_minutes - rint(2, 60)),
-              action: "close",
-              note: "已现场核实并处置",
-            };
+          if (status === "closed") {
+            a.status = "closed";
+            if (!a.disposition) {
+              a.disposition = {
+                by: pickSiteUser(a.site_id, ["duty_officer", "site_admin"]).id,
+                at_offset_minutes: Math.max(0, a.ts_offset_minutes - rint(2, 60)),
+                action: "close",
+                note: "已现场核实并处置",
+              };
+            }
+          } else {
+            // 在办（dispatched）事件不归档，也不把告警结案
+            a.status = "dispatched";
+            a.disposition = null;
           }
         }
         incidents.push(ev);

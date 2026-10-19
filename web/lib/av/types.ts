@@ -87,6 +87,7 @@ export interface OtaRecord {
 
 export interface SignalSample {
   at_offset_minutes: number;
+  /** RSSI，负 dBm（如 -78）；设备离线时统一为 0 哨兵，前端画图需特判 */
   rssi_dbm: number;
 }
 
@@ -105,7 +106,7 @@ export interface Device {
   /** 在线设备是「最近一次心跳距今多久」；离线设备是「离线了多久」 */
   last_heartbeat_offset_minutes: number;
   uptime_days: number;
-  /** 0–100；离线为 0 */
+  /** 信号质量分 0–100（不是 dBm）；离线设备为 0 哨兵 */
   signal: number;
   cpu_percent: number;
   storage_percent: number;
@@ -115,7 +116,7 @@ export interface Device {
   self_check_history: SelfCheck[];
   /** OTA 升级记录（新 → 旧） */
   ota_records: OtaRecord[];
-  /** 最近 24 小时信号强度，整点采样（新 → 旧） */
+  /** 最近 24 小时信号强度，整点采样（新 → 旧）；非离线设备恒为负 dBm，离线设备全 0 */
   signal_series: SignalSample[];
   /** 至少包含所属站点的场景 */
   scenes: Scene[];
@@ -219,7 +220,12 @@ export interface Incident {
   owner_id: string;
   evidence_count: number;
   script_id: ScriptId | null;
-  /** 按时间从旧 → 新排列 */
+  /**
+   * 按时间从旧 → 新排列（`at_offset_minutes` 单调不增），且生命周期顺序与时间顺序一致：
+   * alarm_triggered → fusion → action → notify → acknowledge → dispatch → arrive
+   * → handle → review → pending → archive。
+   * 已结案（closed）事件必以 archive 收尾；在办（dispatched）事件不含 archive。
+   */
   timeline: TimelineNode[];
 }
 

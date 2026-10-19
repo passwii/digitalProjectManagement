@@ -18,62 +18,62 @@
     {
       "index": 0,
       "file": "alarms/shard-000.json",
-      "count": 1636,
-      "bytes": 1199404,
+      "count": 1637,
+      "bytes": 1199486,
       "from_offset_minutes": 13,
       "to_offset_minutes": 30393,
       "tier_counts": {
         "script": 34,
-        "related": 35,
-        "noise": 1567
+        "related": 32,
+        "noise": 1571
       }
     },
     {
       "index": 1,
       "file": "alarms/shard-001.json",
       "count": 1632,
-      "bytes": 1199827,
-      "from_offset_minutes": 30393,
-      "to_offset_minutes": 60115,
+      "bytes": 1199506,
+      "from_offset_minutes": 30397,
+      "to_offset_minutes": 60130,
       "tier_counts": {
         "script": 0,
-        "related": 25,
-        "noise": 1607
+        "related": 28,
+        "noise": 1604
       }
     },
     {
       "index": 2,
       "file": "alarms/shard-002.json",
-      "count": 1631,
-      "bytes": 1199622,
-      "from_offset_minutes": 60130,
-      "to_offset_minutes": 87273,
+      "count": 1632,
+      "bytes": 1199959,
+      "from_offset_minutes": 60156,
+      "to_offset_minutes": 87328,
       "tier_counts": {
         "script": 0,
-        "related": 21,
-        "noise": 1610
+        "related": 23,
+        "noise": 1609
       }
     },
     {
       "index": 3,
       "file": "alarms/shard-003.json",
-      "count": 1628,
-      "bytes": 1199762,
-      "from_offset_minutes": 87278,
-      "to_offset_minutes": 116820,
+      "count": 1629,
+      "bytes": 1199997,
+      "from_offset_minutes": 87346,
+      "to_offset_minutes": 116847,
       "tier_counts": {
         "script": 0,
-        "related": 30,
-        "noise": 1598
+        "related": 29,
+        "noise": 1600
       }
     },
     {
       "index": 4,
       "file": "alarms/shard-004.json",
       "count": 1629,
-      "bytes": 1199839,
-      "from_offset_minutes": 116829,
-      "to_offset_minutes": 145899,
+      "bytes": 1199581,
+      "from_offset_minutes": 116862,
+      "to_offset_minutes": 146058,
       "tier_counts": {
         "script": 0,
         "related": 25,
@@ -84,35 +84,35 @@
       "index": 5,
       "file": "alarms/shard-005.json",
       "count": 1623,
-      "bytes": 1199587,
-      "from_offset_minutes": 145942,
-      "to_offset_minutes": 175761,
+      "bytes": 1199688,
+      "from_offset_minutes": 146077,
+      "to_offset_minutes": 175764,
       "tier_counts": {
         "script": 0,
-        "related": 24,
-        "noise": 1599
+        "related": 18,
+        "noise": 1605
       }
     },
     {
       "index": 6,
       "file": "alarms/shard-006.json",
-      "count": 1628,
-      "bytes": 1199505,
-      "from_offset_minutes": 175761,
-      "to_offset_minutes": 202724,
+      "count": 1629,
+      "bytes": 1199641,
+      "from_offset_minutes": 175799,
+      "to_offset_minutes": 202732,
       "tier_counts": {
         "script": 0,
         "related": 19,
-        "noise": 1609
+        "noise": 1610
       }
     },
     {
       "index": 7,
       "file": "alarms/shard-007.json",
       "count": 1629,
-      "bytes": 1200057,
-      "from_offset_minutes": 202729,
-      "to_offset_minutes": 234578,
+      "bytes": 1199814,
+      "from_offset_minutes": 202732,
+      "to_offset_minutes": 234715,
       "tier_counts": {
         "script": 0,
         "related": 22,
@@ -122,14 +122,14 @@
     {
       "index": 8,
       "file": "alarms/shard-008.json",
-      "count": 1330,
-      "bytes": 981082,
-      "from_offset_minutes": 234580,
+      "count": 1326,
+      "bytes": 978197,
+      "from_offset_minutes": 234719,
       "to_offset_minutes": 259195,
       "tier_counts": {
         "script": 0,
-        "related": 9,
-        "noise": 1321
+        "related": 14,
+        "noise": 1312
       }
     }
   ]

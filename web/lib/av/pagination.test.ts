@@ -99,4 +99,23 @@ describe("告警游标分页", () => {
     assert.equal(findShardForOffset(index, 130), 1);
     assert.equal(findShardForOffset(index, 9999), 1);
   });
+
+  it("落在分片空隙时取最近的分片（不是无条件取最后一个）", () => {
+    const gapped = makeIndex([
+      { count: 10, from: 0, to: 100 },
+      { count: 10, from: 140, to: 200 },
+      { count: 10, from: 260, to: 300 },
+    ]);
+    // 空隙 101..139：靠前一片
+    assert.equal(findShardForOffset(gapped, 105), 0);
+    // 同样落在第一段空隙，但更靠近后一片
+    assert.equal(findShardForOffset(gapped, 138), 1);
+    assert.equal(findShardForOffset(gapped, 120), 0);
+    // 空隙 201..259
+    assert.equal(findShardForOffset(gapped, 205), 1);
+    assert.equal(findShardForOffset(gapped, 255), 2);
+    // 两端
+    assert.equal(findShardForOffset(gapped, -50), 0);
+    assert.equal(findShardForOffset(gapped, 99999), 2);
+  });
 });

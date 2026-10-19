@@ -56,11 +56,27 @@ export function takeFromShard(
   return { alarms, next_cursor: null, done: true };
 }
 
-/** 判断某个偏移落在哪个分片（用于「跳到某天」这类按时间定位） */
+/** 判断某个偏移落在哪个分片（用于「跳到某天」这类按时间定位）
+ *
+ * 分片边界是「相邻两个分片各自的首尾」，之间可能有几分钟到几十分钟的空隙（该窗口内恰好没有告警）。
+ * 落在空隙时取**距离最近**的分片，而不是无条件 fallback 到最后一个分片。
+ */
 export function findShardForOffset(index: AlarmsIndex, offsetMinutes: number): number {
-  for (let i = 0; i < index.shards.length; i++) {
-    const s = index.shards[i];
+  const shards = index.shards;
+  if (shards.length === 0) return 0;
+  let best = 0;
+  let bestDistance = Number.POSITIVE_INFINITY;
+  for (let i = 0; i < shards.length; i++) {
+    const s = shards[i];
     if (offsetMinutes >= s.from_offset_minutes && offsetMinutes <= s.to_offset_minutes) return i;
+    const distance =
+      offsetMinutes < s.from_offset_minutes
+        ? s.from_offset_minutes - offsetMinutes
+        : offsetMinutes - s.to_offset_minutes;
+    if (distance < bestDistance) {
+      bestDistance = distance;
+      best = i;
+    }
   }
-  return offsetMinutes < index.shards[0].from_offset_minutes ? 0 : index.shards.length - 1;
+  return best;
 }

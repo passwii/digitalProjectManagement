@@ -2,14 +2,14 @@
 //
 // 用法（Next 页面 / 浏览器）：
 //   import { loadCore, loadAlarmPage } from "@/lib/av/load";
-//   const core = await loadCore();               // 首屏：约 300KB（不含告警明细与频谱）
+//   const core = await loadCore();               // 首屏：约 890KB（不含告警明细与频谱）
 //   const page = await loadAlarmPage(core.alarmsIndex); // 告警按 cursor 懒加载（每页 50 条）
 //
 // 用法（Node 单测）：
 //   const core = await loadCore(dir, fileFetcher)  // 注入读文件的 fetcher
 //
 // 设计原则：
-//   · 首屏绝不拉全量告警（10 个分片 ≈ 11MB）
+//   · 首屏绝不拉全量告警（9 个分片 ≈ 10.1MB）
 //   · 频谱单独加载（≈ 640KB），只有音频分析页需要
 //   · 所有错误都带 URL 与 HTTP 状态，线上排查不用猜
 import type {
@@ -91,7 +91,8 @@ export function loadAlarmShard(
 
 /**
  * 首屏核心数据：不含告警明细、不含频谱矩阵。
- * 默认约 300–400KB（含事件 167KB），可在服务端组件或客户端一次拉完。
+ * 实测约 890KB（devices.json 506KB + incidents.json 187KB + points.json 69KB + audit-logs.json 77KB），
+ * 可在服务端组件或客户端一次拉完；若首屏只要概览，建议按需加载 devices / audit-logs。
  */
 export async function loadCore(baseUrl = DEFAULT_BASE_URL, fetcher?: Fetcher): Promise<DatasetCore> {
   const [
