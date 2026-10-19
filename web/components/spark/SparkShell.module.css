@@ -112,6 +112,7 @@
   transition: color 140ms ease, border-color 140ms ease, background-color 140ms ease, transform 140ms ease;
 }
 .navLink > svg { flex: none; color: #7d899d; }
+.root .navLink:hover { text-decoration: none; }
 .navLink:hover { border-color: rgba(194, 211, 239, .08); background: rgba(255, 255, 255, .035); }
 .navLink:active { transform: translateY(1px); }
 .navLink.active {
