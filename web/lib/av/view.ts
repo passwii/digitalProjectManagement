@@ -22,6 +22,7 @@ import type {
 import {
   AV_LEVEL_ORDER,
   AV_SCENE_ORDER,
+  compactAge,
   formatCount,
   levelMeta,
   sceneMeta,
@@ -264,11 +265,27 @@ export function waveformOf(device: Device, bars = 28): number[] {
   });
 }
 
-/** 设备页的离线 / 维护清单：按「离线时长」倒序，最久的排最前。 */
+/**
+ * 设备页的离线 / 维护清单：按「最近心跳」倒序，最久没心跳的排最前。
+ *
+ * 注意排序键是**最近心跳年龄**（离线设备 ≈ 离线时长，维护设备只是最近一次心跳），
+ * 不是「离线时长」。之前面板副标题写「按离线时长倒序」、行内又统一写「离线 N 小时」，
+ * 维护中的设备会变成「维护中 + 离线 8 小时」这种自相矛盾的文案。
+ */
 export function attentionDevices(devices: Device[]): Device[] {
   return devices
     .filter((device) => device.status !== "online")
     .sort((a, b) => b.last_heartbeat_offset_minutes - a.last_heartbeat_offset_minutes);
+}
+
+/**
+ * 关注清单里的时间文案：按状态分支。
+ *   · 离线 → 「离线 8 小时」（心跳年龄等价于离线时长）
+ *   · 维护中 → 「最近心跳 8 小时前」（不是离线，别写「离线」）
+ */
+export function attentionAgeText(device: Pick<Device, "status" | "last_heartbeat_offset_minutes">): string {
+  const age = compactAge(device.last_heartbeat_offset_minutes);
+  return device.status === "offline" ? `离线 ${age}` : `最近心跳 ${age}前`;
 }
 
 export interface AlarmFilterCounts {

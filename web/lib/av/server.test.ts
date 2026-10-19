@@ -12,6 +12,8 @@ import {
   getExtremes,
 } from "./server";
 import { getAudioData, getDeviceData, getEventData, getOverviewData, getStressData } from "./pageData";
+import { loadAlarmShard, type Fetcher } from "./load";
+import { readFileSync } from "node:fs";
 import { CORE_FILES } from "./view";
 
 /**
@@ -22,6 +24,8 @@ import { CORE_FILES } from "./view";
  *   2. `/av/overview` 的首屏 payload 远低于 1MB（AC10）；
  *   3. 极端值样本仍然存在（Stage 1 埋的 58 字标题 / 6 关键词 / 33 字房间名）。
  */
+
+const fetcher: Fetcher = async (url) => JSON.parse(readFileSync(url, "utf8")) as unknown;
 
 describe("AV 服务端数据层", () => {
   it("核心数据规模与 Stage 1 交付一致", async () => {
@@ -80,6 +84,33 @@ describe("AV 服务端数据层", () => {
     assert.equal(extremes.level4LastHour, 0, "「四级 + 近 1 小时」应是空态素材");
     assert.ok(extremes.emptyDays.length > 0, "应存在 0 告警自然日");
     assert.ok(extremes.zeroAlarmPoints.length > 0, "应存在 0 告警点位");
+  });
+
+  it("「0 告警自然日」必须是真 0（不把部分覆盖的边界日算进来）", async () => {
+    const extremes = await getExtremes();
+    const core = await getCore();
+    /** 从原始分片重算每个自然日的告警数，不依赖被测实现的分桶。 */
+    const counts = new Map<string, number>();
+    for (let i = 0; i < core.alarmsIndex.shards.length; i += 1) {
+      const shard = await loadAlarmShard(avDataDir(), core.alarmsIndex, i, fetcher);
+      for (const alarm of shard.alarms) {
+        const date = new Date(
+          Date.parse("2026-10-19T12:00:00+08:00") - alarm.ts_offset_minutes * 60_000 + 8 * 3_600_000,
+        );
+        const key = date.toISOString().slice(0, 10);
+        counts.set(key, (counts.get(key) ?? 0) + 1);
+      }
+    }
+
+    // 每一条都必须真的是 0 条
+    for (const day of extremes.emptyDays) {
+      assert.equal(counts.get(day.date) ?? 0, 0, `${day.date} 被标成 0 告警，实际有 ${counts.get(day.date)} 条`);
+    }
+    // 回归：2026-04-22 有 60 条，曾经因为「中午到中午」分桶被显示成 0 条
+    assert.equal(counts.get("2026-04-22"), 60);
+    assert.ok(!extremes.emptyDays.some((day) => day.date === "2026-04-22"), "2026-04-22 有 60 条告警，不能列为空态");
+    // 真·零告警自然日只有 2026-05-20
+    assert.deepEqual(extremes.emptyDays.map((day) => day.date), ["2026-05-20"]);
   });
 
   it("事件页把证据链解析成告警摘要", async () => {

@@ -14,6 +14,7 @@ import {
 import { toAbsolute, toRelative } from "@/lib/av/time";
 import { AvBar, AvEmpty, AvKV, AvLegend, AvPageHeader, AvPanel, AvStatusBadge, AvTabs } from "@/components/av/AvUI";
 import { AvDonut, AvSignalChart } from "@/components/av/AvCharts";
+import { attentionAgeText } from "@/lib/av/view";
 import AvGlyph from "@/components/av/AvGlyph";
 import s from "./AvPages.module.css";
 import type { DeviceRow, DeviceViewProps } from "@/lib/av/contracts";
@@ -243,7 +244,7 @@ export default function DeviceView({ devices, summary }: DeviceViewProps) {
         <div className={s.railStack}>
           <AvPanel
             title="离线与维护清单"
-            subtitle="按离线时长倒序"
+            subtitle="离线 / 维护中设备，按最近心跳倒序"
             icon="alarm"
             meta={`${attention.length} 台`}
             motionKey="device-attention"
@@ -262,7 +263,7 @@ export default function DeviceView({ devices, summary }: DeviceViewProps) {
                     </div>
                     <span className={s.attentionMeta}>
                       <span>{device.id}</span>
-                      <span>离线 {compactAge(device.heartbeatOffsetMinutes)}</span>
+                      <span>{attentionAgeText({ status: device.status, last_heartbeat_offset_minutes: device.heartbeatOffsetMinutes })}</span>
                       <span>固件 {device.firmware}</span>
                     </span>
                   </li>

@@ -15,6 +15,7 @@ import { readFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { loadAlarmPage, loadAlarmShard, loadCore, type Fetcher } from "./load";
+import { toDateString } from "./time";
 import type {
   Alarm,
   AlarmsIndex,
@@ -104,7 +105,14 @@ export interface AvExtremes {
   scriptAlarms: Alarm[];
   downgraded: number;
   falsePositive: number;
-  /** 180 天里真正 0 告警的自然日（按 dayOffset 升序取前 3 天） */
+  /**
+   * 180 天里真正 0 告警的**自然日**（UTC+8 日历日）。
+   *
+   * 口径：只统计**完整覆盖**的日历日 —— 首尾两天是半天（数据从某个下午开始、
+   * 锚点是正午），它们的「0 条」只代表窗口没覆盖到，必须排除。曾经按
+   * `floor(offset / 1440)` 分桶（中午到中午）再贴自然日期标签，导致
+   * 2026-04-22（实际 60 条）被显示成 0 条。
+   */
   emptyDays: { dayOffset: number; date: string }[];
   /** 从没产生过告警的点位（空态素材） */
   zeroAlarmPoints: { id: string; room: string; siteId: string }[];
@@ -117,6 +125,32 @@ interface AlarmIndex {
   extremes: AvExtremes;
 }
 
+/**
+ * 在 [oldestDate, newestDate] 的日历日里找出没有告警的日期。
+ *
+ * 首尾两个边界日直接排除：它们只被数据窗口覆盖了一部分，「没有告警」不等于
+ * 「这一天真的没有发生告警」。返回按时间新 → 旧（与全站时间数组一致）。
+ */
+export function emptyNaturalDays(
+  touched: Set<string>,
+  oldestDate: string,
+  newestDate: string,
+  limit = 3,
+): { dayOffset: number; date: string }[] {
+  const DAY = 24 * 60 * 60 * 1000;
+  const start = Date.parse(`${oldestDate}T00:00:00Z`);
+  const end = Date.parse(`${newestDate}T00:00:00Z`);
+  if (!Number.isFinite(start) || !Number.isFinite(end) || end - start < 2 * DAY) return [];
+
+  const result: { dayOffset: number; date: string }[] = [];
+  for (let time = end - DAY; time > start && result.length < limit; time -= DAY) {
+    const date = new Date(time).toISOString().slice(0, 10);
+    if (touched.has(date)) continue;
+    result.push({ dayOffset: Math.round((end - time) / DAY), date });
+  }
+  return result;
+}
+
 let alarmIndexPromise: Promise<AlarmIndex> | null = null;
 
 async function buildAlarmIndex(): Promise<AlarmIndex> {
@@ -126,7 +160,8 @@ async function buildAlarmIndex(): Promise<AlarmIndex> {
   const levelCounts: Record<number, number> = { 1: 0, 2: 0, 3: 0, 4: 0 };
   const statusCounts: Record<string, number> = {};
   const touchedPoints = new Set<string>();
-  const touchedDays = new Set<number>();
+  const touchedDates = new Set<string>();
+  let oldestOffset = 0;
   const scriptAlarms: Alarm[] = [];
   let downgraded = 0;
   let falsePositive = 0;
@@ -142,7 +177,8 @@ async function buildAlarmIndex(): Promise<AlarmIndex> {
       levelCounts[alarm.level] = (levelCounts[alarm.level] ?? 0) + 1;
       statusCounts[alarm.status] = (statusCounts[alarm.status] ?? 0) + 1;
       touchedPoints.add(alarm.point_id);
-      touchedDays.add(Math.floor(alarm.ts_offset_minutes / 1440));
+      touchedDates.add(toDateString(alarm.ts_offset_minutes));
+      oldestOffset = Math.max(oldestOffset, alarm.ts_offset_minutes);
       if (alarm.script_id) scriptAlarms.push(alarm);
       if (alarm.downgraded) downgraded += 1;
       if (alarm.false_positive) falsePositive += 1;
@@ -153,20 +189,10 @@ async function buildAlarmIndex(): Promise<AlarmIndex> {
     }
   }
 
-  const dayCount = Math.ceil((alarmsIndex.shards.at(-1)?.to_offset_minutes ?? 0) / 1440) + 1;
-  const emptyDays: AvExtremes["emptyDays"] = [];
-  for (let day = 0; day < dayCount && emptyDays.length < 3; day += 1) {
-    if (touchedDays.has(day)) continue;
-    const date = new Date(
-      new Date("2026-10-19T12:00:00+08:00").getTime() - day * 1440 * 60_000 + 8 * 3600_000,
-    );
-    emptyDays.push({
-      dayOffset: day,
-      date: `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}-${String(
-        date.getUTCDate(),
-      ).padStart(2, "0")}`,
-    });
-  }
+  // 首尾两天只被覆盖了半天（数据从某个下午开始、锚点是正午），不能算「0 告警自然日」
+  const oldestDate = toDateString(oldestOffset);
+  const newestDate = toDateString(0);
+  const emptyDays: AvExtremes["emptyDays"] = emptyNaturalDays(touchedDates, oldestDate, newestDate, 3);
 
   const zeroAlarmPoints = core.points
     .filter((point) => !touchedPoints.has(point.id))

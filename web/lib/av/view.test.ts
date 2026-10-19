@@ -19,6 +19,7 @@ import {
 import {
   alarmCard,
   alarmPageCounts,
+  attentionAgeText,
   dailySeries,
   gpuCards,
   heatmapDays,
@@ -195,6 +196,28 @@ describe("视图聚合（view）", () => {
     const bars = waveformOf(offline, 20);
     assert.equal(bars.length, 20);
     assert.ok(bars.every((value) => value <= 0.1), "离线设备是 0 哨兵，波形应为最低");
+  });
+
+  it("关注清单的时间文案按状态区分（维护中不能写「离线」）", async () => {
+    const data = await core();
+    const maintenance = data.devices.find((device) => device.status === "maintenance");
+    const offline = data.devices.find((device) => device.status === "offline");
+    assert.ok(maintenance);
+    assert.ok(offline);
+
+    assert.match(
+      attentionAgeText({ status: maintenance.status, last_heartbeat_offset_minutes: maintenance.last_heartbeat_offset_minutes }),
+      /^最近心跳 /,
+    );
+    assert.match(
+      attentionAgeText({ status: offline.status, last_heartbeat_offset_minutes: offline.last_heartbeat_offset_minutes }),
+      /^离线 /,
+    );
+    // 维护中设备绝不能出现「离线」字样
+    assert.doesNotMatch(
+      attentionAgeText({ status: "maintenance", last_heartbeat_offset_minutes: 492 }),
+      /离线/,
+    );
   });
 
   it("事件列表与 GPU 卡片的字段全部来自数据", async () => {
