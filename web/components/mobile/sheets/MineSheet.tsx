@@ -125,8 +125,8 @@ export default function MineSheet({
       <SheetCard
         href="/spark"
         target={SPARK_WINDOW_TARGET}
-        title="Spark 演示站"
-        note="NebulaCloud 演示站"
+        title="云电竞管理平台"
+        note="云电竞运营入口"
         onSelect={onSelect}
       />
 

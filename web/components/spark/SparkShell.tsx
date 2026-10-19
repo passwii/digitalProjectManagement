@@ -37,12 +37,12 @@ export default function SparkShell({ children }: { children: React.ReactNode }) 
         />
       )}
 
-      <aside className={s.sidebar} aria-label="NebulaCloud 演示站侧栏">
-        <Link className={s.brand} href="/spark/dashboard" aria-label="NebulaCloud 运营总览">
+      <aside className={s.sidebar} aria-label="云电竞管理平台侧栏">
+        <Link className={s.brand} href="/spark/dashboard" aria-label="云电竞管理平台运营总览">
           <span className={s.brandMark}><SparkGlyph name="spark" size={21} /></span>
           <span className={s.brandCopy}>
-            <strong>Nebula<span>Cloud</span></strong>
-            <small>CLOUD ESPORTS OS</small>
+            <strong>云电竞<span>管理平台</span></strong>
+            <small>电竞云运营控制台</small>
           </span>
         </Link>
 
