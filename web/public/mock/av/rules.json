@@ -1,0 +1,66 @@
+[
+  {
+    "id": "rule-001",
+    "name": "欺凌关键词",
+    "scene": "campus",
+    "threshold": "后验概率 ≥ 0.80",
+    "action": "三级告警",
+    "enabled": true
+  },
+  {
+    "id": "rule-002",
+    "name": "三路融合升级",
+    "scene": "campus",
+    "threshold": "关键词 + 异常声音 + 分贝 同时命中",
+    "action": "升级一级 + 声光驱离",
+    "enabled": true
+  },
+  {
+    "id": "rule-003",
+    "name": "分贝夜间阈值",
+    "scene": "hospital",
+    "threshold": "22:00-06:00 > 45 dBA 持续 5 分钟",
+    "action": "三级告警",
+    "enabled": true
+  },
+  {
+    "id": "rule-004",
+    "name": "黑名单比对",
+    "scene": "hospital",
+    "threshold": "余弦相似度 ≥ 0.75 且与次高差 > 0.15",
+    "action": "一级告警",
+    "enabled": true
+  },
+  {
+    "id": "rule-005",
+    "name": "设备离线升级",
+    "scene": "all",
+    "threshold": "心跳中断 > 150 分钟",
+    "action": "二级告警 + 运维工单",
+    "enabled": true
+  },
+  {
+    "id": "rule-006",
+    "name": "误报观察降级",
+    "scene": "all",
+    "threshold": "点位 7 天内误报率 > 25%",
+    "action": "该点位告警静默 7 天（仅记录）",
+    "enabled": true
+  },
+  {
+    "id": "rule-007",
+    "name": "一键报警直通",
+    "scene": "hospital",
+    "threshold": "一键报警按钮触发",
+    "action": "跳过分级直通一级 + 声光震慑",
+    "enabled": true
+  },
+  {
+    "id": "rule-008",
+    "name": "批量离线合并",
+    "scene": "all",
+    "threshold": "同一网关 10 分钟内 ≥ 5 台离线",
+    "action": "合并为 1 条批量告警 + 单张工单",
+    "enabled": true
+  }
+]
