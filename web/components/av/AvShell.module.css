@@ -50,6 +50,10 @@
   text-decoration: none;
 }
 
+.brand:hover {
+  text-decoration: none;
+}
+
 .brandMark {
   display: grid;
   width: 34px;
@@ -138,6 +142,7 @@
 .navLink:hover {
   background: var(--nav-hover-bg);
   color: var(--nav-ink);
+  text-decoration: none;
 }
 
 .navLink:focus-visible {
@@ -436,6 +441,7 @@
 .backLink:hover {
   border-color: var(--av-signal);
   color: var(--av-signal);
+  text-decoration: none;
 }
 
 .content {
