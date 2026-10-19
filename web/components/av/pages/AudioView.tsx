@@ -49,7 +49,9 @@ function decodeBase64(value: string): Uint8Array {
  */
 export function Spectrogram({ spectrum }: { spectrum: Spectrum }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const { resolvedTheme } = useTheme();
+  // 同 useAvPalette：必须依赖「已落主题」，否则点切换时读到的是上一套令牌，
+  // 频谱会一直保持旧配色直到刷新。
+  const { appliedTheme } = useTheme();
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -69,7 +71,7 @@ export function Spectrogram({ spectrum }: { spectrum: Spectrum }) {
     const image = context.createImageData(spectrum.cols, spectrum.bins);
     image.data.set(spectrumPixels(bytes, spectrum.bins, spectrum.cols, signal, surface));
     context.putImageData(image, 0, 0);
-  }, [spectrum, resolvedTheme]);
+  }, [spectrum, appliedTheme]);
 
   return (
     <canvas

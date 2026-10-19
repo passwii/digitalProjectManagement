@@ -1,6 +1,8 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import ThemeProvider, { useTheme } from "@/components/theme/ThemeProvider";
+import { useAvPalette } from "@/components/av/AvCharts";
 import { AvLevelBadge, AvMetric, AvStatusBadge } from "@/components/av/AvUI";
 import { Spectrogram } from "@/components/av/pages/AudioView";
 import { parseCssColor } from "@/lib/av/color";
@@ -154,5 +156,159 @@ describe("频谱 canvas 取色（AC5 像素级覆盖）", () => {
     expect(parseCssColor("#17617d")).toEqual([23, 97, 125]);
     expect(parseCssColor("#fff")).toEqual([255, 255, 255]);
     expect(parseCssColor("#0d1d2c")).toEqual([13, 29, 44]);
+  });
+});
+
+/**
+ * AC5 的真实交互路径：**在已挂载的页面上点切换**，而不是分别用两个主题刷新。
+ *
+ * 这是 review 抓到的失效场景：`data-theme` 由 ThemeProvider 在自己的 effect 里写，
+ * 而消费方（canvas / recharts）也在 effect 里读令牌；React effect 子先父后，于是子组件
+ * 读到的是**上一个主题**的令牌，画完就再没人重绘 —— 不刷新就一直错。
+ *
+ * 这里不依赖 jsdom 的层叠实现（它缓存 computed style，多个 `<style>` 叠加时不稳定），
+ * 而是把 `getComputedStyle` 换成一个「按当前 `data-theme` 回答」的探针：
+ *   · 谁在 `data-theme` 还是 dark 的时候读令牌，就会拿到 dark 的值 —— 断言随即失败；
+ *   · 只有「先落 data-theme、再读令牌」的实现才能拿到 light 的值。
+ * 这比注入样式表更直接地锁住了要防的那个顺序问题。
+ */
+describe("主题切换（真实交互路径，不依赖刷新）", () => {
+  const written: Uint8ClampedArray[] = [];
+  const DARK = { signal: "#6cf3ff", surface: "#0d1d2c" };
+  const LIGHT = { signal: "#17617d", surface: "#ffffff" };
+  /** 每次读令牌时记录当时的 data-theme，用来断言「读」一定发生在「写」之后。 */
+  const reads: string[] = [];
+
+  function installStorage() {
+    const store = new Map<string, string>();
+    Object.defineProperty(window, "localStorage", {
+      configurable: true,
+      value: {
+        getItem: (key: string) => (store.has(key) ? store.get(key)! : null),
+        setItem: (key: string, value: string) => void store.set(key, String(value)),
+        removeItem: (key: string) => void store.delete(key),
+        clear: () => store.clear(),
+      },
+    });
+  }
+
+  beforeEach(() => {
+    written.length = 0;
+    reads.length = 0;
+    installStorage();
+    Object.defineProperty(window, "matchMedia", {
+      configurable: true,
+      value: (query: string) => ({
+        matches: false,
+        media: query,
+        onchange: null,
+        addEventListener: () => {},
+        removeEventListener: () => {},
+      }),
+    });
+    document.documentElement.dataset.theme = "dark";
+
+    // 按当前 data-theme 回答的自定义属性探针（等价于 globals.css 的两套令牌）
+    const real = window.getComputedStyle.bind(window);
+    vi.spyOn(window, "getComputedStyle").mockImplementation(((element: Element) => {
+      const theme = document.documentElement.dataset.theme === "light" ? "light" : "dark";
+      const styles = real(element);
+      return {
+        ...styles,
+        getPropertyValue: (name: string) => {
+          const token = name.trim();
+          if (token !== "--av-signal" && token !== "--av-surface") return styles.getPropertyValue(name);
+          reads.push(`${token}@${theme}`);
+          return theme === "light"
+            ? token === "--av-signal"
+              ? LIGHT.signal
+              : LIGHT.surface
+            : token === "--av-signal"
+              ? DARK.signal
+              : DARK.surface;
+        },
+      } as CSSStyleDeclaration;
+    }) as typeof window.getComputedStyle);
+
+    vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockImplementation(() => {
+      const image = { data: new Uint8ClampedArray(2 * 2 * 4), width: 2, height: 2 } as ImageData;
+      return {
+        createImageData: () => image,
+        putImageData: (data: ImageData) => {
+          written.push(new Uint8ClampedArray(data.data));
+        },
+      } as unknown as CanvasRenderingContext2D;
+    });
+  });
+
+  afterEach(() => {
+    cleanup();
+    vi.restoreAllMocks();
+    delete document.documentElement.dataset.theme;
+    document.documentElement.removeAttribute("data-theme-transition");
+    document.documentElement.style.removeProperty("--motion-theme");
+    document.documentElement.style.colorScheme = "";
+  });
+
+  function Toggle() {
+    const { mode, setMode } = useTheme();
+    return (
+      <button type="button" onClick={() => setMode(mode === "dark" ? "light" : "dark")}>
+        toggle
+      </button>
+    );
+  }
+
+  it("点切换后频谱用新主题的令牌重绘（深 → 浅）", async () => {
+    render(
+      <ThemeProvider>
+        <Toggle />
+        <Spectrogram spectrum={tinySpectrum()} />
+      </ThemeProvider>,
+    );
+
+    await waitFor(() => expect(written.length).toBeGreaterThan(0));
+    const darkPixel = Array.from(written.at(-1)!.slice(8, 11));
+    expect(darkPixel).toEqual([13, 29, 44]);
+
+    fireEvent.click(screen.getByRole("button", { name: "toggle" }));
+
+    await waitFor(() => {
+      // 必须真的重绘，且是浅色底（#ffffff）而不是深色底
+      expect(Array.from(written.at(-1)!.slice(8, 11))).toEqual([255, 255, 255]);
+    });
+    expect(document.documentElement.dataset.theme).toBe("light");
+    expect(Array.from(written.at(-1)!.slice(8, 11))).not.toEqual(darkPixel);
+    // 切主题后的那几次读令牌，必须发生在 data-theme 已经是 light 之后
+    expect(reads.filter((entry) => entry.endsWith("@light")).length).toBeGreaterThan(0);
+  });
+
+  it("图表调色板在切换后读到新主题的令牌（不与旧主题相同）", async () => {
+    function PaletteProbe() {
+      const palette = useAvPalette();
+      return (
+        <div>
+          <output data-testid="signal">{palette?.signal ?? ""}</output>
+          <output data-testid="surface">{palette?.surface ?? ""}</output>
+        </div>
+      );
+    }
+
+    render(
+      <ThemeProvider>
+        <Toggle />
+        <PaletteProbe />
+      </ThemeProvider>,
+    );
+
+    await waitFor(() => expect(screen.getByTestId("signal").textContent).toBe(DARK.signal));
+
+    fireEvent.click(screen.getByRole("button", { name: "toggle" }));
+
+    await waitFor(() => expect(screen.getByTestId("signal").textContent).toBe(LIGHT.signal));
+    expect(screen.getByTestId("surface").textContent).toBe(LIGHT.surface);
+    expect(screen.getByTestId("signal").textContent).not.toBe(DARK.signal);
+    // 浅色下读到的每一次都必须是浅色（不存在「读到上一套」的那一次）
+    expect(reads.filter((entry) => entry.startsWith("--av-signal"))).toContain("--av-signal@light");
   });
 });

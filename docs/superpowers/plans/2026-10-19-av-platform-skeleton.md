@@ -86,6 +86,25 @@
 
 **回归**：`test:unit` 347 → **349**；`test:motion` 384 → **390**（新增 `avSsrGuard` 4 例把「页面不得包 Suspense」钉死）。慢网（4x CPU）首屏出现内容：4G 622ms / 3G 2,439ms，rows=50。
 
+## review 第三轮（Tia，PR #157 head d269ed3）
+
+| 缺陷 | 修复 |
+| --- | --- |
+| P2（AC5 直接失败）页内点切换后图表 / 频谱仍停在上一个主题 | `ThemeProvider` 的 context 新增 `appliedTheme`（**只在 `applyTheme()` 之后才变**）；`useAvPalette` 与 `Spectrogram` 的依赖从 `resolvedTheme` 换成 `appliedTheme`。根因是 React effect 子先父后：子组件在 `[resolvedTheme]` 的 effect 里读令牌时，Provider 还没写 `data-theme` |
+
+实测（headless Chrome 155，`next start`，点顶栏切换按钮，不刷新）：
+
+```text
+/av/audio?alarm=AL-14398  深 → 浅 : canvas 左上 17,39,54 → 244,248,249   ✓
+                          浅 → 深 : 244,248,249 → 17,39,54              ✓
+/av/overview              深 → 浅 : stroke #6cf3ff → #17617d             ✓
+/av/alarm                 浅 → 深 : pie fill #a23e39 → #ff9a6a           ✓
+```
+
+新增回归（`avTheme.dom.vitest.test.tsx` 的两条「真实交互路径」用例）：挂真 `ThemeProvider`，
+用 `setMode` 点切换，断言重绘像素 / 调色板等于新主题且不等于旧主题，并断言读令牌发生在
+`data-theme` 落盘之后。**变异验证**：把两处依赖改回 `resolvedTheme`，两条用例都红。
+
 ## 不在本 Stage 范围
 
 - 动效与 transition（BLF-1375 / Stage 3）

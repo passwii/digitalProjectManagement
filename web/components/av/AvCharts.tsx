@@ -62,7 +62,15 @@ const TOKEN_MAP: Record<keyof Palette, string> = {
 };
 
 export function useAvPalette(): Palette | null {
-  const { resolvedTheme } = useTheme();
+  /**
+   * 依赖 `appliedTheme` 而不是 `resolvedTheme`。
+   *
+   * 原因：`data-theme` 是 Provider 在自己的 effect 里写的，而 React effect 子先父后 ——
+   * 用 `resolvedTheme` 当依赖会在主题还没落盘时就读 `getComputedStyle`，拿到上一套令牌，
+   * 图表于是停在旧配色直到刷新（review 抓到的 AC5 失败）。`appliedTheme` 只在
+   * `applyTheme()` 之后才变，读到的一定是新主题。
+   */
+  const { appliedTheme } = useTheme();
   const [palette, setPalette] = useState<Palette | null>(null);
 
   useEffect(() => {
@@ -76,7 +84,7 @@ export function useAvPalette(): Palette | null {
     };
     read();
     return () => setPalette(null);
-  }, [resolvedTheme]);
+  }, [appliedTheme]);
 
   return palette;
 }
