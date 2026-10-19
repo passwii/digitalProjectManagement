@@ -1,0 +1,284 @@
+"use client";
+
+import Link from "next/link";
+import { useEffect, useMemo, useRef } from "react";
+import type { Spectrum, Transcript } from "@/lib/av/types";
+import { formatCount, formatPercent, formatSeconds, levelMeta, type AvTone } from "@/lib/av/labels";
+import { useTheme } from "@/components/theme/ThemeProvider";
+import { AvKV, AvLevelBadge, AvPageHeader, AvPanel } from "@/components/av/AvUI";
+import type { AudioViewProps } from "@/lib/av/contracts";
+import s from "./AvPages.module.css";
+
+const SPEAKER_TONES: AvTone[] = ["signal", "violet", "warning", "success", "neutral"];
+
+/**
+ * base64 → 字节数组。
+ *
+ * 刻意不用 `window.atob`：波形是**服务端渲染**的（首屏就该有形状），而 atob 只在
+ * 浏览器里存在；用它会渲染出一条空白框，等 hydration 才补上。这里是一个不依赖
+ * 运行时的小解码器，服务端与客户端走同一条路径。
+ */
+const BASE64_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+
+function decodeBase64(value: string): Uint8Array {
+  const clean = value.replace(/[^A-Za-z0-9+/]/g, "");
+  const length = Math.floor((clean.length * 3) / 4);
+  const bytes = new Uint8Array(length);
+  let buffer = 0;
+  let bits = 0;
+  let offset = 0;
+  for (const char of clean) {
+    const index = BASE64_ALPHABET.indexOf(char);
+    if (index < 0) continue;
+    buffer = (buffer << 6) | index;
+    bits += 6;
+    if (bits >= 8) {
+      bits -= 8;
+      bytes[offset] = (buffer >> bits) & 0xff;
+      offset += 1;
+    }
+  }
+  return bytes.subarray(0, offset);
+}
+
+function hexToRgb(hex: string): [number, number, number] {
+  const clean = hex.trim().replace("#", "");
+  if (clean.length !== 6) return [108, 243, 255];
+  return [
+    parseInt(clean.slice(0, 2), 16),
+    parseInt(clean.slice(2, 4), 16),
+    parseInt(clean.slice(4, 6), 16),
+  ];
+}
+
+/**
+ * 频谱热力图用 canvas：96 × 480 = 46,080 个格子，逐个渲染成 DOM 会直接卡死页面。
+ * 这不是「图表」（recharts 的折线/柱状），而是一张二维矩阵图，canvas 是正确工具。
+ * 颜色在运行时从 --av-signal 读取（不写死 hex），主题切换时重绘。
+ */
+function Spectrogram({ spectrum }: { spectrum: Spectrum }) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const { resolvedTheme } = useTheme();
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const bytes = decodeBase64(spectrum.data);
+    if (!bytes.length) return;
+    canvas.width = spectrum.cols;
+    canvas.height = spectrum.bins;
+    const context = canvas.getContext("2d");
+    if (!context) return;
+    const styles = getComputedStyle(document.documentElement);
+    const signal = hexToRgb(styles.getPropertyValue("--av-signal"));
+    const surface = hexToRgb(styles.getPropertyValue("--av-surface"));
+    const image = context.createImageData(spectrum.cols, spectrum.bins);
+    for (let col = 0; col < spectrum.cols; col += 1) {
+      for (let bin = 0; bin < spectrum.bins; bin += 1) {
+        const value = bytes[col * spectrum.bins + bin] ?? 0;
+        const ratio = value / 255;
+        const offset = ((spectrum.bins - 1 - bin) * spectrum.cols + col) * 4;
+        image.data[offset] = Math.round(surface[0] + (signal[0] - surface[0]) * ratio);
+        image.data[offset + 1] = Math.round(surface[1] + (signal[1] - surface[1]) * ratio);
+        image.data[offset + 2] = Math.round(surface[2] + (signal[2] - surface[2]) * ratio);
+        image.data[offset + 3] = 255;
+      }
+    }
+    context.putImageData(image, 0, 0);
+  }, [spectrum, resolvedTheme]);
+
+  return (
+    <canvas
+      ref={canvasRef}
+      className={s.spectrogram}
+      role="img"
+      aria-label={`频谱图：${spectrum.bins} 个频段 × ${spectrum.cols} 帧，共 ${spectrum.seconds} 秒`}
+    />
+  );
+}
+
+function Waveform({ spectrum }: { spectrum: Spectrum }) {
+  const points = useMemo(() => {
+    const min = decodeBase64(spectrum.waveform.min);
+    const max = decodeBase64(spectrum.waveform.max);
+    const mid = spectrum.waveform.mid;
+    if (!min.length) return { upper: "", lower: "" };
+    const step = Math.max(1, Math.floor(min.length / 420));
+    const upper: string[] = [];
+    const lower: string[] = [];
+    for (let index = 0; index < min.length; index += step) {
+      const x = (index / (min.length - 1)) * 1000;
+      // uint8 → 以 mid 为中心的正负偏移，映射到 0..100 的 SVG 坐标
+      // min / max 两条包络分别向上、向下画，才是真实的波形包络而不是单边锯齿
+      const low = min[index] ?? mid;
+      const high = max[index] ?? mid;
+      upper.push(`${x.toFixed(1)},${(50 - ((high - mid) / 128) * 46).toFixed(1)}`);
+      lower.push(`${x.toFixed(1)},${(50 - ((low - mid) / 128) * 46).toFixed(1)}`);
+    }
+    return { upper: upper.join(" "), lower: lower.join(" ") };
+  }, [spectrum]);
+
+  return (
+    <svg className={s.waveSvg} viewBox="0 0 1000 100" preserveAspectRatio="none" role="img" aria-label="波形包络">
+      <polyline points={points.upper} />
+      <polyline points={points.lower} />
+    </svg>
+  );
+}
+
+export default function AudioView({ alarm, spectrum, transcript, samples }: AudioViewProps) {
+  const speakerById = useMemo(
+    () => new Map((transcript?.speakers ?? []).map((speaker) => [speaker.id, speaker])),
+    [transcript],
+  );
+  const profileLabel: Record<string, string> = {
+    bullying: "欺凌言语",
+    quarrel: "高声争吵",
+    scream: "哭喊 / 呼救",
+    glass: "玻璃破碎",
+    speech: "正常对话",
+    noise: "环境噪声",
+  };
+
+  return (
+    <div className={s.page} data-av-page="audio">
+      <AvPageHeader
+        route="/av/audio"
+        title="音频分析"
+        subtitle="频谱与转写：频谱是二维矩阵（bins × cols），转写按说话人着色；页面从告警详情抽屉进入，不在主导航。"
+        aside={
+          <div className={s.audioPicker}>
+            {samples.slice(0, 4).map((sample) => (
+              <Link
+                key={sample.alarmId}
+                href={`/av/audio?alarm=${sample.alarmId}`}
+                className={s.audioPick}
+                aria-current={sample.alarmId === alarm.id}
+              >
+                {sample.alarmId}
+              </Link>
+            ))}
+          </div>
+        }
+      />
+
+      <AvPanel
+        title={alarm.title}
+        subtitle={`${alarm.room} · ${alarm.typeName}`}
+        icon="monitor"
+        meta={`${formatSeconds(spectrum.seconds)} · ${formatCount(spectrum.bins)} bins`}
+        motionKey="audio-meta"
+      >
+        <div className={s.dialogTitle} style={{ marginBottom: 10 }}>
+          <AvLevelBadge level={alarm.level} label={alarm.levelLabel} />
+          <span className={s.softNote}>{alarm.id}</span>
+          <span className={s.tagChip}>{profileLabel[spectrum.profile] ?? spectrum.profile}</span>
+          <span className={s.tagChip}>{spectrum.id}</span>
+        </div>
+        <div className={s.audioMeta}>
+          <span>时长 <b>{formatSeconds(spectrum.seconds)}</b></span>
+          <span>采样列 <b>{spectrum.cols}</b></span>
+          <span>频段 <b>{spectrum.bins}</b></span>
+          <span>频率分辨率 <b>{spectrum.binHz} Hz</b></span>
+          <span>帧间隔 <b>{spectrum.colMs} ms</b></span>
+          <span>峰值点 <b>{spectrum.peaks.length}</b></span>
+          {transcript && <span>关键词命中 <b>{transcript.keyword_hits.length}</b></span>}
+        </div>
+        <p className={s.softNote} style={{ marginTop: 8 }}>{spectrum.note}</p>
+      </AvPanel>
+
+      <div className={s.splitWide}>
+        <AvPanel
+          title="频谱图"
+          subtitle="颜色深浅代表能量强度；纵轴为频率，横轴为时间"
+          icon="wave"
+          meta={`${spectrum.colMs}ms / 帧`}
+          motionKey="audio-spectrogram"
+        >
+          <Spectrogram spectrum={spectrum} />
+          <div style={{ marginTop: 10 }}>
+            <Waveform spectrum={spectrum} />
+          </div>
+          <div className={s.firmwareRow}>
+            <span className={s.softNote}>
+              静态演示：mock 数据只有频谱矩阵与转写，没有音频文件，因此不提供播放游标（Stage 3 再补交互）。
+            </span>
+          </div>
+        </AvPanel>
+
+        <div className={s.railStack}>
+          <AvPanel title="频谱画像" subtitle="与告警级别的对应关系" icon="chip" motionKey="audio-facts">
+            <AvKV
+              rows={[
+                { label: "画像", value: profileLabel[spectrum.profile] ?? spectrum.profile },
+                { label: "级别", value: `${levelMeta(alarm.level as 1 | 2 | 3 | 4).label}` },
+                { label: "证据", value: `音频 ${formatSeconds(spectrum.seconds)}` },
+                {
+                  label: "峰值",
+                  value: spectrum.peaks
+                    .slice(0, 3)
+                    .map((peak) => `${formatPercent(peak.amplitude * 100, 0)} @ ${(peak.at_ms / 1000).toFixed(1)}s`)
+                    .join(" · "),
+                },
+              ]}
+            />
+          </AvPanel>
+
+          {transcript && (
+            <AvPanel
+              title="转写与关键词"
+              subtitle={`${transcript.language} · ${transcript.speakers.length} 位说话人`}
+              icon="event"
+              meta={`${transcript.segments.length} 句`}
+              motionKey="audio-transcript"
+            >
+              <ul className={s.keywordList} style={{ marginBottom: 10 }}>
+                {transcript.keyword_hits.map((keyword) => (
+                  <li key={keyword} className={s.keywordChip}>{keyword}</li>
+                ))}
+              </ul>
+              <ul className={s.transcript}>
+                {transcript.segments.map((segment, index) => {
+                  const speaker = segment.speaker ? speakerById.get(segment.speaker) : null;
+                  const tone = speaker ? SPEAKER_TONES[speaker.index % SPEAKER_TONES.length] : "neutral";
+                  return (
+                    <li key={`${segment.start}-${index}`} className={s.transcriptLine} data-motion="transcript-line" data-motion-index={index}>
+                      <span className={s.transcriptTime}>{(segment.start).toFixed(1)}s</span>
+                      <span className={s.speaker} style={{ "--speaker": `var(--av-tone-${tone})` } as React.CSSProperties}>
+                        <i aria-hidden="true" />
+                        {speaker?.label ?? "环境音"}
+                      </span>
+                      <span className={s.transcriptText}>
+                        {segment.highlight.length === 0
+                          ? segment.text
+                          : renderHighlighted(segment.text, segment.highlight.map((item) => item.word))}
+                      </span>
+                    </li>
+                  );
+                })}
+              </ul>
+            </AvPanel>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** 把命中关键词包成高亮，保持原句字符顺序（不重排、不丢标点）。 */
+function renderHighlighted(text: string, words: string[]) {
+  if (words.length === 0) return text;
+  const escaped = words
+    .filter(Boolean)
+    .sort((a, b) => b.length - a.length)
+    .map((word) => word.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+  if (escaped.length === 0) return text;
+  const parts = text.split(new RegExp(`(${escaped.join("|")})`, "g"));
+  return parts.map((part, index) =>
+    words.includes(part) ? (
+      <mark key={`${part}-${index}`} className={s.highlight}>{part}</mark>
+    ) : (
+      <span key={`text-${index}`}>{part}</span>
+    ),
+  );
+}

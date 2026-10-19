@@ -1,0 +1,54 @@
+/*
+ * 图表容器：固定高度 + 占满宽度。recharts 的 ResponsiveContainer 需要一个
+ * 「有确定高度」的父节点，否则首帧会以 0 高度渲染、切主题后才突然出现。
+ *
+ * 颜色不在这里定义：图表色由 AvCharts.tsx 在运行时从 --av-* 令牌读取。
+ */
+
+.frame {
+  width: 100%;
+  min-width: 0;
+}
+
+.framePending {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: var(--av-surface-soft);
+}
+
+.donutWrap {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+
+.donutChart {
+  position: relative;
+  width: 100%;
+  min-width: 0;
+}
+
+.donutCenter {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 2px;
+  pointer-events: none;
+}
+
+.donutCenter strong {
+  color: var(--av-ink);
+  font-family: var(--font-mono);
+  font-size: 22px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.03em;
+}
+
+.donutCenter span {
+  color: var(--av-ink-3);
+  font-size: 10px;
+}

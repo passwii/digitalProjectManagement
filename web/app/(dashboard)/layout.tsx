@@ -8,6 +8,7 @@ import { authApi, clearSession } from "@/lib/api";
 import { clearMetaCache, loadMe, useMe, useMenus } from "@/lib/useMeta";
 import { identityViewOf } from "@/lib/identityCore";
 import { SPARK_WINDOW_TARGET } from "@/lib/spark/navigation";
+import { AV_WINDOW_TARGET } from "@/lib/av/navigation";
 import Avatar from "@/components/ui/Avatar";
 import Bell from "@/components/ui/Bell";
 import ThemeModePicker from "@/components/theme/ThemeModePicker";
@@ -89,6 +90,13 @@ const ICON: Record<string, React.ReactNode> = {
       <path d="m19 16 .8 2.2L22 19l-2.2.8L19 22l-.8-2.2L16 19l2.2-.8L19 16Z" />
     </svg>
   ),
+  "/av": (
+    // 多模态波形：与 NebulaCloud 的四角星刻意区分（同一分组下两条入口要一眼分开）
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M2.5 12h2l1.4-4.6 1.8 9.2 1.9-12.2 1.8 15 1.7-10.4 1.6 3.1h3.1" />
+      <path d="M19 9.5v5M22 11v2" />
+    </svg>
+  ),
   "/partners": (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
       <rect x="3" y="7" width="18" height="13" rx="2" />
@@ -113,6 +121,7 @@ const LABEL: Record<string, string> = {
   "/finance": "财务管理",
   "/dev/date-picker": "日期组件",
   "/spark": "NebulaCloud 演示站",
+  "/av": "智能音视频平台",
 };
 
 /** 工作台恒可见；权限同步失败时退回这组参与性入口，绝不因同步失败就清空导航 */
@@ -400,7 +409,10 @@ function DashboardShell({ children, modal }: { children: React.ReactNode; modal?
       if (out.some((o) => o.href === it.href)) continue;
       out.push({ ...it, icon: ICON[it.href] });
     }
+    // Spark 分组下两条独立演示入口：NebulaCloud（云电竞）与智能音视频平台。
+    // 两者是完全不同的演示产品，各自一个 target，互不抢同一个标签页。
     out.push({ href: "/spark", label: LABEL["/spark"], icon: ICON["/spark"] });
+    out.push({ href: "/av", label: LABEL["/av"], icon: ICON["/av"] });
     return out;
   }, [menus, permsError]);
 
@@ -513,7 +525,13 @@ function DashboardShell({ children, modal }: { children: React.ReactNode; modal?
                 )}
                 <Link
                   href={n.href}
-                  target={n.href === "/spark" ? SPARK_WINDOW_TARGET : undefined}
+                  target={
+                    n.href === "/spark"
+                      ? SPARK_WINDOW_TARGET
+                      : n.href === "/av"
+                        ? AV_WINDOW_TARGET
+                        : undefined
+                  }
                   className={`${s.navLink} ${active ? s.active : ""}`}
                   title={n.label}
                   aria-current={active ? "page" : undefined}

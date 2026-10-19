@@ -1,0 +1,517 @@
+/*
+ * AV 演示站外壳。
+ *
+ * 视觉基线全部来自 DESIGN.md：直角（--radius 0）、1px 细边界、信号青标记信息路径、
+ * 酸橙只出现在主行动按钮上、阴影只给真实浮层。颜色一律取 --av-* 语义变量，
+ * 所以深色 / 浅色主题切换时不需要第二套样式。
+ *
+ * 布局：固定侧栏（252px，收起 76px）+ 顶栏（64px）+ 可滚动内容区。
+ * 900px 以下侧栏变抽屉、顶栏保留搜索与状态；720px 以下收紧内边距，
+ * 页面自身再按窄屏重排（见 pages/*.module.css 的窄屏段）。
+ */
+
+.shell {
+  --av-sidebar: 252px;
+  --av-head-h: 64px;
+  display: flex;
+  min-height: 100vh;
+  background: var(--av-canvas);
+  color: var(--av-ink);
+  font-family: var(--font-body);
+}
+
+.shellCollapsed {
+  --av-sidebar: 76px;
+}
+
+/* ---------------- 侧栏 ---------------- */
+
+.sidebar {
+  position: fixed;
+  inset: 0 auto 0 0;
+  z-index: 40;
+  display: flex;
+  width: var(--av-sidebar);
+  flex-direction: column;
+  border-right: 1px solid var(--nav-border);
+  background: var(--av-rail);
+  color: var(--nav-ink);
+}
+
+.brand {
+  display: flex;
+  min-height: var(--av-head-h);
+  align-items: center;
+  gap: 11px;
+  padding: 0 16px;
+  border-bottom: 1px solid var(--nav-border);
+  color: var(--nav-ink);
+  text-decoration: none;
+}
+
+.brandMark {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  flex: none;
+  place-items: center;
+  border: 1px solid var(--nav-border);
+  background: var(--nav-active-bg);
+  color: var(--nav-active-accent);
+}
+
+.brandCopy {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+  overflow: hidden;
+}
+
+.brandCopy strong {
+  font-family: var(--font-brand);
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+.brandCopy small {
+  color: var(--nav-muted);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  white-space: nowrap;
+}
+
+.shellCollapsed .brandCopy {
+  display: none;
+}
+
+.nav {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 12px 10px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.groupLabel {
+  padding: 16px 10px 6px;
+  color: var(--nav-muted);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  white-space: nowrap;
+}
+
+.shellCollapsed .groupLabel {
+  padding: 16px 0 6px;
+  text-align: center;
+  letter-spacing: 0;
+}
+
+.navLink {
+  position: relative;
+  display: flex;
+  min-height: 40px;
+  align-items: center;
+  gap: 11px;
+  overflow: hidden;
+  padding: 0 11px;
+  border-left: 2px solid transparent;
+  color: var(--nav-muted);
+  font-size: 13px;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.navLink:hover {
+  background: var(--nav-hover-bg);
+  color: var(--nav-ink);
+}
+
+.navLink:focus-visible {
+  outline: 2px solid var(--nav-active-accent);
+  outline-offset: -2px;
+}
+
+.navActive {
+  border-left-color: var(--nav-active-accent);
+  background: var(--nav-active-bg);
+  color: var(--nav-active-ink);
+  font-weight: 600;
+}
+
+.navActive svg {
+  color: var(--nav-active-accent);
+}
+
+.navIcon {
+  flex: none;
+}
+
+.navText {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.shellCollapsed .navText {
+  display: none;
+}
+
+.navBadge {
+  margin-left: auto;
+  padding: 1px 6px;
+  border: 1px solid var(--nav-border);
+  border-radius: 999px;
+  color: var(--nav-active-accent);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-variant-numeric: tabular-nums;
+}
+
+.shellCollapsed .navBadge {
+  display: none;
+}
+
+.sidebarFoot {
+  flex: none;
+  padding: 10px;
+  border-top: 1px solid var(--nav-border);
+  display: grid;
+  gap: 8px;
+}
+
+.footMeta {
+  display: grid;
+  gap: 2px;
+  padding: 0 6px;
+  color: var(--nav-muted);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  line-height: 1.6;
+  font-variant-numeric: tabular-nums;
+}
+
+.shellCollapsed .footMeta {
+  display: none;
+}
+
+.collapseButton {
+  display: flex;
+  min-height: 34px;
+  align-items: center;
+  gap: 8px;
+  padding: 0 9px;
+  border: 1px solid var(--nav-border);
+  border-radius: 0;
+  background: transparent;
+  color: var(--nav-muted);
+  font-family: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.collapseButton:hover {
+  background: var(--nav-hover-bg);
+  color: var(--nav-ink);
+}
+
+.collapseButton:focus-visible {
+  outline: 2px solid var(--nav-active-accent);
+  outline-offset: 1px;
+}
+
+.shellCollapsed .collapseButton {
+  justify-content: center;
+}
+
+.shellCollapsed .collapseButton span {
+  display: none;
+}
+
+/* ---------------- 主列 ---------------- */
+
+.main {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  margin-left: var(--av-sidebar);
+}
+
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  min-height: var(--av-head-h);
+  align-items: center;
+  gap: 12px;
+  padding: 0 20px;
+  border-bottom: 1px solid var(--av-divider);
+  background: var(--av-surface);
+}
+
+.menuButton {
+  display: none;
+  width: 36px;
+  height: 36px;
+  place-items: center;
+  border: 1px solid var(--av-divider);
+  border-radius: 0;
+  background: transparent;
+  color: var(--av-ink-2);
+  cursor: pointer;
+}
+
+.searchBox {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  max-width: 420px;
+  align-items: center;
+  gap: 8px;
+  height: 34px;
+  padding: 0 10px;
+  border: 1px solid var(--av-divider);
+  background: var(--av-canvas);
+  color: var(--av-ink-3);
+  font-size: 12px;
+}
+
+.searchBox svg {
+  flex: none;
+}
+
+.searchBox input {
+  min-width: 0;
+  flex: 1;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--av-ink);
+  font-family: inherit;
+  font-size: 12px;
+}
+
+.searchBox input::placeholder {
+  color: var(--av-ink-3);
+}
+
+.searchBox:focus-within {
+  border-color: var(--av-signal);
+  box-shadow: 0 0 0 2px var(--brand-soft);
+}
+
+.topbarRight {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-left: auto;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 26px;
+  padding: 0 9px;
+  border: 1px solid var(--av-divider);
+  border-radius: 11px;
+  color: var(--av-ink-2);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.chip strong {
+  color: var(--av-ink);
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.chipDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--av-success);
+}
+
+.clock {
+  color: var(--av-ink-2);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+}
+
+/* 秒数跳变时只闪这一位：整块重渲染会让演示时的时钟看起来「抖」。 */
+.clockSecond {
+  color: var(--av-ink-3);
+}
+
+.userBadge {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-left: 10px;
+  border-left: 1px solid var(--av-divider);
+}
+
+.avatar {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  flex: none;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--av-signal);
+  color: var(--on-brand);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.userCopy {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.35;
+}
+
+.userCopy strong {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.userCopy small {
+  color: var(--av-ink-3);
+  font-size: 10px;
+}
+
+.backLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 30px;
+  padding: 0 10px;
+  border: 1px solid var(--av-divider);
+  border-radius: 0;
+  color: var(--av-ink-2);
+  font-size: 11px;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.backLink:hover {
+  border-color: var(--av-signal);
+  color: var(--av-signal);
+}
+
+.content {
+  min-width: 0;
+  padding: 22px 20px 40px;
+}
+
+.backdrop {
+  display: none;
+}
+
+/* ---------------- 断点 ---------------- */
+
+@media (max-width: 1100px) {
+  .shell {
+    --av-sidebar: 220px;
+  }
+  .userCopy {
+    display: none;
+  }
+}
+
+@media (max-width: 900px) {
+  .shell,
+  .shellCollapsed {
+    --av-sidebar: 0px;
+  }
+  .sidebar {
+    width: 268px;
+    transform: translateX(-100%);
+    transition: transform 200ms var(--ease-console);
+  }
+  .shellOpen .sidebar {
+    transform: translateX(0);
+    box-shadow: var(--shadow-drawer);
+  }
+  .shellOpen .brandCopy,
+  .shellOpen .navText,
+  .shellOpen .footMeta,
+  .shellOpen .navBadge {
+    display: flex;
+  }
+  .shellOpen .collapseButton span {
+    display: inline;
+  }
+  .main {
+    margin-left: 0;
+  }
+  .menuButton {
+    display: grid;
+  }
+  .shellOpen .backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 35;
+    display: block;
+    border: 0;
+    background: var(--overlay);
+  }
+  .content {
+    padding: 16px 14px 32px;
+  }
+  .searchBox {
+    max-width: none;
+  }
+  .backLink span {
+    display: none;
+  }
+}
+
+@media (max-width: 720px) {
+  .shell {
+    /* 手机壳里不允许横向溢出：顶栏与内容都必须换行收敛 */
+    overflow-x: clip;
+  }
+  .topbar {
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 8px 12px;
+  }
+  .searchBox {
+    order: 3;
+    max-width: none;
+    flex-basis: 100%;
+  }
+  .topbarRight {
+    min-width: 0;
+    gap: 8px;
+  }
+  /* 时钟与在线率徽标在 390px 上会把整行顶出去；两者都不是手机端必需品 */
+  .clock,
+  .rateChip {
+    display: none;
+  }
+  .userBadge {
+    padding-left: 8px;
+  }
+  .content {
+    padding: 12px 10px 28px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sidebar {
+    transition: none;
+  }
+}

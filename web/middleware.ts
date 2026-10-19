@@ -5,6 +5,9 @@ const PUBLIC_PATHS = [
   "/login",
   "/change-password",
   "/spark",
+  // 智能音视频平台（BLF-1374）：与 /spark 一样是纯本地 mock 演示站，免登录。
+  // 只加这一条，/spark 的鉴权与重定向行为一字未动。
+  "/av",
   "/icon.svg",
   "/icons",
   "/manifest.webmanifest",
@@ -26,6 +29,14 @@ export function middleware(req: NextRequest) {
   if (pathname === "/spark") {
     const url = req.nextUrl.clone();
     url.pathname = "/spark/dashboard";
+    return NextResponse.redirect(url);
+  }
+
+  // `/av` → `/av/overview`：与 /spark 的 HTTP 重定向保持一致（保留查询参数）。
+  // 末尾的 `/av/` 也要走同一条，否则会渲染一个空目录页。
+  if (pathname === "/av" || pathname === "/av/") {
+    const url = req.nextUrl.clone();
+    url.pathname = "/av/overview";
     return NextResponse.redirect(url);
   }
 
