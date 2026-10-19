@@ -1,4 +1,3 @@
-import { Suspense } from "react";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { AV_PAGES, isAvHiddenRoute, isAvSection } from "@/lib/av/navigation";
@@ -47,12 +46,9 @@ export default async function AvSectionPage({ params }: { params: { section: str
     case "monitor":
       return <MonitorView {...(await getMonitorData())} />;
     case "alarm":
-      // AlarmView 用 useSearchParams 读全局搜索带过来的 ?q=；静态路由需要 Suspense 边界
-      return (
-        <Suspense fallback={null}>
-          <AlarmView {...(await getAlarmData())} />
-        </Suspense>
-      );
+      // 注意：不要把整个 AlarmView 包进 Suspense（它内部已用一个极小客户端组件
+      // 隔离 useSearchParams），否则首屏 50 条会退化成纯客户端渲染。
+      return <AlarmView {...(await getAlarmData())} />;
     case "event":
       return <EventView {...(await getEventData())} />;
     case "device":

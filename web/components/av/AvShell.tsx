@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import { AV_PAGES, AV_WINDOW_TARGET, type AvIconName } from "@/lib/av/navigation";
 import { useTheme } from "@/components/theme/ThemeProvider";
 import AvGlyph from "./AvGlyph";
@@ -36,6 +36,24 @@ const NAV_ICON: Record<string, AvIconName> = {
   device: "device",
   capability: "capability",
 };
+
+/**
+ * 把地址栏里的 `?q=` 同步回顶部搜索框（只读，不渲染任何内容）。
+ *
+ * 单独放在 Suspense 里：`useSearchParams` 会跳过所在子树的静态渲染，如果把整个壳层
+ * 包进去，侧栏与顶栏就都进不了 HTML。这个组件只负责一行状态同步。
+ */
+function KeywordSync({ onKeyword }: { onKeyword: (value: string) => void }) {
+  const searchParams = useSearchParams();
+  const pathname = usePathname();
+  const urlQuery = searchParams.get("q") ?? "";
+  useEffect(() => {
+    // 换页通常意味着「重新开始」：地址栏没有 q 时搜索框跟着清空，
+    // 避免出现「地址栏无筛选、搜索框还留着上一轮关键词」的错觉。
+    onKeyword(urlQuery);
+  }, [urlQuery, pathname, onKeyword]);
+  return null;
+}
 
 export default function AvShell({
   children,
@@ -161,6 +179,9 @@ export default function AvShell({
 
           {/* 真搜索：回车跳到告警中心并把关键词带过去（AlarmView 从 ?q= 读初始筛选）。
               之前这里是纯装饰 input，敲字没反应，容易被读成「搜索坏了」。 */}
+          <Suspense fallback={null}>
+            <KeywordSync onKeyword={setKeyword} />
+          </Suspense>
           <form
             className={s.searchBox}
             role="search"

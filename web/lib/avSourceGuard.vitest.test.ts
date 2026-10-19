@@ -40,17 +40,78 @@ const CSS_FILES = AV_SOURCES.flatMap((dir) => filesUnder(dir, /\.css$/));
  * 注释里写「浅色主题下 --av-surface 可能是 #fff」是在**解释**缺陷，不是在使用颜色；
  * 不过滤注释的话，说明文字本身会触发守卫，最后只能靠删注释来过 —— 那就把知识删掉了。
  */
-function stripComments(source: string): string {
-  return source
-    .replace(/\/\*[\s\S]*?\*\//g, "")
-    .replace(/(^|\s)\/\/[^\n]*/g, "$1");
+/**
+ * 遮蔽注释，但**保留字符串内容**（颜色字面量经常就写在字符串或数组里）。
+ *
+ * 不能用「行首斜杠斜杠」这种正则：它会把字符串里的两个斜杠当成注释开头，
+ * 从那儿截断整行，紧跟着的三通道数组就漏扫了。这里按词法状态机走：只有处于
+ * 代码态的行注释 / 块注释起始符才进入注释态，字符串与模板字符串里的斜杠原样保留。
+ */
+function maskComments(source: string): string {
+  type State = "code" | "line" | "block" | "single" | "double" | "template";
+  let state: State = "code";
+  let out = "";
+  for (let index = 0; index < source.length; index += 1) {
+    const char = source[index];
+    const next = source[index + 1];
+    if (state === "code") {
+      if (char === "/" && next === "/") {
+        state = "line";
+        out += "  ";
+        index += 1;
+        continue;
+      }
+      if (char === "/" && next === "*") {
+        state = "block";
+        out += "  ";
+        index += 1;
+        continue;
+      }
+      if (char === "'") state = "single";
+      else if (char === '"') state = "double";
+      else if (char === "`") state = "template";
+      out += char;
+      continue;
+    }
+    if (state === "line") {
+      if (char === "\n") {
+        state = "code";
+        out += "\n";
+      } else {
+        out += " ";
+      }
+      continue;
+    }
+    if (state === "block") {
+      if (char === "*" && next === "/") {
+        state = "code";
+        out += "  ";
+        index += 1;
+      } else {
+        out += char === "\n" ? "\n" : " ";
+      }
+      continue;
+    }
+    // 字符串 / 模板字符串：保留字符（要扫里面的字面量），只处理转义与结束引号
+    const quote = state === "single" ? "'" : state === "double" ? '"' : "`";
+    if (char === "\\") {
+      out += char + (next ?? "");
+      index += 1;
+      continue;
+    }
+    if (char === quote) state = "code";
+    out += char;
+  }
+  return out;
 }
+
+const LIB_FILES = filesUnder("lib/av", /\.ts$/).filter((file) => !/\.test\.ts$/.test(file));
 
 describe("AV 视觉基座：颜色只来自令牌", () => {
   it("组件源码里没有十六进制颜色字面量", () => {
     const offenders: string[] = [];
     for (const file of TSX_FILES) {
-      const source = stripComments(readFileSync(file, "utf8"));
+      const source = maskComments(readFileSync(file, "utf8"));
       const matches = source.match(/#[0-9a-fA-F]{3,8}\b/g);
       if (matches) offenders.push(`${file}: ${matches.join(", ")}`);
     }
@@ -63,17 +124,43 @@ describe("AV 视觉基座：颜色只来自令牌", () => {
     // 三元组本身在普通布局里没有用途，凡是三通道整数数组都按颜色处理。
     const offenders: string[] = [];
     for (const file of TSX_FILES) {
-      const source = stripComments(readFileSync(file, "utf8"));
+      const source = maskComments(readFileSync(file, "utf8"));
       const matches = source.match(/\[\s*\d{1,3}\s*,\s*\d{1,3}\s*,\s*\d{1,3}\s*\]/g);
       if (matches) offenders.push(`${file}: ${matches.join(", ")}`);
     }
     expect(offenders).toEqual([]);
   });
 
+  it("lib/av 里除 color.ts 外不出现颜色字面量（取色逻辑只允许一个入口）", () => {
+    // 取色代码搬进 lib/av 之后，守卫的扫描根必须一起扩进来：否则将来有人在
+    // lib/av 里写死一个色值，components 侧的扫描完全看不见。
+    const offenders: string[] = [];
+    for (const file of LIB_FILES) {
+      if (file.endsWith("/color.ts")) continue;
+      const source = maskComments(readFileSync(file, "utf8"));
+      const hex = source.match(/#[0-9a-fA-F]{3,8}\b/g);
+      const triple = source.match(/\[\s*\d{1,3}\s*,\s*\d{1,3}\s*,\s*\d{1,3}\s*\]/g);
+      const fn = source.match(/rgba?\([^)]*\)|hsla?\([^)]*\)/g);
+      const found = [...(hex ?? []), ...(triple ?? []), ...(fn ?? [])];
+      if (found.length) offenders.push(`${file}: ${found.join(", ")}`);
+    }
+    expect(offenders).toEqual([]);
+  });
+
+  it("注释遮蔽器不会把字符串里的 // 当注释（假阴性回归）", () => {
+    // review 指出的盲区：正则版会把 `"x // y"` 截断，紧随其后的三通道数组漏扫。
+    // 这条用例直接对遮蔽器的行为下断言（通过一个临时文件不便，故复刻同一逻辑调用）。
+    const sample = 'const a = "x // y"; const bad = [108, 243, 255];';
+    expect(maskComments(sample)).toContain("[108, 243, 255]");
+    expect(maskComments('const a = "x"; // [108, 243, 255]')).not.toContain("[108, 243, 255]");
+    expect(maskComments('/* [108, 243, 255] */ const ok = 1;')).not.toContain("[108, 243, 255]");
+    expect(maskComments("const t = `/* not a comment */ [108, 243, 255]`;")).toContain("[108, 243, 255]");
+  });
+
   it("canvas 取色统一走 lib/av/color，不在组件里自己解析", () => {
     const offenders: string[] = [];
     for (const file of TSX_FILES) {
-      const source = stripComments(readFileSync(file, "utf8"));
+      const source = maskComments(readFileSync(file, "utf8"));
       if (/parseInt\([^)]*16\)/.test(source)) offenders.push(file);
     }
     expect(offenders).toEqual([]);

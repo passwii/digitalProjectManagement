@@ -1,4 +1,3 @@
-import { Suspense } from "react";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { getAlarmData, getEventData } from "@/lib/av/pageData";
@@ -33,11 +32,7 @@ export default async function AvDetailPage({ params }: { params: { section: stri
   if (params.section === "alarm") {
     const alarm = await getAlarmById(id);
     if (!alarm) notFound();
-    return (
-      <Suspense fallback={null}>
-        <AlarmView {...(await getAlarmData(id))} />
-      </Suspense>
-    );
+    return <AlarmView {...(await getAlarmData(id))} />;
   }
 
   if (params.section === "event") {

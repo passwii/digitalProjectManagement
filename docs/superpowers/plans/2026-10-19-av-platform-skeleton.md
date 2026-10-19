@@ -75,6 +75,17 @@
 - 浅色主题频谱左上角像素 `[244,248,249]`（浅底）而非 `[103,234,247]`（整块亮青）；深色 `[17,39,54]`。
 - 顶部搜索：`AL-00039` → 1 条且 URL 为 `/av/alarm?q=AL-00039`；同路由改搜 `AL-00040` 也生效；深链接 `?q=AL-00046` 直接生效。
 
+## review 第二轮（Tia，PR #157 head 6183667）
+
+| # | 缺陷 | 修复 |
+| --- | --- | --- |
+| 1 | P1 本轮自己引入：整棵 `AlarmView` 被包进 Suspense，`/av/alarm` 退化成纯客户端渲染 | 把读 `?q=` 拆成极小客户端组件 `QuerySync`（只在它外面加 Suspense）；页面恢复直接渲染 `AlarmView`。服务端产物回到 **129KB HTML / 关 JS 4,515 字 / 50 个 AL- 编号** |
+| 2 | P2 清空搜索后筛选不复位 | `QuerySync` **无条件**写回（空串也覆盖）；壳层加 `KeywordSync` 同步 `?q=`，点导航/清空提交都会复位 |
+| 建议 | `stripComments` 把字符串里的 `//` 当注释 | 改为词法状态机 `maskComments`（代码态才进注释态，字符串/模板字符串原样保留），并加假阴性用例 |
+| 建议 | 守卫只扫 `app/av` + `components/av` | 新增 `lib/av` 扫描（`color.ts` 除外，它是取色的唯一入口） |
+
+**回归**：`test:unit` 347 → **349**；`test:motion` 384 → **390**（新增 `avSsrGuard` 4 例把「页面不得包 Suspense」钉死）。慢网（4x CPU）首屏出现内容：4G 622ms / 3G 2,439ms，rows=50。
+
 ## 不在本 Stage 范围
 
 - 动效与 transition（BLF-1375 / Stage 3）

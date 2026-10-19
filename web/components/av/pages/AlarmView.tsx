@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Alarm, AlarmStatus, AlarmsIndex, Scene } from "@/lib/av/types";
 import { loadAlarmPage } from "@/lib/av/load";
 import {
@@ -45,6 +45,22 @@ function statusTone(status: AlarmStatus): AvTone {
 }
 
 /**
+ * 只读 `?q=` 的极小客户端组件。
+ *
+ * 它必须单独待在 Suspense 里：`useSearchParams` 会让它所在的子树跳过静态渲染，
+ * 如果把整页包进去，`/av/alarm` 的 50 条首屏就只剩 RSC payload，HTML 里是空的
+ * —— 慢网下核心页要等整包 JS 才出现内容。
+ */
+function QuerySync({ onQuery }: { onQuery: (value: string) => void }) {
+  const searchParams = useSearchParams();
+  const urlQuery = searchParams.get("q") ?? "";
+  useEffect(() => {
+    onQuery(urlQuery);
+  }, [urlQuery, onQuery]);
+  return null;
+}
+
+/**
  * 告警中心。
  *
  * 分页：首屏 50 条由 Server Component 直接给（不占首屏独立请求），
@@ -69,15 +85,18 @@ export default function AlarmView(props: AlarmViewProps) {
   /**
    * 顶部全局搜索回车会带 `?q=` 过来。
    *
-   * 用 `useSearchParams` 而不是 mount 时读一次 `window.location.search`：从 /av/alarm
-   * 再搜一次是同路由客户端跳转，组件不卸载，只读一次的话第二次搜索不会生效。
-   * 页面侧用 Suspense 包住（静态路由要求）。
+   * `useSearchParams` 是 client bailout：谁在它上面，谁就不进静态 HTML。所以这里
+   * **只把读取 ?q= 的一小块**放进了 Suspense，列表本身与首屏 50 条仍然随服务端
+   * HTML 一起下发（整棵 AlarmView 包 Suspense 会让核心页退化成纯客户端渲染）。
+   *
+   * 回调必须用 useCallback 固定引用：它进 QuerySync 的 effect 依赖，每次渲染换新
+   * 引用会让 effect 反复触发。
    */
-  const searchParams = useSearchParams();
-  const urlQuery = searchParams.get("q") ?? "";
-  useEffect(() => {
-    if (urlQuery) setQuery(urlQuery);
-  }, [urlQuery]);
+  const applyUrlQuery = useCallback((value: string) => {
+    // 无条件覆盖：清空搜索（?q= 消失或为空串）时列表必须复位，否则会出现
+    // 「地址栏无 ?q=、屏幕还停在上一轮结果」的自相矛盾状态。
+    setQuery(value);
+  }, []);
 
   const selected = useMemo(() => {
     if (!selectedId) return null;
@@ -165,6 +184,10 @@ export default function AlarmView(props: AlarmViewProps) {
 
   return (
     <div className={s.page} data-av-page="alarm">
+      <Suspense fallback={null}>
+        <QuerySync onQuery={applyUrlQuery} />
+      </Suspense>
+
       <AvPageHeader
         route="/av/alarm"
         title="告警中心"
