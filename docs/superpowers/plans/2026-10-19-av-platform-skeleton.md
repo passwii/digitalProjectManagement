@@ -57,6 +57,24 @@
 - 移动端 390px：总览 / 告警 / 事件三页无横向溢出；事件表在窄屏换成卡片流。
 - 深浅主题：`avTheme.dom` 断言两级主题下颜色都只以 `var(--av-*)` 形式出现；token 层全部映射到既有语义 token，不会出现「切浅色后某块没跟着变」。
 
+## review 修复（Tia，PR #157 第一轮）
+
+| # | 缺陷 | 修复 |
+| --- | --- | --- |
+| 1 | P1 匿名翻页 100% 失败 | `PUBLIC_PATHS` 增 `/mock/av`（只放行 AV 自己的数据目录）。告警「加载下一页」在浏览器直接 fetch 分片，之前被 307 到 `/login` 拿到 HTML |
+| 2 | P1 浅色主题频谱整块亮青 | 新增 `lib/av/color.ts`：`parseCssColor` 支持 `#rgb/#rgba/#rrggbb/#rrggbbaa/rgb()/rgba()`，解析失败返回 `null` **不回落到任何主题的具体色值**；`spectrumPixels` 抽成纯函数 |
+| 3 | P2 无频谱告警静默显示别人的频谱 | `getAudioData` 只在 `alarmId == null` 时兜底；显式传 id 查不到就返回 `null`，页面渲染专属空态（文案带上传入的 id） |
+| 建议 | 源码守卫有盲区 | 扫描新增 `[r, g, b]` 三通道数组与 `parseInt(..., 16)`，并先剥注释再扫（注释里解释色值不该触发守卫） |
+| 建议 | 顶部搜索是装饰 | 改成真 `form[role=search]`：回车跳 `/av/alarm?q=`，`AlarmView` 用 `useSearchParams` 读（同路由二次搜索也生效） |
+| 建议 | 三级与数据紫底色串色 | 新增 `--violet-soft`（深浅各一条），`--av-tone-violet-soft` 不再复用 `--doing-bg` |
+
+**回归**（登出状态 + headless Chrome 实测）：
+
+- 匿名 `/av/alarm` 点「加载下一页」：50 → **100 条**，页脚「共加载 100 / 14,366」，无报错。
+- `/av/audio?alarm=AL-11429`（无频谱）→ 空态「AL-11429 没有可分析的音频」；`?alarm=NOPE` 同样空态并显示该 id；`?alarm=AL-14398` 仍正确。
+- 浅色主题频谱左上角像素 `[244,248,249]`（浅底）而非 `[103,234,247]`（整块亮青）；深色 `[17,39,54]`。
+- 顶部搜索：`AL-00039` → 1 条且 URL 为 `/av/alarm?q=AL-00039`；同路由改搜 `AL-00040` 也生效；深链接 `?q=AL-00046` 直接生效。
+
 ## 不在本 Stage 范围
 
 - 动效与 transition（BLF-1375 / Stage 3）

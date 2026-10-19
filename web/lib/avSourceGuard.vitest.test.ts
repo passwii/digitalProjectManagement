@@ -34,13 +34,47 @@ function filesUnder(dir: string, extension: RegExp): string[] {
 const TSX_FILES = AV_SOURCES.flatMap((dir) => filesUnder(dir, /\.tsx?$/));
 const CSS_FILES = AV_SOURCES.flatMap((dir) => filesUnder(dir, /\.css$/));
 
+/**
+ * 去掉注释后再扫描。
+ *
+ * 注释里写「浅色主题下 --av-surface 可能是 #fff」是在**解释**缺陷，不是在使用颜色；
+ * 不过滤注释的话，说明文字本身会触发守卫，最后只能靠删注释来过 —— 那就把知识删掉了。
+ */
+function stripComments(source: string): string {
+  return source
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .replace(/(^|\s)\/\/[^\n]*/g, "$1");
+}
+
 describe("AV 视觉基座：颜色只来自令牌", () => {
   it("组件源码里没有十六进制颜色字面量", () => {
     const offenders: string[] = [];
     for (const file of TSX_FILES) {
-      const source = readFileSync(file, "utf8");
+      const source = stripComments(readFileSync(file, "utf8"));
       const matches = source.match(/#[0-9a-fA-F]{3,8}\b/g);
       if (matches) offenders.push(`${file}: ${matches.join(", ")}`);
+    }
+    expect(offenders).toEqual([]);
+  });
+
+  it("组件源码里没有 [r, g, b] 形式的颜色数组（canvas 专用，易绕过 hex 守卫）", () => {
+    // review 缺陷 2 就是靠这个形态躲过了上面的 #hex 扫描：
+    //   `if (clean.length !== 6) return [108, 243, 255];`
+    // 三元组本身在普通布局里没有用途，凡是三通道整数数组都按颜色处理。
+    const offenders: string[] = [];
+    for (const file of TSX_FILES) {
+      const source = stripComments(readFileSync(file, "utf8"));
+      const matches = source.match(/\[\s*\d{1,3}\s*,\s*\d{1,3}\s*,\s*\d{1,3}\s*\]/g);
+      if (matches) offenders.push(`${file}: ${matches.join(", ")}`);
+    }
+    expect(offenders).toEqual([]);
+  });
+
+  it("canvas 取色统一走 lib/av/color，不在组件里自己解析", () => {
+    const offenders: string[] = [];
+    for (const file of TSX_FILES) {
+      const source = stripComments(readFileSync(file, "utf8"));
+      if (/parseInt\([^)]*16\)/.test(source)) offenders.push(file);
     }
     expect(offenders).toEqual([]);
   });

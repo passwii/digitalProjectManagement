@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { getAlarmData, getEventData } from "@/lib/av/pageData";
@@ -21,12 +22,22 @@ export function generateMetadata({ params }: { params: { section: string; id: st
 }
 
 export default async function AvDetailPage({ params }: { params: { section: string; id: string } }) {
+  /**
+   * 这里不是「二次解码」：Next 14 只对 unreserved 字符做归一化（`%41 → "A"`、
+   * `%2D → "-"`），`%20 / %25 / 非 ASCII` 会**原样**留在 `params.id` 里，
+   * 由页面负责解码一次。告警 / 事件 id 都是 `AL-00042` / `EV-2026xxxx` 形态，
+   * 实际不会出现需要编码的字符；保留解码是为了不让 `%20` 这类输入变成 404。
+   */
   const id = decodeURIComponent(params.id);
 
   if (params.section === "alarm") {
     const alarm = await getAlarmById(id);
     if (!alarm) notFound();
-    return <AlarmView {...(await getAlarmData(id))} />;
+    return (
+      <Suspense fallback={null}>
+        <AlarmView {...(await getAlarmData(id))} />
+      </Suspense>
+    );
   }
 
   if (params.section === "event") {

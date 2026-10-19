@@ -8,6 +8,11 @@ const PUBLIC_PATHS = [
   // 智能音视频平台（BLF-1374）：与 /spark 一样是纯本地 mock 演示站，免登录。
   // 只加这一条，/spark 的鉴权与重定向行为一字未动。
   "/av",
+  // ⚠️ 必须同时放行 /mock/av：告警「加载下一页」是在**浏览器**里直接 fetch
+  // `/mock/av/alarms/shard-*.json`。只放行 /av 的话，匿名用户点翻页会被 307 到
+  // /login，JSON.parse 拿到 HTML 报错，告警中心只能看到首屏 50 条（review 缺陷 1）。
+  // 只放行 /av 自己的数据目录，不动 /mock 下其它潜在数据。
+  "/mock/av",
   "/icon.svg",
   "/icons",
   "/manifest.webmanifest",

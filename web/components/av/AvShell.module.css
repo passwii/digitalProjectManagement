@@ -515,3 +515,14 @@
     transition: none;
   }
 }
+
+/* 搜索框里的回车提示：极小的等宽键帽，和顶栏其它 mono 元素同一语汇 */
+.searchHint {
+  flex: none;
+  padding: 0 4px;
+  border: 1px solid var(--av-divider);
+  color: var(--av-ink-3);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  line-height: 16px;
+}

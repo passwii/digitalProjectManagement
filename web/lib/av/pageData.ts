@@ -441,21 +441,21 @@ export async function getAudioData(alarmId: string | null = null): Promise<Audio
   const spectra = await getSpectra();
   if (spectra.length === 0) return null;
 
+  /**
+   * 只在**完全没指定** alarmId 时才走默认兜底（第一段有转写的音频）。
+   *
+   * 显式传了 id 却查不到频谱时，绝不能顶替成别人的频谱 —— 那等于把另一条告警的
+   * 音频证据挂在这条告警上（review 缺陷 3：14,366 条告警里有 14,354 条没有频谱，
+   * 深链接 / 分享出去的 URL 都会命中）。这种情况返回 null，页面渲染已有的空态。
+   */
   let target = alarmId;
   if (!target) {
-    // 默认进入第一段「有转写」的音频；没有转写时退回第一段频谱
     target = core.transcripts[0]?.alarm_id ?? spectra[0]?.alarm_id ?? null;
+    if (!target) return null;
   }
-  if (!target) return null;
 
   const spectrum = await getSpectrumByAlarm(target);
-  if (!spectrum) {
-    const fallback = spectra.find((item) => item.alarm_id) ?? spectra[0];
-    if (!fallback) return null;
-    target = fallback.alarm_id;
-  }
-  const resolvedSpectrum = spectrum ?? (await getSpectrumByAlarm(target));
-  if (!resolvedSpectrum) return null;
+  if (!spectrum) return null;
 
   const alarm = await getAlarmById(target);
   if (!alarm) return null;
@@ -476,7 +476,7 @@ export async function getAudioData(alarmId: string | null = null): Promise<Audio
       level: alarm.level,
       levelLabel: alarm.level_label,
     },
-    spectrum: resolvedSpectrum,
+    spectrum,
     transcript,
     samples,
   };

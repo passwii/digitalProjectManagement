@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Alarm, AlarmStatus, AlarmsIndex, Scene } from "@/lib/av/types";
 import { loadAlarmPage } from "@/lib/av/load";
@@ -64,6 +65,19 @@ export default function AlarmView(props: AlarmViewProps) {
   const [query, setQuery] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(props.initialAlarm?.id ?? null);
   const dialogRef = useRef<HTMLDialogElement>(null);
+
+  /**
+   * 顶部全局搜索回车会带 `?q=` 过来。
+   *
+   * 用 `useSearchParams` 而不是 mount 时读一次 `window.location.search`：从 /av/alarm
+   * 再搜一次是同路由客户端跳转，组件不卸载，只读一次的话第二次搜索不会生效。
+   * 页面侧用 Suspense 包住（静态路由要求）。
+   */
+  const searchParams = useSearchParams();
+  const urlQuery = searchParams.get("q") ?? "";
+  useEffect(() => {
+    if (urlQuery) setQuery(urlQuery);
+  }, [urlQuery]);
 
   const selected = useMemo(() => {
     if (!selectedId) return null;

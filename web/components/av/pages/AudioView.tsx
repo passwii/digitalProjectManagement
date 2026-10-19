@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef } from "react";
 import type { Spectrum, Transcript } from "@/lib/av/types";
 import { formatCount, formatPercent, formatSeconds, levelMeta, type AvTone } from "@/lib/av/labels";
 import { useTheme } from "@/components/theme/ThemeProvider";
+import { parseCssColor, spectrumPixels } from "@/lib/av/color";
 import { AvKV, AvLevelBadge, AvPageHeader, AvPanel } from "@/components/av/AvUI";
 import type { AudioViewProps } from "@/lib/av/contracts";
 import s from "./AvPages.module.css";
@@ -41,22 +42,12 @@ function decodeBase64(value: string): Uint8Array {
   return bytes.subarray(0, offset);
 }
 
-function hexToRgb(hex: string): [number, number, number] {
-  const clean = hex.trim().replace("#", "");
-  if (clean.length !== 6) return [108, 243, 255];
-  return [
-    parseInt(clean.slice(0, 2), 16),
-    parseInt(clean.slice(2, 4), 16),
-    parseInt(clean.slice(4, 6), 16),
-  ];
-}
-
 /**
  * 频谱热力图用 canvas：96 × 480 = 46,080 个格子，逐个渲染成 DOM 会直接卡死页面。
  * 这不是「图表」（recharts 的折线/柱状），而是一张二维矩阵图，canvas 是正确工具。
  * 颜色在运行时从 --av-signal 读取（不写死 hex），主题切换时重绘。
  */
-function Spectrogram({ spectrum }: { spectrum: Spectrum }) {
+export function Spectrogram({ spectrum }: { spectrum: Spectrum }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const { resolvedTheme } = useTheme();
 
@@ -70,20 +61,13 @@ function Spectrogram({ spectrum }: { spectrum: Spectrum }) {
     const context = canvas.getContext("2d");
     if (!context) return;
     const styles = getComputedStyle(document.documentElement);
-    const signal = hexToRgb(styles.getPropertyValue("--av-signal"));
-    const surface = hexToRgb(styles.getPropertyValue("--av-surface"));
+    // 浅色主题下 --av-surface 可能是 `#fff`（3 位缩写）；解析失败时宁可降级为透明底，
+    // 也不能退回某个主题的写死色（review 缺陷 2）。
+    const signal = parseCssColor(styles.getPropertyValue("--av-signal"));
+    const surface = parseCssColor(styles.getPropertyValue("--av-surface"));
+    if (!signal) return;
     const image = context.createImageData(spectrum.cols, spectrum.bins);
-    for (let col = 0; col < spectrum.cols; col += 1) {
-      for (let bin = 0; bin < spectrum.bins; bin += 1) {
-        const value = bytes[col * spectrum.bins + bin] ?? 0;
-        const ratio = value / 255;
-        const offset = ((spectrum.bins - 1 - bin) * spectrum.cols + col) * 4;
-        image.data[offset] = Math.round(surface[0] + (signal[0] - surface[0]) * ratio);
-        image.data[offset + 1] = Math.round(surface[1] + (signal[1] - surface[1]) * ratio);
-        image.data[offset + 2] = Math.round(surface[2] + (signal[2] - surface[2]) * ratio);
-        image.data[offset + 3] = 255;
-      }
-    }
+    image.data.set(spectrumPixels(bytes, spectrum.bins, spectrum.cols, signal, surface));
     context.putImageData(image, 0, 0);
   }, [spectrum, resolvedTheme]);
 

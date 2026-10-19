@@ -116,6 +116,20 @@ describe("AV 服务端数据层", () => {
     assert.equal(explicit?.spectrum.id, "sp-001");
   });
 
+  it("显式请求没有频谱的告警时返回空态，绝不顶替成别人的频谱（缺陷 3 回归）", async () => {
+    // 数据里绝大多数告警没有落盘频谱（spectrum_id 为 null）
+    const withoutSpectrum = await getAudioData("AL-11429");
+    assert.equal(withoutSpectrum, null, "不能把 AL-14398 的频谱挂到 AL-11429 上");
+
+    const unknown = await getAudioData("NOT-AN-ALARM");
+    assert.equal(unknown, null, "不存在的 id 不能静默回落到默认样本");
+
+    // 只有「完全没指定」时才允许默认兜底
+    const fallback = await getAudioData(null);
+    assert.ok(fallback);
+    assert.equal(fallback.alarm.id, fallback.spectrum.alarm_id);
+  });
+
   it("压力测试页能一次取到核心数据与极端值", async () => {
     const { core, extremes } = await getStressData();
     assert.ok(core.devices.length > 0);

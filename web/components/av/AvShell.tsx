@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { AV_PAGES, AV_WINDOW_TARGET, type AvIconName } from "@/lib/av/navigation";
 import { useTheme } from "@/components/theme/ThemeProvider";
@@ -53,6 +53,8 @@ export default function AvShell({
   version: string;
 }) {
   const pathname = usePathname();
+  const router = useRouter();
+  const [keyword, setKeyword] = useState("");
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const { resolvedTheme, setMode } = useTheme();
@@ -157,10 +159,27 @@ export default function AvShell({
             <AvGlyph name="menu" size={18} />
           </button>
 
-          <label className={s.searchBox}>
+          {/* 真搜索：回车跳到告警中心并把关键词带过去（AlarmView 从 ?q= 读初始筛选）。
+              之前这里是纯装饰 input，敲字没反应，容易被读成「搜索坏了」。 */}
+          <form
+            className={s.searchBox}
+            role="search"
+            onSubmit={(event) => {
+              event.preventDefault();
+              const value = keyword.trim();
+              router.push(value ? `/av/alarm?q=${encodeURIComponent(value)}` : "/av/alarm");
+            }}
+          >
             <AvGlyph name="search" size={15} />
-            <input type="search" placeholder="搜索点位、设备、告警编号…" aria-label="搜索点位、设备、告警编号" />
-          </label>
+            <input
+              type="search"
+              value={keyword}
+              onChange={(event) => setKeyword(event.target.value)}
+              placeholder="搜索点位、设备、告警编号…（回车进入告警中心）"
+              aria-label="搜索点位、设备、告警编号"
+            />
+            <kbd className={s.searchHint}>↵</kbd>
+          </form>
 
           <div className={s.topbarRight}>
             <span className={s.chip} title="页面内容均为本地 mock 数据">
