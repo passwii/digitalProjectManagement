@@ -196,10 +196,22 @@ describe("Stream Monitor 品牌与路径契约（BLF-1387）", () => {
     // 解码再存回，U+FFFD 就会静默混进源码 —— 它是合法 UTF-8，git 不报错、
     // tsc 不报错、测试全绿，只有真正读那行注释的人会发现是乱码。
     // （BLF-1387 合并后实测：`streamMonitorBranding.test.ts` 的注释里就混进了一个。）
+    //
+    // 扫描范围必须覆盖**本次改名动过的全部文件**，不能只扫站点目录下的 .ts/.tsx：
+    // 那次迁移同时改了 `app/(dashboard)/layout.tsx`（工作台侧栏入口与图标映射）、
+    // `middleware.ts`（兼容重定向）、`public/mock/av/org.json`（品牌字段）、
+    // `app/globals.css`（令牌段注释）和站点的 CSS module —— 它们的注释里同样
+    // 有中文，坏在任何一个里都是同一个静默故障。扩展名也放宽到 .json/.css，
+    // 免得以后新增文件类型时又漏掉。
     const files = [
-      ...filesUnder("app/stream-monitor", /\.tsx?$/),
-      ...filesUnder("components/av", /\.tsx?$/),
-      ...filesUnder("lib/av", /\.ts$/),
+      ...filesUnder("app/stream-monitor", /\.(tsx?|css|json)$/),
+      ...filesUnder("components/av", /\.(tsx?|css|json)$/),
+      ...filesUnder("lib/av", /\.(ts|json)$/),
+      // 改名同时动过工作台壳层与 middleware（都在站点目录之外，但属于同一次迁移）
+      "app/(dashboard)/layout.tsx",
+      "middleware.ts",
+      "public/mock/av/org.json",
+      "app/globals.css",
     ];
     const offenders: string[] = [];
     for (const file of files) {
