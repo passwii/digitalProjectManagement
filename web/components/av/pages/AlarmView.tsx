@@ -60,7 +60,7 @@ function statusTone(status: AlarmStatus): AvTone {
  * 只读 `?q=` 的极小客户端组件。
  *
  * 它必须单独待在 Suspense 里：`useSearchParams` 会让它所在的子树跳过静态渲染，
- * 如果把整页包进去，`/av/alarm` 的 50 条首屏就只剩 RSC payload，HTML 里是空的
+ * 如果把整页包进去，`/stream-monitor/alarm` 的 50 条首屏就只剩 RSC payload，HTML 里是空的
  * —— 慢网下核心页要等整包 JS 才出现内容。
  */
 function QuerySync({ onQuery }: { onQuery: (value: string) => void }) {
@@ -80,7 +80,7 @@ function QuerySync({ onQuery }: { onQuery: (value: string) => void }) {
  * 筛选只作用于**已加载**的告警，并在工具条上明说「已加载 N / 共 M」——
  * 全量筛选要扫 9 个分片（≈10MB），与演示站的首屏预算冲突。
  *
- * 深链接：`/av/alarm/AL-00042` 由服务端按 id 定位后传入 `initialAlarm`，
+ * 深链接：`/stream-monitor/alarm/AL-00042` 由服务端按 id 定位后传入 `initialAlarm`，
  * 打开时把 URL 用 replaceState 对齐到当前告警，关闭时退回列表页地址。
  */
 export default function AlarmView(props: AlarmViewProps) {
@@ -190,7 +190,7 @@ export default function AlarmView(props: AlarmViewProps) {
 
   const openAlarm = useCallback((alarm: Alarm) => {
     setSelectedId(alarm.id);
-    window.history.replaceState(null, "", `/av/alarm/${alarm.id}`);
+    window.history.replaceState(null, "", `/stream-monitor/alarm/${alarm.id}`);
   }, []);
 
   /**
@@ -204,7 +204,7 @@ export default function AlarmView(props: AlarmViewProps) {
     closeDialogWithMotion(dialog, () => {
       delete document.documentElement.dataset.avDialog;
       setSelectedId(null);
-      window.history.replaceState(null, "", "/av/alarm");
+      window.history.replaceState(null, "", "/stream-monitor/alarm");
     });
   }, []);
 
@@ -221,7 +221,7 @@ export default function AlarmView(props: AlarmViewProps) {
       </Suspense>
 
       <AvPageHeader
-        route="/av/alarm"
+        route="/stream-monitor/alarm"
         title="告警中心"
         subtitle="实时检测 · 自动分级 · 闭环处置。级别与状态同时用颜色和文字表达，筛选只作用于已加载分页。"
         aside={
@@ -577,7 +577,7 @@ function AlarmDetail({
         <div className={s.dialogActions}>
           {/* 只有真的落了频谱才给入口：音频时长 > 0 但没有频谱时进去会看到别人的图 */}
           {alarm.evidence.spectrum_id ? (
-            <Link className={s.primaryAction} href={`/av/audio?alarm=${alarm.id}`}>
+            <Link className={s.primaryAction} href={`/stream-monitor/audio?alarm=${alarm.id}`}>
               音频分析（频谱 + 转写）
             </Link>
           ) : (
@@ -586,11 +586,11 @@ function AlarmDetail({
             </span>
           )}
           {incidentId && (
-            <Link className={s.secondaryAction} href={`/av/event/${incidentId}`}>
+            <Link className={s.secondaryAction} href={`/stream-monitor/event/${incidentId}`}>
               查看关联事件
             </Link>
           )}
-          <Link className={s.secondaryAction} href="/av/alarm">
+          <Link className={s.secondaryAction} href="/stream-monitor/alarm">
             返回告警列表
           </Link>
         </div>

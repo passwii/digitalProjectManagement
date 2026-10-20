@@ -22,7 +22,7 @@ const hoverContracts = [
   },
 ] as const;
 
-describe("AV 侧栏链接 hover 样式契约", () => {
+describe("Stream Monitor 侧栏链接 hover 样式契约", () => {
   it.each(hoverContracts)(
     "$selector 明确关闭全局 hover 下划线",
     ({ pattern }: { selector: string; pattern: RegExp }) => {

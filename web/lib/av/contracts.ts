@@ -162,7 +162,7 @@ export interface EventViewProps {
   rows: EventRow[];
   /**
    * **只包含当前选中事件**的详情：207 个事件的完整时间线一起序列化会把 HTML 撑到
-   * 700KB+。切换事件走 `/av/event/:id` 的服务端渲染（深链接本来就要支持），
+   * 700KB+。切换事件走 `/stream-monitor/event/:id` 的服务端渲染（深链接本来就要支持），
    * 首屏只带一条详情。
    */
   detail: EventDetail | null;

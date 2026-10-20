@@ -6,7 +6,7 @@ import { describe, expect, it } from "vitest";
  * 核心页必须留在服务端 HTML 里（P1 回归守卫）。
  *
  * 背景：`useSearchParams` 是 client bailout —— 它所在的**整棵子树**都不会进静态
- * HTML。为了读一个 `?q=` 把整个 `AlarmView` 包进 `<Suspense>`，`/av/alarm` 的 50 条
+ * HTML。为了读一个 `?q=` 把整个 `AlarmView` 包进 `<Suspense>`，`/stream-monitor/alarm` 的 50 条
  * 首屏就只剩 RSC payload：HTML 从 ~117KB 掉到 ~68KB、关 JS 只剩 180 字，慢网首屏
  * 从 320ms 涨到 1.8s。页面上看不出来，只能靠服务端产物或源码形状守。
  *
@@ -16,8 +16,8 @@ import { describe, expect, it } from "vitest";
  *      并且那个组件自己在 Suspense 内。
  */
 
-const sectionPage = readFileSync(resolve(process.cwd(), "app/av/[section]/page.tsx"), "utf8");
-const detailPage = readFileSync(resolve(process.cwd(), "app/av/[section]/[id]/page.tsx"), "utf8");
+const sectionPage = readFileSync(resolve(process.cwd(), "app/stream-monitor/[section]/page.tsx"), "utf8");
+const detailPage = readFileSync(resolve(process.cwd(), "app/stream-monitor/[section]/[id]/page.tsx"), "utf8");
 const alarmView = readFileSync(resolve(process.cwd(), "components/av/pages/AlarmView.tsx"), "utf8");
 const shell = readFileSync(resolve(process.cwd(), "components/av/AvShell.tsx"), "utf8");
 

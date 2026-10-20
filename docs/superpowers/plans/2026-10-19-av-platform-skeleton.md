@@ -1,5 +1,11 @@
 # 智能音视频平台（`/av`）骨架实施记录
 
+> **⚠️ 路径已迁移（BLF-1387）**：本记录写于 BLF-1374 实施时，站点当时叫「智能音视频平台」、
+> 公开路径是 `/av`。BLF-1387 起站点改名为 **Stream Monitor**、公开路径迁到
+> **`/stream-monitor`**，旧路径 `/av/**` 由 middleware **308** 兼容重定向到新路径。
+> 本文档保留原样作为历史记录（决策背景仍然有效）；现行契约见
+> `web/lib/av/navigation.ts` 与 `web/lib/av/streamMonitorBranding.test.ts`。
+>
 > Stage 2 的实现记录与决策说明。任务原文见 BLF-1374；数据层见 BLF-1373（Stage 1）。
 
 **Goal:** 在现有 Next.js 项目里新增一个独立于 NebulaCloud 演示站的「智能音视频平台」演示入口（左侧 Spark 分组第二条），复刻参考骨架页面的信息结构，视觉基线按 `DESIGN.md` 的双主题令牌重新校准。

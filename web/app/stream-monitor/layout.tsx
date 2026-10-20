@@ -7,20 +7,20 @@ import AvMotionProvider from "@/components/av/motion/AvMotionProvider";
 import { AV_MOTION_BOOTSTRAP_SCRIPT } from "@/lib/av/motion";
 
 export const metadata: Metadata = {
-  title: "智能音视频平台",
-  description: "多模态融合感知 · 全场景智能安防演示站（本地 mock 数据）",
+  title: "Stream Monitor",
+  description: "多模态融合感知 · 全场景智能安防（本地 mock 数据）",
 };
 
 /**
- * AV 演示站根布局。
+ * stream monitor 根布局（`/stream-monitor`）。
  *
- * 刻意**不进** `(dashboard)` 的鉴权壳：`/av` 与 `/spark` 一样是纯演示入口，
+ * 刻意**不进** `(dashboard)` 的鉴权壳：`/stream-monitor` 与 `/spark` 一样是纯演示入口，
  * middleware 已把它放进 PUBLIC_PATHS。壳层只读一次 core 里的品牌与在线率，
- * 页面各自的聚合在 `/av/[section]/page.tsx` 里按需取，避免整站共用一份大 payload。
+ * 页面各自的聚合在 `app/stream-monitor/[section]/page.tsx` 里按需取，避免整站共用一份大 payload。
  *
  * 动效层（Stage 3）：
  *   · `MotionProvider` 复用主工作台已有的 LazyMotion + 页面加载进度（不重造）；
- *   · `AvMotionProvider` 在它内部补 `/av` 自己的 `domMax`（layoutId 需要）与
+ *   · `AvMotionProvider` 在它内部补站点自己的 `domMax`（layoutId 需要）与
  *     「减少动效 / ?static=1」两个开关；
  *   · 第一行的内联脚本必须留在 `<body>` 最前面：`?static=1` 要在**首帧之前**
  *     把 `data-av-motion="off"` 挂到 <html> 上，否则录屏 / 截图会先录进一段入场动画

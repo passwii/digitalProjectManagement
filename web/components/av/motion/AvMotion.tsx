@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * /av 的动效基元（Stage 3）。
+ * /stream-monitor 的动效基元（Stage 3）。
  *
  * 这一层只做「把入场 / 揭示挂到既有的 data-motion-* 挂载点上」，不改任何组件
  * 结构 —— Stage 2 已经把 key 与 DOM 顺序铺好了。
@@ -26,13 +26,13 @@ import s from "./AvMotion.module.css";
  * 两个实现细节都是踩出来的：
  *
  * ① **不能用 `key={pathname}` 重挂载来重播**。告警 / 设备的详情抽屉会调
- *    `history.replaceState` 把地址对齐到 `/av/alarm/AL-00037`，pathname 一变，
+ *    `history.replaceState` 把地址对齐到 `/stream-monitor/alarm/AL-00037`，pathname 一变，
  *    整棵子树就被卸载重建 —— 抽屉（原生 <dialog>）连同 state 一起消失，
  *    点一下告警卡片什么都不会弹出来。改成「同一个节点上重播 CSS 动画」：
  *    移除 class → 强制回流 → 加回 class。
  *
- * ② **用「分区键」而不是完整 pathname 当判定**。`/av/alarm` → `/av/alarm/AL-00042`
- *    是同一次交互（打开详情），不该重播整页入场；只有 `/av/overview` → `/av/alarm`
+ * ② **用「分区键」而不是完整 pathname 当判定**。`/stream-monitor/alarm` → `/stream-monitor/alarm/AL-00042`
+ *    是同一次交互（打开详情），不该重播整页入场；只有 `/stream-monitor/overview` → `/stream-monitor/alarm`
  *    这种真的换页才播。所以键取前两段路径。
  */
 function routeKeyOf(pathname: string): string {

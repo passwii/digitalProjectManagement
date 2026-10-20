@@ -6,7 +6,7 @@ import type { AvExtremes } from "@/lib/av/server";
 import s from "./AvPages.module.css";
 
 /**
- * `/av/__stress`：布局压力测试页（不进导航）。
+ * `/stream-monitor/__stress`：布局压力测试页（不进导航）。
  *
  * 目的不是演示，而是把 Stage 1 埋好的**最坏情况**一次性摊开，用来肉眼 + 截图确认
  * 布局不会在极端值下溢出：
@@ -24,7 +24,7 @@ export default function StressView({ core, extremes }: { core: DatasetCore; extr
   return (
     <div className={s.page} data-av-page="stress">
       <AvPageHeader
-        route="/av/__stress"
+        route="/stream-monitor/__stress"
         title="布局压力测试"
         subtitle="Stage 1 埋入的极端值样本一次性渲染：长标题 / 长房间名 / 多关键词 / 五位数 / 空态。本页不进导航，仅供布局回归。"
         aside={<span className={s.anchorChip}>{formatCount(extremes.total)} 条告警全量索引</span>}

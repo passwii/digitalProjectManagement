@@ -29,7 +29,7 @@ export default function MonitorView({ channels, counts, deviceTotal, signalHealt
   return (
     <div className={s.page} data-av-page="monitor">
       <AvPageHeader
-        route="/av/monitor"
+        route="/stream-monitor/monitor"
         title="实时音视频监控"
         subtitle={`多模态感知通道：音频拾取与视频画面按场景聚合（本页展示 ${channels.length} 路，全量设备 ${deviceTotal} 台）。通道状态与信号强度来自设备心跳。`}
         aside={
@@ -182,7 +182,7 @@ export default function MonitorView({ channels, counts, deviceTotal, signalHealt
                   </td>
                   <td className={s.num}>{toRelative(gateway.heartbeatOffsetMinutes)}</td>
                   <td className={s.num}>
-                    <Link href="/av/device" className={s.textLink}>设备台账 →</Link>
+                    <Link href="/stream-monitor/device" className={s.textLink}>设备台账 →</Link>
                   </td>
                 </tr>
               ))}

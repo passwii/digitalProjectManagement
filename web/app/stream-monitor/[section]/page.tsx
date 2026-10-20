@@ -18,12 +18,12 @@ import DeviceView from "@/components/av/pages/DeviceView";
 import CapabilityView from "@/components/av/pages/CapabilityView";
 
 /**
- * `/av/[section]` 的 6 个视图。
+ * `/stream-monitor/[section]` 的 6 个视图。
  *
  * 全部是 Server Component：数据在服务端聚合完再交给视图，浏览器不为首屏再发一遍
- * JSON 请求（`/av/overview` 因此远低于 AC10 的 1MB 预算）。
+ * JSON 请求（`/stream-monitor/overview` 因此远低于 AC10 的 1MB 预算）。
  * 允许的 section 只有 `AV_PAGES` 里的 6 个，其余一律 404 —— 辅助页
- * （`/av/audio`、`/av/__stress`）是独立静态段，优先级高于本动态段。
+ * （`/stream-monitor/audio`、`/stream-monitor/__stress`）是独立静态段，优先级高于本动态段。
  */
 
 export function generateStaticParams() {
@@ -32,8 +32,8 @@ export function generateStaticParams() {
 
 export function generateMetadata({ params }: { params: { section: string } }): Metadata {
   const page = avPageForSection(params.section);
-  if (!page) return { title: "智能音视频平台" };
-  return { title: `${page.label} · 智能音视频平台`, description: page.summary };
+  if (!page) return { title: "Stream Monitor" };
+  return { title: `${page.label} · Stream Monitor`, description: page.summary };
 }
 
 export default async function AvSectionPage({ params }: { params: { section: string } }) {

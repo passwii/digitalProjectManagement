@@ -1,5 +1,5 @@
 /**
- * 智能音视频平台（/av）动效令牌 · Stage 3 / BLF-1375
+ * Stream Monitor 动效令牌 · Stage 3 / BLF-1375
  *
  * 为什么先有这一层：Stage 2 之后全站只有 2 处 transition，逐页补动效的结果一定是
  * 20 种 duration（每组各拍一个数）。这个文件是**唯一真源**：四档时长 + 三条曲线 +
@@ -36,7 +36,7 @@
  * `?static=1`（录屏 / 截图）与 `prefers-reduced-motion: reduce` 下，所有时长在这里
  * 统一归零：`avDurationSeconds()` 返回 0，`avItemMotion()` 直接给 `initial: false`。
  * CSS 侧由 `:root[data-av-motion="off"]` 一次性把 `--av-dur-*` 归零并关掉动画，
- * 属性由 `AV_MOTION_BOOTSTRAP_SCRIPT` 在首帧前挂上（见 app/av/layout.tsx）。
+ * 属性由 `AV_MOTION_BOOTSTRAP_SCRIPT` 在首帧前挂上（见 app/stream-monitor/layout.tsx）。
  *
  * ⚠️ 本文件必须保持**纯逻辑**（不引 React / 不碰 DOM），这样 node:test 与 vitest
  * 都能直接测，服务端组件也能安全 import。
@@ -121,7 +121,7 @@ export const AV_MOTION_CSS_VARIABLES: Readonly<Record<string, string>> = {
  * 首帧前执行的开关脚本。
  *
  * 必须**同步**跑在 <body> 解析时（不能用 useEffect）：截图 / 录屏场景下，
- * 等 React 水合再关动效，第一帧已经把入场动画录进去了。所以 app/av/layout.tsx
+ * 等 React 水合再关动效，第一帧已经把入场动画录进去了。所以 app/stream-monitor/layout.tsx
  * 把这段以普通 <script> 内联在页面最前面。
  */
 export const AV_MOTION_BOOTSTRAP_SCRIPT = `(function(){try{var v=new URLSearchParams(window.location.search).get("${AV_STATIC_QUERY}");var frozen=v!==null&&v!=="0"&&v!=="false";document.documentElement.setAttribute("${AV_MOTION_ATTRIBUTE}",frozen?"off":"on")}catch(e){}})();`;
