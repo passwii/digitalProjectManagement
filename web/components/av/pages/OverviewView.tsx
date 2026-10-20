@@ -74,7 +74,7 @@ export default function OverviewView(props: OverviewProps) {
       <AvPageHeader
         route="/stream-monitor/overview"
         title="总览驾驶舱"
-        subtitle="多模态融合感知 · 全场景智能安防。所有数值来自历史数据集，锚点 2026-10-19 12:00。"
+        subtitle="多模态融合感知 · 全场景智能安防。所有数值截至数据锚点 2026-10-19 12:00。"
         actions={<AvTabs items={RANGE_TABS} value={range} onChange={setRange} ariaLabel="时间范围" />}
         aside={<span className={s.anchorChip}>数据锚点 {props.anchorLabel}</span>}
       />
@@ -270,7 +270,7 @@ export default function OverviewView(props: OverviewProps) {
 
         <AvPanel
           title="实时告警流"
-          subtitle="首屏仅加载 1 页分片；相对时间按数据集锚点换算"
+          subtitle="列表按需逐页加载；相对时间按数据锚点换算"
           icon="alarm"
           meta={paused ? "已暂停轮播" : `已展示 ${visibleAlarms.length} / ${props.recent.length}`}
           action={

@@ -1,4 +1,4 @@
-// 数据加载器：把 web/public/mock/av 下的静态 JSON 组装成带类型的数据集。
+// 数据加载器：把 web/public/stream-monitor-data 下的静态 JSON 组装成带类型的数据集。
 //
 // 用法（Next 页面 / 浏览器）：
 //   import { loadCore, loadAlarmPage } from "@/lib/av/load";
@@ -36,7 +36,7 @@ import type {
 import { clampPageSize, parseCursor, takeFromShard } from "./pagination";
 
 /** 默认静态路径：Next 把 web/public 映射到站点根路径 */
-export const DEFAULT_BASE_URL = "/mock/av";
+export const DEFAULT_BASE_URL = "/stream-monitor-data";
 
 /** 取数函数：返回已解析的 JSON；测试里可以注入读文件的实现 */
 export type Fetcher = (url: string) => Promise<unknown>;
@@ -84,7 +84,7 @@ export function loadAlarmShard(
   fetcher?: Fetcher,
 ): Promise<AlarmShardFile> {
   if (shardIndex < 0 || shardIndex >= index.shards.length) {
-    throw new Error(`告警分片号越界：${shardIndex}`);
+    throw new Error(`告警序号越界：${shardIndex}`);
   }
   return getJson<AlarmShardFile>(baseUrl, index.shards[shardIndex].file, fetcher);
 }

@@ -1,4 +1,4 @@
-// Stream Monitor · Mock 数据契约（与 web/public/mock/av/*.json 一一对应）
+// Stream Monitor 数据契约（与 web/public/stream-monitor-data/*.json 一一对应）
 //
 // 时间约定（最重要的一条）：
 //   所有时间字段都是 **相对锚点的分钟偏移**，后缀统一为 `*_offset_minutes`。

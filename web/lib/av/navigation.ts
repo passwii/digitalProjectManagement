@@ -5,8 +5,8 @@
  * `layoutId` 与页面过渡 key）都从这份清单生成，不要再在组件里手写第二份数组。
  *
  * 与 `/spark` 的 SPARK_PAGES 刻意分开：
- *   · Spark 是 NebulaCloud 云电竞演示站，8 个页面、一套独立暗色视觉；
- *   · 音视频平台是 stream monitor 演示站，6 个页面、跟随项目 DESIGN.md 的深浅双主题。
+ *   · Spark 是云电竞管理平台，8 个页面、一套独立暗色视觉；
+ *   · 音视频平台是 Stream Monitor，6 个页面、跟随项目 DESIGN.md 的深浅双主题。
  * 两者在左侧导航里同属「Spark」分组，但互不共享壳层与路由表。
  */
 
@@ -19,7 +19,7 @@
  */
 export const AV_BASE_PATH = "/stream-monitor";
 
-/** 独立浏览上下文：避免与 NebulaCloud 演示站抢同一个标签页。 */
+/** 独立浏览上下文：避免与云电竞管理平台抢同一个标签页。 */
 export const AV_WINDOW_TARGET = "stream-monitor";
 
 export const AV_PAGES = [
@@ -89,7 +89,7 @@ export const AV_HOME = `${AV_BASE_PATH}/overview`;
 
 /** 不属于导航、但允许直达的两个辅助页（Stage 2 §二）。 */
 export const AV_HIDDEN_ROUTES = [
-  { slug: "__stress", label: "布局压力测试", summary: "极端值样本一次性渲染，不进导航" },
+  { slug: "__stress", label: "极端值校验", summary: "极端值样本一次性渲染，不进导航" },
   { slug: "audio", label: "音频分析", summary: "频谱与转写，从告警详情进入，不进导航" },
 ] as const;
 

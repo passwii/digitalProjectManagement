@@ -48,11 +48,11 @@ describe("告警游标分页", () => {
     assert.equal(formatCursor({ shard: 1, offset: 7 }), "1:7");
   });
 
-  it("拒绝非法游标（格式 / 分片号 / 分片内偏移）", () => {
+  it("拒绝非法游标（格式 / 序号 / 页内偏移）", () => {
     assert.throws(() => parseCursor("abc", index), /游标格式不合法/);
     assert.throws(() => parseCursor("0", index), /游标格式不合法/);
-    assert.throws(() => parseCursor("9:0", index), /分片号越界/);
-    assert.throws(() => parseCursor("0:999", index), /分片内偏移越界/);
+    assert.throws(() => parseCursor("9:0", index), /位置序号越界/);
+    assert.throws(() => parseCursor("0:999", index), /页内偏移越界/);
   });
 
   it("页大小被夹在 [1, max_page_size] 内", () => {

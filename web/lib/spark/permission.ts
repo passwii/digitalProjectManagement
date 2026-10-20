@@ -36,21 +36,21 @@ export const ROLE_PERMISSION_MATRIX: Record<SparkRoleName, Record<(typeof PERMIS
 };
 
 export const PERMISSION_MEMBERS: SparkMember[] = [
-  { id: "U001", name: "陆景明", email: "lu.jm@nebulacloud.cn", role: "超级管理员", store: "苏州总部", phone: "138****6601", lastLogin: "2026-06-08 22:18", enabled: true },
-  { id: "U002", name: "陈景舟", email: "chen.jz@nebulacloud.cn", role: "区域总监（苏州）", store: "姑苏区 / 吴中区", phone: "138****6602", lastLogin: "2026-06-08 21:42", enabled: true },
-  { id: "U003", name: "韩沐辰", email: "han.mc@nebulacloud.cn", role: "区域总监（苏州）", store: "工业园区 / 昆山", phone: "138****6603", lastLogin: "2026-06-08 22:05", enabled: true },
-  { id: "U004", name: "秦朗", email: "qin.l@nebulacloud.cn", role: "区域总监（苏州）", store: "高新区 / 相城", phone: "138****6604", lastLogin: "2026-06-08 20:26", enabled: true },
-  { id: "U005", name: "卢思远", email: "lu.sy@nebulacloud.cn", role: "区域总监（苏州）", store: "吴江 / 常熟 / 张家港 / 太仓", phone: "138****6605", lastLogin: "2026-06-08 19:48", enabled: true },
-  { id: "U006", name: "顾云舟", email: "gu.yz@nebulacloud.cn", role: "门店店长", store: "李公堤湖景店", phone: "138****6606", lastLogin: "2026-06-08 22:12", enabled: true },
-  { id: "U007", name: "江慕白", email: "jiang.mb@nebulacloud.cn", role: "门店店长", store: "昆山金鹰旗舰店", phone: "138****6607", lastLogin: "2026-06-08 22:25", enabled: true },
-  { id: "U008", name: "高启明", email: "gao.qm@nebulacloud.cn", role: "运维工程师", store: "苏州总部 · 网络组", phone: "138****6608", lastLogin: "2026-06-08 22:20", enabled: true },
-  { id: "U009", name: "宋知远", email: "song.zy@nebulacloud.cn", role: "运维工程师", store: "苏州 IDC", phone: "138****6609", lastLogin: "2026-06-08 21:50", enabled: true },
-  { id: "U010", name: "孟雪", email: "meng.x@nebulacloud.cn", role: "财务专员", store: "苏州总部 · 财务", phone: "138****6610", lastLogin: "2026-06-08 18:22", enabled: true },
-  { id: "U011", name: "方景", email: "fang.j@nebulacloud.cn", role: "内容运营", store: "苏州总部 · 内容", phone: "138****6611", lastLogin: "2026-06-08 20:08", enabled: true },
-  { id: "U012", name: "钟予安", email: "zhong.ya@nebulacloud.cn", role: "安全审计员", store: "苏州总部 · 安全", phone: "138****6612", lastLogin: "2026-06-08 22:28", enabled: true },
-  { id: "U013", name: "赵子昂", email: "zhao.za@nebulacloud.cn", role: "门店店长", store: "石路中心店", phone: "138****6613", lastLogin: "2026-06-08 19:36", enabled: true },
-  { id: "U014", name: "何一凡", email: "he.yf@nebulacloud.cn", role: "前台收银", store: "石路中心店", phone: "138****6614", lastLogin: "2026-06-08 20:30", enabled: true },
-  { id: "U015", name: "周予安", email: "zhou.ya2@nebulacloud.cn", role: "前台收银", store: "独墅湖高校店", phone: "138****6615", lastLogin: "2026-06-08 21:18", enabled: false },
+  { id: "U001", name: "陆景明", email: "lu.jm@yunqi-sports.cn", role: "超级管理员", store: "苏州总部", phone: "138****6601", lastLogin: "2026-06-08 22:18", enabled: true },
+  { id: "U002", name: "陈景舟", email: "chen.jz@yunqi-sports.cn", role: "区域总监（苏州）", store: "姑苏区 / 吴中区", phone: "138****6602", lastLogin: "2026-06-08 21:42", enabled: true },
+  { id: "U003", name: "韩沐辰", email: "han.mc@yunqi-sports.cn", role: "区域总监（苏州）", store: "工业园区 / 昆山", phone: "138****6603", lastLogin: "2026-06-08 22:05", enabled: true },
+  { id: "U004", name: "秦朗", email: "qin.l@yunqi-sports.cn", role: "区域总监（苏州）", store: "高新区 / 相城", phone: "138****6604", lastLogin: "2026-06-08 20:26", enabled: true },
+  { id: "U005", name: "卢思远", email: "lu.sy@yunqi-sports.cn", role: "区域总监（苏州）", store: "吴江 / 常熟 / 张家港 / 太仓", phone: "138****6605", lastLogin: "2026-06-08 19:48", enabled: true },
+  { id: "U006", name: "顾云舟", email: "gu.yz@yunqi-sports.cn", role: "门店店长", store: "李公堤湖景店", phone: "138****6606", lastLogin: "2026-06-08 22:12", enabled: true },
+  { id: "U007", name: "江慕白", email: "jiang.mb@yunqi-sports.cn", role: "门店店长", store: "昆山金鹰旗舰店", phone: "138****6607", lastLogin: "2026-06-08 22:25", enabled: true },
+  { id: "U008", name: "高启明", email: "gao.qm@yunqi-sports.cn", role: "运维工程师", store: "苏州总部 · 网络组", phone: "138****6608", lastLogin: "2026-06-08 22:20", enabled: true },
+  { id: "U009", name: "宋知远", email: "song.zy@yunqi-sports.cn", role: "运维工程师", store: "苏州 IDC", phone: "138****6609", lastLogin: "2026-06-08 21:50", enabled: true },
+  { id: "U010", name: "孟雪", email: "meng.x@yunqi-sports.cn", role: "财务专员", store: "苏州总部 · 财务", phone: "138****6610", lastLogin: "2026-06-08 18:22", enabled: true },
+  { id: "U011", name: "方景", email: "fang.j@yunqi-sports.cn", role: "内容运营", store: "苏州总部 · 内容", phone: "138****6611", lastLogin: "2026-06-08 20:08", enabled: true },
+  { id: "U012", name: "钟予安", email: "zhong.ya@yunqi-sports.cn", role: "安全审计员", store: "苏州总部 · 安全", phone: "138****6612", lastLogin: "2026-06-08 22:28", enabled: true },
+  { id: "U013", name: "赵子昂", email: "zhao.za@yunqi-sports.cn", role: "门店店长", store: "石路中心店", phone: "138****6613", lastLogin: "2026-06-08 19:36", enabled: true },
+  { id: "U014", name: "何一凡", email: "he.yf@yunqi-sports.cn", role: "前台收银", store: "石路中心店", phone: "138****6614", lastLogin: "2026-06-08 20:30", enabled: true },
+  { id: "U015", name: "周予安", email: "zhou.ya2@yunqi-sports.cn", role: "前台收银", store: "独墅湖高校店", phone: "138****6615", lastLogin: "2026-06-08 21:18", enabled: false },
 ];
 
 export const PERMISSION_AUDIT_LOGS = [

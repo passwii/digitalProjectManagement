@@ -37,12 +37,12 @@ import type { DatasetCore } from "./types";
 
 function resolveDataDir(): string {
   const candidates = [
-    resolve(process.cwd(), "public/mock/av"),
-    resolve(process.cwd(), "web/public/mock/av"),
-    resolve(__dirname, "../../../public/mock/av"),
+    resolve(process.cwd(), "public/stream-monitor-data"),
+    resolve(process.cwd(), "web/public/stream-monitor-data"),
+    resolve(__dirname, "../../../public/stream-monitor-data"),
   ];
   const hit = candidates.find((dir) => existsSync(join(dir, "index.json")));
-  assert.ok(hit, `找不到 mock 数据目录，试过：${candidates.join("，")}`);
+  assert.ok(hit, `找不到 Stream Monitor 数据目录，试过：${candidates.join("，")}`);
   return hit;
 }
 

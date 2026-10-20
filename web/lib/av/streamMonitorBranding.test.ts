@@ -110,7 +110,7 @@ describe("Stream Monitor 品牌与路径契约（BLF-1387）", () => {
   const audioPage = source("app/stream-monitor/audio/page.tsx");
   const stressPage = source("app/stream-monitor/%5F%5Fstress/page.tsx");
   const desktopLayout = source("app/(dashboard)/layout.tsx");
-  const orgFixture = JSON.parse(source("public/mock/av/org.json")) as {
+  const orgFixture = JSON.parse(source("public/stream-monitor-data/org.json")) as {
     name: string;
     shortName: string;
     copyright: string;
@@ -139,7 +139,7 @@ describe("Stream Monitor 品牌与路径契约（BLF-1387）", () => {
     assert.match(sectionPage, /`\$\{page\.label\} · Stream Monitor`/);
     assert.match(detailPage, /"Stream Monitor"/);
     assert.match(audioPage, /title: "音频分析 · Stream Monitor"/);
-    assert.match(stressPage, /title: "布局压力测试 · Stream Monitor"/);
+    assert.match(stressPage, /title: "极端值校验 · Stream Monitor"/);
   });
 
   it("工作台侧栏入口使用统一名称与新路径", () => {
@@ -186,9 +186,9 @@ describe("Stream Monitor 品牌与路径契约（BLF-1387）", () => {
   it("内部标识符与 fixture 路径保持不变（不做无谓重命名）", () => {
     // AV_PAGES / AV_HOME / AV_WINDOW_TARGET 是内部契约名
     assert.match(source("lib/av/navigation.ts"), /export const AV_PAGES/);
-    // 数据目录仍是 public/mock/av（脚本 / 契约测试都按这个路径读）
-    assert.match(source("lib/av/load.ts"), /"\/mock\/av"/);
-    assert.match(source("lib/av/server.ts"), /public\/mock\/av/);
+    // 数据目录是 public/stream-monitor-data（脚本 / 契约测试都按这个路径读）
+    assert.match(source("lib/av/load.ts"), /"\/stream-monitor-data"/);
+    assert.match(source("lib/av/server.ts"), /public\/stream-monitor-data/);
   });
 
   it("站点源文件里没有 UTF-8 替换字符（U+FFFD），改名前后的中文都没被写坏", () => {
@@ -210,7 +210,7 @@ describe("Stream Monitor 品牌与路径契约（BLF-1387）", () => {
       // 改名同时动过工作台壳层与 middleware（都在站点目录之外，但属于同一次迁移）
       "app/(dashboard)/layout.tsx",
       "middleware.ts",
-      "public/mock/av/org.json",
+      "public/stream-monitor-data/org.json",
       "app/globals.css",
     ];
     const offenders: string[] = [];

@@ -239,7 +239,7 @@ export default function AlarmView(props: AlarmViewProps) {
           title="实时告警列表"
           subtitle={`已加载 ${formatCount(alarms.length)} / 共 ${formatCount(props.total)} 条 · 每页 ${PAGE_SIZE} 条`}
           icon="alarm"
-          meta={error ? "加载失败" : loading ? "加载中…" : "分片分页"}
+          meta={error ? "加载失败" : loading ? "加载中…" : "按需加载"}
           motionKey="alarm-list"
         >
           <div className={s.alarmToolbar}>
@@ -302,7 +302,7 @@ export default function AlarmView(props: AlarmViewProps) {
                 {loading ? "加载中…" : "加载下一页"}
               </button>
             ) : (
-              <span className={s.softNote}>已加载全部分片</span>
+              <span className={s.softNote}>已加载全部告警</span>
             )}
           </div>
           {error && <p className={s.softNote} role="alert">加载失败：{error}</p>}

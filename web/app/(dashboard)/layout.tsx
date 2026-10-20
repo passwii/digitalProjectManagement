@@ -519,8 +519,8 @@ function DashboardShell({ children, modal }: { children: React.ReactNode; modal?
             return (
               <Fragment key={n.href}>
                 {startsSparkGroup && (
-                  <span className={s.navGroupLabel} title="Spark" aria-hidden={collapsed}>
-                    {collapsed ? "——" : "Spark"}
+                  <span className={s.navGroupLabel} title="独立站点" aria-hidden={collapsed}>
+                    {collapsed ? "——" : "独立站点"}
                   </span>
                 )}
                 <Link

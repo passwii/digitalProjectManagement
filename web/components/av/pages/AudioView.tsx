@@ -240,7 +240,7 @@ export default function AudioView({ alarm, spectrum, transcript, samples }: Audi
               {playing ? "暂停" : "播放"}
             </button>
             <span className={s.softNote}>
-              数据集只提供频谱矩阵与转写，未包含音频文件：游标按 1 倍速走完 {formatSeconds(spectrum.seconds)}，
+              当前仅提供频谱矩阵与转写，未包含音频文件：游标按 1 倍速走完 {formatSeconds(spectrum.seconds)}，
               用于呈现「转写跟随游标高亮」的交互（rAF 驱动，不用 CSS transition）。
             </span>
           </div>

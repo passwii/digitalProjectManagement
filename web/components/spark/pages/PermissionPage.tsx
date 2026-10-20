@@ -42,7 +42,7 @@ export default function PermissionPage() {
     const member = {
       id: `U${String(nextNumber).padStart(3, "0")}`,
       name,
-      email: `${name.toLocaleLowerCase("zh-CN").replace(/\s+/g, ".")}@nebulacloud.cn`,
+      email: `${name.toLocaleLowerCase("zh-CN").replace(/\s+/g, ".")}@yunqi-sports.cn`,
       role: draftRole,
       store: draftStore.trim() || "苏州总部",
       phone: "138****6616",
