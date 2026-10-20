@@ -7,7 +7,7 @@ import { describe, expect, it } from "vitest";
  *
  * Stage 2 的两条硬约束，靠“看代码”无法保证，必须让 CI 来守：
  *   · 组件里不允许出现颜色字面量（颜色只能来自 CSS 变量 / 令牌）；
- *   · 页面组件里不允许出现业务数字（数量、总量、条数必须来自 /mock/av）。
+ *   · 页面组件里不允许出现业务数字（数量、总量、条数必须来自 /stream-monitor-data）。
  *
  * 纯源码扫描，不渲染，因此放在 node 环境的 vitest 里。
  */

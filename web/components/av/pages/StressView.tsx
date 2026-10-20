@@ -25,8 +25,8 @@ export default function StressView({ core, extremes }: { core: DatasetCore; extr
     <div className={s.page} data-av-page="stress">
       <AvPageHeader
         route="/stream-monitor/__stress"
-        title="布局压力测试"
-        subtitle="数据集内置的极端值样本一次性渲染：长标题 / 长房间名 / 多关键词 / 五位数 / 空态。本页不进导航，仅供布局回归。"
+        title="极端值校验"
+        subtitle="内置的极端值样本一次性渲染：长标题 / 长房间名 / 多关键词 / 五位数 / 空态。本页不进导航，仅供内部校验。"
         aside={<span className={s.anchorChip}>{formatCount(extremes.total)} 条告警全量索引</span>}
       />
 
@@ -107,7 +107,7 @@ export default function StressView({ core, extremes }: { core: DatasetCore; extr
       <div className={s.gridTwo}>
         <AvPanel title="空态：0 告警点位" subtitle="180 天里从未产生告警的点位" icon="device" meta={`${extremes.zeroAlarmPoints.length} 个`} motionKey="stress-zero-points">
           {extremes.zeroAlarmPoints.length === 0 ? (
-            <AvEmpty title="没有 0 告警点位" hint="数据集里每个点位都至少产生过一条告警。" />
+            <AvEmpty title="没有 0 告警点位" hint="当前每个点位都至少产生过一条告警。" />
           ) : (
             <ul className={s.attentionList}>
               {extremes.zeroAlarmPoints.map((point) => (
@@ -128,7 +128,7 @@ export default function StressView({ core, extremes }: { core: DatasetCore; extr
 
         <AvPanel title="空态：0 告警自然日" subtitle="180 天里没有任何告警的日期" icon="event" meta={`${extremes.emptyDays.length} 天`} motionKey="stress-empty-days">
           {extremes.emptyDays.length === 0 ? (
-            <AvEmpty title="每天都有告警" hint="数据集覆盖的日期里没有 0 告警的自然日。" />
+            <AvEmpty title="每天都有告警" hint="当前覆盖的日期里没有 0 告警的自然日。" />
           ) : (
             <ul className={s.attentionList}>
               {extremes.emptyDays.map((day) => (

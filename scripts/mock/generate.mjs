@@ -20,8 +20,8 @@ import { fileURLToPath } from "node:url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = join(__dirname, "..", "..");
-/** 数据集落位：Next 静态服务目录，前端 fetch("/mock/av/...") */
-const OUT = join(REPO_ROOT, "web", "public", "mock", "av");
+/** 数据集落位：Next 静态服务目录，前端 fetch("/stream-monitor-data/...") */
+const OUT = join(REPO_ROOT, "web", "public", "stream-monitor-data");
 
 // ============================================================
 // 0. 确定性随机（mulberry32）
@@ -1782,7 +1782,7 @@ const alarmsIndex = {
     total: allAlarms.length,
     shard_count: shardMeta.length,
     sorted_by: "ts_offset_minutes asc（新 → 旧）",
-    note: "首屏只加载本文件；列表按 cursor 懒加载分片，不要一次拉全部。",
+    note: "首页只加载本文件；列表按 cursor 逐段加载，不要一次拉全部。",
   },
   pagination: {
     page_size: 50,
@@ -1845,7 +1845,7 @@ write("device-stats.json", deviceStats, { pretty: true });
 
 const allFiles = [...written.map((w) => w.name)].sort();
 write("index.json", {
-  generated_by: "scripts/mock/generate.mjs",
+  generated_by: "stream-monitor data generator",
   seed: SEED,
   anchor: DEMO_ANCHOR,
   timezone: "UTC+8",

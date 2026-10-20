@@ -29,7 +29,7 @@ describe("云电竞管理平台品牌契约", () => {
     assert.match(sparkMetadata, /title:\s*\{\s*absolute:\s*"云电竞管理平台"/);
     assert.match(sparkMetadata, /description:.*云电竞管理平台/);
     assert.doesNotMatch(sparkMetadata, /NebulaCloud/);
-    assert.match(changelog, /title: "免登录云电竞管理平台"/);
+    assert.match(changelog, /title: "云电竞管理平台"/);
     assert.doesNotMatch(changelog, /新增可公开访问的 NebulaCloud 演示站/);
   });
 

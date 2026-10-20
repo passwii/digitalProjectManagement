@@ -38,7 +38,7 @@ export default async function AudioPage({ searchParams }: { searchParams: { alar
             hint="这条告警没有落盘频谱（或编号不存在）。请从告警详情里的「音频分析」入口进入有音频证据的告警。"
           />
         ) : (
-          <AvEmpty title="没有可分析的音频" hint="数据集里没有带频谱的告警。" />
+          <AvEmpty title="没有可分析的音频" hint="当前没有带频谱的告警。" />
         )}
       </div>
     );

@@ -181,8 +181,8 @@ export default function AvShell({
 
         <div className={s.sidebarFoot}>
           <div className={s.footMeta}>
-            <span>数据锚点 2026-10-19 12:00 · 历史数据集</span>
-            <span>{onlineRate != null ? `在线设备 ${deviceOnline}/${deviceTotal}` : "数据集就绪"}</span>
+            <span>数据锚点 2026-10-19 12:00</span>
+            <span>{onlineRate != null ? `在线设备 ${deviceOnline}/${deviceTotal}` : "数据就绪"}</span>
           </div>
           <button
             type="button"
@@ -236,7 +236,7 @@ export default function AvShell({
           </form>
 
           <div className={s.topbarRight}>
-            <span className={s.chip} title="页面展示历史数据集的统计结果，指标按数据锚点计算">
+            <span className={s.chip} title="页面展示数据锚点时刻的统计结果">
               <i className={s.chipDot} aria-hidden="true" />
               数据锚点 2026-10-19 12:00
             </span>
