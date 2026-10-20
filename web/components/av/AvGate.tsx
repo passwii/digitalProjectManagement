@@ -10,7 +10,7 @@ import s from "./AvGate.module.css";
  * 设计约束（Stage 2 §四）：
  *   · **不阻塞**直接访问 `/stream-monitor/overview` —— 只有显式带 `gate=1` 才出现；
  *   · 6 格验证码自动跳格、退格回退，满 6 位才解锁按钮；
- *   · 这是一个演示仪式，不做真实校验：任意 6 位都能进入（文案里写明）。
+ *   · 这是一个进入仪式，不做口令校验：任意 6 位都能进入（文案里写明）。
  *
  * 为什么放在壳层：`/stream-monitor` 会在 middleware 里 301 到 `/stream-monitor/overview`，查询串被保留，
  * 所以门禁必须在页面渲染完之后盖在内容上，而不是一个独立路由。
@@ -70,10 +70,10 @@ function GateOverlay() {
       <div className={s.card}>
         <div className={s.brand}>
           <span className={s.mark} aria-hidden="true" />
-          Stream Monitor · 安全验证
+          智能音视频平台 · 安全验证
         </div>
         <h2 id="av-gate-title">平台管理员二次验证</h2>
-        <p className={s.copy}>输入 6 位动态口令进入运营工作台。演示环境不校验真实口令，任意 6 位均可解锁。</p>
+        <p className={s.copy}>输入 6 位动态口令进入运营工作台。本入口不校验真实口令，任意 6 位均可解锁。</p>
 
         <div className={s.code} role="group" aria-label="6 位动态口令">
           {digits.map((digit, index) => (
@@ -105,8 +105,7 @@ function GateOverlay() {
         </div>
 
         <div className={s.meta}>
-          <span>STREAM MONITOR CONSOLE</span>
-          <span>DEMO · 本地校验</span>
+          <span>多模态感知运营平台</span>
         </div>
       </div>
     </div>

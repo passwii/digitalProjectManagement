@@ -16,7 +16,7 @@ import EventView from "@/components/av/pages/EventView";
  */
 
 export function generateMetadata({ params }: { params: { section: string; id: string } }): Metadata {
-  const label = params.section === "alarm" ? "告警详情" : params.section === "event" ? "事件详情" : "Stream Monitor";
+  const label = params.section === "alarm" ? "告警详情" : params.section === "event" ? "事件详情" : "智能音视频平台";
   return { title: `${decodeURIComponent(params.id)} · ${label}` };
 }
 

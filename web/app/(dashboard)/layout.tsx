@@ -21,7 +21,7 @@ import { PageTitleContext } from "@/components/ui/PageTitleContext";
 import s from "@/components/ui/Shell.module.css";
 
 /**
- * 业务菜单由 `/meta/me/menus` 决定（Stage 1 契约）；Spark 演示站是独立的本地静态入口。
+ * 业务菜单由 `/meta/me/menus` 决定（Stage 1 契约）；Spark 与智能音视频平台是独立的静态站点入口。
  * · 管理员额外拿到「审批中心」「系统管理」；
  * · 非管理员不会拿到管理与审批入口，也不会看到必然 403 的按钮。
  * 这里只做 href → 图标/兜底文案的映射，不硬编码角色判断。
@@ -121,7 +121,7 @@ const LABEL: Record<string, string> = {
   "/finance": "财务管理",
   "/dev/date-picker": "日期组件",
   "/spark": "云电竞管理平台",
-  "/stream-monitor": "Stream Monitor",
+  "/stream-monitor": "智能音视频平台",
 };
 
 /** 工作台恒可见；权限同步失败时退回这组参与性入口，绝不因同步失败就清空导航 */
@@ -409,8 +409,8 @@ function DashboardShell({ children, modal }: { children: React.ReactNode; modal?
       if (out.some((o) => o.href === it.href)) continue;
       out.push({ ...it, icon: ICON[it.href] });
     }
-    // Spark 分组下两条独立演示入口：云电竞管理平台与 Stream Monitor 音视频平台。
-    // 两者是完全不同的演示产品，各自一个 target，互不抢同一个标签页。
+    // Spark 分组下两条独立站点入口：云电竞管理平台与智能音视频平台。
+    // 两者是完全不同的产品，各自一个 target，互不抢同一个标签页。
     out.push({ href: "/spark", label: LABEL["/spark"], icon: ICON["/spark"] });
     out.push({ href: "/stream-monitor", label: LABEL["/stream-monitor"], icon: ICON["/stream-monitor"] });
     return out;
@@ -519,8 +519,8 @@ function DashboardShell({ children, modal }: { children: React.ReactNode; modal?
             return (
               <Fragment key={n.href}>
                 {startsSparkGroup && (
-                  <span className={s.navGroupLabel} title="Spark" aria-hidden={collapsed}>
-                    {collapsed ? "——" : "Spark"}
+                  <span className={s.navGroupLabel} title="独立站点" aria-hidden={collapsed}>
+                    {collapsed ? "——" : "独立站点"}
                   </span>
                 )}
                 <Link

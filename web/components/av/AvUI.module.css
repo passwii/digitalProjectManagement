@@ -6,11 +6,24 @@
  *
  * 这一层存在的意义是把「一页里重复 8 次的卡片头 / 度量值 / 图例」收敛成组件，
  * 否则每个页面各写一遍，深浅主题下慢慢走形。
+ *
+ * 控件高度走 globals.css 的基线令牌（BLF-1398）：
+ *   --av-ctl-page-tab（28px）分段控件的单个 Tab
+ *   --av-ctl-badge（22px）告警级别徽标 / 状态标签
+ *
+ * 排版标定走 globals.css 的另一套令牌（BLF-1399）：
+ *   --av-space-1..5（4 / 8 / 12 / 16 / 24px）间距刻度，全站只允许这五档；
+ *   --av-pad-panel-x / --av-pad-panel-y 面板头与面板体共用的内边距（左右必须相等）；
+ *   --av-pad-card 卡片内边距；--av-card-min-* 同类卡片的最小高度；
+ *   --av-text-* 字号层级（标题 / 正文 / 辅助说明）。
+ * 本文件里**不再出现**裸的间距与字号字面量 —— 全部走令牌，
+ * 这样「间距节奏」是一套可查、可守的规格，而不是散落各处的巧合。
+ * 契约由 `web/lib/av/avLayoutTokens.vitest.test.ts` 守着。
  */
 
 .stack {
   display: grid;
-  gap: 14px;
+  gap: var(--av-gap-section);
   min-width: 0;
 }
 
@@ -20,9 +33,9 @@
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 18px;
+  gap: var(--av-space-4);
   min-width: 0;
-  padding-bottom: 12px;
+  padding-bottom: var(--av-space-3);
   border-bottom: 1px solid var(--av-divider);
 }
 
@@ -33,10 +46,10 @@
 .routeLine {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--av-space-2);
   color: var(--av-ink-3);
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: var(--av-text-micro);
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
@@ -48,18 +61,18 @@
 }
 
 .pageHeading h1 {
-  margin: 8px 0 0;
+  margin: var(--av-space-2) 0 0;
   color: var(--av-ink);
-  font-size: clamp(20px, 2.1vw, 26px);
+  font-size: var(--av-text-page);
   font-weight: 700;
   letter-spacing: 0.01em;
   line-height: 1.25;
 }
 
 .pageHeading p {
-  margin: 6px 0 0;
+  margin: var(--av-space-1) 0 0;
   color: var(--av-ink-2);
-  font-size: 12px;
+  font-size: var(--av-text-body);
   line-height: 1.6;
 }
 
@@ -67,12 +80,20 @@
   display: flex;
   flex: none;
   align-items: center;
-  gap: 8px;
-  padding-top: 4px;
+  gap: var(--av-space-2);
+  padding-top: var(--av-space-1);
 }
 
 /* ---------------- 面板 ---------------- */
 
+/*
+ * 面板是「卡片」的一种：直角、1px 边界、无常态阴影。
+ *
+ * 内边距口径（BLF-1399）：面板头与面板体**共用同一组左右内边距**
+ * （--av-pad-panel-x），所以标题的左边缘与面板体里第一列内容的左边缘
+ * 落在同一条竖线上。改之前头是 15px、体是 15px（碰巧相等）但纵向是
+ * 13px / 15px 不对称 —— 现在两边都走 --av-pad-panel-y（12px）。
+ */
 .panel {
   min-width: 0;
   border: 1px solid var(--av-divider);
@@ -83,15 +104,15 @@
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 12px;
-  padding: 13px 15px 0;
+  gap: var(--av-space-3);
+  padding: var(--av-pad-panel-y) var(--av-pad-panel-x) 0;
 }
 
 .panelTitle {
   display: flex;
   min-width: 0;
   align-items: center;
-  gap: 8px;
+  gap: var(--av-space-2);
 }
 
 .panelTitle svg {
@@ -102,15 +123,16 @@
 .panelTitle h2 {
   margin: 0;
   color: var(--av-ink);
-  font-size: 13px;
+  font-size: var(--av-text-panel);
   font-weight: 700;
   letter-spacing: 0.01em;
 }
 
 .panelHeader p {
-  margin: 4px 0 0 24px;
+  /* 24px = 图标宽（15px）+ 图标与文字的间隔（8px）+ 1px 边界补偿 */
+  margin: var(--av-space-1) 0 0 24px;
   color: var(--av-ink-3);
-  font-size: 11px;
+  font-size: var(--av-text-note);
   line-height: 1.5;
 }
 
@@ -118,18 +140,19 @@
   flex: none;
   color: var(--av-ink-3);
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: var(--av-text-micro);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
 
 .panelBody {
   min-width: 0;
-  padding: 12px 15px 15px;
+  padding: var(--av-pad-panel-y) var(--av-pad-panel-x) var(--av-pad-panel-y);
 }
 
 .panelFlush {
-  padding: 10px 0 0;
+  /* 满宽表格：左右不留白，只保留上边距 */
+  padding: var(--av-space-2) 0 0;
 }
 
 /* ---------------- 度量卡 ---------------- */
@@ -137,18 +160,26 @@
 .metricGrid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 10px;
+  gap: var(--av-gap-section);
 }
 
+/*
+ * 度量卡：四个 KPI 一行，底边必须对齐。
+ *
+ * 两件事保证它：
+ *   1. 高度由 --av-card-min-metric 兜底（而不是由内容自由伸缩），
+ *      于是「有 note 的卡」与「没 note 的卡」一样高；
+ *   2. 内边距与行距走 --av-pad-card / --av-gap-card，与其它卡片同一套。
+ */
 .metric {
   position: relative;
   display: flex;
   min-width: 0;
-  min-height: 112px;
+  min-height: var(--av-card-min-metric);
   flex-direction: column;
   justify-content: space-between;
-  gap: 8px;
-  padding: 14px 14px 12px 16px;
+  gap: var(--av-gap-card);
+  padding: var(--av-pad-card);
   border: 1px solid var(--av-divider);
   background: var(--av-surface);
 }
@@ -166,9 +197,9 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
+  gap: var(--av-space-2);
   color: var(--av-ink-2);
-  font-size: 11px;
+  font-size: var(--av-text-note);
 }
 
 .metricHead svg {
@@ -178,7 +209,7 @@
 .metricValue {
   display: flex;
   align-items: baseline;
-  gap: 4px;
+  gap: var(--av-space-1);
   min-width: 0;
   color: var(--av-ink);
   font-family: var(--font-mono);
@@ -187,7 +218,7 @@
 
 .metricValue strong {
   overflow: hidden;
-  font-size: clamp(22px, 2.2vw, 29px);
+  font-size: var(--av-text-kpi);
   font-weight: 600;
   letter-spacing: -0.03em;
   text-overflow: ellipsis;
@@ -205,22 +236,29 @@
 .metricValue span {
   color: var(--av-ink-3);
   font-family: var(--font-body);
-  font-size: 11px;
+  font-size: var(--av-text-note);
   white-space: nowrap;
 }
 
+/*
+ * 脚注区：**预留两行**（detail + note）。
+ *
+ * 这是「四张度量卡一样高」的关键 —— 之前只有 min-height: 28px（不到两行），
+ * 于是带 note 的卡比不带的高 10px，同一行底边参差。现在预留满两行，
+ * 有没有 note 都一样高。
+ */
 .metricFoot {
   display: grid;
-  gap: 2px;
-  min-height: 28px;
+  gap: var(--av-space-1);
+  min-height: 34px;
   color: var(--av-ink-2);
-  font-size: 11px;
+  font-size: var(--av-text-note);
   line-height: 1.45;
 }
 
 .metricFoot small {
   color: var(--av-ink-3);
-  font-size: 10px;
+  font-size: var(--av-text-micro);
 }
 
 /* ---------------- 分级 / 状态徽标 ---------------- */
@@ -229,14 +267,15 @@
   display: inline-flex;
   flex: none;
   align-items: center;
-  gap: 6px;
-  height: 22px;
-  padding: 0 7px;
+  gap: var(--av-space-1);
+  height: var(--av-ctl-badge);
+  padding: 0 var(--av-space-2);
   border: 1px solid var(--badge-line);
-  border-radius: 11px;
+  /* 圆角 = 高度的一半：22px 档下是真正的胶囊（徽标类允许，卡片类不允许） */
+  border-radius: var(--av-radius-pill);
   background: var(--badge-soft);
   color: var(--badge-tone);
-  font-size: 11px;
+  font-size: var(--av-text-note);
   font-weight: 600;
   white-space: nowrap;
 }
@@ -275,8 +314,8 @@
   display: inline-flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 2px;
-  padding: 3px;
+  gap: var(--av-space-1);
+  padding: var(--av-space-1);
   border: 1px solid var(--av-divider);
   background: var(--av-surface-soft);
 }
@@ -284,16 +323,16 @@
 .tab {
   position: relative;
   display: inline-flex;
-  min-height: 26px;
+  min-height: var(--av-ctl-page-tab);
   align-items: center;
-  gap: 6px;
-  padding: 0 10px;
+  gap: var(--av-space-1);
+  padding: 0 var(--av-space-2);
   border: 1px solid transparent;
-  border-radius: 0;
+  border-radius: var(--av-radius-card);
   background: transparent;
   color: var(--av-ink-2);
   font-family: inherit;
-  font-size: 11px;
+  font-size: var(--av-text-note);
   cursor: pointer;
   white-space: nowrap;
 }
@@ -310,7 +349,7 @@
   z-index: 1;
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--av-space-1);
 }
 
 .tab:hover {
@@ -334,7 +373,7 @@
 .tabCount {
   color: var(--av-ink-3);
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: var(--av-text-micro);
   font-variant-numeric: tabular-nums;
 }
 
@@ -346,22 +385,22 @@
 
 .bar {
   display: grid;
-  gap: 5px;
+  gap: var(--av-space-1);
 }
 
 .barHead {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
-  gap: 10px;
+  gap: var(--av-space-2);
   color: var(--av-ink-2);
-  font-size: 11px;
+  font-size: var(--av-text-note);
 }
 
 .barHead strong {
   color: var(--av-ink);
   font-family: var(--font-mono);
-  font-size: 12px;
+  font-size: var(--av-text-body);
   font-variant-numeric: tabular-nums;
 }
 
@@ -388,15 +427,15 @@
 .legend {
   display: flex;
   flex-wrap: wrap;
-  gap: 12px;
+  gap: var(--av-space-3);
   color: var(--av-ink-2);
-  font-size: 11px;
+  font-size: var(--av-text-note);
 }
 
 .legendItem {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--av-space-1);
   white-space: nowrap;
 }
 
@@ -410,7 +449,7 @@
 .legendItem strong {
   color: var(--av-ink);
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: var(--av-text-note);
   font-variant-numeric: tabular-nums;
 }
 
@@ -418,8 +457,8 @@
   animation: avRiseIn var(--av-dur-slow) var(--av-ease-enter) both;
   display: grid;
   justify-items: center;
-  gap: 6px;
-  padding: 28px 16px;
+  gap: var(--av-space-1);
+  padding: var(--av-space-5) var(--av-space-4);
   border: 1px dashed var(--av-divider);
   color: var(--av-ink-3);
   text-align: center;
@@ -427,21 +466,21 @@
 
 .empty strong {
   color: var(--av-ink-2);
-  font-size: 12px;
+  font-size: var(--av-text-body);
   font-weight: 600;
 }
 
 .empty span {
-  font-size: 11px;
+  font-size: var(--av-text-note);
   line-height: 1.6;
 }
 
 .kv {
   display: grid;
   grid-template-columns: minmax(80px, auto) minmax(0, 1fr);
-  gap: 8px 14px;
+  gap: var(--av-space-2) var(--av-space-3);
   margin: 0;
-  font-size: 12px;
+  font-size: var(--av-text-body);
 }
 
 .kv dt {
@@ -467,30 +506,58 @@
 
 /* ---------------- 网格 ---------------- */
 
+/*
+ * 排版标定的两种对齐策略（BLF-1399）—— 两者都是**显式**的，不是默认值撞出来的：
+ *
+ *   A. **同行等高**（peer row）：一排里并排的卡片底边对齐。
+ *      做法是栅格默认的 align-items: stretch + 卡片自身 height: 100%，
+ *      于是卡片边框拉到该行最高的那张，整排底边落在同一条线上。
+ *      之前这里是 align-items: start —— 卡片按内容高度自由伸缩，
+ *      左边 300px、右边 180px，底边参差不齐（Yawei 反馈的「高度不一」）。
+ *
+ *   B. **竖向侧栏顶对齐**（rail column）：右侧一列是若干**互相独立**的面板
+ *      （如「离线清单 / 型号构成 / OTA」），它们之间没有「同行」关系，
+ *      强行等高只会让内容少的面板空出一大片。所以 .railStack 走
+ *      align-content: start，各面板保持自然高度、顶边对齐。
+ *
+ * 两者的区别只体现在直接子元素上：
+ *   · .splitWide > .panel  —— 同行等高（策略 A）；
+ *   · .splitWide > .railStack —— 竖向侧栏（策略 B）。
+ */
 .grid2 {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
+  gap: var(--av-gap-section);
+  align-items: stretch;
 }
 
 .grid3 {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
+  gap: var(--av-gap-section);
+  align-items: stretch;
 }
 
 .split {
   display: grid;
   grid-template-columns: minmax(0, 1.6fr) minmax(280px, 0.9fr);
-  gap: 12px;
-  align-items: start;
+  gap: var(--av-gap-section);
+  align-items: stretch;
 }
 
 .splitWide {
   display: grid;
   grid-template-columns: minmax(0, 2.3fr) minmax(300px, 1fr);
-  gap: 12px;
-  align-items: start;
+  gap: var(--av-gap-section);
+  align-items: stretch;
+}
+
+/* 策略 A：同行等高 —— 卡片边框拉到行高，底边对齐 */
+.split > *,
+.splitWide > *,
+.grid2 > *,
+.grid3 > * {
+  height: 100%;
 }
 
 /* ---------------- 断点 ---------------- */
@@ -515,7 +582,7 @@
   .pageHeader {
     flex-direction: column;
     align-items: stretch;
-    gap: 10px;
+    gap: var(--av-space-2);
   }
   .headerAside {
     padding-top: 0;
@@ -526,13 +593,17 @@
     grid-template-columns: minmax(0, 1fr);
   }
   .metric {
-    min-height: 96px;
+    min-height: 104px;
   }
+  /*
+   * 窄屏单列时不再需要「同行等高」（一列只有一张卡），
+   * 但面板内边距要跟着收一档，否则窄屏上左右留白吃掉太多宽度。
+   */
   .panelHeader {
-    padding: 11px 12px 0;
+    padding: var(--av-space-2) var(--av-space-3) 0;
   }
   .panelBody {
-    padding: 10px 12px 12px;
+    padding: var(--av-space-2) var(--av-space-3) var(--av-space-3);
   }
 }
 
@@ -548,22 +619,22 @@
 .table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 12px;
+  font-size: var(--av-text-body);
 }
 
 .table caption {
-  padding: 0 0 8px;
+  padding: 0 0 var(--av-space-2);
   color: var(--av-ink-3);
-  font-size: 11px;
+  font-size: var(--av-text-note);
   text-align: left;
 }
 
 .table th {
-  padding: 7px 10px;
+  padding: var(--av-space-1) var(--av-space-2);
   border-bottom: 1px solid var(--av-divider);
   background: var(--av-surface-soft);
   color: var(--av-ink-3);
-  font-size: 10px;
+  font-size: var(--av-text-micro);
   font-weight: 600;
   letter-spacing: 0.04em;
   text-align: left;
@@ -571,7 +642,7 @@
 }
 
 .table td {
-  padding: 8px 10px;
+  padding: var(--av-space-2) var(--av-space-2);
   border-bottom: 1px solid var(--av-divider-soft);
   color: var(--av-ink-2);
   font-variant-numeric: tabular-nums;
@@ -613,7 +684,7 @@
   min-width: 0;
   flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
+  gap: var(--av-space-2);
 }
 
 .spacer {
@@ -622,20 +693,21 @@
 
 .softNote {
   color: var(--av-ink-3);
-  font-size: 11px;
+  font-size: var(--av-text-note);
   line-height: 1.6;
 }
 
 .tag {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  min-height: 20px;
-  padding: 0 7px;
+  gap: var(--av-space-1);
+  height: var(--av-ctl-badge);
+  padding: 0 var(--av-space-2);
   border: 1px solid var(--av-divider);
-  border-radius: 11px;
+  /* 圆角 = 高度的一半：22px 档下是真正的胶囊（徽标类允许，卡片类不允许） */
+  border-radius: var(--av-radius-pill);
   color: var(--av-ink-2);
-  font-size: 10px;
+  font-size: var(--av-text-micro);
   white-space: nowrap;
 }
 

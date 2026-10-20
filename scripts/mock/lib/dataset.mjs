@@ -6,8 +6,8 @@ import { fileURLToPath } from "node:url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 export const REPO_ROOT = join(__dirname, "..", "..", "..");
-/** 数据落位：web/public/mock/av（Next 静态服务） */
-export const DATA_DIR = join(REPO_ROOT, "web", "public", "mock", "av");
+/** 数据落位：web/public/stream-monitor-data（Next 静态服务） */
+export const DATA_DIR = join(REPO_ROOT, "web", "public", "stream-monitor-data");
 
 export function readJson(name, dir = DATA_DIR) {
   const path = join(dir, name);

@@ -5,11 +5,30 @@
  * 布局基准：内容最大宽度 1760px（与主工作台一致），直角、1px 边界、无常态阴影。
  * 响应式：1180 收成两列，900 收成一列，720 起把关键页（总览 / 告警 / 事件）重排成
  * 单列卡片流，而不是把桌面表格硬挤进窄屏。
+ *
+ * 控件高度走 globals.css 的基线令牌（BLF-1398）：
+ *   --av-ctl-page（30px）页内按钮与输入框：次级按钮 / 告警搜索框 / 对话框主次行动
+ *   --av-ctl-badge（22px）页内标签与页头芯片
+ * ⚠️ 内容容器的高度（.channelStage / .wave / .dialog 等）是**另一个量纲**，
+ *    不要与交互控件的基线混为一谈。
+ *
+ * 排版标定走 globals.css 的另一套令牌（BLF-1399）：
+ *   --av-space-1..5（4 / 8 / 12 / 16 / 24px）全站唯一的间距刻度；
+ *   --av-gap-section（页面级 12px）/ --av-gap-card（卡内 8px）两级节奏；
+ *   --av-pad-card（16px）卡片内边距；--av-card-min-* 同类卡片的最小高度；
+ *   --av-text-* 字号层级（标题 / 正文 / 辅助说明）。
+ * 本文件里**不再出现**裸的间距与字号字面量，契约由
+ * `web/lib/av/avLayoutTokens.vitest.test.ts` 守着。
+ *
+ * 对齐策略（见 AvUI.module.css 的「网格」段）：
+ *   · 同行等高：.gridTwo / .gridThree / .splitWide / .metricGrid / .statusGrid /
+ *     .channelGrid / .sceneGrid / .stressGrid —— 卡片底边对齐；
+ *   · 竖向侧栏：.railStack —— 内部是互相独立的面板，顶边对齐、各自自然高度。
  */
 
 .page {
   display: grid;
-  gap: 12px;
+  gap: var(--av-gap-section);
   min-width: 0;
   max-width: 1760px;
 }
@@ -17,22 +36,29 @@
 .gridTwo {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
-  align-items: start;
+  gap: var(--av-gap-section);
+  align-items: stretch;
 }
 
 .gridThree {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
-  align-items: start;
+  gap: var(--av-gap-section);
+  align-items: stretch;
 }
 
 .splitWide {
   display: grid;
   grid-template-columns: minmax(0, 2.2fr) minmax(300px, 1fr);
-  gap: 12px;
-  align-items: start;
+  gap: var(--av-gap-section);
+  align-items: stretch;
+}
+
+/* 同行等高：卡片边框拉到行高，底边对齐（.railStack 是竖向侧栏，例外） */
+.gridTwo > *,
+.gridThree > *,
+.splitWide > *:not(.railStack) {
+  height: 100%;
 }
 
 .spanTwo {
@@ -46,25 +72,28 @@
 
 .softNote {
   color: var(--av-ink-3);
-  font-size: 11px;
+  font-size: var(--av-text-note);
   line-height: 1.6;
 }
 
-.anchorChip {
+.headerChip {
   display: inline-flex;
   align-items: center;
-  height: 26px;
-  padding: 0 9px;
+  height: var(--av-ctl-badge);
+  padding: 0 var(--av-space-2);
   border: 1px solid var(--av-divider);
+  /* 圆角 = 高度的一半：22px 档下是真正的胶囊（徽标类允许，卡片类不允许） */
+  border-radius: var(--av-radius-pill);
   color: var(--av-ink-3);
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: var(--av-text-micro);
+  font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
 
 .textLink {
   color: var(--av-signal);
-  font-size: 12px;
+  font-size: var(--av-text-body);
   text-decoration: none;
 }
 
@@ -73,14 +102,14 @@
 }
 
 .ghostButton {
-  height: 26px;
-  padding: 0 9px;
+  height: var(--av-ctl-page);
+  padding: 0 var(--av-space-3);
   border: 1px solid var(--av-divider);
-  border-radius: 0;
+  border-radius: var(--av-radius-card);
   background: transparent;
   color: var(--av-ink-2);
   font-family: inherit;
-  font-size: 11px;
+  font-size: var(--av-text-note);
   cursor: pointer;
 }
 
@@ -97,13 +126,14 @@
 .tagChip {
   display: inline-flex;
   align-items: center;
-  min-height: 20px;
-  padding: 0 7px;
+  height: var(--av-ctl-badge);
+  padding: 0 var(--av-space-2);
   border: 1px solid var(--av-divider);
-  border-radius: 11px;
+  /* 圆角 = 高度的一半：22px 档下是真正的胶囊（徽标类允许，卡片类不允许） */
+  border-radius: var(--av-radius-pill);
   color: var(--av-ink-2);
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: var(--av-text-micro);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
@@ -113,8 +143,8 @@
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
-  margin-top: 10px;
+  gap: var(--av-space-2);
+  margin-top: var(--av-space-2);
 }
 
 /* ---------------- 总览 ---------------- */
@@ -122,7 +152,8 @@
 .metricGrid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 10px;
+  gap: var(--av-gap-section);
+  align-items: stretch;
 }
 
 .chartFoot {
@@ -130,14 +161,14 @@
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
-  padding-top: 8px;
+  gap: var(--av-space-2);
+  padding-top: var(--av-space-2);
 }
 
 .levelList {
   display: grid;
-  gap: 7px;
-  margin: 12px 0 0;
+  gap: var(--av-space-1);
+  margin: var(--av-space-3) 0 0;
   padding: 0;
   list-style: none;
 }
@@ -147,8 +178,8 @@
   min-width: 0;
   flex-wrap: wrap;
   align-items: center;
-  gap: 4px 8px;
-  padding: 6px 0;
+  gap: var(--av-space-1) var(--av-space-2);
+  padding: var(--av-space-1) 0;
   border-top: 1px solid var(--av-divider-soft);
 }
 
@@ -159,45 +190,45 @@
 .levelTotal {
   color: var(--av-ink);
   font-family: var(--font-mono);
-  font-size: 13px;
+  font-size: var(--av-text-panel);
   font-variant-numeric: tabular-nums;
 }
 
 .levelSub {
   color: var(--av-ink-3);
-  font-size: 10px;
+  font-size: var(--av-text-micro);
   white-space: nowrap;
 }
 
-/* 窄屏把「未处置」挪到下一行右对齐，避免把「今日 13」挤出可视区 */
-@media (max-width: 720px) {
-  .levelSub {
-    flex-basis: 100%;
-    text-align: right;
-  }
-}
-
+/*
+ * 热力图：24 列 × 7 行的方格矩阵。
+ *
+ * 左侧的「今天 / -1 天」标签列宽度（--heat-label-w）与热力图例的左缩进
+ * 必须一致，否则图例会与格子错位。两者都用同一个变量算出来，
+ * 而不是各写一个魔数 —— 改列宽时两处一起动。
+ */
 .heatmap {
+  --heat-label-w: 58px;
   display: grid;
-  gap: 4px;
+  gap: var(--av-space-1);
   min-width: 0;
 }
 
 .heatAxis {
   display: grid;
-  grid-template-columns: 58px minmax(0, 1fr);
+  grid-template-columns: var(--heat-label-w) minmax(0, 1fr);
   align-items: center;
-  gap: 6px;
+  gap: var(--av-space-1);
   color: var(--av-ink-3);
   font-family: var(--font-mono);
-  font-size: 9px;
+  font-size: var(--av-text-tiny);
 }
 
 /* 刻度必须和下面的格子同宽同列数，否则「12 点」会对到别的格子上 */
 .heatTicks {
   display: grid;
   grid-template-columns: repeat(24, minmax(0, 1fr));
-  gap: 2px;
+  gap: var(--av-space-1);
 }
 
 .heatTicks span {
@@ -207,21 +238,21 @@
 
 .heatRow {
   display: grid;
-  grid-template-columns: 58px minmax(0, 1fr);
+  grid-template-columns: var(--heat-label-w) minmax(0, 1fr);
   align-items: center;
-  gap: 6px;
+  gap: var(--av-space-1);
 }
 
 .heatDay {
   color: var(--av-ink-3);
-  font-size: 10px;
+  font-size: var(--av-text-micro);
   white-space: nowrap;
 }
 
 .heatCells {
   display: grid;
   grid-template-columns: repeat(24, minmax(0, 1fr));
-  gap: 2px;
+  gap: var(--av-space-1);
   min-width: 0;
 }
 
@@ -234,10 +265,11 @@
 .heatLegend {
   display: flex;
   align-items: center;
-  gap: 4px;
-  padding-left: 64px;
+  gap: var(--av-space-1);
+  /* 与 .heatRow 的标签列 + 间隙对齐（图例紧跟格子起点） */
+  padding-left: calc(var(--heat-label-w) + var(--av-space-1));
   color: var(--av-ink-3);
-  font-size: 9px;
+  font-size: var(--av-text-tiny);
 }
 
 .heatLegend i {
@@ -248,20 +280,20 @@
 
 .gpuList {
   display: grid;
-  gap: 7px;
+  gap: var(--av-space-1);
 }
 
 .gpuRow {
   display: grid;
   grid-template-columns: 48px minmax(0, 1fr) 44px 56px 108px;
   align-items: center;
-  gap: 8px;
+  gap: var(--av-space-2);
 }
 
 .gpuName {
   color: var(--av-ink-3);
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: var(--av-text-micro);
 }
 
 .gpuTrack {
@@ -279,21 +311,21 @@
 .gpuValue {
   color: var(--av-ink);
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: var(--av-text-note);
   font-variant-numeric: tabular-nums;
   text-align: right;
 }
 
 .gpuMode {
   color: var(--av-ink-2);
-  font-size: 10px;
+  font-size: var(--av-text-micro);
   text-align: center;
 }
 
 .gpuMeta {
   color: var(--av-ink-3);
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: var(--av-text-micro);
   text-align: right;
   white-space: nowrap;
 }
@@ -301,9 +333,9 @@
 .storageRow {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 14px;
-  margin-top: 14px;
-  padding-top: 12px;
+  gap: var(--av-space-3);
+  margin-top: var(--av-space-3);
+  padding-top: var(--av-space-3);
   border-top: 1px solid var(--av-divider-soft);
 }
 
@@ -317,8 +349,8 @@
 
 .streamItem {
   display: grid;
-  gap: 5px;
-  padding: 9px 0;
+  gap: var(--av-space-1);
+  padding: var(--av-space-2) 0;
   border-bottom: 1px solid var(--av-divider-soft);
 }
 
@@ -330,14 +362,14 @@
   display: flex;
   min-width: 0;
   align-items: center;
-  gap: 8px;
+  gap: var(--av-space-2);
 }
 
 .streamTitle {
   min-width: 0;
   overflow: hidden;
   color: var(--av-ink);
-  font-size: 12px;
+  font-size: var(--av-text-body);
   font-weight: 600;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -347,7 +379,7 @@
   margin-left: auto;
   color: var(--av-ink-3);
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: var(--av-text-micro);
   white-space: nowrap;
 }
 
@@ -356,9 +388,9 @@
   min-width: 0;
   flex-wrap: wrap;
   align-items: center;
-  gap: 6px;
+  gap: var(--av-space-1);
   color: var(--av-ink-3);
-  font-size: 10px;
+  font-size: var(--av-text-micro);
 }
 
 .streamDot {
@@ -370,11 +402,11 @@
 
 .streamType {
   margin-left: auto;
-  padding: 1px 7px;
+  padding: var(--av-space-1) var(--av-space-2);
   border: 1px solid var(--av-divider);
-  border-radius: 11px;
+  border-radius: var(--av-radius-pill);
   color: var(--av-ink-2);
-  font-size: 9px;
+  font-size: var(--av-text-tiny);
 }
 
 .rankList {
@@ -388,21 +420,21 @@
   display: grid;
   grid-template-columns: 22px minmax(0, 1fr) minmax(70px, 0.9fr) 52px;
   align-items: center;
-  gap: 8px;
-  padding: 8px 0;
+  gap: var(--av-space-2);
+  padding: var(--av-space-2) 0;
   border-bottom: 1px solid var(--av-divider-soft);
 }
 
 .rankIndex {
   color: var(--av-ink-3);
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: var(--av-text-micro);
 }
 
 .rankName {
   overflow: hidden;
   color: var(--av-ink);
-  font-size: 12px;
+  font-size: var(--av-text-body);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -422,7 +454,7 @@
 .rankNum {
   color: var(--av-ink);
   font-family: var(--font-mono);
-  font-size: 12px;
+  font-size: var(--av-text-body);
   font-variant-numeric: tabular-nums;
   text-align: right;
 }
@@ -430,21 +462,21 @@
 .rankSub {
   grid-column: 2 / -1;
   color: var(--av-ink-3);
-  font-size: 10px;
+  font-size: var(--av-text-micro);
 }
 
 .typeList {
   display: grid;
-  gap: 10px;
+  gap: var(--av-space-2);
 }
 
 .firmwareRow {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 6px;
-  margin-top: 14px;
-  padding-top: 12px;
+  gap: var(--av-space-1);
+  margin-top: var(--av-space-3);
+  padding-top: var(--av-space-3);
   border-top: 1px solid var(--av-divider-soft);
 }
 
@@ -453,7 +485,13 @@
 .channelGrid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
+  gap: var(--av-gap-section);
+  align-items: stretch;
+}
+
+/* 同行等高：通道卡边框拉到行高，底边对齐 */
+.channelGrid > * {
+  height: 100%;
 }
 
 .channel {
@@ -463,8 +501,12 @@
     border-color var(--av-dur-instant) var(--av-ease-exit);
   display: grid;
   min-width: 0;
+  min-height: var(--av-card-min-channel);
   border: 1px solid var(--av-divider);
   background: var(--av-surface);
+  /* 通道卡的元信息行数随字段变化（场景/型号/固件/信号/CPU/心跳），
+     固定 meta 区高度才能让同排通道卡的底边落在同一条线上 */
+  grid-template-rows: auto 1fr;
 }
 
 /* hover / 内部元素聚焦：上浮 1px + 边框提亮（quick），离开时 instant 回位 */
@@ -488,7 +530,6 @@
     radial-gradient(120% 90% at 50% 0%, var(--av-tone-signal-soft), transparent 70%),
     var(--av-surface-soft);
 }
-
 .channelStage::after {
   position: absolute;
   inset: 0;
@@ -506,15 +547,15 @@
   z-index: 1;
   display: inline-flex;
   align-items: center;
-  gap: 5px;
+  gap: var(--av-space-1);
   height: 19px;
-  padding: 0 7px;
+  padding: 0 var(--av-space-2);
   border: 1px solid var(--av-level-1-line);
-  border-radius: 11px;
+  border-radius: var(--av-radius-pill);
   background: var(--av-level-1-soft);
   color: var(--av-danger);
   font-family: var(--font-mono);
-  font-size: 9px;
+  font-size: var(--av-text-tiny);
   letter-spacing: 0.08em;
 }
 
@@ -532,7 +573,7 @@
   z-index: 1;
   color: var(--av-ink-3);
   font-family: var(--font-mono);
-  font-size: 9px;
+  font-size: var(--av-text-tiny);
   letter-spacing: 0.08em;
 }
 
@@ -540,8 +581,8 @@
   display: flex;
   height: 54px;
   align-items: center;
-  gap: 3px;
-  padding: 0 18px;
+  gap: var(--av-space-1);
+  padding: 0 var(--av-space-4);
 }
 
 .waveBar {
@@ -562,22 +603,23 @@
 
 .channelMeta {
   display: grid;
-  gap: 6px;
-  padding: 11px 12px 12px;
+  gap: var(--av-space-1);
+  align-content: start;
+  padding: var(--av-pad-card);
 }
 
 .channelTitle {
   display: flex;
   min-width: 0;
   align-items: center;
-  gap: 8px;
+  gap: var(--av-space-2);
 }
 
 .channelTitle strong {
   min-width: 0;
   overflow: hidden;
   color: var(--av-ink);
-  font-size: 13px;
+  font-size: var(--av-text-panel);
   font-weight: 600;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -586,9 +628,9 @@
 .channelFacts {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px 12px;
+  gap: var(--av-space-1) var(--av-space-2);
   color: var(--av-ink-3);
-  font-size: 10px;
+  font-size: var(--av-text-micro);
 }
 
 .channelFacts b {
@@ -604,7 +646,7 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
+  gap: var(--av-space-2);
 }
 
 .alarmSearch {
@@ -613,9 +655,9 @@
   flex: 1;
   max-width: 280px;
   align-items: center;
-  gap: 6px;
-  height: 30px;
-  padding: 0 9px;
+  gap: var(--av-space-1);
+  height: var(--av-ctl-page);
+  padding: 0 var(--av-space-2);
   border: 1px solid var(--av-divider);
   background: var(--av-canvas);
   color: var(--av-ink-3);
@@ -624,12 +666,15 @@
 .alarmSearch input {
   min-width: 0;
   flex: 1;
+  /* 同上：盖掉全局 input 的 38px，让输入框内容与外壳同一档（BLF-1398） */
+  height: 100%;
+  padding: 0;
   border: 0;
   outline: none;
   background: transparent;
   color: var(--av-ink);
   font-family: inherit;
-  font-size: 12px;
+  font-size: var(--av-text-body);
 }
 
 .alarmSearch input::placeholder {
@@ -659,8 +704,8 @@
 /* 加载下一页的占位：与一条告警卡同高（52px），避免数据到达时整页跳一下 */
 .alarmSkeleton {
   display: grid;
-  gap: 8px;
-  padding: 10px 4px;
+  gap: var(--av-space-2);
+  padding: var(--av-space-2) var(--av-space-1);
 }
 
 .alarmSkeletonRow {
@@ -673,8 +718,8 @@
   width: 100%;
   grid-template-columns: 74px minmax(0, 1fr) auto;
   align-items: center;
-  gap: 10px;
-  padding: 10px 4px;
+  gap: var(--av-space-2);
+  padding: var(--av-space-2) var(--av-space-1);
   border: 0;
   border-bottom: 1px solid var(--av-divider-soft);
   background: transparent;
@@ -695,14 +740,14 @@
 
 .alarmCardMain {
   display: grid;
-  gap: 4px;
+  gap: var(--av-space-1);
   min-width: 0;
 }
 
 .alarmTitle {
   overflow: hidden;
   color: var(--av-ink);
-  font-size: 13px;
+  font-size: var(--av-text-panel);
   font-weight: 600;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -713,9 +758,9 @@
   min-width: 0;
   flex-wrap: wrap;
   align-items: center;
-  gap: 4px 10px;
+  gap: var(--av-space-1) var(--av-space-2);
   color: var(--av-ink-3);
-  font-size: 10px;
+  font-size: var(--av-text-micro);
 }
 
 .alarmFacts .mono {
@@ -725,22 +770,22 @@
 .alarmAside {
   display: grid;
   justify-items: end;
-  gap: 4px;
+  gap: var(--av-space-1);
   white-space: nowrap;
 }
 
 .alarmAge {
   color: var(--av-ink-3);
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: var(--av-text-micro);
 }
 
 .alarmType {
-  padding: 1px 7px;
+  padding: var(--av-space-1) var(--av-space-2);
   border: 1px solid var(--av-divider);
-  border-radius: 11px;
+  border-radius: var(--av-radius-pill);
   color: var(--av-ink-2);
-  font-size: 9px;
+  font-size: var(--av-text-tiny);
 }
 
 .alarmFoot {
@@ -748,24 +793,31 @@
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
-  padding-top: 10px;
+  gap: var(--av-space-2);
+  padding-top: var(--av-space-2);
 }
 
+/*
+ * 竖向侧栏：内部是**互相独立**的面板（未处置分级 / 处置指标 / 告警剧本），
+ * 它们之间没有「同行」关系 —— 强行等高只会让内容少的面板空出一大片。
+ * 所以这里用 align-content: start（各行保持自然高度、顶边对齐），
+ * 而不是与 .gridTwo 等高策略一视同仁。
+ */
 .railStack {
   display: grid;
-  gap: 12px;
+  gap: var(--av-gap-section);
+  align-content: start;
 }
 
 .railRow {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
-  padding: 7px 0;
+  gap: var(--av-space-2);
+  padding: var(--av-space-1) 0;
   border-bottom: 1px solid var(--av-divider-soft);
   color: var(--av-ink-2);
-  font-size: 11px;
+  font-size: var(--av-text-note);
 }
 
 .railRow:last-child {
@@ -775,13 +827,13 @@
 .railRow strong {
   color: var(--av-ink);
   font-family: var(--font-mono);
-  font-size: 12px;
+  font-size: var(--av-text-body);
   font-variant-numeric: tabular-nums;
 }
 
 .scriptList {
   display: grid;
-  gap: 6px;
+  gap: var(--av-space-1);
   margin: 0;
   padding: 0;
   list-style: none;
@@ -790,10 +842,10 @@
 .scriptItem {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 6px 0;
+  gap: var(--av-space-2);
+  padding: var(--av-space-1) 0;
   border-bottom: 1px solid var(--av-divider-soft);
-  font-size: 11px;
+  font-size: var(--av-text-note);
 }
 
 .scriptItem:last-child {
@@ -809,7 +861,7 @@
   border: 1px solid var(--av-divider);
   color: var(--av-signal);
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: var(--av-text-micro);
 }
 
 .scriptTitle {
@@ -824,7 +876,7 @@
 .scriptCount {
   color: var(--av-ink-3);
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: var(--av-text-micro);
   white-space: nowrap;
 }
 
@@ -843,7 +895,7 @@
   max-height: min(86vh, 900px);
   padding: 0;
   border: 1px solid var(--av-divider);
-  border-radius: 0;
+  border-radius: var(--av-radius-card);
   background: var(--av-surface);
   color: var(--av-ink);
   overflow: auto;
@@ -873,15 +925,15 @@
   z-index: 1;
   display: flex;
   align-items: flex-start;
-  gap: 10px;
-  padding: 14px 16px;
+  gap: var(--av-space-2);
+  padding: var(--av-pad-card);
   border-bottom: 1px solid var(--av-divider);
   background: var(--av-surface);
 }
 
 .dialogHeadMain {
   display: grid;
-  gap: 6px;
+  gap: var(--av-space-1);
   min-width: 0;
   flex: 1;
 }
@@ -890,26 +942,26 @@
   display: flex;
   min-width: 0;
   align-items: center;
-  gap: 8px;
+  gap: var(--av-space-2);
 }
 
 .dialogTitle h2 {
   margin: 0;
   color: var(--av-ink);
-  font-size: 15px;
+  font-size: var(--av-text-title);
   font-weight: 700;
   line-height: 1.4;
 }
 
 .dialogClose {
-  width: 30px;
-  height: 30px;
+  width: var(--av-ctl-page);
+  height: var(--av-ctl-page);
   flex: none;
   border: 1px solid var(--av-divider);
-  border-radius: 0;
+  border-radius: var(--av-radius-card);
   background: transparent;
   color: var(--av-ink-2);
-  font-size: 15px;
+  font-size: var(--av-text-title);
   line-height: 1;
   cursor: pointer;
 }
@@ -921,20 +973,20 @@
 
 .dialogBody {
   display: grid;
-  gap: 14px;
-  padding: 14px 16px 18px;
+  gap: var(--av-space-3);
+  padding: var(--av-pad-card);
 }
 
 .dialogSection {
   display: grid;
-  gap: 8px;
+  gap: var(--av-space-2);
 }
 
 .dialogSectionTitle {
   margin: 0;
   color: var(--av-ink-3);
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: var(--av-text-micro);
   font-weight: 600;
   letter-spacing: 0.1em;
   text-transform: uppercase;
@@ -943,7 +995,7 @@
 .detailText {
   margin: 0;
   color: var(--av-ink-2);
-  font-size: 12px;
+  font-size: var(--av-text-body);
   line-height: 1.7;
   overflow-wrap: anywhere;
 }
@@ -951,40 +1003,40 @@
 .keywordList {
   display: flex;
   flex-wrap: wrap;
-  gap: 5px;
+  gap: var(--av-space-1);
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
 .keywordChip {
-  padding: 2px 8px;
+  padding: var(--av-space-1) var(--av-space-2);
   border: 1px solid var(--av-level-1-line);
-  border-radius: 11px;
+  border-radius: var(--av-radius-pill);
   background: var(--av-level-1-soft);
   color: var(--av-danger);
-  font-size: 10px;
+  font-size: var(--av-text-micro);
 }
 
 .dialogActions {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
-  padding-top: 12px;
+  gap: var(--av-space-2);
+  padding-top: var(--av-space-3);
   border-top: 1px solid var(--av-divider-soft);
 }
 
 .primaryAction {
   display: inline-flex;
   align-items: center;
-  height: 32px;
-  padding: 0 14px;
+  height: var(--av-ctl-page);
+  padding: 0 var(--av-space-3);
   border: 1px solid var(--action-border, transparent);
-  border-radius: 0;
+  border-radius: var(--av-radius-card);
   background: var(--av-action);
   color: var(--on-action);
   font-family: inherit;
-  font-size: 12px;
+  font-size: var(--av-text-body);
   font-weight: 600;
   text-decoration: none;
 }
@@ -996,14 +1048,14 @@
 .secondaryAction {
   display: inline-flex;
   align-items: center;
-  height: 32px;
-  padding: 0 12px;
+  height: var(--av-ctl-page);
+  padding: 0 var(--av-space-3);
   border: 1px solid var(--av-divider);
-  border-radius: 0;
+  border-radius: var(--av-radius-card);
   background: transparent;
   color: var(--av-ink-2);
   font-family: inherit;
-  font-size: 12px;
+  font-size: var(--av-text-body);
   text-decoration: none;
 }
 
@@ -1023,15 +1075,15 @@
 .table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 12px;
+  font-size: var(--av-text-body);
 }
 
 .table th {
-  padding: 7px 10px;
+  padding: var(--av-space-1) var(--av-space-2);
   border-bottom: 1px solid var(--av-divider);
   background: var(--av-surface-soft);
   color: var(--av-ink-3);
-  font-size: 10px;
+  font-size: var(--av-text-micro);
   font-weight: 600;
   letter-spacing: 0.04em;
   text-align: left;
@@ -1039,7 +1091,7 @@
 }
 
 .table td {
-  padding: 8px 10px;
+  padding: var(--av-space-2) var(--av-space-2);
   border-bottom: 1px solid var(--av-divider-soft);
   color: var(--av-ink-2);
   font-variant-numeric: tabular-nums;
@@ -1077,7 +1129,7 @@
   background: transparent;
   color: var(--av-signal);
   font-family: inherit;
-  font-size: 12px;
+  font-size: var(--av-text-body);
   cursor: pointer;
 }
 
@@ -1104,8 +1156,8 @@
 .eventCard {
   display: grid;
   width: 100%;
-  gap: 5px;
-  padding: 10px 2px;
+  gap: var(--av-space-1);
+  padding: var(--av-space-2) var(--av-space-1);
   border: 0;
   border-bottom: 1px solid var(--av-divider-soft);
   background: transparent;
@@ -1130,14 +1182,14 @@
   min-width: 0;
   flex-wrap: wrap;
   align-items: center;
-  gap: 6px;
+  gap: var(--av-space-1);
 }
 
 .eventCardTop strong {
   min-width: 0;
   flex: 1;
   color: var(--av-ink);
-  font-size: 13px;
+  font-size: var(--av-text-panel);
   font-weight: 600;
   line-height: 1.5;
 }
@@ -1146,18 +1198,9 @@
   display: flex;
   min-width: 0;
   flex-wrap: wrap;
-  gap: 3px 10px;
+  gap: var(--av-space-1) var(--av-space-2);
   color: var(--av-ink-3);
-  font-size: 10px;
-}
-
-@media (max-width: 720px) {
-  .eventCards {
-    display: grid;
-  }
-  .eventTable {
-    display: none;
-  }
+  font-size: var(--av-text-micro);
 }
 
 .eventTableRow[data-active="true"] td {
@@ -1180,8 +1223,8 @@
   position: relative;
   display: grid;
   grid-template-columns: 54px 14px minmax(0, 1fr);
-  gap: 8px;
-  padding: 0 0 16px;
+  gap: var(--av-space-2);
+  padding: 0 0 var(--av-space-4);
 }
 
 /*
@@ -1213,10 +1256,11 @@
 }
 
 .timelineTime {
+  /* 1px 补偿：等宽数字的基线比中文标题高一点，抹平后时间戳与标题齐平 */
   padding-top: 1px;
   color: var(--av-ink-3);
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: var(--av-text-micro);
   text-align: right;
   white-space: nowrap;
 }
@@ -1232,7 +1276,7 @@
   z-index: 1;
   width: 7px;
   height: 7px;
-  margin-top: 4px;
+  margin-top: var(--av-space-1);
   border-radius: 50%;
   background: var(--av-signal);
 }
@@ -1252,33 +1296,33 @@
 
 .timelineBody {
   display: grid;
-  gap: 3px;
+  gap: var(--av-space-1);
   min-width: 0;
-  padding-bottom: 2px;
+  padding-bottom: var(--av-space-1);
 }
 
 .timelineBody strong {
   color: var(--av-ink);
-  font-size: 12px;
+  font-size: var(--av-text-body);
   font-weight: 600;
 }
 
 .timelineBody p {
   margin: 0;
   color: var(--av-ink-2);
-  font-size: 11px;
+  font-size: var(--av-text-note);
   line-height: 1.6;
   overflow-wrap: anywhere;
 }
 
 .timelineActor {
   color: var(--av-ink-3);
-  font-size: 10px;
+  font-size: var(--av-text-micro);
 }
 
 .evidenceList {
   display: grid;
-  gap: 6px;
+  gap: var(--av-space-1);
   margin: 0;
   padding: 0;
   list-style: none;
@@ -1288,11 +1332,11 @@
   display: flex;
   min-width: 0;
   align-items: center;
-  gap: 8px;
-  padding: 7px 8px;
+  gap: var(--av-space-2);
+  padding: var(--av-space-1) var(--av-space-2);
   border: 1px solid var(--av-divider);
   color: var(--av-ink-2);
-  font-size: 11px;
+  font-size: var(--av-text-note);
   text-decoration: none;
 }
 
@@ -1327,7 +1371,7 @@
 .evidenceId {
   color: var(--av-ink-3);
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: var(--av-text-micro);
 }
 
 /* ---------------- 设备管理 ---------------- */
@@ -1335,26 +1379,33 @@
 .statusGrid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 10px;
+  gap: var(--av-gap-section);
+  align-items: stretch;
 }
 
+/*
+ * 状态格：四个格子的辅助文案行数可能不同（「覆盖 N 个站点」 vs 「P90 在线率」），
+ * 所以用 --av-card-min-status 兜底 + 同行等高，保证四格一样高、数值基线对齐。
+ */
 .statusCell {
   display: grid;
-  gap: 4px;
-  padding: 12px 14px;
+  gap: var(--av-space-1);
+  align-content: start;
+  min-height: var(--av-card-min-status);
+  padding: var(--av-pad-card);
   border: 1px solid var(--av-divider);
   background: var(--av-surface);
 }
 
 .statusCell span {
   color: var(--av-ink-3);
-  font-size: 11px;
+  font-size: var(--av-text-note);
 }
 
 .statusCell strong {
   color: var(--av-ink);
   font-family: var(--font-mono);
-  font-size: 22px;
+  font-size: var(--av-text-figure);
   font-weight: 600;
   font-variant-numeric: tabular-nums;
   letter-spacing: -0.02em;
@@ -1362,14 +1413,14 @@
 
 .statusCell small {
   color: var(--av-ink-3);
-  font-size: 10px;
+  font-size: var(--av-text-micro);
 }
 
 .deviceFilters {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
+  gap: var(--av-space-2);
 }
 
 .tableMeta {
@@ -1377,9 +1428,9 @@
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
+  gap: var(--av-space-2);
   color: var(--av-ink-3);
-  font-size: 11px;
+  font-size: var(--av-text-note);
 }
 
 .attentionList {
@@ -1392,8 +1443,8 @@
 
 .attentionItem {
   display: grid;
-  gap: 3px;
-  padding: 8px 0;
+  gap: var(--av-space-1);
+  padding: var(--av-space-2) 0;
   border-bottom: 1px solid var(--av-divider-soft);
 }
 
@@ -1404,7 +1455,7 @@
 .attentionTop {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--av-space-2);
 }
 
 .attentionTop strong {
@@ -1412,7 +1463,7 @@
   flex: 1;
   overflow: hidden;
   color: var(--av-ink);
-  font-size: 12px;
+  font-size: var(--av-text-body);
   font-weight: 600;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1421,10 +1472,10 @@
 .attentionMeta {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px 10px;
+  gap: var(--av-space-1) var(--av-space-2);
   color: var(--av-ink-3);
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: var(--av-text-micro);
 }
 
 /* ---------------- 能力与场景 ---------------- */
@@ -1432,7 +1483,13 @@
 .sceneGrid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
+  gap: var(--av-gap-section);
+  align-items: stretch;
+}
+
+/* 同行等高：场景卡边框拉到行高，底边对齐 */
+.sceneGrid > * {
+  height: 100%;
 }
 
 /*
@@ -1449,9 +1506,11 @@
 .sceneCard {
   animation-delay: calc(var(--av-stagger-list) * var(--av-i, 0));
   display: grid;
-  gap: 10px;
+  gap: var(--av-space-2);
   min-width: 0;
-  padding: 16px;
+  min-height: var(--av-card-min-scene);
+  align-content: start;
+  padding: var(--av-pad-card);
   border: 1px solid var(--av-divider);
   border-top: 2px solid var(--tone, var(--av-signal));
   background: var(--av-surface);
@@ -1460,77 +1519,77 @@
 .sceneCardHead {
   display: flex;
   align-items: baseline;
-  gap: 8px;
+  gap: var(--av-space-2);
 }
 
 .sceneCode {
   color: var(--tone, var(--av-signal));
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: var(--av-text-micro);
   letter-spacing: 0.1em;
 }
 
 .sceneCard h3 {
   margin: 0;
   color: var(--av-ink);
-  font-size: 15px;
+  font-size: var(--av-text-title);
   font-weight: 700;
 }
 
 .sceneSlogan {
   margin: 0;
   color: var(--av-ink-2);
-  font-size: 11px;
+  font-size: var(--av-text-note);
   line-height: 1.6;
 }
 
 .sceneApps {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px;
+  gap: var(--av-space-1);
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
 .sceneApp {
-  padding: 2px 7px;
+  padding: var(--av-space-1) var(--av-space-2);
   border: 1px solid var(--av-divider);
   color: var(--av-ink-2);
-  font-size: 10px;
+  font-size: var(--av-text-micro);
 }
 
 .sceneKpis {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 6px;
-  padding-top: 10px;
+  gap: var(--av-space-1);
+  padding-top: var(--av-space-2);
   border-top: 1px solid var(--av-divider-soft);
 }
 
 .sceneKpis div {
   display: grid;
-  gap: 2px;
+  gap: var(--av-space-1);
 }
 
 .sceneKpis strong {
   color: var(--av-ink);
   font-family: var(--font-mono);
-  font-size: 14px;
+  font-size: var(--av-text-emphasis);
   font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
 
 .sceneKpis span {
   color: var(--av-ink-3);
-  font-size: 9px;
+  font-size: var(--av-text-tiny);
 }
 
 .chain {
   display: flex;
   flex-wrap: wrap;
   align-items: stretch;
-  gap: 6px;
+  gap: var(--av-space-1);
   margin: 0;
   padding: 0;
   list-style: none;
@@ -1538,10 +1597,10 @@
 
 .chainStep {
   display: grid;
-  gap: 3px;
+  gap: var(--av-space-1);
   min-width: 128px;
   flex: 1;
-  padding: 9px 11px;
+  padding: var(--av-space-2) var(--av-space-3);
   border: 1px solid var(--av-divider);
   border-left: 2px solid var(--av-signal);
   background: var(--av-surface-soft);
@@ -1550,26 +1609,26 @@
 .chainStep span {
   color: var(--av-ink-3);
   font-family: var(--font-mono);
-  font-size: 9px;
+  font-size: var(--av-text-tiny);
   letter-spacing: 0.08em;
 }
 
 .chainStep strong {
   color: var(--av-ink);
-  font-size: 12px;
+  font-size: var(--av-text-body);
   font-weight: 600;
 }
 
 .chainStep small {
   color: var(--av-ink-3);
-  font-size: 10px;
+  font-size: var(--av-text-micro);
   line-height: 1.5;
 }
 
 .algoGroup {
   display: grid;
-  gap: 8px;
-  padding: 10px 0;
+  gap: var(--av-space-2);
+  padding: var(--av-space-2) 0;
   border-bottom: 1px solid var(--av-divider-soft);
 }
 
@@ -1581,32 +1640,33 @@
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
-  gap: 8px;
+  gap: var(--av-space-2);
 }
 
 .algoGroupHead strong {
   color: var(--av-ink);
-  font-size: 12px;
+  font-size: var(--av-text-body);
   font-weight: 600;
 }
 
 .algoGroupHead span {
   color: var(--av-ink-3);
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: var(--av-text-micro);
   font-variant-numeric: tabular-nums;
 }
 
 .algoList {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
-  gap: 6px;
+  gap: var(--av-space-1);
 }
 
 .algoCard {
   display: grid;
-  gap: 4px;
-  padding: 8px 10px;
+  gap: var(--av-space-1);
+  align-content: start;
+  padding: var(--av-space-2) var(--av-space-2);
   border: 1px solid var(--av-divider);
   background: var(--av-surface);
 }
@@ -1614,7 +1674,7 @@
 .algoTop {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--av-space-1);
 }
 
 .algoTop strong {
@@ -1622,7 +1682,7 @@
   flex: 1;
   overflow: hidden;
   color: var(--av-ink);
-  font-size: 12px;
+  font-size: var(--av-text-body);
   font-weight: 600;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1631,10 +1691,10 @@
 .algoMeta {
   display: flex;
   flex-wrap: wrap;
-  gap: 2px 10px;
+  gap: var(--av-space-1) var(--av-space-2);
   color: var(--av-ink-3);
   font-family: var(--font-mono);
-  font-size: 9px;
+  font-size: var(--av-text-tiny);
   font-variant-numeric: tabular-nums;
 }
 
@@ -1649,8 +1709,8 @@
 /* 规则在窄栏里用列表而不是表格：中文阈值放进 5 列表格会被挤成竖排 */
 .ruleItem {
   display: grid;
-  gap: 3px;
-  padding: 9px 0;
+  gap: var(--av-space-1);
+  padding: var(--av-space-2) 0;
   border-bottom: 1px solid var(--av-divider-soft);
 }
 
@@ -1662,14 +1722,14 @@
   display: flex;
   min-width: 0;
   align-items: center;
-  gap: 8px;
+  gap: var(--av-space-2);
 }
 
 .ruleId {
   flex: none;
   color: var(--av-ink-3);
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: var(--av-text-micro);
 }
 
 .ruleName {
@@ -1677,7 +1737,7 @@
   flex: 1;
   overflow: hidden;
   color: var(--av-ink);
-  font-size: 12px;
+  font-size: var(--av-text-body);
   font-weight: 600;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1686,17 +1746,17 @@
 .ruleLine {
   display: grid;
   grid-template-columns: 34px minmax(0, 1fr);
-  gap: 8px;
+  gap: var(--av-space-2);
   margin: 0;
   color: var(--av-ink-2);
-  font-size: 11px;
+  font-size: var(--av-text-note);
   line-height: 1.6;
   overflow-wrap: anywhere;
 }
 
 .ruleLine span {
   color: var(--av-ink-3);
-  font-size: 10px;
+  font-size: var(--av-text-micro);
 }
 
 /* ---------------- 音频分析 ---------------- */
@@ -1704,9 +1764,9 @@
 .audioMeta {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px 16px;
+  gap: var(--av-space-1) var(--av-space-4);
   color: var(--av-ink-3);
-  font-size: 11px;
+  font-size: var(--av-text-note);
 }
 
 .audioMeta b {
@@ -1751,8 +1811,8 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 10px;
-  margin-top: 10px;
+  gap: var(--av-space-2);
+  margin-top: var(--av-space-2);
 }
 
 .playhead {
@@ -1806,7 +1866,7 @@
 
 .transcript {
   display: grid;
-  gap: 2px;
+  gap: var(--av-space-1);
   margin: 0;
   padding: 0;
   list-style: none;
@@ -1815,8 +1875,8 @@
 .transcriptLine {
   display: grid;
   grid-template-columns: 52px minmax(72px, auto) minmax(0, 1fr);
-  gap: 10px;
-  padding: 7px 0;
+  gap: var(--av-space-2);
+  padding: var(--av-space-1) 0;
   border-bottom: 1px solid var(--av-divider-soft);
   /* 当前句跟随游标高亮的底：进入 instant、离开 quick（离开不抢注意力） */
   transition: background-color var(--av-dur-quick) var(--av-ease-exit);
@@ -1835,16 +1895,16 @@
 .transcriptTime {
   color: var(--av-ink-3);
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: var(--av-text-micro);
   white-space: nowrap;
 }
 
 .speaker {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
+  gap: var(--av-space-1);
   color: var(--av-ink-2);
-  font-size: 11px;
+  font-size: var(--av-text-note);
   white-space: nowrap;
 }
 
@@ -1857,11 +1917,12 @@
 
 .transcriptText {
   color: var(--av-ink);
-  font-size: 12px;
+  font-size: var(--av-text-body);
   line-height: 1.65;
   overflow-wrap: anywhere;
 }
 
+/* 关键词高亮：底色块紧贴文字（左右各 1px、上下 0），不改变行高 */
 .highlight {
   margin: 0 1px;
   padding: 0 3px;
@@ -1873,16 +1934,16 @@
 .audioPicker {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: var(--av-space-1);
 }
 
 .audioPick {
-  padding: 4px 9px;
+  padding: var(--av-space-1) var(--av-space-2);
   border: 1px solid var(--av-divider);
   background: transparent;
   color: var(--av-ink-2);
   font-family: inherit;
-  font-size: 11px;
+  font-size: var(--av-text-note);
   text-decoration: none;
 }
 
@@ -1896,7 +1957,13 @@
 .stressGrid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
+  gap: var(--av-gap-section);
+  align-items: stretch;
+}
+
+/* 同行等高：压力测试面板底边对齐 */
+.stressGrid > * {
+  height: 100%;
 }
 
 .stressWide {
@@ -1905,10 +1972,10 @@
 
 .stressRow {
   display: grid;
-  gap: 4px;
-  padding: 8px 0;
+  gap: var(--av-space-1);
+  padding: var(--av-space-2) 0;
   border-bottom: 1px solid var(--av-divider-soft);
-  font-size: 12px;
+  font-size: var(--av-text-body);
   overflow-wrap: anywhere;
 }
 
@@ -1919,7 +1986,7 @@
 .stressLabel {
   color: var(--av-ink-3);
   font-family: var(--font-mono);
-  font-size: 9px;
+  font-size: var(--av-text-tiny);
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
@@ -1931,6 +1998,16 @@
 
 /* ---------------- 断点 ---------------- */
 
+/*
+ * 断点（BLF-1399：列数与对齐一起调）。
+ *
+ * 之前三个断点只改 grid-template-columns，卡片高度参差在窄屏下更明显；
+ * 现在每个断点都同时处理：
+ *   · 列数：栅格降列；
+ *   · 同行等高：降列后仍然保持 stretch，卡片底边依旧对齐；
+ *   · 留白：窄屏把 gap 收一档（页面级 12 → 8，卡内 16 → 12），
+ *     否则 720px 下一张卡子的左右内边距就吃掉太多可视宽度。
+ */
 @media (max-width: 1180px) {
   .metricGrid,
   .statusGrid {
@@ -1975,7 +2052,19 @@
 @media (max-width: 720px) {
   /* 关键三页的窄屏重排：总览 / 告警 / 事件 */
   .page {
-    gap: 10px;
+    gap: var(--av-space-2);
+  }
+  /* 窄屏把「未处置」挪到下一行右对齐，避免把「今日 13」挤出可视区 */
+  .levelSub {
+    flex-basis: 100%;
+    text-align: right;
+  }
+  /* 窄屏用卡片流：事件表在 390px 上没有任何一列还能读 */
+  .eventCards {
+    display: grid;
+  }
+  .eventTable {
+    display: none;
   }
   .metricGrid,
   .statusGrid {
@@ -1983,10 +2072,10 @@
   }
   .storageRow {
     grid-template-columns: minmax(0, 1fr);
-    gap: 10px;
+    gap: var(--av-space-2);
   }
   .heatDay {
-    font-size: 9px;
+    font-size: var(--av-text-tiny);
   }
   .heatRow,
   .heatAxis {
@@ -2007,11 +2096,11 @@
     grid-auto-flow: column;
     justify-content: start;
     align-items: center;
-    gap: 8px;
+    gap: var(--av-space-2);
   }
   .timelineItem {
     grid-template-columns: 44px 12px minmax(0, 1fr);
-    gap: 6px;
+    gap: var(--av-space-1);
   }
   .transcriptLine {
     grid-template-columns: 44px minmax(0, 1fr);
@@ -2026,10 +2115,10 @@
     margin: auto 0 0;
   }
   .dialogHead {
-    padding: 12px;
+    padding: var(--av-space-3);
   }
   .dialogBody {
-    padding: 12px;
+    padding: var(--av-space-3);
   }
   .sceneKpis {
     grid-template-columns: repeat(2, minmax(0, 1fr));

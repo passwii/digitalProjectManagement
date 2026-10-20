@@ -5,14 +5,38 @@
  * 酸橙只出现在主行动按钮上、阴影只给真实浮层。颜色一律取 --av-* 语义变量，
  * 所以深色 / 浅色主题切换时不需要第二套样式。
  *
+ * 控件高度全部走 globals.css 的基线令牌（BLF-1398），不再各写各的：
+ *   --av-ctl-shell（34px）交互控件：搜索框 / 菜单按钮 / 主题切换图标按钮 /
+ *                        返回主系统链接 / 侧栏折叠按钮
+ *   --av-ctl-shell-chip（26px）状态芯片：顶栏 chip
+ * 侧栏导航项是**列表行**（40px），不是控件，所以不参与这两档。
+ *
  * 布局：固定侧栏（252px，收起 76px）+ 顶栏（64px）+ 可滚动内容区。
  * 900px 以下侧栏变抽屉、顶栏保留搜索与状态；720px 以下收紧内边距，
- * 页面自身再按窄屏重排（见 pages/*.module.css 的窄屏段）。
+ * 页面自身再按窄屏重排（见 pages/*.module.css 的窄屏段）；
+ * 430px 以下再收一档，让 44px 触控档的顶栏第一行装得下（不换行成 3 行）。
+ *
+ * ⚠️ --av-head-h 与视口高度（min-height）**不归本文件管**：它们是 BLF-1389
+ * （移动端 PWA 适配）的范围。本 issue（BLF-1399）只动**水平内边距**，
+ * 且只动一个量 —— --av-gutter（见下），与安全区无关。
  */
 
 .shell {
   --av-sidebar: 252px;
   --av-head-h: 64px;
+  /*
+   * 内容区左右留白（gutter）。
+   *
+   * 顶栏、页面标题、卡片三者的左边缘必须落在**同一条竖线**上：
+   * 顶栏的搜索框、页面里的 h1、第一张面板的边框，左边应该齐平。
+   * 之前顶栏与内容区各写各的内边距（桌面 20 / 20 恰好相等，但 ≤900px 是
+   * 20 / 14、≤720px 是 12 / 10），于是窄屏下顶栏比页面标题右移 6~10px，
+   * 一眼就能看出两层没对齐。
+   *
+   * 所以这里定义**一个**变量，顶栏与内容区都消费它 —— 改一处就两处一起动，
+   * 不会再走偏。断点档位：桌面 20px / ≤900px 14px / ≤720px 12px。
+   */
+  --av-gutter: 20px;
   display: flex;
   min-height: 100vh;
   background: var(--av-canvas);
@@ -231,7 +255,7 @@
 
 .collapseButton {
   display: flex;
-  min-height: 34px;
+  height: var(--av-ctl-shell);
   align-items: center;
   gap: 8px;
   padding: 0 9px;
@@ -280,15 +304,15 @@
   min-height: var(--av-head-h);
   align-items: center;
   gap: 12px;
-  padding: 0 20px;
+  padding: 0 var(--av-gutter);
   border-bottom: 1px solid var(--av-divider);
   background: var(--av-surface);
 }
 
 .menuButton {
   display: none;
-  width: 36px;
-  height: 36px;
+  width: var(--av-ctl-shell);
+  height: var(--av-ctl-shell);
   place-items: center;
   border: 1px solid var(--av-divider);
   border-radius: 0;
@@ -304,7 +328,7 @@
   max-width: 420px;
   align-items: center;
   gap: 8px;
-  height: 34px;
+  height: var(--av-ctl-shell);
   padding: 0 10px;
   border: 1px solid var(--av-divider);
   background: var(--av-canvas);
@@ -323,6 +347,13 @@
 .searchBox input {
   min-width: 0;
   flex: 1;
+  /*
+    高度与内边距必须**显式盖掉**全局 input 规则（globals.css 的 input 是 38px / 0 11px）。
+    不盖的话：34px 的搜索框里塞一个 38px 的 input，内容会溢出框高 ——
+    改之前就是这样（框 34px、input 38px），控件高度基线必须连内部元素一起对齐。
+  */
+  height: 100%;
+  padding: 0;
   border: 0;
   outline: none;
   background: transparent;
@@ -351,10 +382,11 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  height: 26px;
+  height: var(--av-ctl-shell-chip);
   padding: 0 9px;
   border: 1px solid var(--av-divider);
-  border-radius: 11px;
+  /* 圆角 = 高度的一半：胶囊在 26px 档下是真正的胶囊，而不是「圆角矩形」 */
+  border-radius: calc(var(--av-ctl-shell-chip) / 2);
   color: var(--av-ink-2);
   font-size: 11px;
   white-space: nowrap;
@@ -428,7 +460,7 @@
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  height: 30px;
+  height: var(--av-ctl-shell);
   padding: 0 10px;
   border: 1px solid var(--av-divider);
   border-radius: 0;
@@ -436,6 +468,9 @@
   font-size: 11px;
   text-decoration: none;
   white-space: nowrap;
+  transition:
+    border-color var(--av-dur-quick) var(--av-ease-standard),
+    color var(--av-dur-quick) var(--av-ease-standard);
 }
 
 .backLink:hover {
@@ -444,9 +479,48 @@
   text-decoration: none;
 }
 
+.backLink:focus-visible {
+  outline: 2px solid var(--av-signal);
+  outline-offset: 1px;
+}
+
+/*
+ * 图标按钮（BLF-1398）：主题切换。
+ *
+ * 与文字按钮 `.backLink` 分开：图标按钮是**正方形**（宽 = 高），不靠
+ * `padding: 0 10px` 硬撑成非正方形 —— 那样做出来的按钮在顶栏里一眼就与
+ * 文字按钮不是一套。
+ */
+.iconButton {
+  display: inline-grid;
+  width: var(--av-ctl-shell);
+  height: var(--av-ctl-shell);
+  flex: none;
+  place-items: center;
+  padding: 0;
+  border: 1px solid var(--av-divider);
+  border-radius: 0;
+  background: transparent;
+  color: var(--av-ink-2);
+  cursor: pointer;
+  transition:
+    border-color var(--av-dur-quick) var(--av-ease-standard),
+    color var(--av-dur-quick) var(--av-ease-standard);
+}
+
+.iconButton:hover {
+  border-color: var(--av-signal);
+  color: var(--av-signal);
+}
+
+.iconButton:focus-visible {
+  outline: 2px solid var(--av-signal);
+  outline-offset: 1px;
+}
+
 .content {
   min-width: 0;
-  padding: 22px 20px 40px;
+  padding: 22px var(--av-gutter) 40px;
 }
 
 .backdrop {
@@ -468,6 +542,15 @@
   .shell,
   .shellCollapsed {
     --av-sidebar: 0px;
+    /*
+     * 窄屏触控目标 ≥ 44px（与 BLF-1389 的移动端适配口径一致）。
+     * 桌面形态的 34px 档在手机上太小，所以这里整体抬到触控档 ——
+     * 这是**抬**不是**降**：把桌面尺寸改到移动端不可用才是不可接受的。
+     */
+    --av-ctl-shell: 44px;
+    --av-ctl-shell-chip: 28px;
+    /* 窄屏收一档 gutter（顶栏与内容区同步收，保持左边缘对齐） */
+    --av-gutter: 14px;
   }
   .sidebar {
     width: 268px;
@@ -509,7 +592,7 @@
     animation: avFadeIn var(--av-dur-base) var(--av-ease-enter) both;
   }
   .content {
-    padding: 16px 14px 32px;
+    padding: 16px var(--av-gutter) 32px;
   }
   .searchBox {
     max-width: none;
@@ -517,17 +600,25 @@
   .backLink span {
     display: none;
   }
+  /* 文字隐去后返回链接变成纯图标：给它正方形的形状，别用内边距硬撑 */
+  .backLink {
+    width: var(--av-ctl-shell);
+    justify-content: center;
+    padding: 0;
+  }
 }
 
 @media (max-width: 720px) {
   .shell {
     /* 手机壳里不允许横向溢出：顶栏与内容都必须换行收敛 */
     overflow-x: clip;
+    /* 手机再收一档 gutter（顶栏与内容区同步收，保持左边缘对齐） */
+    --av-gutter: 12px;
   }
   .topbar {
     flex-wrap: wrap;
     gap: 8px;
-    padding: 8px 12px;
+    padding: 8px var(--av-gutter);
   }
   .searchBox {
     order: 3;
@@ -547,7 +638,39 @@
     padding-left: 8px;
   }
   .content {
-    padding: 12px 10px 28px;
+    padding: 12px var(--av-gutter) 28px;
+  }
+}
+
+/*
+ * 窄手机（≤430px）收敛：让 44px 触控档下顶栏**第一行真的装得下**。
+ *
+ * 算术（390px 实测，scripts/av-shell-shoot.mjs）：
+ *   内容盒 366px = 菜单键 44 + 顶栏 gap 8 + 状态簇
+ *   状态簇（改前）= 锚点 chip 172 + 头像 39 + 主题键 44 + 返回键 44 + 三个 8px gap = 323
+ *   合计 375 > 366 —— 差 9px，于是 .topbar 换行，汉堡键被挤成孤立的一行，
+ *   顶栏从 2 行变成 3 行（95px → 165px），手机首屏被顶栏吃掉近 20%。
+ *
+ * 收敛策略：手机顶栏让**装饰性元素**给信息与操作让路 ——
+ *   · 隐藏 .userBadge：它在 ≤1100px 起就已经只剩一个 30px 的「值」圆点
+ *     （.userCopy 早就被隐藏），不承载导航也不承载状态；
+ *   · 状态簇 gap 收到 6px；
+ *   · .backLink 不参与弹性收缩：它是「返回主系统」的出口，
+ *     被压成一个 16px 的箭头会变成误触点。
+ *
+ * 结果：360 / 375 / 390 / 414 / 430px 顶栏都是 2 行（origin/main 在 390px 也是 2 行；
+ * 320px 仍是 3 行 —— origin/main 在 ≤375px 同样是 3 行，行数与基线一致，
+ * 只是控件抬到 44px 触控档后每行高 8px）。
+ */
+@media (max-width: 430px) {
+  .userBadge {
+    display: none;
+  }
+  .topbarRight {
+    gap: 6px;
+  }
+  .backLink {
+    flex: none;
   }
 }
 

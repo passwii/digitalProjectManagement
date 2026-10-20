@@ -14,7 +14,7 @@ import {
   isAvSection,
 } from "./navigation";
 
-describe("Stream Monitor 导航契约", () => {
+describe("智能音视频平台导航契约", () => {
   it("导航恰好 6 个页面（不是 sample 的 9 个）", () => {
     assert.equal(AV_PAGES.length, 6);
     assert.deepEqual(
@@ -91,8 +91,8 @@ describe("入口接线（源码契约）", () => {
     assert.match(middleware, /NextResponse\.redirect\(url, 308\)/);
   });
 
-  it("左侧 Spark 分组下同时有云电竞管理平台与 Stream Monitor，两条各自独立 target", () => {
-    assert.match(layout, /"\/stream-monitor": "Stream Monitor"/);
+  it("左侧 Spark 分组下同时有云电竞管理平台与智能音视频平台，两条各自独立 target", () => {
+    assert.match(layout, /"\/stream-monitor": "智能音视频平台"/);
     assert.match(layout, /out\.push\(\{ href: "\/spark"/);
     assert.match(layout, /out\.push\(\{ href: "\/stream-monitor"/);
     assert.match(layout, /AV_WINDOW_TARGET/);

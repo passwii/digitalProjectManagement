@@ -25,9 +25,9 @@ export default function StressView({ core, extremes }: { core: DatasetCore; extr
     <div className={s.page} data-av-page="stress">
       <AvPageHeader
         route="/stream-monitor/__stress"
-        title="布局压力测试"
-        subtitle="Stage 1 埋入的极端值样本一次性渲染：长标题 / 长房间名 / 多关键词 / 五位数 / 空态。本页不进导航，仅供布局回归。"
-        aside={<span className={s.anchorChip}>{formatCount(extremes.total)} 条告警全量索引</span>}
+        title="极端值校验"
+        subtitle="极端值样本的渲染校验"
+        aside={<span className={s.headerChip}>{formatCount(extremes.total)} 条告警全量索引</span>}
       />
 
       <div className={s.stressGrid}>
@@ -107,7 +107,7 @@ export default function StressView({ core, extremes }: { core: DatasetCore; extr
       <div className={s.gridTwo}>
         <AvPanel title="空态：0 告警点位" subtitle="180 天里从未产生告警的点位" icon="device" meta={`${extremes.zeroAlarmPoints.length} 个`} motionKey="stress-zero-points">
           {extremes.zeroAlarmPoints.length === 0 ? (
-            <AvEmpty title="没有 0 告警点位" hint="数据集里每个点位都至少产生过一条告警。" />
+            <AvEmpty title="没有 0 告警点位" hint="当前每个点位都至少产生过一条告警。" />
           ) : (
             <ul className={s.attentionList}>
               {extremes.zeroAlarmPoints.map((point) => (
@@ -128,7 +128,7 @@ export default function StressView({ core, extremes }: { core: DatasetCore; extr
 
         <AvPanel title="空态：0 告警自然日" subtitle="180 天里没有任何告警的日期" icon="event" meta={`${extremes.emptyDays.length} 天`} motionKey="stress-empty-days">
           {extremes.emptyDays.length === 0 ? (
-            <AvEmpty title="每天都有告警" hint="数据集覆盖的日期里没有 0 告警的自然日。" />
+            <AvEmpty title="每天都有告警" hint="当前覆盖的日期里没有 0 告警的自然日。" />
           ) : (
             <ul className={s.attentionList}>
               {extremes.emptyDays.map((day) => (
@@ -158,7 +158,7 @@ export default function StressView({ core, extremes }: { core: DatasetCore; extr
         {extremes.level4LastHour === 0 ? (
           <AvEmpty title="四级告警 · 近 1 小时：0 条" hint="筛选结果为空时，列表区必须显示明确空态，而不是一片空白。" />
         ) : (
-          <p className={s.softNote}>该组合当前有 {extremes.level4LastHour} 条，比预期多，请回到 Stage 1 确认数据口径。</p>
+          <p className={s.softNote}>该组合当前有 {extremes.level4LastHour} 条，比预期多。</p>
         )}
         <div className={s.firmwareRow}>
           <span className={s.softNote}>分级合计</span>

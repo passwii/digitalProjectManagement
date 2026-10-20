@@ -1,10 +1,13 @@
 # Mock 数据层（智能音视频平台）
 
 Stage 1 的交付物：一套**能支撑像素级设计**的演示数据 + 生成器 + 两套校验脚本。
-数据已经落位到 Next 静态目录，前端直接 `fetch("/mock/av/...")` 即可，不需要起任何服务。
+数据已经落位到 Next 静态目录，前端直接 `fetch("/stream-monitor-data/...")` 即可，不需要起任何服务。
+
+> BLF-1394 起数据目录从 `/mock/av` 搬到 `/stream-monitor-data`：旧路径会把「这是 mock」
+> 直接写在访客的地址栏与 DevTools Network 里。旧路径由 `web/middleware.ts` 308 兼容。
 
 ```text
-web/public/mock/av/        数据集（静态 JSON，Next 自动映射到 /mock/av）
+web/public/stream-monitor-data/   数据集（静态 JSON，Next 自动映射到 /stream-monitor-data）
 web/lib/av/                类型 / 时间换算 / 加载器 / 游标分页（TS，进构建）
 scripts/mock/              生成器 + 校验 + 契约审计（零依赖，Node 内置模块）
 ```
@@ -134,9 +137,9 @@ web/lib/av/
 ├─ load.ts                       带类型的加载器（loadCore / loadAlarmPage / loadDataset）
 ├─ time.test.ts                  时间换算单测
 ├─ pagination.test.ts            游标分页单测
-└─ dataset.test.ts               真实数据契约测试（读 web/public/mock/av）
+└─ dataset.test.ts               真实数据契约测试（读 web/public/stream-monitor-data）
 
-web/public/mock/av/
+web/public/stream-monitor-data/
 ├─ index.json                    数据集索引（文件清单 / 规模 / 剧本摘要）
 ├─ alarms-index.json             告警分片清单 + 游标分页契约（首屏只加载它）
 ├─ alarms/shard-000.json …       告警分片（新 → 旧，单片 ≤ 1.2MB）

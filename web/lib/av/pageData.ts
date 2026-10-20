@@ -107,7 +107,6 @@ export async function getOverviewData(): Promise<OverviewProps> {
     points: pointRanking(core, 6),
     recent: firstPage.alarms.slice(0, 10).map((alarm) => alarmCard(alarm, core)),
     alarmUnhandled: core.kpi.alarm_unhandled,
-    anchorLabel: toAbsolute(0),
   };
 }
 

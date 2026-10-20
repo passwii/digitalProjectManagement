@@ -68,7 +68,7 @@ export default function EventView({ rows, detail, initialId, counts, userNames }
       <AvPageHeader
         route="/stream-monitor/event"
         title="事件中心"
-        subtitle="跨告警融合与证据链追溯：事件由多条告警按点位与时间窗聚合，时间线保留每一次确认、派发与归档。"
+        subtitle="多起告警按点位与时间窗融合成一起事件，全程可追溯"
         aside={
           <AvTabs
             items={[
@@ -88,7 +88,6 @@ export default function EventView({ rows, detail, initialId, counts, userNames }
           title="事件列表"
           subtitle={`共 ${formatCount(counts.total)} 起 · 显示 ${formatCount(visible.length)} 起（按发生时间新 → 旧）`}
           icon="event"
-          meta="点击行查看时间线"
           motionKey="event-list"
         >
           <div className={s.alarmToolbar} style={{ marginBottom: 8 }}>
@@ -273,7 +272,7 @@ export default function EventView({ rows, detail, initialId, counts, userNames }
               </AvPanel>
             </AvPanelReveal>
           ) : (
-            <AvPanel title="事件追溯" subtitle="选择左侧任意事件" icon="event" motionKey="event-empty">
+            <AvPanel title="事件追溯" subtitle="选择任意一起事件" icon="event" motionKey="event-empty">
               <AvEmpty title="未选择事件" hint="点击事件列表中的任意一行，右侧显示时间线与证据链。" />
             </AvPanel>
           )}
