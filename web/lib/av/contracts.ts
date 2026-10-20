@@ -55,7 +55,6 @@ export interface OverviewProps {
     hasVideo: boolean;
   }[];
   alarmUnhandled: number;
-  anchorLabel: string;
 }
 
 // ---------------------------------------------------------------------------

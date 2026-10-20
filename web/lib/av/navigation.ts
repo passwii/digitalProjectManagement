@@ -74,7 +74,25 @@ export const AV_PAGES = [
 ] as const;
 
 export type AvSection = (typeof AV_PAGES)[number]["slug"];
-export type AvIconName = (typeof AV_PAGES)[number]["icon"] | "wave" | "menu" | "back" | "collapse" | "search" | "clock" | "user" | "chip";
+/**
+ * 可用图标名。
+ *
+ * `sun` / `moon` 是 BLF-1398 新增的主题切换图标：按钮只渲染图标，靠 `aria-label`
+ * 与 `title` 传达动作，所以图标名必须在联合类型里显式登记（否则渲染时类型不过，
+ * 而「少一个图标名」这种遗漏往往要到运行时才暴露）。
+ */
+export type AvIconName =
+  | (typeof AV_PAGES)[number]["icon"]
+  | "wave"
+  | "menu"
+  | "back"
+  | "collapse"
+  | "search"
+  | "clock"
+  | "user"
+  | "chip"
+  | "sun"
+  | "moon";
 
 export function isAvSection(value: string): value is AvSection {
   return AV_PAGES.some((page) => page.slug === value);

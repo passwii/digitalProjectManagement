@@ -27,7 +27,7 @@ export default function StressView({ core, extremes }: { core: DatasetCore; extr
         route="/stream-monitor/__stress"
         title="极端值校验"
         subtitle="极端值样本的渲染校验"
-        aside={<span className={s.anchorChip}>{formatCount(extremes.total)} 条告警全量索引</span>}
+        aside={<span className={s.headerChip}>{formatCount(extremes.total)} 条告警全量索引</span>}
       />
 
       <div className={s.stressGrid}>

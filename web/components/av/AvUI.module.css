@@ -6,6 +6,10 @@
  *
  * 这一层存在的意义是把「一页里重复 8 次的卡片头 / 度量值 / 图例」收敛成组件，
  * 否则每个页面各写一遍，深浅主题下慢慢走形。
+ *
+ * 控件高度走 globals.css 的基线令牌（BLF-1398）：
+ *   --av-ctl-page-tab（28px）分段控件的单个 Tab
+ *   --av-ctl-badge（22px）告警级别徽标 / 状态标签
  */
 
 .stack {
@@ -230,10 +234,11 @@
   flex: none;
   align-items: center;
   gap: 6px;
-  height: 22px;
+  height: var(--av-ctl-badge);
   padding: 0 7px;
   border: 1px solid var(--badge-line);
-  border-radius: 11px;
+  /* 圆角 = 高度的一半：22px 档下是真正的胶囊 */
+  border-radius: calc(var(--av-ctl-badge) / 2);
   background: var(--badge-soft);
   color: var(--badge-tone);
   font-size: 11px;
@@ -284,7 +289,7 @@
 .tab {
   position: relative;
   display: inline-flex;
-  min-height: 26px;
+  min-height: var(--av-ctl-page-tab);
   align-items: center;
   gap: 6px;
   padding: 0 10px;
@@ -630,10 +635,11 @@
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  min-height: 20px;
+  height: var(--av-ctl-badge);
   padding: 0 7px;
   border: 1px solid var(--av-divider);
-  border-radius: 11px;
+  /* 圆角 = 高度的一半：22px 档下是真正的胶囊 */
+  border-radius: calc(var(--av-ctl-badge) / 2);
   color: var(--av-ink-2);
   font-size: 10px;
   white-space: nowrap;
