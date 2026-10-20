@@ -10,7 +10,7 @@ import { describe, it } from "node:test";
  *   1. **用户可见的名称**统一为 "Stream Monitor"（壳层品牌、可访问名称、页面
  *      title / metadata、门禁浮层、工作台侧栏入口）；
  *   2. **公开路径**只有 `/stream-monitor` 一套，旧 `/av` 由 middleware 308 兼容
- *      重定向 —— 站��里不得再出现指向旧路径的链接（否则点了就是断链）。
+ *      重定向 —— 站点里不得再出现指向旧路径的链接（否则点了就是断链）。
  *
  * 刻意**不**守的东西：内部标识符（`AV_PAGES`、`--av-*` CSS 变量、`lib/av/`
  * 目录、fixture 文件名、API 契约字段）。那些不显示给用户，重命名会牵动
@@ -189,5 +189,22 @@ describe("Stream Monitor 品牌与路径契约（BLF-1387）", () => {
     // 数据目录仍是 public/mock/av（脚本 / 契约测试都按这个路径读）
     assert.match(source("lib/av/load.ts"), /"\/mock\/av"/);
     assert.match(source("lib/av/server.ts"), /public\/mock\/av/);
+  });
+
+  it("站点源文件里没有 UTF-8 替换字符（U+FFFD），改名前后的中文都没被写坏", () => {
+    // 为什么守这个：改名时整批文件被重写，中文注释一旦在某一环被按错误编码
+    // 解码再存回，U+FFFD 就会静默混进源码 —— 它是合法 UTF-8，git 不报错、
+    // tsc 不报错、测试全绿，只有真正读那行注释的人会发现是乱码。
+    // （BLF-1387 合并后实测：`streamMonitorBranding.test.ts` 的注释里就混进了一个。）
+    const files = [
+      ...filesUnder("app/stream-monitor", /\.tsx?$/),
+      ...filesUnder("components/av", /\.tsx?$/),
+      ...filesUnder("lib/av", /\.ts$/),
+    ];
+    const offenders: string[] = [];
+    for (const file of files) {
+      if (source(file).includes("\uFFFD")) offenders.push(file);
+    }
+    assert.deepEqual(offenders, []);
   });
 });
