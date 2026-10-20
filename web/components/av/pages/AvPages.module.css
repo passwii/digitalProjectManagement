@@ -190,7 +190,7 @@
 .levelTotal {
   color: var(--av-ink);
   font-family: var(--font-mono);
-  font-size: var(--av-text-body);
+  font-size: var(--av-text-panel);
   font-variant-numeric: tabular-nums;
 }
 
@@ -961,7 +961,7 @@
   border-radius: var(--av-radius-card);
   background: transparent;
   color: var(--av-ink-2);
-  font-size: 15px;
+  font-size: var(--av-text-title);
   line-height: 1;
   cursor: pointer;
 }
@@ -1575,7 +1575,7 @@
 .sceneKpis strong {
   color: var(--av-ink);
   font-family: var(--font-mono);
-  font-size: var(--av-text-body);
+  font-size: var(--av-text-emphasis);
   font-weight: 600;
   font-variant-numeric: tabular-nums;
 }

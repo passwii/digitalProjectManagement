@@ -310,13 +310,15 @@ components:
 
 **圆角**：卡片类一律直角（`--av-radius-card: 0px`）；徽标 / 芯片类才走胶囊（`--av-radius-pill`）—— 胶囊是识别信号的一部分，不能丢。
 
-**字号层级**（只定档，不改视觉）：`--av-text-page`（页面标题）/ `--av-text-title`（卡片与抽屉标题）/ `--av-text-panel`（面板标题）/ `--av-text-body`（正文）/ `--av-text-note`（辅助说明）/ `--av-text-micro`（等宽微标注）/ `--av-text-tiny`（超小标注）/ `--av-text-figure`（状态格与环形图中心数字）/ `--av-text-kpi`（KPI 大数字）。
+**字号层级**（只定档，不改视觉）：`--av-text-page`（页面标题）/ `--av-text-title`（卡片与抽屉标题）/ `--av-text-emphasis`（卡片内的等宽数字与计数，比正文重一档）/ `--av-text-panel`（面板标题与分级计数）/ `--av-text-body`（正文）/ `--av-text-note`（辅助说明）/ `--av-text-micro`（等宽微标注）/ `--av-text-tiny`（超小标注）/ `--av-text-figure`（状态格与环形图中心数字）/ `--av-text-kpi`（KPI 大数字）。
+
+档位是**齐全**的：站点实际用到的每个字号（9 / 10 / 11 / 12 / 13 / 14 / 15 / 22px，外加两个 clamp 档）都有一档令牌。缺一档的后果很具体 —— 改之前是 14px 的数字若没有对应档位，令牌化时只能被就近归到 12px，数字的视觉权重就被抹平了，而版面上看不出来。所以「只定档、不改视觉」不是一句承诺，是有机器逐条比对的：令牌化前后的**渲染像素值**必须完全一致（由 `web/lib/av/avFontSizes.vitest.test.ts` 的渲染等价守卫守着）。
 
 **图表高度**是内容容器的量纲，独立于控件基线，只三档：248px（主图：趋势 / 柱状）/ 176px（次图：环形占比、信号曲线）/ 128px（小图：抽屉里的迷你图）。档位定义在 `web/lib/av/chartHeights.ts`（页面里只引用 `AV_CHART_HEIGHT.lg / md / sm`，不写裸数字），同一行内的图表卡用同一档。
 
 **顶栏 / 页面标题 / 卡片左边缘**必须落在同一条竖线上：顶栏与内容区共用一个 `--av-gutter`（桌面 20px / ≤900px 14px / ≤720px 12px），改一处就两处一起动。
 
-这套规格由 `web/lib/av/avLayoutTokens.vitest.test.ts` 守着（间距刻度、卡片圆角、同类卡片等高、栅格对齐、图表高度档位），实测由 `scripts/av-layout-shoot.mjs`（走查五个断点 × 深浅两主题）与 `scripts/av-layout-overflow.mjs`（等高策略会不会让内容溢出）完成。
+这套规格由 `web/lib/av/avLayoutTokens.vitest.test.ts`（间距刻度、卡片圆角、同类卡片等高、栅格对齐、图表高度档位）与 `web/lib/av/avFontSizes.vitest.test.ts`（字号档位齐全、无裸字面量、渲染等价）守着，实测由 `scripts/av-layout-shoot.mjs`（走查五个断点 × 深浅两主题）与 `scripts/av-layout-overflow.mjs`（等高策略会不会让内容溢出）完成。
 
 ## Do's and Don'ts
 
