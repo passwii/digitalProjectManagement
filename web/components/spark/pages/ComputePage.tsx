@@ -21,7 +21,7 @@ export default function ComputePage() {
 
   return (
     <div className={p.pageStack}>
-      <SparkPageHeader title="算力智能调度" subtitle="苏州 3 大边缘机房 + 4 个区县边缘节点 · GPU 资源池数据快照" icon="compute" status="AI 调度策略运行中" />
+      <SparkPageHeader title="算力智能调度" subtitle="苏州 3 大边缘机房 + 4 个区县边缘节点 · GPU 资源池数据快照" icon="compute" status="AI 调度策略基线" />
 
       <div className={`${p.metricGrid} ${s.computeMetrics}`}>
         <SparkMetric label="GPU 平均负载" value="73" unit="%" detail="苏州算力池利用率" tone="cyan" icon="compute" />

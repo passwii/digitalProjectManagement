@@ -171,14 +171,14 @@ function CashierTab() {
         </div>
       </SparkPanel>
 
-      <SparkPanel title="会员充值" subtitle="充值成功后赠送金额计入当前账户余额">
+      <SparkPanel title="会员充值" subtitle="充值示例：赠送金额在当前页面内计入余额预览，不产生真实资金交易">
         <div className={s.rechargeAmounts}>
           {BILLING_RECHARGE_AMOUNTS.map((value) => <button key={value} type="button" className={`${p.filterButton} ${rechargeAmount === value ? p.filterSelected : ""}`} aria-pressed={rechargeAmount === value} onClick={() => setRechargeAmount(value)}>¥{value}</button>)}
         </div>
         <div className={s.tierOfferList}>
           {BILLING_MEMBER_TIERS.map((tier) => <div className={s.tierOffer} key={tier.name}><strong>{tier.name}</strong><span>{tier.discount}</span><small>{tier.recharge}</small></div>)}
         </div>
-        <button type="button" className={s.confirmButton} onClick={() => setRechargeNotice(`充值成功：实付 ¥${rechargeAmount}，赠送 ¥${bonus}，余额入账 ¥${rechargeAmount + bonus}`)}>立即充值 ¥{rechargeAmount}</button>
+        <button type="button" className={s.confirmButton} onClick={() => setRechargeNotice(`充值示例（仅在当前页面内生效，不产生资金交易）：实付 ¥${rechargeAmount}，赠送 ¥${bonus}，余额预览 ¥${rechargeAmount + bonus}`)}>立即充值 ¥{rechargeAmount}</button>
         {rechargeNotice && <p className={s.localNotice} role="status">{rechargeNotice}</p>}
       </SparkPanel>
     </div>
