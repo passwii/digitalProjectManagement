@@ -291,6 +291,13 @@
   .navLink,
   .collapseButton { min-height: 44px; }
   .sidebarFoot { padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px)); }
+  /*
+   * 左右安全区（BLF-1389）。
+   *
+   * Spark 之前只处理了顶部与底部，横屏时圆角屏的**两侧**安全区没人管：
+   * 左侧的刘海 / 圆角会切掉抽屉里的导航项，右侧会切掉顶栏的「返回主系统」。
+   */
+  .sidebar { padding-right: env(safe-area-inset-right, 0px); }
   .backdrop {
     position: fixed;
     inset: 0;
@@ -300,7 +307,7 @@
     background: rgba(1, 4, 10, .65);
     backdrop-filter: blur(2px);
   }
-  .topbar { min-height: calc(54px + env(safe-area-inset-top, 0px)); gap: 10px; padding: env(safe-area-inset-top, 0px) 13px 0; }
+  .topbar { min-height: calc(54px + env(safe-area-inset-top, 0px)); gap: 10px; padding: env(safe-area-inset-top, 0px) calc(13px + env(safe-area-inset-right, 0px)) 0 calc(13px + env(safe-area-inset-left, 0px)); }
   .mobileMenuButton {
     display: grid;
     width: 44px;
@@ -325,7 +332,7 @@
   .regionStatus strong { font-size: 9px; }
   .locationPin { font-size: 13px; }
   .returnLink { width: 44px; min-height: 44px; justify-content: center; padding: 0; border-left: 0; }
-  .content { padding: 16px 13px calc(24px + env(safe-area-inset-bottom, 0px)); }
+  .content { padding: 16px calc(13px + env(safe-area-inset-right, 0px)) calc(24px + env(safe-area-inset-bottom, 0px)) calc(13px + env(safe-area-inset-left, 0px)); }
 }
 
 @media (prefers-reduced-motion: reduce) {

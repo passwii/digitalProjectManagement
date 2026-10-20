@@ -1,0 +1,61 @@
+{
+  "name": "智能音视频平台",
+  "short_name": "智能音视频平台",
+  "description": "音频与视频融合感知的全场景智能安防平台",
+  "lang": "zh-CN",
+  "id": "/stream-monitor",
+  "start_url": "/stream-monitor/overview",
+  "scope": "/stream-monitor",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#07131f",
+  "theme_color": "#07131f",
+  "icons": [
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-512-maskable.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "总览驾驶舱",
+      "url": "/stream-monitor/overview",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "实时音视频监控",
+      "url": "/stream-monitor/monitor",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "告警中心",
+      "url": "/stream-monitor/alarm",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "设备管理",
+      "url": "/stream-monitor/device",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
+    }
+  ]
+}

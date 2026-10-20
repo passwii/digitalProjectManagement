@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readFileSync, readdirSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, it } from "node:test";
 
@@ -233,9 +233,25 @@ const SITE_EXTRA_FILES = [
   // 更新日志（向全部登录用户展示）
   "lib/changelog.ts",
   // PWA 清单（装到桌面后由系统展示）
-  "app/manifest.ts",
+  // ⚠️ BLF-1389：根 manifest 从 `app/manifest.ts` 迁到了
+  // `app/manifest.webmanifest/route.ts`（文件约定形式会无条件覆盖 layout 的
+  // `metadata.manifest`，站点自己的 manifest 就永远轮不上）。
+  "app/manifest.webmanifest/route.ts",
   // 免登录放行与兼容重定向
   "middleware.ts",
+];
+
+/**
+ * 站点自己的 PWA 清单（BLF-1389）：**静态 JSON 文件**，不在 `public/` 下的
+ * 数据目录里，但同样是「装到主屏幕后由系统展示」的用户可见文案。
+ *
+ * 为什么单列而不是并进 `PUBLIC_DATA_DIR`：那个目录是访客可下载的**数据**，
+ * 这里是要被系统读走的**应用元数据**，两者性质不同，分开写清楚各自的
+ * 扫描意图（数据目录扫 JSON，这里扫 .webmanifest）。
+ */
+const SITE_MANIFEST_FILES = [
+  "public/spark/manifest.webmanifest",
+  "public/stream-monitor/manifest.webmanifest",
 ];
 
 /**
@@ -253,6 +269,8 @@ const SITE_FILES = [
   ),
   // 单文件：路径已经是相对 cwd 的，filesUnder 返回的是绝对路径，这里补齐。
   ...SITE_EXTRA_FILES.map((file) => resolve(process.cwd(), file)),
+  // 站点自己的 PWA 清单（BLF-1389）
+  ...SITE_MANIFEST_FILES.map((file) => resolve(process.cwd(), file)),
 ];
 
 /** 公开静态数据集：全是 JSON，访客可下载。 */
@@ -266,6 +284,15 @@ interface Offender {
 }
 
 function scan(file: string): Offender[] {
+  // 文件不存在 → 跳过，而不是抛 ENOENT。
+  //
+  // 为什么需要这一层（BLF-1389 实测踩到）：`SITE_EXTRA_FILES` 里有一个文件
+  // 被搬走时（根 manifest 从 `app/manifest.ts` 迁到
+  // `app/manifest.webmanifest/route.ts`），守卫直接崩在 `readFileSync` 上 ——
+  // 报错信息是 ENOENT，跟「文案违规」毫无关系，排查成本极高。
+  // 「文件不在了」应该是一条明确的守卫失败（见下面的存在性用例），
+  // 而不是让整个扫描抛异常。
+  if (!existsSync(file)) return [];
   const source = maskComments(readFileSync(file, "utf8"));
   const offenders: Offender[] = [];
   const lines = source.split("\n");
@@ -287,6 +314,16 @@ function scan(file: string): Offender[] {
 }
 
 describe("生产介绍站点文案：不得出现 mock / 演示 / 工程术语措辞（BLF-1388 / BLF-1394）", () => {
+  it("扫描范围内的文件都真实存在（文件被搬走时这里报错，而不是扫描时抛 ENOENT）", () => {
+    // `scan()` 对不存在的文件是**跳过**（避免 ENOENT 把排查带偏），
+    // 但「文件不见了」本身是必须暴露的问题：否则守卫会因为少扫一个文件
+    // 而静默变弱。BLF-1389 搬走根 manifest 时踩过这个坑。
+    const missing = SITE_FILES.filter((file) => !existsSync(file)).map((file) =>
+      file.slice(resolve(process.cwd()).length + 1),
+    );
+    assert.deepEqual(missing, [], `扫描范围内的文件不存在：${missing.join("、")}`);
+  });
+
   it("两个站点的用户可见文案里没有 mock / 演示 / 虚假类措辞", () => {
     const offenders: Offender[] = [];
     for (const file of SITE_FILES) offenders.push(...scan(file));

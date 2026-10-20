@@ -2,6 +2,23 @@
 import { act, cleanup, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+/**
+ * `usePathname` 的可编程替身（BLF-1389）。
+ *
+ * 安装提示现在按**当前所在站点**取名字（云电竞管理平台 / 智能音视频平台 /
+ * 数科云办公），所以测试要能控制「当前在哪个路由」。
+ *
+ * 用 `vi.hoisted` 而不是普通变量：`vi.mock` 的工厂函数会被提升到
+ * 模块顶部，那时普通的 `const` 还没初始化（TDZ 报错）。
+ */
+const { pathnameMock } = vi.hoisted(() => ({
+  pathnameMock: vi.fn((): string => "/dashboard"),
+}));
+
+vi.mock("next/navigation", () => ({
+  usePathname: () => pathnameMock(),
+}));
+
 import InstallPrompt from "../components/pwa/InstallPrompt";
 
 const originalUserAgent = navigator.userAgent;
@@ -57,6 +74,7 @@ function installMemoryStorage() {
 }
 
 beforeEach(() => {
+  pathnameMock.mockReturnValue("/dashboard");
   Object.defineProperty(window, "matchMedia", {
     configurable: true,
     value: vi.fn(() => ({
@@ -130,6 +148,57 @@ describe("InstallPrompt 的设备范围", () => {
       maxTouchPoints: 5,
     });
     render(<InstallPrompt />);
+
+    expect(screen.getByRole("dialog", { name: "安装数科云办公" })).toBeTruthy();
+  });
+});
+
+describe("InstallPrompt 的站点文案（BLF-1389）", () => {
+  it("在独立站点的路由上显示该站点的名字（不是「数科云办公」）", async () => {
+    pathnameMock.mockReturnValue("/spark/dashboard");
+    setDevice({
+      userAgent:
+        "Mozilla/5.0 (Linux; Android 15; Pixel 9) AppleWebKit/537.36 Chrome/140.0.0.0 Mobile Safari/537.36",
+    });
+    render(<InstallPrompt />);
+
+    await act(async () => {
+      window.dispatchEvent(installEvent());
+    });
+
+    // 在云电竞管理平台上不能提示「安装数科云办公」——
+    // 浏览器装的是 manifest 里那个应用，名字对不上会装错。
+    expect(screen.getByRole("dialog", { name: "安装云电竞管理平台" })).toBeTruthy();
+    expect(screen.queryByRole("dialog", { name: "安装数科云办公" })).toBeNull();
+    expect(screen.getByText("将云电竞管理平台安装到手机。")).toBeTruthy();
+  });
+
+  it("智能音视频平台也用自己的名字", async () => {
+    pathnameMock.mockReturnValue("/stream-monitor/overview");
+    setDevice({
+      userAgent:
+        "Mozilla/5.0 (Linux; Android 15; Pixel 9) AppleWebKit/537.36 Chrome/140.0.0.0 Mobile Safari/537.36",
+    });
+    render(<InstallPrompt />);
+
+    await act(async () => {
+      window.dispatchEvent(installEvent());
+    });
+
+    expect(screen.getByRole("dialog", { name: "安装智能音视频平台" })).toBeTruthy();
+  });
+
+  it("主工作台仍然是原来的名字", async () => {
+    pathnameMock.mockReturnValue("/dashboard");
+    setDevice({
+      userAgent:
+        "Mozilla/5.0 (Linux; Android 15; Pixel 9) AppleWebKit/537.36 Chrome/140.0.0.0 Mobile Safari/537.36",
+    });
+    render(<InstallPrompt />);
+
+    await act(async () => {
+      window.dispatchEvent(installEvent());
+    });
 
     expect(screen.getByRole("dialog", { name: "安装数科云办公" })).toBeTruthy();
   });

@@ -28,7 +28,9 @@ import { OVERFLOW_TOLERANCE_PX, classifyCardBox } from "./lib/avOverflowRule.mjs
 const baseUrl = process.argv[2] ?? "http://127.0.0.1:3111";
 const chromePath = process.env.CHROME_PATH ?? "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
 const PAGES = ["overview", "monitor", "alarm", "event", "device", "capability", "audio", "__stress"];
-const WIDTHS = [1440, 1920, 1180, 900, 720];
+// 窄屏档（390 / 360）是 BLF-1389 补的：之前只到 720px，
+// 手机宽度下的卡片溢出从来没被这个脚本看过 —— 而窄屏正是溢出高发区。
+const WIDTHS = [1440, 1920, 1180, 900, 720, 390, 360];
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 

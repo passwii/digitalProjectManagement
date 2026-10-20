@@ -16,7 +16,6 @@ import { useRouter } from "next/navigation";
 import { approvalsApi, authApi, clearSession } from "@/lib/api";
 import { useAsyncData } from "@/lib/useAsyncData";
 import { clearMetaCache, useMe, useMeta } from "@/lib/useMeta";
-import { SPARK_WINDOW_TARGET } from "@/lib/spark/navigation";
 import Avatar from "@/components/ui/Avatar";
 import SheetCard from "../SheetCard";
 import type { SheetContentProps } from "./index";
@@ -121,12 +120,25 @@ export default function MineSheet({
         )
       )}
 
-      <div className={s.sec}>通用入口</div>
+      <div className={s.sec}>独立站点</div>
+      {/*
+        手机端**不**用 `target`（BLF-1389）。
+        `target` 会在手机上开出一堆新标签页：用户点「云电竞管理平台」，
+        浏览器弹出一个新标签，屏幕底部多一条地址栏，回主工作台还要连点好几次
+        「返回」。手机是单任务，入口应该同页导航。
+        桌面端侧栏仍保留 `target`（见 `app/(dashboard)/layout.tsx`）——
+        那里两个站点各有自己的浏览上下文，桌面用户能同时开两个窗口。
+      */}
       <SheetCard
         href="/spark"
-        target={SPARK_WINDOW_TARGET}
         title="云电竞管理平台"
         note="云电竞运营入口"
+        onSelect={onSelect}
+      />
+      <SheetCard
+        href="/stream-monitor"
+        title="智能音视频平台"
+        note="音视频安防运营入口"
         onSelect={onSelect}
       />
 

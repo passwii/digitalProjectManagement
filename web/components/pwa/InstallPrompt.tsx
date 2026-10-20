@@ -1,6 +1,8 @@
 "use client";
 
+import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
+import { siteIdentityFor } from "@/lib/siteIdentity";
 import s from "./InstallPrompt.module.css";
 
 type BeforeInstallPromptEvent = Event & {
@@ -37,6 +39,16 @@ function isMobileDevice() {
 }
 
 export default function InstallPrompt() {
+  const pathname = usePathname();
+  /*
+   * 文案按**当前所在站点**取（BLF-1389）。
+   *
+   * 之前这里恒为「安装数科云办公」：组件挂在根布局上，所以在两个独立站点的
+   * 路由上也会渲染 —— 用户明明在看云电竞管理平台，弹出来的却是
+   * 「将数科云办公安装到手机」，装进去的也是主工作台（浏览器按 manifest
+   * 的 `scope` 判定装的是哪个应用）。
+   */
+  const site = siteIdentityFor(pathname);
   const [installEvent, setInstallEvent] =
     useState<BeforeInstallPromptEvent | null>(null);
   const [showIosHelp, setShowIosHelp] = useState(false);
@@ -100,16 +112,16 @@ export default function InstallPrompt() {
   }
 
   return (
-    <aside className={s.prompt} role="dialog" aria-label="安装数科云办公">
+    <aside className={s.prompt} role="dialog" aria-label={`安装${site.name}`}>
       <div className={s.icon} aria-hidden="true">
-        云
+        {site.shortName.slice(0, 1)}
       </div>
       <div className={s.copy}>
-        <strong>安装数科云办公</strong>
+        <strong>安装{site.name}</strong>
         {showIosHelp ? (
           <span>点击 Safari 底部的分享按钮，再选择“添加到主屏幕”。</span>
         ) : (
-          <span>将数科云办公安装到手机。</span>
+          <span>将{site.name}安装到手机。</span>
         )}
       </div>
       <button className={s.install} type="button" onClick={install}>
