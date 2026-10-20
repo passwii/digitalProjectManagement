@@ -181,7 +181,7 @@ export default function AvShell({
 
         <div className={s.sidebarFoot}>
           <div className={s.footMeta}>
-            <span>本地 Mock 数据 · 不连接真实业务系统</span>
+            <span>数据锚点 2026-10-19 12:00 · 历史数据集</span>
             <span>{onlineRate != null ? `在线设备 ${deviceOnline}/${deviceTotal}` : "数据集就绪"}</span>
           </div>
           <button
@@ -236,9 +236,9 @@ export default function AvShell({
           </form>
 
           <div className={s.topbarRight}>
-            <span className={s.chip} title="页面内容均为本地 mock 数据">
+            <span className={s.chip} title="页面展示历史数据集的统计结果，指标按数据锚点计算">
               <i className={s.chipDot} aria-hidden="true" />
-              本地 Mock
+              数据锚点 2026-10-19 12:00
             </span>
             {onlineRate != null && (
               <span className={`${s.chip} ${s.rateChip}`} title="设备在线率来自 kpi.online_rate">

@@ -144,7 +144,7 @@ function CashierTab() {
 
   return (
     <div className={s.cashierGrid}>
-      <SparkPanel title="快速收银" subtitle="苏州全域统一收银 · 本地交互演示">
+      <SparkPanel title="快速收银" subtitle="苏州全域统一收银 · 结算结果在当前页面内生效">
         <div className={s.formStack}>
           <label className={s.fieldLabel}>所属门店
             <Select className={p.sparkSelect} surface="spark" value={store} onChange={setStore} aria-label="所属门店">
@@ -166,19 +166,19 @@ function CashierTab() {
               {CASHIER_METHODS.map((method) => <button key={method} type="button" className={`${p.filterButton} ${payment === method ? p.filterSelected : ""}`} aria-pressed={payment === method} onClick={() => setPayment(method)}>{method}</button>)}
             </div>
           </fieldset>
-          <button type="button" className={s.confirmButton} onClick={() => setCashierNotice(`本地演示已确认收银：${store} · ${chargeType} · ${payment} · ¥${amount}`)}>确认收银 ¥{amount}</button>
+          <button type="button" className={s.confirmButton} onClick={() => setCashierNotice(`已确认收银：${store} · ${chargeType} · ${payment} · ¥${amount}`)}>确认收银 ¥{amount}</button>
           {cashierNotice && <p className={s.localNotice} role="status">{cashierNotice}</p>}
         </div>
       </SparkPanel>
 
-      <SparkPanel title="会员充值" subtitle="充值成功后赠送金额将本地计入演示余额">
+      <SparkPanel title="会员充值" subtitle="充值示例：赠送金额在当前页面内计入余额预览，不产生真实资金交易">
         <div className={s.rechargeAmounts}>
           {BILLING_RECHARGE_AMOUNTS.map((value) => <button key={value} type="button" className={`${p.filterButton} ${rechargeAmount === value ? p.filterSelected : ""}`} aria-pressed={rechargeAmount === value} onClick={() => setRechargeAmount(value)}>¥{value}</button>)}
         </div>
         <div className={s.tierOfferList}>
           {BILLING_MEMBER_TIERS.map((tier) => <div className={s.tierOffer} key={tier.name}><strong>{tier.name}</strong><span>{tier.discount}</span><small>{tier.recharge}</small></div>)}
         </div>
-        <button type="button" className={s.confirmButton} onClick={() => setRechargeNotice(`充值成功：实付 ¥${rechargeAmount}，赠送 ¥${bonus}，余额入账 ¥${rechargeAmount + bonus}`)}>立即充值 ¥{rechargeAmount}</button>
+        <button type="button" className={s.confirmButton} onClick={() => setRechargeNotice(`充值示例（仅在当前页面内生效，不产生资金交易）：实付 ¥${rechargeAmount}，赠送 ¥${bonus}，余额预览 ¥${rechargeAmount + bonus}`)}>立即充值 ¥{rechargeAmount}</button>
         {rechargeNotice && <p className={s.localNotice} role="status">{rechargeNotice}</p>}
       </SparkPanel>
     </div>

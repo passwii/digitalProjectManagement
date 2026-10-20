@@ -354,8 +354,8 @@ export default function AlarmView(props: AlarmViewProps) {
           </AvPanel>
 
           <AvPanel
-            title="演示剧本"
-            subtitle="每个剧本都有完整时间线，供 Stage 3 演示路径使用"
+            title="告警剧本"
+            subtitle="每个剧本都有完整时间线，可回看整段事件的完整处置过程"
             icon="capability"
             meta={`${props.scripts.length} 个`}
             motionKey="alarm-scripts"

@@ -8,7 +8,7 @@ import { AV_MOTION_BOOTSTRAP_SCRIPT } from "@/lib/av/motion";
 
 export const metadata: Metadata = {
   title: "Stream Monitor",
-  description: "多模态融合感知 · 全场景智能安防（本地 mock 数据）",
+  description: "多模态融合感知 · 全场景智能安防",
 };
 
 /**

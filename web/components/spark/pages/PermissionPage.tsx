@@ -53,7 +53,7 @@ export default function PermissionPage() {
     setAddOpen(false);
     setDraftName("");
     setDraftStore("");
-    setNotice(`已在当前演示会话中添加 ${name}；刷新页面后会恢复原始 mock 数据。`);
+    setNotice(`已在当前会话中添加 ${name}；刷新页面后会恢复原始成员列表。`);
   };
 
   return (
@@ -137,7 +137,7 @@ export default function PermissionPage() {
               <label>成员姓名<input autoFocus value={draftName} onChange={(event) => setDraftName(event.target.value)} placeholder="请输入成员姓名" required /></label>
               <label>角色<Select className={p.sparkSelect} surface="spark" value={draftRole} onChange={(value) => setDraftRole(value as SparkRoleName)} aria-label="角色">{PERMISSION_ROLES.map((role) => <option key={role.name} value={role.name}>{role.name}</option>)}</Select></label>
               <label>所属门店 / 团队<input value={draftStore} onChange={(event) => setDraftStore(event.target.value)} placeholder="默认：苏州总部" /></label>
-              <div className={s.modalActions}><SparkButton onClick={() => setAddOpen(false)}>取消</SparkButton><SparkButton type="submit" variant="primary">添加到演示列表</SparkButton></div>
+              <div className={s.modalActions}><SparkButton onClick={() => setAddOpen(false)}>取消</SparkButton><SparkButton type="submit" variant="primary">添加到成员列表</SparkButton></div>
             </form>
           </section>
         </div>
