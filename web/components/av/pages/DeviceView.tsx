@@ -94,7 +94,7 @@ export default function DeviceView({ devices, summary }: DeviceViewProps) {
         route="/stream-monitor/device"
         title="设备管理"
         subtitle="设备台账、在线率与离线清单"
-        aside={<span className={s.anchorChip}>OTA {summary.ota.success}/{summary.ota.total} 成功</span>}
+        aside={<span className={s.headerChip}>OTA {summary.ota.success}/{summary.ota.total} 成功</span>}
       />
 
       <div className={s.statusGrid}>

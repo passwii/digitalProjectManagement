@@ -31,7 +31,7 @@ export default function CapabilityView({ scenes, groups, rules, chain, totals }:
         route="/stream-monitor/capability"
         title="能力与场景"
         subtitle="从拾音采集到多模态融合，再到分级处置的完整链路"
-        aside={<span className={s.anchorChip}>{formatCount(totals.algorithms)} 个算法 · {formatGb(totals.vram)} 显存</span>}
+        aside={<span className={s.headerChip}>{formatCount(totals.algorithms)} 个算法 · {formatGb(totals.vram)} 显存</span>}
       />
 
       <div className={s.sceneGrid}>

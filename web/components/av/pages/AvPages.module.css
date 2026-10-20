@@ -5,6 +5,12 @@
  * 布局基准：内容最大宽度 1760px（与主工作台一致），直角、1px 边界、无常态阴影。
  * 响应式：1180 收成两列，900 收成一列，720 起把关键页（总览 / 告警 / 事件）重排成
  * 单列卡片流，而不是把桌面表格硬挤进窄屏。
+ *
+ * 控件高度走 globals.css 的基线令牌（BLF-1398）：
+ *   --av-ctl-page（30px）页内按钮与输入框：次级按钮 / 告警搜索框 / 对话框主次行动
+ *   --av-ctl-badge（22px）页内标签与页头芯片
+ * ⚠️ 内容容器的高度（.channelStage / .wave / .dialog 等）是**另一个量纲**，
+ *    不要与交互控件的基线混为一谈。
  */
 
 .page {
@@ -50,12 +56,14 @@
   line-height: 1.6;
 }
 
-.anchorChip {
+.headerChip {
   display: inline-flex;
   align-items: center;
-  height: 26px;
+  height: var(--av-ctl-badge);
   padding: 0 9px;
   border: 1px solid var(--av-divider);
+  /* 圆角 = 高度的一半：22px 档下是真正的胶囊 */
+  border-radius: calc(var(--av-ctl-badge) / 2);
   color: var(--av-ink-3);
   font-family: var(--font-mono);
   font-size: 10px;
@@ -73,8 +81,8 @@
 }
 
 .ghostButton {
-  height: 26px;
-  padding: 0 9px;
+  height: var(--av-ctl-page);
+  padding: 0 11px;
   border: 1px solid var(--av-divider);
   border-radius: 0;
   background: transparent;
@@ -97,10 +105,11 @@
 .tagChip {
   display: inline-flex;
   align-items: center;
-  min-height: 20px;
+  height: var(--av-ctl-badge);
   padding: 0 7px;
   border: 1px solid var(--av-divider);
-  border-radius: 11px;
+  /* 圆角 = 高度的一半：22px 档下是真正的胶囊 */
+  border-radius: calc(var(--av-ctl-badge) / 2);
   color: var(--av-ink-2);
   font-family: var(--font-mono);
   font-size: 10px;
@@ -614,7 +623,7 @@
   max-width: 280px;
   align-items: center;
   gap: 6px;
-  height: 30px;
+  height: var(--av-ctl-page);
   padding: 0 9px;
   border: 1px solid var(--av-divider);
   background: var(--av-canvas);
@@ -624,6 +633,9 @@
 .alarmSearch input {
   min-width: 0;
   flex: 1;
+  /* 同上：盖掉全局 input 的 38px，让输入框内容与外壳同一档（BLF-1398） */
+  height: 100%;
+  padding: 0;
   border: 0;
   outline: none;
   background: transparent;
@@ -902,8 +914,8 @@
 }
 
 .dialogClose {
-  width: 30px;
-  height: 30px;
+  width: var(--av-ctl-page);
+  height: var(--av-ctl-page);
   flex: none;
   border: 1px solid var(--av-divider);
   border-radius: 0;
@@ -977,7 +989,7 @@
 .primaryAction {
   display: inline-flex;
   align-items: center;
-  height: 32px;
+  height: var(--av-ctl-page);
   padding: 0 14px;
   border: 1px solid var(--action-border, transparent);
   border-radius: 0;
@@ -996,7 +1008,7 @@
 .secondaryAction {
   display: inline-flex;
   align-items: center;
-  height: 32px;
+  height: var(--av-ctl-page);
   padding: 0 12px;
   border: 1px solid var(--av-divider);
   border-radius: 0;
