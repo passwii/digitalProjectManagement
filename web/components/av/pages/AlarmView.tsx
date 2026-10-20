@@ -36,6 +36,7 @@ import { m } from "framer-motion";
 import { closeDialogWithMotion, openDialogWithMotion } from "@/components/av/motion/AvDialog";
 import { useStaggerIndex } from "@/components/av/motion/AvMotion";
 import { AvInsertedItem, AvSkeleton } from "@/components/av/motion/AvCounter";
+import { AV_CHART_HEIGHT } from "@/lib/av/chartHeights";
 import s from "./AvPages.module.css";
 import type { AlarmSite, AlarmViewProps } from "@/lib/av/contracts";
 
@@ -320,7 +321,7 @@ export default function AlarmView(props: AlarmViewProps) {
               data={unhandledDonut}
               centerValue={formatCount(props.unhandled)}
               centerLabel="未处置"
-              height={168}
+              height={AV_CHART_HEIGHT.md}
               label="未处置告警分级环形图"
             />
             <ul className={s.levelList}>

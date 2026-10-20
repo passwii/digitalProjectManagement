@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { OverviewProps } from "@/lib/av/contracts";
 import { AvBar, AvLegend, AvMetric, AvPageHeader, AvPanel, AvLevelBadge } from "@/components/av/AvUI";
 import { toneVar } from "@/lib/av/tone";
+import { AV_CHART_HEIGHT } from "@/lib/av/chartHeights";
 import { AvBarChart, AvDonut, AvTrendChart, type DonutDatum } from "@/components/av/AvCharts";
 import { formatCount, formatGb, formatPercent, formatStorage } from "@/lib/av/labels";
 import { toRelative } from "@/lib/av/time";
@@ -111,7 +112,7 @@ export default function OverviewView(props: OverviewProps) {
               dataKeys={["alarms", "incidents"]}
               labels={["告警数", "事件数"]}
               tones={["signal", "violet"]}
-              height={248}
+              height={AV_CHART_HEIGHT.lg}
               label="近 7 日告警与事件柱状图"
             />
           ) : (
@@ -120,7 +121,7 @@ export default function OverviewView(props: OverviewProps) {
               dataKeys={["alarms", "handled"]}
               labels={["告警数", "已处置"]}
               tones={["signal", "success"]}
-              height={248}
+              height={AV_CHART_HEIGHT.lg}
               label="告警趋势折线图"
             />
           )}

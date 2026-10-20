@@ -15,11 +15,28 @@
  * 900px 以下侧栏变抽屉、顶栏保留搜索与状态；720px 以下收紧内边距，
  * 页面自身再按窄屏重排（见 pages/*.module.css 的窄屏段）；
  * 430px 以下再收一档，让 44px 触控档的顶栏第一行装得下（不换行成 3 行）。
+ *
+ * ⚠️ --av-head-h 与视口高度（min-height）**不归本文件管**：它们是 BLF-1389
+ * （移动端 PWA 适配）的范围。本 issue（BLF-1399）只动**水平内边距**，
+ * 且只动一个量 —— --av-gutter（见下），与安全区无关。
  */
 
 .shell {
   --av-sidebar: 252px;
   --av-head-h: 64px;
+  /*
+   * 内容区左右留白（gutter）。
+   *
+   * 顶栏、页面标题、卡片三者的左边缘必须落在**同一条竖线**上：
+   * 顶栏的搜索框、页面里的 h1、第一张面板的边框，左边应该齐平。
+   * 之前顶栏与内容区各写各的内边距（桌面 20 / 20 恰好相等，但 ≤900px 是
+   * 20 / 14、≤720px 是 12 / 10），于是窄屏下顶栏比页面标题右移 6~10px，
+   * 一眼就能看出两层没对齐。
+   *
+   * 所以这里定义**一个**变量，顶栏与内容区都消费它 —— 改一处就两处一起动，
+   * 不会再走偏。断点档位：桌面 20px / ≤900px 14px / ≤720px 12px。
+   */
+  --av-gutter: 20px;
   display: flex;
   min-height: 100vh;
   background: var(--av-canvas);
@@ -287,7 +304,7 @@
   min-height: var(--av-head-h);
   align-items: center;
   gap: 12px;
-  padding: 0 20px;
+  padding: 0 var(--av-gutter);
   border-bottom: 1px solid var(--av-divider);
   background: var(--av-surface);
 }
@@ -503,7 +520,7 @@
 
 .content {
   min-width: 0;
-  padding: 22px 20px 40px;
+  padding: 22px var(--av-gutter) 40px;
 }
 
 .backdrop {
@@ -532,6 +549,8 @@
      */
     --av-ctl-shell: 44px;
     --av-ctl-shell-chip: 28px;
+    /* 窄屏收一档 gutter（顶栏与内容区同步收，保持左边缘对齐） */
+    --av-gutter: 14px;
   }
   .sidebar {
     width: 268px;
@@ -573,7 +592,7 @@
     animation: avFadeIn var(--av-dur-base) var(--av-ease-enter) both;
   }
   .content {
-    padding: 16px 14px 32px;
+    padding: 16px var(--av-gutter) 32px;
   }
   .searchBox {
     max-width: none;
@@ -593,11 +612,13 @@
   .shell {
     /* 手机壳里不允许横向溢出：顶栏与内容都必须换行收敛 */
     overflow-x: clip;
+    /* 手机再收一档 gutter（顶栏与内容区同步收，保持左边缘对齐） */
+    --av-gutter: 12px;
   }
   .topbar {
     flex-wrap: wrap;
     gap: 8px;
-    padding: 8px 12px;
+    padding: 8px var(--av-gutter);
   }
   .searchBox {
     order: 3;
@@ -617,7 +638,7 @@
     padding-left: 8px;
   }
   .content {
-    padding: 12px 10px 28px;
+    padding: 12px var(--av-gutter) 28px;
   }
 }
 
