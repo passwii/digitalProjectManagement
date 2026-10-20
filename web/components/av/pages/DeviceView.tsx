@@ -416,7 +416,7 @@ function DeviceDetail({ device, onClose }: { device: DeviceRow; onClose: () => v
           )}
         </div>
 
-        <p className={s.softNote}>设备存储占用 {formatGb((device.storage / 100) * 64)} / 64 GB（按 64GB 容量估算，仅演示）</p>
+        <p className={s.softNote}>设备存储占用 {formatGb((device.storage / 100) * 64)} / 64 GB（按 64GB 容量估算）</p>
       </div>
     </>
   );

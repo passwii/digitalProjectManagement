@@ -203,7 +203,7 @@
 .searchBox span:nth-child(2) { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .searchBox kbd { padding: 2px 5px; border: 1px solid var(--spark-line); border-radius: 4px; color: #69778e; font: 9px "JetBrains Mono", monospace; }
 .topbarRight { display: flex; align-items: center; gap: 17px; }
-.demoBadge {
+.dataBadge {
   display: inline-flex;
   flex: none;
   align-items: center;
@@ -316,7 +316,7 @@
   .searchBox { width: auto; min-width: 0; flex: 1; height: 33px; padding: 0 8px; font-size: 10px; }
   .searchBox kbd { display: none; }
   .topbarRight { gap: 8px; }
-  .demoBadge { min-height: 19px; padding: 0 5px; font-size: 7px; }
+  .dataBadge { min-height: 19px; padding: 0 5px; font-size: 7px; }
   .regionStatus { gap: 5px; padding: 6px; border-color: transparent; background: transparent; }
   .regionStatus > span:not(.locationPin),
   .regionStatus strong small,

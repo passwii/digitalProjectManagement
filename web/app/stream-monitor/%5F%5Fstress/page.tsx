@@ -4,8 +4,8 @@ import StressView from "@/components/av/pages/StressView";
 
 export const metadata: Metadata = {
   title: "布局压力测试 · Stream Monitor",
-  description: "Stage 1 极端值样本一次性渲染，用于布局回归（不进导航）",
-  // 回归页不进搜索引擎，也不该被当成演示内容分享出去
+  description: "极端值样本一次性渲染，用于布局回归（不进导航）",
+  // 回归页不进搜索引擎，也不该被当成产品内容分享出去
   robots: { index: false, follow: false },
 };
 

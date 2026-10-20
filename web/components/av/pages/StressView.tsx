@@ -26,7 +26,7 @@ export default function StressView({ core, extremes }: { core: DatasetCore; extr
       <AvPageHeader
         route="/stream-monitor/__stress"
         title="布局压力测试"
-        subtitle="Stage 1 埋入的极端值样本一次性渲染：长标题 / 长房间名 / 多关键词 / 五位数 / 空态。本页不进导航，仅供布局回归。"
+        subtitle="数据集内置的极端值样本一次性渲染：长标题 / 长房间名 / 多关键词 / 五位数 / 空态。本页不进导航，仅供布局回归。"
         aside={<span className={s.anchorChip}>{formatCount(extremes.total)} 条告警全量索引</span>}
       />
 

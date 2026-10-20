@@ -235,13 +235,13 @@ export default function AudioView({ alarm, spectrum, transcript, samples }: Audi
               className={s.ghostButton}
               onClick={togglePlay}
               aria-pressed={playing}
-              aria-label={playing ? "暂停频谱游标演示" : "播放频谱游标演示"}
+              aria-label={playing ? "暂停频谱游标" : "播放频谱游标"}
             >
               {playing ? "暂停" : "播放"}
             </button>
             <span className={s.softNote}>
-              mock 数据只有频谱矩阵与转写，没有音频文件：游标按 1 倍速走完 {formatSeconds(spectrum.seconds)}，
-              用于演示「转写跟随游标高亮」的交互（rAF 驱动，不用 CSS transition）。
+              数据集只提供频谱矩阵与转写，未包含音频文件：游标按 1 倍速走完 {formatSeconds(spectrum.seconds)}，
+              用于呈现「转写跟随游标高亮」的交互（rAF 驱动，不用 CSS transition）。
             </span>
           </div>
           <div style={{ marginTop: 10 }}>

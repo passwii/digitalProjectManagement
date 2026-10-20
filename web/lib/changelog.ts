@@ -26,7 +26,7 @@ export const CHANGELOG_VERSIONS: ChangelogVersion[] = [
     id: "v2",
     label: "V2",
     title: "扩展能力",
-    summary: "围绕项目管理基本盘，扩展财务、主题切换、商机与演示能力，持续打磨移动端、登录、附件预览和协同体验。",
+    summary: "围绕项目管理基本盘，扩展财务、主题切换、商机与独立站点能力，持续打磨移动端、登录、附件预览和协同体验。",
     days: [
       {
         date: "2026-10-10",
@@ -201,7 +201,7 @@ export const CHANGELOG_VERSIONS: ChangelogVersion[] = [
           {
             kind: "修复",
             title: "Spark 首页跳转统一",
-            description: "访问 `/spark` 时统一进入演示总览 `/spark/dashboard`，让直接打开、页面刷新和站内导航落在同一入口。",
+            description: "访问 `/spark` 时统一进入运营总览 `/spark/dashboard`，让直接打开、页面刷新和站内导航落在同一入口。",
           },
         ],
       },
@@ -226,7 +226,7 @@ export const CHANGELOG_VERSIONS: ChangelogVersion[] = [
           {
             kind: "功能",
             title: "免登录云电竞管理平台",
-            description: "新增可公开访问的云电竞管理平台，覆盖运营、门店、算力、计费、内容、安全、运维和权限八个模块，交互使用本地演示数据。",
+            description: "新增可公开访问的云电竞管理平台，覆盖运营、门店、算力、计费、内容、安全、运维和权限八个模块，页面数据按快照时点展示。",
           },
         ],
       },

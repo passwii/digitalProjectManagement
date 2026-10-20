@@ -32,7 +32,7 @@ export default function OpsPage() {
 
   const progressTicket = (id: string, status: SparkTicketStatus) => {
     const nextStatus: SparkTicketStatus = status === "待派单" ? "处理中" : "已解决";
-    setTickets((current) => current.map((ticket) => ticket.id === id ? { ...ticket, status: nextStatus, assignee: ticket.assignee === "待派单" ? "苏州现场组 · 演示指派" : ticket.assignee, sla: nextStatus === "已解决" ? "演示标记为已解决" : ticket.sla } : ticket));
+    setTickets((current) => current.map((ticket) => ticket.id === id ? { ...ticket, status: nextStatus, assignee: ticket.assignee === "待派单" ? "苏州现场组 · 派单处理" : ticket.assignee, sla: nextStatus === "已解决" ? "已标记为已解决" : ticket.sla } : ticket));
   };
 
   const counts = {
@@ -50,13 +50,13 @@ export default function OpsPage() {
         icon="ops"
         actions={<SparkButton variant="primary" onClick={() => setNotice(true)}>提交工单</SparkButton>}
       />
-      {notice && <div className={s.inlineNotice} role="status">演示环境不会提交真实工单；当前列表仅使用本地 mock 数据。</div>}
+      {notice && <div className={s.inlineNotice} role="status">提交结果仅在当前页面内生效，不会写入工单系统；列表数据为当前工单快照。</div>}
 
       <div className={`${p.metricGrid} ${s.slaGrid}`}>
         {OPS_METRICS.map((metric) => <SparkMetric key={metric.label} {...metric} />)}
       </div>
 
-      <SparkPanel title="六大子系统健康度" subtitle="各系统 Mock 健康评分">
+      <SparkPanel title="六大子系统健康度" subtitle="各系统健康评分">
         <div className={s.subsystemGrid}>{OPS_SUBSYSTEMS.map((item) => <article className={s.subsystemCard} key={item.name}><span>{item.name}</span><strong>{item.score}</strong><small>{item.health}</small></article>)}</div>
       </SparkPanel>
 

@@ -174,7 +174,7 @@ export default function CapabilityView({ scenes, groups, rules, chain, totals }:
 
           <AvPanel
             title="检测规则"
-            subtitle="阈值与动作；规则为只读展示（mock 数据静态）"
+            subtitle="阈值与动作；规则为只读展示（数据集内容固定）"
             icon="alarm"
             meta={`${rules.filter((rule) => rule.enabled).length}/${rules.length} 启用`}
             motionKey="capability-rules"

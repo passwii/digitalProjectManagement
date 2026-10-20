@@ -144,7 +144,7 @@ function CashierTab() {
 
   return (
     <div className={s.cashierGrid}>
-      <SparkPanel title="快速收银" subtitle="苏州全域统一收银 · 本地交互演示">
+      <SparkPanel title="快速收银" subtitle="苏州全域统一收银 · 结算结果在当前页面内生效">
         <div className={s.formStack}>
           <label className={s.fieldLabel}>所属门店
             <Select className={p.sparkSelect} surface="spark" value={store} onChange={setStore} aria-label="所属门店">
@@ -166,12 +166,12 @@ function CashierTab() {
               {CASHIER_METHODS.map((method) => <button key={method} type="button" className={`${p.filterButton} ${payment === method ? p.filterSelected : ""}`} aria-pressed={payment === method} onClick={() => setPayment(method)}>{method}</button>)}
             </div>
           </fieldset>
-          <button type="button" className={s.confirmButton} onClick={() => setCashierNotice(`本地演示已确认收银：${store} · ${chargeType} · ${payment} · ¥${amount}`)}>确认收银 ¥{amount}</button>
+          <button type="button" className={s.confirmButton} onClick={() => setCashierNotice(`已确认收银：${store} · ${chargeType} · ${payment} · ¥${amount}`)}>确认收银 ¥{amount}</button>
           {cashierNotice && <p className={s.localNotice} role="status">{cashierNotice}</p>}
         </div>
       </SparkPanel>
 
-      <SparkPanel title="会员充值" subtitle="充值成功后赠送金额将本地计入演示余额">
+      <SparkPanel title="会员充值" subtitle="充值成功后赠送金额计入当前账户余额">
         <div className={s.rechargeAmounts}>
           {BILLING_RECHARGE_AMOUNTS.map((value) => <button key={value} type="button" className={`${p.filterButton} ${rechargeAmount === value ? p.filterSelected : ""}`} aria-pressed={rechargeAmount === value} onClick={() => setRechargeAmount(value)}>¥{value}</button>)}
         </div>

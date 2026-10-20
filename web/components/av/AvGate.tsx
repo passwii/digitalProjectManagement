@@ -73,7 +73,7 @@ function GateOverlay() {
           Stream Monitor · 安全验证
         </div>
         <h2 id="av-gate-title">平台管理员二次验证</h2>
-        <p className={s.copy}>输入 6 位动态口令进入运营工作台。演示环境不校验真实口令，任意 6 位均可解锁。</p>
+        <p className={s.copy}>输入 6 位动态口令进入运营工作台。本入口不校验真实口令，任意 6 位均可解锁。</p>
 
         <div className={s.code} role="group" aria-label="6 位动态口令">
           {digits.map((digit, index) => (
@@ -106,7 +106,7 @@ function GateOverlay() {
 
         <div className={s.meta}>
           <span>STREAM MONITOR CONSOLE</span>
-          <span>DEMO · 本地校验</span>
+          <span>本地校验</span>
         </div>
       </div>
     </div>
