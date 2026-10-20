@@ -73,6 +73,32 @@ function ruleBody(css: string, selector: string): string {
   return "";
 }
 
+/**
+ * 取出某个 `@media (max-width: Npx)` 断点块的正文。
+ *
+ * 为什么要单独抽出来：同一个选择器在文件里会出现多次（桌面档 + 各窄屏档），
+ * `ruleBody` 取的是**第一个**匹配 —— 也就是桌面档，拿不到窄屏档里改了什么。
+ * 而窄屏档恰恰是本 issue 的战场（触控档、顶栏收敛），必须能单独读出来。
+ *
+ * 找不到该断点时返回空串（调用方据此报错，而不是静默通过）。
+ */
+function mediaBlock(css: string, maxWidth: number): string {
+  const pattern = new RegExp(`@media\\s*\\(max-width:\\s*${maxWidth}px\\)\\s*\\{`, "g");
+  const match = pattern.exec(css);
+  if (!match) return "";
+  const start = match.index + match[0].length;
+  let depth = 1;
+  for (let index = start; index < css.length; index += 1) {
+    const char = css[index];
+    if (char === "{") depth += 1;
+    else if (char === "}") {
+      depth -= 1;
+      if (depth === 0) return css.slice(start, index);
+    }
+  }
+  return "";
+}
+
 /** 声明体里的 height / min-height（只取这两个，别的量纲不管）。 */
 function heights(body: string): number[] {
   const out: number[] = [];
@@ -212,6 +238,76 @@ describe("智能音视频平台 控件尺寸基线：令牌与档位（BLF-1398�
     expect(shellCss).toMatch(/@media \(max-width: 900px\)[\s\S]*?--av-ctl-shell:\s*44px;/);
     // 桌面档仍然是 34px
     expect(globals).toMatch(/--av-ctl-shell:\s*34px;/);
+  });
+
+  it("窄屏顶栏第一行装得下（44px 触控档不把顶栏挤成三行）", () => {
+    /*
+     * 这条守的是**宽度预算**，不是某一个具体断点。
+     *
+     * 背景（BLF-1398 复查的 P2）：≤900px 把壳层控件抬到 44px 触控档后，
+     * 顶栏第一行需要「菜单键 44 + 状态簇」挤进内容盒。390px 实测：
+     *   内容盒 366px，状态簇（锚点 chip 172 + 头像 39 + 主题键 44 + 返回键 44
+     *   + 三个 8px gap）= 323，合计 375 > 366 —— 差 9px 就换行，
+     *   汉堡键被孤立成一行，顶栏从 2 行（95px）涨成 3 行（165px）。
+     *
+     * 所以窄屏段必须有一处**收敛**：把不承载导航/状态的装饰元素（用户头像）
+     * 拿掉，并把状态簇的 gap 收窄。这里算的是**最紧的一档**（≤430px）：
+     * 菜单键 44 + 顶栏 gap 8 + 锚点 chip 172 + 主题键 44 + 返回键 44
+     * + 状态簇两个 gap。
+     *
+     * 为什么要用预算而不是写死断点：写死「≤400px」只能挡住这一次改版；
+     * 写成预算就能在**任何**窄屏断点改动下重新算一遍。
+     */
+    const NARROW = 430;
+    const narrowBlock = mediaBlock(shellCss, NARROW);
+    expect(narrowBlock, `AvShell.module.css 缺少 @media (max-width: ${NARROW}px) 收敛段`).not.toBe("");
+
+    // 44px 触控档（≤900px 段）
+    const touchBlock = mediaBlock(shellCss, 900);
+    expect(touchBlock, "AvShell.module.css 缺少 @media (max-width: 900px) 触控档段").not.toBe("");
+    const shellTier = /--av-ctl-shell:\s*(\d+)px;/.exec(touchBlock);
+    expect(shellTier, "≤900px 段必须声明 --av-ctl-shell").not.toBeNull();
+    const ctl = Number(shellTier![1]);
+
+    // 收敛段里：用户头像让位（它不承载导航也不承载状态）
+    const badge = ruleBody(narrowBlock, "userBadge");
+    expect(badge, "≤430px 段必须处理 .userBadge").not.toBe("");
+    expect(badge, "≤430px 必须隐藏 .userBadge（它只剩一个装饰圆点）").toMatch(/display:\s*none/);
+
+    // 收敛段里：状态簇 gap 收窄
+    const right = ruleBody(narrowBlock, "topbarRight");
+    expect(right, "≤430px 段必须处理 .topbarRight").not.toBe("");
+    const rightGap = /gap:\s*(\d+)px;/.exec(right);
+    expect(rightGap, "≤430px 必须显式声明 .topbarRight 的 gap").not.toBeNull();
+    const gap = Number(rightGap![1]);
+
+    // 收敛段里：返回链接不参与弹性收缩（它是「返回主系统」的出口）
+    const back = ruleBody(narrowBlock, "backLink");
+    expect(back, "≤430px 段必须处理 .backLink").not.toBe("");
+    expect(back, "≤430px 的 .backLink 不允许被弹性压扁").toMatch(/flex:\s*none/);
+
+    // 顶栏自身的 gap（≤720px 段）
+    const phoneBlock = mediaBlock(shellCss, 720);
+    const topbar = ruleBody(phoneBlock, "topbar");
+    const topbarGap = /gap:\s*(\d+)px;/.exec(topbar);
+    expect(topbarGap, "≤720px 段必须声明 .topbar 的 gap").not.toBeNull();
+
+    // 宽度预算：菜单键 + 顶栏 gap + 状态簇 ≤ 360px 手机的内容盒（360 - 24 padding）
+    const chipWidth = 172; // 锚点 chip 实测宽（scripts/av-shell-shoot.mjs）
+    const budget =
+      ctl + // 菜单键
+      Number(topbarGap![1]) + // 菜单键与状态簇之间
+      chipWidth + // 锚点 chip
+      ctl + // 主题键
+      ctl + // 返回键
+      gap * 2; // 状态簇内部两个间隙
+    const contentBox = 360 - 24;
+    expect(
+      budget,
+      `≤430px 顶栏第一行需要 ${budget}px（菜单键 ${ctl} + gap ${topbarGap![1]} + chip ${chipWidth} ` +
+        `+ 主题键 ${ctl} + 返回键 ${ctl} + 两个 ${gap}px 间隙），超出 360px 手机的内容盒 ${contentBox}px —— ` +
+        `顶栏会换行成三行`,
+    ).toBeLessThanOrEqual(contentBox);
   });
 
   it("图标按钮是正方形（宽 = 高），不靠内边距硬撑", () => {
