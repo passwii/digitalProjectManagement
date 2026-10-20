@@ -170,7 +170,7 @@ function ComplianceTab({ query, category, decisions, onDecision, onReset }: {
 
   return (
     <>
-      <SparkPanel title="内容合规审核队列" subtitle="本地演示状态仅在当前页面生效" action={<SparkBadge tone="green">今日已处理 48 条</SparkBadge>}>
+      <SparkPanel title="内容合规审核队列" subtitle="审核状态仅在当前页面生效" action={<SparkBadge tone="green">今日已处理 48 条</SparkBadge>}>
         {visibleQueue.length ? (
           <div className={s.reviewList}>
             {visibleQueue.map((item) => {
@@ -211,7 +211,7 @@ export default function ContentPage() {
       {tab === "games" && <div className={p.metricGrid}>{CONTENT_METRICS.map((metric) => <SparkMetric key={metric.label} {...metric} />)}</div>}
       <div className={s.contentToolbar}>
         <ContentSearch value={query} onChange={setQuery} placeholder={tab === "games" ? "搜索游戏名称" : tab === "events" ? "搜索赛事名称、游戏或地点" : tab === "additional" ? "搜索增值内容" : "搜索内容、提交人或风险状态"} />
-        <span className={s.toolbarHint}>{tab === "games" ? "热门游戏 · 近 7 日启动 Top" : tab === "events" ? "苏州本地赛事 · 2026 春季赛" : tab === "additional" ? "影音、赛事与互动服务" : "本地演示审核状态"}</span>
+        <span className={s.toolbarHint}>{tab === "games" ? "热门游戏 · 近 7 日启动 Top" : tab === "events" ? "苏州本地赛事 · 2026 春季赛" : tab === "additional" ? "影音、赛事与互动服务" : "审核状态与风险等级"}</span>
       </div>
       <FilterChips options={categories} value={category} onChange={setCategory} label="按当前内容分类筛选" />
       {tab === "games" && <GamesTab query={query} category={category} onReset={resetFilters} />}

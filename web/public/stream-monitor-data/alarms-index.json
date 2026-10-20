@@ -3,7 +3,7 @@
     "total": 14366,
     "shard_count": 9,
     "sorted_by": "ts_offset_minutes asc（新 → 旧）",
-    "note": "首屏只加载本文件；列表按 cursor 懒加载分片，不要一次拉全部。"
+    "note": "首页只加载本文件；列表按 cursor 逐段加载，不要一次拉全部。"
   },
   "pagination": {
     "page_size": 50,

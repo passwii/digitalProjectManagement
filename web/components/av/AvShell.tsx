@@ -6,7 +6,7 @@ import { Suspense, useEffect, useMemo, useState } from "react";
 import { m } from "framer-motion";
 import { AV_PAGES, AV_WINDOW_TARGET, type AvIconName } from "@/lib/av/navigation";
 import { useTheme } from "@/components/theme/ThemeProvider";
-import { ANCHOR_MS } from "@/lib/av/time";
+import { ANCHOR_MS, toAbsolute } from "@/lib/av/time";
 import { useAvMotion } from "./motion/AvMotionProvider";
 import { AvPageTransition } from "./motion/AvMotion";
 import motion from "./motion/AvMotion.module.css";
@@ -21,7 +21,8 @@ import s from "./AvShell.module.css";
  * 为什么不是「打一次表就停」：截图验收要求同一页连截 3 次 MD5 一致，
  * 而 `new Date()` 每次截图的秒数都不一样 —— 那样这条验收永远过不了。
  * 锚点时间是常量（2026-10-19 12:00，UTC+8），因此截图之间逐字节相同，
- * 也与页面上「数据锚点」徽标表达的时间一致。
+ * 也与顶栏状态栏那颗「数据锚点」徽标表达的是同一个时刻（BLF-1398 起，
+ * 锚点时间在全站只出现这一处）。
  */
 function useClock(frozen: boolean): { time: string; seconds: string } {
   const [now, setNow] = useState<Date | null>(null);
@@ -123,24 +124,24 @@ export default function AvShell({
         <button
           type="button"
           className={s.backdrop}
-          aria-label="关闭 Stream Monitor 导航"
+          aria-label="关闭智能音视频平台导航"
           tabIndex={-1}
           onClick={() => setMobileOpen(false)}
         />
       )}
 
-      <aside className={s.sidebar} aria-label="Stream Monitor 侧栏">
-        <Link className={s.brand} href="/stream-monitor/overview" aria-label="返回 Stream Monitor 总览">
+      <aside className={s.sidebar} aria-label="智能音视频平台侧栏">
+        <Link className={s.brand} href="/stream-monitor/overview" aria-label="返回智能音视频平台总览">
           <span className={s.brandMark}>
             <AvGlyph name="wave" size={19} />
           </span>
           <span className={`${s.brandCopy} ${motion.sidebarText}`}>
             <strong>{orgName}</strong>
-            <small>STREAM MONITOR · {version}</small>
+            <small>多模态感知 · {version}</small>
           </span>
         </Link>
 
-        <nav id="av-navigation" className={s.nav} aria-label="Stream Monitor 模块">
+        <nav id="av-navigation" className={s.nav} aria-label="智能音视频平台模块">
           {groups.map((entry) => (
             <div key={entry.group}>
               <div className={s.groupLabel}>{collapsed ? "—" : entry.group}</div>
@@ -180,9 +181,16 @@ export default function AvShell({
         </nav>
 
         <div className={s.sidebarFoot}>
+          {/*
+            侧栏底部只留一行运行态摘要。
+            BLF-1398 起这里不再重复「数据锚点 2026-10-19 12:00」—— 顶栏状态栏
+            已经有一颗锚点徽标，同一个视口里出现两遍同样的时间戳就是纯噪音。
+            这一行换成「在线设备 N/M」，与顶栏的在线率芯片互补（一个讲比例、
+            一个讲绝对数），不再是同一句话换个位置。版本号已经在品牌区出现过，
+            不在这里重复第二遍。
+          */}
           <div className={s.footMeta}>
-            <span>本地 Mock 数据 · 不连接真实业务系统</span>
-            <span>{onlineRate != null ? `在线设备 ${deviceOnline}/${deviceTotal}` : "数据集就绪"}</span>
+            <span>{onlineRate != null ? `在线设备 ${deviceOnline}/${deviceTotal}` : "数据就绪"}</span>
           </div>
           <button
             type="button"
@@ -203,7 +211,7 @@ export default function AvShell({
             type="button"
             className={s.menuButton}
             onClick={() => setMobileOpen(true)}
-            aria-label="打开 Stream Monitor 导航"
+            aria-label="打开智能音视频平台导航"
             aria-controls="av-navigation"
             aria-expanded={mobileOpen}
           >
@@ -236,9 +244,15 @@ export default function AvShell({
           </form>
 
           <div className={s.topbarRight}>
-            <span className={s.chip} title="页面内容均为本地 mock 数据">
+            {/*
+              数据锚点：全站**唯一**一处显示这个时间戳的地方（BLF-1398）。
+              值从 lib/av/time 的换算入口来，不写死字符串 —— 之前这里硬编码着
+              「2026-10-19 12:00」，与 toAbsolute(0) 是同一个事实的两个副本，
+              锚点一改就会对不上。
+            */}
+            <span className={s.chip} title="页面展示数据锚点时刻的统计结果">
               <i className={s.chipDot} aria-hidden="true" />
-              本地 Mock
+              数据锚点 {toAbsolute(0)}
             </span>
             {onlineRate != null && (
               <span className={`${s.chip} ${s.rateChip}`} title="设备在线率来自 kpi.online_rate">
@@ -262,14 +276,23 @@ export default function AvShell({
                 <small>综合安防运营中心</small>
               </span>
             </div>
+            {/*
+              主题切换：BLF-1398 起只渲染图标，不渲染「浅色 / 深色」文字。
+              之前它是壳层里唯一一个「开关型」控件，却用纯文字表达，视觉重量与旁边的
+              「返回主系统」链接完全一样，用户必须读字才知道它管什么。
+
+              图标方向是**「点击后要去的那个主题」**：深色下画太阳（点了变浅色），
+              浅色下画月亮（点了变深色）。这与 aria-label / title 的措辞同向 ——
+              读屏用户听到的与看到的相反是图标按钮最常见的失败。
+            */}
             <button
               type="button"
-              className={s.backLink}
+              className={s.iconButton}
               onClick={() => setMode(resolvedTheme === "dark" ? "light" : "dark")}
               aria-label={resolvedTheme === "dark" ? "切换到浅色主题" : "切换到深色主题"}
               title={resolvedTheme === "dark" ? "切换到浅色主题" : "切换到深色主题"}
             >
-              {resolvedTheme === "dark" ? "浅色" : "深色"}
+              <AvGlyph name={resolvedTheme === "dark" ? "sun" : "moon"} size={16} />
             </button>
             {/* prefetch=false：/dashboard 是受保护路由，预取会拿到 /login 的 RSC 响应，
                 控制台会留下一条 CORS/Failed to fetch 噪音（AV 是免登录演示站）。 */}

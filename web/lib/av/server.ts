@@ -29,13 +29,13 @@ import type {
 
 function resolveDataDir(): string {
   const candidates = [
-    resolve(process.cwd(), "public/mock/av"),
-    resolve(process.cwd(), "web/public/mock/av"),
-    resolve(process.cwd(), "../web/public/mock/av"),
+    resolve(process.cwd(), "public/stream-monitor-data"),
+    resolve(process.cwd(), "web/public/stream-monitor-data"),
+    resolve(process.cwd(), "../web/public/stream-monitor-data"),
   ];
   const hit = candidates.find((dir) => existsSync(join(dir, "index.json")));
   if (!hit) {
-    throw new Error(`找不到 AV mock 数据目录，试过：${candidates.join("，")}`);
+    throw new Error(`找不到智能音视频平台数据目录，试过：${candidates.join("，")}`);
   }
   return hit;
 }
@@ -44,7 +44,7 @@ const DATA_DIR = resolveDataDir();
 
 /**
  * `load.ts` 用 `baseUrl = ""` 时会拼出 `/index.json` 这样的站内路径；
- * 这里把它映射到 `public/mock/av/` 下的真实文件。
+ * 这里把它映射到 `public/stream-monitor-data/` 下的真实文件。
  */
 const fileFetcher: Fetcher = async (url) => {
   const relative = url.replace(/^\/+/, "");

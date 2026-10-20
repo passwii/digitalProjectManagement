@@ -71,12 +71,16 @@ export default function OverviewView(props: OverviewProps) {
 
   return (
     <div className={s.page} data-av-page="overview">
+      {/*
+        BLF-1398：页头右侧不再放「数据锚点」芯片。
+        顶栏状态栏已经有一颗锚点徽标，同一屏里重复两次是纯噪音；
+        页头右侧留给「时间范围」Tab 一个控件即可。
+      */}
       <AvPageHeader
         route="/stream-monitor/overview"
         title="总览驾驶舱"
-        subtitle="多模态融合感知 · 全场景智能安防。所有数值来自本地 mock 数据集，锚点 2026-10-19 12:00。"
+        subtitle="多模态融合感知 · 全场景智能安防"
         actions={<AvTabs items={RANGE_TABS} value={range} onChange={setRange} ariaLabel="时间范围" />}
-        aside={<span className={s.anchorChip}>数据锚点 {props.anchorLabel}</span>}
       />
 
       <div className={s.metricGrid}>
@@ -270,9 +274,9 @@ export default function OverviewView(props: OverviewProps) {
 
         <AvPanel
           title="实时告警流"
-          subtitle="首屏仅加载 1 页分片；相对时间按数据集锚点换算"
+          subtitle="最新告警按时间滚动"
           icon="alarm"
-          meta={paused ? "已暂停回放" : `已展示 ${visibleAlarms.length} / ${props.recent.length}`}
+          meta={paused ? "已暂停轮播" : `已展示 ${visibleAlarms.length} / ${props.recent.length}`}
           action={
             <button type="button" className={s.ghostButton} onClick={() => setPaused((value) => !value)}>
               {paused ? "继续" : "暂停"}
@@ -289,7 +293,7 @@ export default function OverviewView(props: OverviewProps) {
             <Link href="/stream-monitor/alarm" className={s.textLink}>
               进入告警中心 →
             </Link>
-            <span className={s.softNote}>演示回放：每 8 秒揭示下一条</span>
+            <span className={s.softNote}>自动轮播：每 8 秒展示下一条</span>
           </div>
         </AvPanel>
       </div>

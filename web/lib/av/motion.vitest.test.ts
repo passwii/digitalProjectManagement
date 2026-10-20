@@ -183,7 +183,7 @@ describe("源码守卫：不允许绕过令牌的裸时长", () => {
     "components/av/AvCharts.module.css",
   ];
 
-  it("Stream Monitor 的 CSS 模块里没有裸的毫秒 / 秒时长（只能写 var(--av-dur-*)）", () => {
+  it("智能音视频平台的 CSS 模块里没有裸的毫秒 / 秒时长（只能写 var(--av-dur-*)）", () => {
     const offenders: string[] = [];
     for (const file of files) {
       const source = readFileSync(resolve(process.cwd(), file), "utf8");
@@ -199,7 +199,7 @@ describe("源码守卫：不允许绕过令牌的裸时长", () => {
     expect(offenders).toEqual([]);
   });
 
-  it("Stream Monitor 的组件里没有手写的 transition duration 字面量", () => {
+  it("智能音视频平台的组件里没有手写的 transition duration 字面量", () => {
     const { readdirSync } = require("node:fs") as typeof import("node:fs");
     const offenders: string[] = [];
     const walk = (dir: string) => {

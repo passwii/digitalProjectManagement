@@ -18,8 +18,8 @@ export function parseCursor(cursor: string | null | undefined, index: AlarmsInde
   if (!m) throw new Error(`游标格式不合法：${cursor}（应为 ${index.pagination.cursor_format}）`);
   const shard = Number(m[1]);
   const offset = Number(m[2]);
-  if (shard < 0 || shard >= index.shards.length) throw new Error(`游标的分片号越界：${cursor}`);
-  if (offset < 0 || offset > index.shards[shard].count) throw new Error(`游标的分片内偏移越界：${cursor}`);
+  if (shard < 0 || shard >= index.shards.length) throw new Error(`游标的位置序号越界：${cursor}`);
+  if (offset < 0 || offset > index.shards[shard].count) throw new Error(`游标的页内偏移越界：${cursor}`);
   return { shard, offset };
 }
 

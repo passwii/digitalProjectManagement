@@ -4,7 +4,7 @@ import type { NextRequest } from "next/server";
 /**
  * review 缺陷 1 的回归：`/stream-monitor` 是免登录演示站，**告警分片**也必须免登录。
  *
- * 告警中心的「加载下一页」在浏览器里直接 fetch `/mock/av/alarms/shard-*.json`。
+ * 告警中心的「加载下一页」在浏览器里直接 fetch `/stream-monitor-data/alarms/shard-*.json`。
  * 只把 `/stream-monitor` 放进 PUBLIC_PATHS 时，匿名请求会被 307 到 /login，JSON.parse
  * 拿到 HTML 报错，列表永远停在首屏 50 条 —— 逐页走查看不出来，只有点翻页才暴露。
  *
@@ -36,28 +36,53 @@ function makeRequest(path: string, token?: string): NextRequest {
   } as unknown as NextRequest;
 }
 
-describe("Stream Monitor 免登录边界", () => {
+describe("智能音视频平台 免登录边界", () => {
   beforeEach(() => {
     responses.redirect.mockClear();
     responses.next.mockClear();
   });
 
-  it("匿名请求告警分片不被重定向（缺陷 1 回归）", () => {
-    const response = middleware(makeRequest("/mock/av/alarms/shard-000.json"));
+  it("匿名请求告警数据文件不被重定向（缺陷 1 回归）", () => {
+    const response = middleware(makeRequest("/stream-monitor-data/alarms/shard-000.json"));
     expect(response).toEqual({ type: "next" });
     expect(responses.redirect).not.toHaveBeenCalled();
   });
 
-  it("匿名请求 /mock/av 下的索引文件也放行", () => {
-    for (const path of ["/mock/av/alarms-index.json", "/mock/av/index.json"]) {
+  it("匿名请求数据目录下的索引文件也放行", () => {
+    for (const path of ["/stream-monitor-data/alarms-index.json", "/stream-monitor-data/index.json"]) {
       responses.redirect.mockClear();
       expect(middleware(makeRequest(path))).toEqual({ type: "next" });
     }
   });
 
-  it("只放行 /mock/av，不放行 /mock 下的其它路径", () => {
-    const response = middleware(makeRequest("/mock/secret.json"));
+  it("只放行数据目录，不放行相邻路径", () => {
+    const response = middleware(makeRequest("/stream-monitor-data-secret/secret.json"));
     expect(response).toEqual({ type: "redirect", location: "/login" });
+  });
+
+  it("旧数据目录 /mock/av 308 到新目录，位置一一对应（不留断链）", () => {
+    const cases: [string, string][] = [
+      ["/mock/av", "/stream-monitor-data"],
+      ["/mock/av/", "/stream-monitor-data"],
+      ["/mock/av/index.json", "/stream-monitor-data/index.json"],
+      ["/mock/av/alarms-index.json", "/stream-monitor-data/alarms-index.json"],
+      ["/mock/av/alarms/shard-000.json", "/stream-monitor-data/alarms/shard-000.json"],
+    ];
+    for (const [from, to] of cases) {
+      responses.redirect.mockClear();
+      expect(middleware(makeRequest(from)), from).toEqual({
+        type: "redirect",
+        location: to,
+        status: 308,
+      });
+    }
+  });
+
+  it("旧数据目录匹配带斜杠边界：相邻路径仍要求登录", () => {
+    for (const path of ["/mock/avX", "/mock/av-foo", "/mock/avx/index.json"]) {
+      responses.redirect.mockClear();
+      expect(middleware(makeRequest(path)), path).toEqual({ type: "redirect", location: "/login" });
+    }
   });
 
   it("没有 token 时 /stream-monitor 子路由照常可访问", () => {

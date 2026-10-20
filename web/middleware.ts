@@ -5,14 +5,14 @@ const PUBLIC_PATHS = [
   "/login",
   "/change-password",
   "/spark",
-  // stream monitor 音视频平台（BLF-1374）：与 /spark 一样是纯本地 mock 演示站，免登录。
+  // stream monitor 音视频平台（BLF-1374）：与 /spark 一样是公开访问的独立站点，免登录。
   // 只加这一条，/spark 的鉴权与重定向行为一字未动。
   "/stream-monitor",
-  // ⚠️ 必须同时放行 /mock/av：告警「加载下一页」是在**浏览器**里直接 fetch
-  // `/mock/av/alarms/shard-*.json`。只放行站点路径的话，匿名用户点翻页会被 307 到
-  // /login，JSON.parse 拿到 HTML 报错，告警中心只能看到首屏 50 条（review 缺陷 1）。
-  // 只放行站点自己的数据目录，不动 /mock 下其它潜在数据。
-  "/mock/av",
+  // ⚠️ 必须同时放行站点的数据目录：告警「加载下一页」是在**浏览器**里直接 fetch
+  // `/stream-monitor-data/alarms/shard-*.json`。只放行站点路径的话，匿名用户点翻页会被
+  // 307 到 /login，JSON.parse 拿到 HTML 报错，告警中心只能看到首页 50 条（review 缺陷 1）。
+  // 只放行站点自己的数据目录，不动其它潜在数据。
+  "/stream-monitor-data",
   "/icon.svg",
   "/icons",
   "/manifest.webmanifest",
@@ -20,6 +20,25 @@ const PUBLIC_PATHS = [
   "/pdf-cmaps",
   "/pdf-standard-fonts",
 ];
+
+/**
+ * 数据目录的旧路径前缀（BLF-1394 改名前的 `/mock/av`）。
+ *
+ * 数据目录曾经挂在 `/mock/av` 下 —— 访客在地址栏、DevTools Network、View Source 里
+ * 一眼就能看出这是个演示站，所以整目录搬到了 `/stream-monitor-data`。
+ * 旧地址已经被外部链接（书签、文档、对外分享）引用过，直接 404 会留下断链，
+ * 这里把 `/mock/av/**` 全部 308 到新路径下同样的位置。
+ *
+ * 为什么是 308 而不是 301：308 会把方法与请求体原样带过去，语义上「永久搬家」
+ * 比 301（历史上有时被当作可缓存的临时跳转）更准确，浏览器也会记住。
+ *
+ * 匹配必须**带斜杠边界**：`/mock/avX`、`/mock/av-foo` 这些相邻路径不属于旧目录，
+ * 仍然按普通受保护路由处理（要求登录）。
+ */
+const LEGACY_DATA_PREFIX = "/mock/av";
+
+/** 旧数据目录 → 新数据目录。 */
+const DATA_DIR = "/stream-monitor-data";
 
 /**
  * 旧站点的公开路径前缀（BLF-1387 迁移前的 `/av`）。
@@ -54,6 +73,19 @@ function legacyAvRedirect(pathname: string): string | null {
   return `/stream-monitor${pathname.slice(LEGACY_AV_PREFIX.length)}`;
 }
 
+/**
+ * 旧数据目录 `/mock/av/**` → 新数据目录 `/stream-monitor-data/**`（BLF-1394）。
+ *
+ * 位置一一对应：`/mock/av/alarms/shard-000.json` → `/stream-monitor-data/alarms/shard-000.json`。
+ */
+function legacyDataRedirect(pathname: string): string | null {
+  if (pathname === LEGACY_DATA_PREFIX || pathname === `${LEGACY_DATA_PREFIX}/`) {
+    return DATA_DIR;
+  }
+  if (!pathname.startsWith(`${LEGACY_DATA_PREFIX}/`)) return null;
+  return `${DATA_DIR}${pathname.slice(LEGACY_DATA_PREFIX.length)}`;
+}
+
 export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
   const token = req.cookies.get("pm_access_token")?.value;
@@ -76,6 +108,15 @@ export function middleware(req: NextRequest) {
   if (legacyTarget) {
     const url = req.nextUrl.clone();
     url.pathname = legacyTarget;
+    return NextResponse.redirect(url, 308);
+  }
+
+  // 旧数据目录 `/mock/av/**` → 新数据目录 `/stream-monitor-data/**`（BLF-1394 搬迁）。
+  // 同样 308 到位，位置一一对应；外部书签与文档里的旧地址不至于变成断链。
+  const legacyDataTarget = legacyDataRedirect(pathname);
+  if (legacyDataTarget) {
+    const url = req.nextUrl.clone();
+    url.pathname = legacyDataTarget;
     return NextResponse.redirect(url, 308);
   }
 
