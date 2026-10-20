@@ -10,7 +10,7 @@ import { describe, it } from "node:test";
  *   1. **用户可见的名称**统一为 "Stream Monitor"（壳层品牌、可访问名称、页面
  *      title / metadata、门禁浮层、工作台侧栏入口）；
  *   2. **公开路径**只有 `/stream-monitor` 一套，旧 `/av` 由 middleware 308 兼容
- *      重定向 —— 站��里不得再出现指向旧路径的链接（否则点了就是断链）。
+ *      重定向 —— 站点里不得再出现指向旧路径的链接（否则点了就是断链）。
  *
  * 刻意**不**守的东西：内部标识符（`AV_PAGES`、`--av-*` CSS 变量、`lib/av/`
  * 目录、fixture 文件名、API 契约字段）。那些不显示给用户，重命名会牵动
@@ -189,5 +189,34 @@ describe("Stream Monitor 品牌与路径契约（BLF-1387）", () => {
     // 数据目录仍是 public/mock/av（脚本 / 契约测试都按这个路径读）
     assert.match(source("lib/av/load.ts"), /"\/mock\/av"/);
     assert.match(source("lib/av/server.ts"), /public\/mock\/av/);
+  });
+
+  it("站点源文件里没有 UTF-8 替换字符（U+FFFD），改名前后的中文都没被写坏", () => {
+    // 为什么守这个：改名时整批文件被重写，中文注释一旦在某一环被按错误编码
+    // 解码再存回，U+FFFD 就会静默混进源码 —— 它是合法 UTF-8，git 不报错、
+    // tsc 不报错、测试全绿，只有真正读那行注释的人会发现是乱码。
+    // （BLF-1387 合并后实测：`streamMonitorBranding.test.ts` 的注释里就混进了一个。）
+    //
+    // 扫描范围必须覆盖**本次改名动过的全部文件**，不能只扫站点目录下的 .ts/.tsx：
+    // 那次迁移同时改了 `app/(dashboard)/layout.tsx`（工作台侧栏入口与图标映射）、
+    // `middleware.ts`（兼容重定向）、`public/mock/av/org.json`（品牌字段）、
+    // `app/globals.css`（令牌段注释）和站点的 CSS module —— 它们的注释里同样
+    // 有中文，坏在任何一个里都是同一个静默故障。扩展名也放宽到 .json/.css，
+    // 免得以后新增文件类型时又漏掉。
+    const files = [
+      ...filesUnder("app/stream-monitor", /\.(tsx?|css|json)$/),
+      ...filesUnder("components/av", /\.(tsx?|css|json)$/),
+      ...filesUnder("lib/av", /\.(ts|json)$/),
+      // 改名同时动过工作台壳层与 middleware（都在站点目录之外，但属于同一次迁移）
+      "app/(dashboard)/layout.tsx",
+      "middleware.ts",
+      "public/mock/av/org.json",
+      "app/globals.css",
+    ];
+    const offenders: string[] = [];
+    for (const file of files) {
+      if (source(file).includes("\uFFFD")) offenders.push(file);
+    }
+    assert.deepEqual(offenders, []);
   });
 });
