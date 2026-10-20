@@ -5,9 +5,25 @@
 //   · 卡片（面板/度量卡/通道卡/场景卡/状态格）的内容不得超出自己的盒子；
 //   · 页面不得出现横向滚动；
 //   · 文本节点不得被裁掉（scrollWidth > clientWidth 且 overflow 不是 visible）。
+//
+// ⚠️ 「卡片内容是否超出盒子」的判定**不在本文件里**，而在
+//    `scripts/lib/avOverflowRule.mjs` —— 本文件把那个函数原样嵌进浏览器探针
+//    （`classifyCardBox.toString()`），`web/lib/av/avOverflowRule.vitest.test.ts`
+//    则直接 import 同一个模块做行为级守卫。脚本与守卫共用一份口径，
+//    不会各自漂移；改口径只需要改那一个文件。
+//
+// 口径为什么**不看 overflow 计算值**（上一版看的是错的）：
+//   上一版要求「delta > 1 且 overflow ∈ {hidden, clip, auto, scroll}」才算溢出。
+//   而站点那六个卡片族（.panel / .metric / .channel / .sceneCard / .statusCell /
+//   .algoCard）在两份受管 CSS 里**一条 overflow 都没设**（默认 visible），
+//   于是「内容真的溢出盒子」这件事在这个脚本里**永远判不出来**——
+//   实测把 .metric 压成 height:44px（可见溢出 83px），脚本仍报绿灯。
+//   现在改成：任一轴的 delta 超过容差即记溢出；内容是被裁、可滚动还是
+//   溢出到盒子外，只影响报告里的措辞，不影响「算不算溢出」。
 import { spawn } from "node:child_process";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
+import { OVERFLOW_TOLERANCE_PX, classifyCardBox } from "./lib/avOverflowRule.mjs";
 
 const baseUrl = process.argv[2] ?? "http://127.0.0.1:3111";
 const chromePath = process.env.CHROME_PATH ?? "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
@@ -17,6 +33,9 @@ const WIDTHS = [1440, 1920, 1180, 900, 720];
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 const PROBE = `(() => {
+  // 判定函数从 scripts/lib/avOverflowRule.mjs 原样嵌进来（toString），
+  // 好让脚本与 avOverflowRule.vitest.test.ts 跑的是同一份口径。
+  const classifyCardBox = ${classifyCardBox.toString()};
   const out = [];
   const cardSelectors = [
     '[class*="panel"]', '[class*="metric"]', '[class*="channel"]',
@@ -31,18 +50,23 @@ const PROBE = `(() => {
       if (style.display === "none" || style.visibility === "hidden") continue;
       const rect = el.getBoundingClientRect();
       if (rect.width === 0 || rect.height === 0) continue;
-      // 内容超出卡片盒子（向下溢出）
-      const overflowY = el.scrollHeight - el.clientHeight;
-      const overflowX = el.scrollWidth - el.clientWidth;
-      const clippedY = overflowY > 1 && ["hidden", "clip", "auto", "scroll"].includes(style.overflowY);
-      const clippedX = overflowX > 1 && ["hidden", "clip", "auto", "scroll"].includes(style.overflowX);
-      if (clippedY || clippedX) {
+      // 内容超出卡片盒子（向下 / 向右）。判定口径见 scripts/lib/avOverflowRule.mjs，
+      // 这里是同一个函数的源码（嵌进来跑，好让脚本与守卫共用一份口径）。
+      const verdict = classifyCardBox({
+        scrollHeight: el.scrollHeight,
+        clientHeight: el.clientHeight,
+        scrollWidth: el.scrollWidth,
+        clientWidth: el.clientWidth,
+        overflowY: style.overflowY,
+        overflowX: style.overflowX,
+      }, ${OVERFLOW_TOLERANCE_PX});
+      if (verdict.overflow) {
         out.push({
           cls: el.className,
-          overflowY,
-          overflowX,
-          clippedY,
-          clippedX,
+          overflowY: verdict.overflowY,
+          overflowX: verdict.overflowX,
+          axisY: verdict.axisY,
+          axisX: verdict.axisX,
         });
       }
     }
