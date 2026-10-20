@@ -93,7 +93,7 @@ export default function DeviceView({ devices, summary }: DeviceViewProps) {
       <AvPageHeader
         route="/stream-monitor/device"
         title="设备管理"
-        subtitle="设备台账、在线率与离线清单。离线时长来自最近心跳偏移；固件与自检历史来自设备档案。"
+        subtitle="设备台账、在线率与离线清单"
         aside={<span className={s.anchorChip}>OTA {summary.ota.success}/{summary.ota.total} 成功</span>}
       />
 
@@ -162,7 +162,6 @@ export default function DeviceView({ devices, summary }: DeviceViewProps) {
           title="设备台账"
           subtitle={`筛选出 ${formatCount(filtered.length)} 台 · 已显示 ${formatCount(paged.length)} 台`}
           icon="device"
-          meta="点击行查看设备详情"
           motionKey="device-table"
         >
           <div className={s.deviceFilters}>
@@ -372,7 +371,7 @@ function DeviceDetail({ device, onClose }: { device: DeviceRow; onClose: () => v
               { label: "固件", value: device.firmware },
               { label: "最近心跳", value: `${toAbsolute(device.heartbeatOffsetMinutes)}（${toRelative(device.heartbeatOffsetMinutes)}）` },
               { label: "在线时长", value: `${formatCount(device.uptimeDays)} 天` },
-              { label: "信号质量", value: offline ? "离线（0 哨兵）" : `${device.signal} / 100` },
+              { label: "信号质量", value: offline ? "离线" : `${device.signal} / 100` },
               { label: "CPU / 存储", value: `${device.cpu}% / ${device.storage}%` },
               { label: "麦克风灵敏度", value: device.micSensitivityDbm == null ? "—" : `${device.micSensitivityDbm} dBm` },
             ]}
@@ -382,7 +381,7 @@ function DeviceDetail({ device, onClose }: { device: DeviceRow; onClose: () => v
         <div className={s.dialogSection}>
           <h3 className={s.dialogSectionTitle}>信号强度（近 24 小时）</h3>
           {offline ? (
-            <AvEmpty title="设备离线" hint="离线设备的 RSSI 统一为 0 哨兵，不绘制曲线。" />
+            <AvEmpty title="设备离线" hint="离线设备暂无信号强度曲线。" />
           ) : (
             <AvSignalChart data={device.signalSeries} label={`${device.id} 信号强度曲线`} />
           )}

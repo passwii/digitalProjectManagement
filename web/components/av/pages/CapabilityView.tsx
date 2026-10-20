@@ -30,7 +30,7 @@ export default function CapabilityView({ scenes, groups, rules, chain, totals }:
       <AvPageHeader
         route="/stream-monitor/capability"
         title="能力与场景"
-        subtitle="算法矩阵、三场景覆盖与检测规则：从拾音采集到多模态融合，再到分级处置的完整链路。"
+        subtitle="从拾音采集到多模态融合，再到分级处置的完整链路"
         aside={<span className={s.anchorChip}>{formatCount(totals.algorithms)} 个算法 · {formatGb(totals.vram)} 显存</span>}
       />
 
@@ -86,7 +86,6 @@ export default function CapabilityView({ scenes, groups, rules, chain, totals }:
 
       <AvPanel
         title="多模态融合链路"
-        subtitle="采集 → 前端处理 → 识别 → 融合分级 → 处置联动"
         icon="capability"
         meta={`${chain.length} 段`}
         motionKey="capability-chain"

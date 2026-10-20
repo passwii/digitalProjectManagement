@@ -70,7 +70,7 @@ function GateOverlay() {
       <div className={s.card}>
         <div className={s.brand}>
           <span className={s.mark} aria-hidden="true" />
-          Stream Monitor · 安全验证
+          智能音视频平台 · 安全验证
         </div>
         <h2 id="av-gate-title">平台管理员二次验证</h2>
         <p className={s.copy}>输入 6 位动态口令进入运营工作台。本入口不校验真实口令，任意 6 位均可解锁。</p>
@@ -105,7 +105,7 @@ function GateOverlay() {
         </div>
 
         <div className={s.meta}>
-          <span>STREAM MONITOR CONSOLE</span>
+          <span>多模态感知运营平台</span>
         </div>
       </div>
     </div>

@@ -26,7 +26,7 @@ export default function StressView({ core, extremes }: { core: DatasetCore; extr
       <AvPageHeader
         route="/stream-monitor/__stress"
         title="极端值校验"
-        subtitle="内置的极端值样本一次性渲染：长标题 / 长房间名 / 多关键词 / 五位数 / 空态。本页不进导航，仅供内部校验。"
+        subtitle="极端值样本的渲染校验"
         aside={<span className={s.anchorChip}>{formatCount(extremes.total)} 条告警全量索引</span>}
       />
 
@@ -158,7 +158,7 @@ export default function StressView({ core, extremes }: { core: DatasetCore; extr
         {extremes.level4LastHour === 0 ? (
           <AvEmpty title="四级告警 · 近 1 小时：0 条" hint="筛选结果为空时，列表区必须显示明确空态，而不是一片空白。" />
         ) : (
-          <p className={s.softNote}>该组合当前有 {extremes.level4LastHour} 条，比预期多，请回到 Stage 1 确认数据口径。</p>
+          <p className={s.softNote}>该组合当前有 {extremes.level4LastHour} 条，比预期多。</p>
         )}
         <div className={s.firmwareRow}>
           <span className={s.softNote}>分级合计</span>

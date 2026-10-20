@@ -1,5 +1,5 @@
 /**
- * Stream Monitor 的 tone → CSS 变量映射。
+ * 智能音视频平台的 tone → CSS 变量映射。
  *
  * 单独一个模块（而不是放在 AvUI.tsx 里）的原因：AvUI 是客户端组件（动效要 hooks），
  * 而服务端页面（capability / __stress / audio 空态）也要调 `toneVar()` 生成 style。

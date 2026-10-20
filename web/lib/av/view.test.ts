@@ -42,7 +42,7 @@ function resolveDataDir(): string {
     resolve(__dirname, "../../../public/stream-monitor-data"),
   ];
   const hit = candidates.find((dir) => existsSync(join(dir, "index.json")));
-  assert.ok(hit, `找不到 Stream Monitor 数据目录，试过：${candidates.join("，")}`);
+  assert.ok(hit, `找不到智能音视频平台数据目录，试过：${candidates.join("，")}`);
   return hit;
 }
 

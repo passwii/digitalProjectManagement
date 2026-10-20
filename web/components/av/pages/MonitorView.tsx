@@ -15,7 +15,7 @@ import type { MonitorChannel, MonitorProps } from "@/lib/av/contracts";
 
 type KindFilter = "all" | "audio" | "video";
 
-export default function MonitorView({ channels, counts, deviceTotal, signalHealth, models, gateways }: MonitorProps) {
+export default function MonitorView({ channels, counts, signalHealth, models, gateways }: MonitorProps) {
   const [filter, setFilter] = useState<KindFilter>("all");
   const { enabled: motionEnabled } = useAvMotion();
 
@@ -31,7 +31,7 @@ export default function MonitorView({ channels, counts, deviceTotal, signalHealt
       <AvPageHeader
         route="/stream-monitor/monitor"
         title="实时音视频监控"
-        subtitle={`多模态感知通道：音频拾取与视频画面按场景聚合（本页展示 ${channels.length} 路，全量设备 ${deviceTotal} 台）。通道状态与信号强度来自设备心跳。`}
+        subtitle="多模态感知通道：音频拾取与视频画面按场景聚合"
         aside={
           <AvTabs
             items={[
@@ -107,7 +107,7 @@ export default function MonitorView({ channels, counts, deviceTotal, signalHealt
       <div className={s.gridTwo}>
         <AvPanel
           title="通道信号质量"
-          subtitle="全量设备的 RSSI 健康分位（0–100 质量分，非 dBm）"
+          subtitle="全量设备的 RSSI 健康分位"
           icon="monitor"
           meta={`离线 ${formatCount(counts.offline)} 台`}
           motionKey="monitor-signal"
@@ -154,7 +154,7 @@ export default function MonitorView({ channels, counts, deviceTotal, signalHealt
 
       <AvPanel
         title="网关与链路"
-        subtitle="网关自身状态；终端离线上报前会先在网关侧留下心跳断点"
+        subtitle="网关与链路状态"
         icon="device"
         meta={`${gateways.length} 台网关`}
         motionKey="monitor-gateways"
