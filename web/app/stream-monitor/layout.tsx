@@ -7,12 +7,15 @@ import AvMotionProvider from "@/components/av/motion/AvMotionProvider";
 import { AV_MOTION_BOOTSTRAP_SCRIPT } from "@/lib/av/motion";
 
 export const metadata: Metadata = {
-  title: "Stream Monitor",
-  description: "多模态融合感知 · 全场景智能安防",
+  title: "智能音视频平台",
+  description: "音频与视频融合感知的全场景智能安防平台",
 };
 
 /**
  * stream monitor 根布局（`/stream-monitor`）。
+ *
+ * 站点对外品牌是中文「智能音视频平台」（BLF-1397），URL 仍保留英文前缀
+ * `/stream-monitor` —— 路径是稳定契约，品牌名不是。
  *
  * 刻意**不进** `(dashboard)` 的鉴权壳：`/stream-monitor` 与 `/spark` 一样是纯演示入口，
  * middleware 已把它放进 PUBLIC_PATHS。壳层只读一次 core 里的品牌与在线率，

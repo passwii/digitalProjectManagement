@@ -35,7 +35,7 @@ function resolveDataDir(): string {
   ];
   const hit = candidates.find((dir) => existsSync(join(dir, "index.json")));
   if (!hit) {
-    throw new Error(`找不到 Stream Monitor 数据目录，试过：${candidates.join("，")}`);
+    throw new Error(`找不到智能音视频平台数据目录，试过：${candidates.join("，")}`);
   }
   return hit;
 }

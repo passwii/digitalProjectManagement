@@ -17,7 +17,7 @@ function resolveDataDir(): string {
     resolve(__dirname, "../../public/stream-monitor-data"),
   ];
   const hit = candidates.find((p) => existsSync(join(p, "index.json")));
-  assert.ok(hit, `找不到 Stream Monitor 数据目录，试过：${candidates.join("，")}`);
+  assert.ok(hit, `找不到智能音视频平台数据目录，试过：${candidates.join("，")}`);
   return hit;
 }
 
@@ -31,7 +31,7 @@ const fetcher: Fetcher = async (url) => {
   }
 };
 
-describe("Stream Monitor 数据契约（web/public/stream-monitor-data）", () => {
+describe("智能音视频平台 数据契约（web/public/stream-monitor-data）", () => {
   it("首屏核心数据可以一次加载完", async () => {
     const core = await loadCore(DATA_DIR, fetcher);
     assert.equal(core.sites.length, 3);

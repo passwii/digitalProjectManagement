@@ -223,7 +223,7 @@ export default function AlarmView(props: AlarmViewProps) {
       <AvPageHeader
         route="/stream-monitor/alarm"
         title="告警中心"
-        subtitle="实时检测 · 自动分级 · 闭环处置。级别与状态同时用颜色和文字表达，筛选只作用于已加载分页。"
+        subtitle="实时检测 · 自动分级 · 闭环处置"
         aside={
           <AvTabs
             items={[{ value: "all", label: "全部级别", count: alarms.length }, ...levelCounts]}
@@ -311,7 +311,7 @@ export default function AlarmView(props: AlarmViewProps) {
         <div className={s.railStack}>
           <AvPanel
             title="未处置分级"
-            subtitle="口径：new + dispatched"
+            subtitle="待确认与处置中告警的分级构成"
             icon="alarm"
             meta={`${formatCount(props.unhandled)} 条`}
             motionKey="alarm-unhandled"
@@ -334,7 +334,7 @@ export default function AlarmView(props: AlarmViewProps) {
             </ul>
           </AvPanel>
 
-          <AvPanel title="处置指标" subtitle="近 180 天口径" icon="event" motionKey="alarm-metrics">
+          <AvPanel title="处置指标" subtitle="近 180 天" icon="event" motionKey="alarm-metrics">
             <div className={s.railRow}>
               <span>平均响应</span>
               <strong>{formatMinutes(props.metrics.avgResponse)}</strong>
@@ -355,7 +355,7 @@ export default function AlarmView(props: AlarmViewProps) {
 
           <AvPanel
             title="告警剧本"
-            subtitle="每个剧本都有完整时间线，可回看整段事件的完整处置过程"
+            subtitle="每个剧本都有完整时间线，可回看处置过程"
             icon="capability"
             meta={`${props.scripts.length} 个`}
             motionKey="alarm-scripts"

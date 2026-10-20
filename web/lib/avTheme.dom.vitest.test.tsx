@@ -9,9 +9,9 @@ import { parseCssColor } from "@/lib/av/color";
 import type { Spectrum } from "@/lib/av/types";
 
 /**
- * AC5：深色 / 浅色主题切换下 Stream Monitor 页面无错色（DOM + canvas 像素覆盖）。
+ * AC5：深色 / 浅色主题切换下 智能音视频平台 页面无错色（DOM + canvas 像素覆盖）。
  *
- * 第一层（DOM）：Stream Monitor 的语义色在 DOM 上只以 `var(--av-*)` 形式出现，主题切换由
+ * 第一层（DOM）：智能音视频平台 的语义色在 DOM 上只以 `var(--av-*)` 形式出现，主题切换由
  * `globals.css` 替换底层值，组件本身不换样式。
  *
  * 第二层（canvas）：**canvas 是唯一绕过 CSS 变量的地方** —— 频谱图把令牌解析成 RGB
@@ -20,7 +20,7 @@ import type { Spectrum } from "@/lib/av/types";
  * 深色主题青色，整块频谱变成亮青底。所以这里把 `--av-surface` 设成**真实的浅色
  * computed value**（`#fff`），并断言写入的第 0 个像素是白底而不是青色。
  */
-describe("Stream Monitor 主题与语义色（AC5）", () => {
+describe("智能音视频平台 主题与语义色（AC5）", () => {
   afterEach(() => {
     cleanup();
     delete document.documentElement.dataset.theme;

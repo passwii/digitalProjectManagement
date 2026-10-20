@@ -1,5 +1,5 @@
 /**
- * Stream Monitor 动效令牌 · Stage 3 / BLF-1375
+ * 智能音视频平台动效令牌 · Stage 3 / BLF-1375
  *
  * 为什么先有这一层：Stage 2 之后全站只有 2 处 transition，逐页补动效的结果一定是
  * 20 种 duration（每组各拍一个数）。这个文件是**唯一真源**：四档时长 + 三条曲线 +

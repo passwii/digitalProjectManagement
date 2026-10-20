@@ -36,7 +36,7 @@ function makeRequest(path: string, token?: string): NextRequest {
   } as unknown as NextRequest;
 }
 
-describe("Stream Monitor 免登录边界", () => {
+describe("智能音视频平台 免登录边界", () => {
   beforeEach(() => {
     responses.redirect.mockClear();
     responses.next.mockClear();

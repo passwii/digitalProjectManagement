@@ -3,8 +3,8 @@ import { getStressData } from "@/lib/av/pageData";
 import StressView from "@/components/av/pages/StressView";
 
 export const metadata: Metadata = {
-  title: "极端值校验 · Stream Monitor",
-  description: "极端值样本一次性渲染，用于内部校验（不进导航）",
+  title: "极端值校验 · 智能音视频平台",
+  description: "极端值样本的渲染校验页",
   // 回归页不进搜索引擎，也不该被当成产品内容分享出去
   robots: { index: false, follow: false },
 };

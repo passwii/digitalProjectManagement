@@ -4,8 +4,8 @@ import AudioView from "@/components/av/pages/AudioView";
 import { AvEmpty, AvPageHeader } from "@/components/av/AvUI";
 
 export const metadata: Metadata = {
-  title: "音频分析 · Stream Monitor",
-  description: "频谱矩阵与说话人转写（不进主导航，从告警详情进入）",
+  title: "音频分析 · 智能音视频平台",
+  description: "告警音频的频谱分析与说话人转写",
 };
 
 /**
