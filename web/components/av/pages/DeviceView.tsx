@@ -15,6 +15,7 @@ import { toAbsolute, toRelative } from "@/lib/av/time";
 import { AvBar, AvEmpty, AvKV, AvLegend, AvPageHeader, AvPanel, AvStatusBadge } from "@/components/av/AvUI";
 import { AvDonut, AvSignalChart } from "@/components/av/AvCharts";
 import { attentionAgeText } from "@/lib/av/view";
+import { AV_CHART_HEIGHT } from "@/lib/av/chartHeights";
 import AvGlyph from "@/components/av/AvGlyph";
 import AvTabs from "@/components/av/AvTabs";
 import { closeDialogWithMotion, openDialogWithMotion } from "@/components/av/motion/AvDialog";
@@ -126,7 +127,7 @@ export default function DeviceView({ devices, summary }: DeviceViewProps) {
             data={donut.map((row) => ({ label: row.label, value: row.value, tone: row.tone }))}
             centerValue={formatCount(summary.total)}
             centerLabel="设备总数"
-            height={176}
+            height={AV_CHART_HEIGHT.md}
             label="设备状态分布环形图"
           />
           <AvLegend

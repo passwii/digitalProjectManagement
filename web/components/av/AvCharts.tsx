@@ -22,6 +22,7 @@ import {
 } from "recharts";
 import { useTheme } from "@/components/theme/ThemeProvider";
 import type { AvTone } from "@/lib/av/labels";
+import { AV_CHART_HEIGHT } from "@/lib/av/chartHeights";
 import s from "./AvCharts.module.css";
 
 /**
@@ -117,7 +118,7 @@ function toneColor(palette: Palette, tone: AvTone): string {
  */
 function ChartFrame({
   children,
-  height = 230,
+  height = AV_CHART_HEIGHT.lg,
   label,
 }: {
   children?: React.ReactNode;
@@ -180,7 +181,7 @@ export function AvTrendChart({
   dataKeys,
   labels,
   tones,
-  height = 230,
+  height = AV_CHART_HEIGHT.lg,
   label,
 }: {
   data: Record<string, string | number>[];
@@ -254,7 +255,7 @@ export function AvBarChart({
   dataKeys,
   labels,
   tones,
-  height = 210,
+  height = AV_CHART_HEIGHT.lg,
   label,
 }: {
   data: Record<string, string | number>[];
@@ -318,7 +319,7 @@ export function AvDonut({
   data,
   centerValue,
   centerLabel,
-  height = 190,
+  height = AV_CHART_HEIGHT.md,
   label,
 }: {
   data: DonutDatum[];
@@ -365,7 +366,7 @@ export function AvDonut({
 /** 信号强度序列（设备详情）：离线设备的 0 哨兵会被调用方过滤掉。 */
 export function AvSignalChart({
   data,
-  height = 150,
+  height = AV_CHART_HEIGHT.sm,
   label,
 }: {
   data: { label: string; value: number }[];
