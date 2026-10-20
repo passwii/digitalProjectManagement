@@ -1,4 +1,4 @@
-// 契约测试：直接读 web/public/mock/av 的真实数据，验证「前端拿到的东西能用」。
+// 契约测试：直接读 web/public/stream-monitor-data 的真实数据，验证「前端拿到的东西能用」。
 //
 // 这一层故意不复用生成器的断言：生成器可能和校验脚本一起写错，
 // 这里从「消费者视角」重新算一遍（聚合对明细、轴线语义、分页、体积）。
@@ -12,12 +12,12 @@ import type { Fetcher } from "./load";
 
 function resolveDataDir(): string {
   const candidates = [
-    resolve(process.cwd(), "public/mock/av"),
-    resolve(__dirname, "../../../public/mock/av"),
-    resolve(__dirname, "../../public/mock/av"),
+    resolve(process.cwd(), "public/stream-monitor-data"),
+    resolve(__dirname, "../../../public/stream-monitor-data"),
+    resolve(__dirname, "../../public/stream-monitor-data"),
   ];
   const hit = candidates.find((p) => existsSync(join(p, "index.json")));
-  assert.ok(hit, `找不到 mock 数据目录，试过：${candidates.join("，")}`);
+  assert.ok(hit, `找不到智能音视频平台数据目录，试过：${candidates.join("，")}`);
   return hit;
 }
 
@@ -31,7 +31,7 @@ const fetcher: Fetcher = async (url) => {
   }
 };
 
-describe("mock 数据集契约（web/public/mock/av）", () => {
+describe("智能音视频平台 数据契约（web/public/stream-monitor-data）", () => {
   it("首屏核心数据可以一次加载完", async () => {
     const core = await loadCore(DATA_DIR, fetcher);
     assert.equal(core.sites.length, 3);

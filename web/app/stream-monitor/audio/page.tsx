@@ -4,8 +4,8 @@ import AudioView from "@/components/av/pages/AudioView";
 import { AvEmpty, AvPageHeader } from "@/components/av/AvUI";
 
 export const metadata: Metadata = {
-  title: "音频分析 · Stream Monitor",
-  description: "频谱矩阵与说话人转写（不进主导航，从告警详情进入）",
+  title: "音频分析 · 智能音视频平台",
+  description: "告警音频的频谱分析与说话人转写",
 };
 
 /**
@@ -38,7 +38,7 @@ export default async function AudioPage({ searchParams }: { searchParams: { alar
             hint="这条告警没有落盘频谱（或编号不存在）。请从告警详情里的「音频分析」入口进入有音频证据的告警。"
           />
         ) : (
-          <AvEmpty title="没有可分析的音频" hint="数据集里没有带频谱的告警。" />
+          <AvEmpty title="没有可分析的音频" hint="当前没有带频谱的告警。" />
         )}
       </div>
     );

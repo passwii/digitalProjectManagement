@@ -26,7 +26,7 @@ export const CHANGELOG_VERSIONS: ChangelogVersion[] = [
     id: "v2",
     label: "V2",
     title: "扩展能力",
-    summary: "围绕项目管理基本盘，扩展财务、主题切换、商机与演示能力，持续打磨移动端、登录、附件预览和协同体验。",
+    summary: "围绕项目管理基本盘，扩展财务、主题切换、商机与独立站点能力，持续打磨移动端、登录、附件预览和协同体验。",
     days: [
       {
         date: "2026-10-10",
@@ -196,12 +196,12 @@ export const CHANGELOG_VERSIONS: ChangelogVersion[] = [
           {
             kind: "优化",
             title: "登录验证与成功过场",
-            description: "登录按钮会根据账号和密码输入状态启用；字段错误与登录失败分别提示，验证通过后提供明确的提交和跳转反馈，并兼顾读屏提示。",
+            description: "登录按钮会根据账号和密码输入状态启用；输入项有误与登录失败分别提示，验证通过后提供明确的提交和跳转反馈，并兼顾读屏提示。",
           },
           {
             kind: "修复",
             title: "Spark 首页跳转统一",
-            description: "访问 `/spark` 时统一进入演示总览 `/spark/dashboard`，让直接打开、页面刷新和站内导航落在同一入口。",
+            description: "访问 `/spark` 时统一进入运营总览 `/spark/dashboard`，让直接打开、页面刷新和站内导航落在同一入口。",
           },
         ],
       },
@@ -225,8 +225,8 @@ export const CHANGELOG_VERSIONS: ChangelogVersion[] = [
           },
           {
             kind: "功能",
-            title: "免登录云电竞管理平台",
-            description: "新增可公开访问的云电竞管理平台，覆盖运营、门店、算力、计费、内容、安全、运维和权限八个模块，交互使用本地演示数据。",
+            title: "云电竞管理平台",
+            description: "新增可公开访问的云电竞管理平台，覆盖运营、门店、算力、计费、内容、安全、运维和权限八个模块，页面数据按快照时点展示。",
           },
         ],
       },
@@ -276,7 +276,7 @@ export const CHANGELOG_VERSIONS: ChangelogVersion[] = [
           {
             kind: "功能",
             title: "项目台账与友商档案优化",
-            description: "整理项目合同字段、客户信息、年度筛选与友商合同附件，统一项目负责人、业绩合同和档案信息的维护口径，减少重复字段与重复录入。",
+            description: "整理项目合同信息项、客户信息、年度筛选与友商合同附件，统一项目负责人、业绩合同和档案信息的维护口径，减少重复填写与重复录入。",
           },
           {
             kind: "功能",
@@ -355,8 +355,8 @@ export const CHANGELOG_VERSIONS: ChangelogVersion[] = [
           },
           {
             kind: "优化",
-            title: "项目客户字段与状态展示",
-            description: "项目台账补充客户联系人、联系方式和合同金额等信息，并统一项目变更状态的中文展示，减少业务字段理解成本。",
+            title: "项目客户信息与状态展示",
+            description: "项目台账补充客户联系人、联系方式和合同金额等信息，并统一项目变更状态的中文展示，减少业务信息理解成本。",
           },
         ],
       },

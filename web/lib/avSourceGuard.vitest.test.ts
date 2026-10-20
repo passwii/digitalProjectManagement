@@ -3,11 +3,11 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 /**
- * Stream Monitor 视觉基座的源码契约（AC5 / AC6）。
+ * 智能音视频平台 视觉基座的源码契约（AC5 / AC6）。
  *
  * Stage 2 的两条硬约束，靠“看代码”无法保证，必须让 CI 来守：
  *   · 组件里不允许出现颜色字面量（颜色只能来自 CSS 变量 / 令牌）；
- *   · 页面组件里不允许出现业务数字（数量、总量、条数必须来自 /mock/av）。
+ *   · 页面组件里不允许出现业务数字（数量、总量、条数必须来自 /stream-monitor-data）。
  *
  * 纯源码扫描，不渲染，因此放在 node 环境的 vitest 里。
  */
@@ -107,7 +107,7 @@ function maskComments(source: string): string {
 
 const LIB_FILES = filesUnder("lib/av", /\.ts$/).filter((file) => !/\.test\.ts$/.test(file));
 
-describe("Stream Monitor 视觉基座：颜色只来自令牌", () => {
+describe("智能音视频平台 视觉基座：颜色只来自令牌", () => {
   it("组件源码里没有十六进制颜色字面量", () => {
     const offenders: string[] = [];
     for (const file of TSX_FILES) {
@@ -176,7 +176,7 @@ describe("Stream Monitor 视觉基座：颜色只来自令牌", () => {
     expect(offenders).toEqual([]);
   });
 
-  it("Stream Monitor 令牌层全部映射到主工作台既有语义 token（深浅主题自动跟随）", () => {
+  it("智能音视频平台 令牌层全部映射到主工作台既有语义 token（深浅主题自动跟随）", () => {
     const globals = readFileSync(resolve(process.cwd(), "app/globals.css"), "utf8");
     const start = globals.indexOf("--av-canvas:");
     const end = globals.indexOf("\n}", start);
@@ -198,7 +198,7 @@ describe("Stream Monitor 视觉基座：颜色只来自令牌", () => {
   });
 });
 
-describe("Stream Monitor 页面：业务数字不落进组件", () => {
+describe("智能音视频平台 页面：业务数字不落进组件", () => {
   it("数据集总量不出现在页面源码里（只能来自 JSON）", () => {
     const forbidden = ["14366", "14,366", "268", "207", "259195"];
     const pageFiles = filesUnder("components/av/pages", /\.tsx$/).concat(filesUnder("app/stream-monitor", /\.tsx?$/));

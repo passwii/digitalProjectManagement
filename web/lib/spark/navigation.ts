@@ -1,5 +1,5 @@
 /** Stable browsing-context name so desktop and mobile entries reuse one Spark tab. */
-export const SPARK_WINDOW_TARGET = "spark-demo";
+export const SPARK_WINDOW_TARGET = "spark-platform";
 
 export const SPARK_PAGES = [
   { slug: "dashboard", href: "/spark/dashboard", label: "运营总览", group: "运营", icon: "dashboard" },

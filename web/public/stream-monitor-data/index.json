@@ -1,5 +1,5 @@
 {
-  "generated_by": "scripts/mock/generate.mjs",
+  "generated_by": "stream-monitor data generator",
   "seed": 20260701,
   "anchor": "2026-10-19T12:00:00+08:00",
   "timezone": "UTC+8",

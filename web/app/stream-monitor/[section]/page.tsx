@@ -32,8 +32,8 @@ export function generateStaticParams() {
 
 export function generateMetadata({ params }: { params: { section: string } }): Metadata {
   const page = avPageForSection(params.section);
-  if (!page) return { title: "Stream Monitor" };
-  return { title: `${page.label} · Stream Monitor`, description: page.summary };
+  if (!page) return { title: "智能音视频平台" };
+  return { title: `${page.label} · 智能音视频平台`, description: page.summary };
 }
 
 export default async function AvSectionPage({ params }: { params: { section: string } }) {

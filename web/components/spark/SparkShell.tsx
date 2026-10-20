@@ -108,8 +108,8 @@ export default function SparkShell({ children }: { children: React.ReactNode }) 
             <kbd>⌘K</kbd>
           </div>
           <div className={s.topbarRight}>
-            <span className={s.demoBadge} title="页面内容均为本地 mock 数据，不连接真实业务系统">
-              本地 Mock
+            <span className={s.dataBadge} title="页面展示平台的快照数据，指标按数据时点计算，不随业务系统实时更新">
+              快照数据
             </span>
             <div className={s.regionStatus}>
               <span className={s.locationPin}>⌖</span>
