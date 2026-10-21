@@ -34,7 +34,7 @@ describe("智能音视频平台 服务端数据层", () => {
     assert.equal(index.counts.sites, 3);
     assert.equal(core.sites.length, 3);
     assert.equal(core.devices.length, 268);
-    assert.equal(core.incidents.length, 207);
+    assert.equal(core.incidents.length, 327);
     assert.equal(core.scenes.length, 3);
     assert.equal(core.transcripts.length, 5);
     assert.equal(core.alarmsIndex.shards.length, 9);
@@ -88,6 +88,28 @@ describe("智能音视频平台 服务端数据层", () => {
     assert.ok(data.recent.length <= 10);
   });
 
+  it("总览的「事件」只数告警融合事件（BLF-1427 普通事件不进总览）", async () => {
+    /*
+      Stage 1 把总览的事件 KPI 定成「跨告警融合后的人工确认单元」（view.ts 的 note）。
+      BLF-1427 追加的 120 条普通事件（巡检 / 上下线 / OTA / 配置 / 误报归档 / 补录）
+      不经告警融合 —— 若它们被算进 overview-ranges，KPI 的数字就会与自己的注释相反。
+      边界：总览只看告警侧，/event 事件中心才看全部事件。
+    */
+    const [overview, event] = await Promise.all([getOverviewData(), getEventData(null)]);
+    assert.ok(event.counts.routine > 0, "普通事件应已入库");
+    assert.ok(event.counts.total > event.counts.alarm, "/event 应同时包含两类事件");
+
+    for (const [key, range] of Object.entries(overview.ranges)) {
+      assert.ok(
+        range.totals.incidents <= event.counts.alarm,
+        `${key} 档事件 ${range.totals.incidents} 起 > 告警融合事件总数 ${event.counts.alarm} 起`,
+      );
+      const card = range.kpis.find((kpi) => kpi.key === "incidents");
+      assert.ok(card, `${key} 档缺事件 KPI`);
+      assert.match(card.note ?? "", /告警融合/, `${key} 档事件 KPI 的注释没交代口径`);
+    }
+  });
+
   it("极端值样本仍然存在（Stage 1 素材）", async () => {
     const extremes = await getExtremes();
     assert.equal(extremes.longestTitle.title.length, 58);
@@ -128,14 +150,46 @@ describe("智能音视频平台 服务端数据层", () => {
 
   it("事件页把证据链解析成告警摘要", async () => {
     const data = await getEventData("EV-20260145");
-    assert.equal(data.rows.length, 207);
+    assert.equal(data.rows.length, 327);
     assert.equal(data.initialId, "EV-20260145");
-    // 只投当前选中一条详情：207 条时间线全量序列化会把 HTML 撑到 700KB+
+    // 只投当前选中一条详情：327 条时间线全量序列化会把 HTML 撑到 1MB+
     assert.ok(data.detail);
     assert.equal(data.detail.incident.id, "EV-20260145");
     assert.equal(data.detail.alarms.length, data.detail.incident.alarm_ids.length);
     assert.ok(data.detail.alarms.every((alarm) => alarm.id.startsWith("AL-")));
     assert.ok(data.userNames["u-003"], "时间线 actor 要能映射到人名");
+  });
+
+  it("事件页区分告警融合事件与普通事件（BLF-1427）", async () => {
+    const data = await getEventData(null);
+    // 既有 207 条告警融合事件一条不改，普通事件是纯追加的新号段
+    assert.equal(data.counts.alarm, 207);
+    assert.ok(data.counts.routine >= 100, `普通事件只有 ${data.counts.routine} 条`);
+    assert.equal(data.counts.alarm + data.counts.routine, data.counts.total);
+
+    const alarmRows = data.rows.filter((row) => row.kind === "alarm");
+    const routineRows = data.rows.filter((row) => row.kind === "routine");
+    assert.equal(alarmRows.length, data.counts.alarm);
+    assert.equal(routineRows.length, data.counts.routine);
+    // 表格「事件类型」列：告警融合事件统一一个标签，普通事件按分类码展开
+    assert.ok(alarmRows.every((row) => row.eventType === "告警融合"));
+    const routineTypes = new Set(routineRows.map((row) => row.eventType));
+    for (const label of ["巡检发现", "设备上线", "设备离线", "OTA 升级", "配置变更", "误报归档", "人工补录"]) {
+      assert.ok(routineTypes.has(label), `普通事件缺少「${label}」这类`);
+    }
+    // 普通事件不带告警：证据链面板会落到空态
+    assert.ok(routineRows.every((row) => row.alarmCount === 0 && row.evidenceCount === 0));
+
+    // 普通事件的详情：时间线不再是告警生命周期
+    const routineId = routineRows[0].id;
+    const detail = await getEventData(routineId);
+    assert.ok(detail.detail);
+    assert.equal(detail.detail.alarms.length, 0);
+    assert.ok(detail.detail.incident.timeline.length >= 3);
+    assert.ok(detail.detail.incident.event_type);
+    // 首屏只带一条详情：普通事件也一样，不能把 327 条时间线都塞进去
+    const bytes = Buffer.byteLength(JSON.stringify(detail), "utf8");
+    assert.ok(bytes < 300 * 1024, `事件页 payload ${bytes} 字节，投影没生效`);
   });
 
   it("设备页只投影表格需要的字段（不塞完整 signal_series 与 OTA 历史）", async () => {

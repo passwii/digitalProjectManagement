@@ -27,8 +27,10 @@ import {
   AV_LEVEL_ORDER,
   AV_SCENE_ORDER,
   compactAge,
+  eventTypeText,
   formatCount,
   formatPercent,
+  incidentKind,
   levelMeta,
   sceneMeta,
   type AvTone,
@@ -391,13 +393,15 @@ function statusToneOf(status: Alarm["status"]): AvTone {
   )[status];
 }
 
-/** 事件列表行：编号 / 级别 / 场景 / 点位 / 时长 / 状态 / 证据数。 */
+/** 事件列表行：编号 / 类型 / 级别 / 场景 / 点位 / 时长 / 状态 / 证据数。 */
 export function incidentRows(incidents: Incident[], core: DatasetCore) {
   return incidents.map((incident) => {
     const site = core.sites.find((item) => item.id === incident.site_id);
     return {
       id: incident.id,
       title: incident.title,
+      kind: incidentKind(incident),
+      eventType: eventTypeText(incident),
       level: incident.level,
       levelLabel: incident.level_label,
       levelShort: levelMeta(incident.level).short,

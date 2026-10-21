@@ -46,6 +46,26 @@ const spectrumIds = new Set(spectra.map((s) => s.id));
 const inIncident = new Set(incidents.flatMap((i) => i.alarm_ids));
 const isScript = (a) => a.narrative_tier === "script";
 
+// —— 事件性质（BLF-1427）：告警融合事件 vs 普通事件 ——
+// 历史数据没有 kind 字段，缺省即告警融合；普通事件显式写 kind="routine"。
+const incidentKind = (i) => (i.kind === "routine" ? "routine" : "alarm");
+const alarmIncidents = incidents.filter((i) => incidentKind(i) === "alarm");
+const routineIncidents = incidents.filter((i) => incidentKind(i) === "routine");
+/**
+ * 总览的事件口径：**只数告警融合事件**。
+ *
+ * Stage 1 把总览的「事件」定成「跨告警融合后的人工确认单元」，而 BLF-1427 追加的
+ * 120 条普通事件（巡检 / 上下线 / OTA / 配置 / 误报归档 / 补录）不经告警融合，
+ * 算进去总览的 KPI 注释就与数字自相矛盾。边界：总览 / kpi / trends / overview-ranges
+ * 只看告警侧，/event 事件中心才看全部事件。
+ */
+const OVERVIEW_INCIDENT = (i) => incidentKind(i) === "alarm";
+const ROUTINE_EVENT_TYPES = new Set([
+  "inspection", "device_online", "device_offline", "ota", "config", "false_positive_archive", "manual",
+]);
+// 普通事件的节点类型：巡检 / 上下线 / OTA / 配置 / 人工，刻意不含 fusion / action
+const ROUTINE_NODE_TYPES = new Set(["inspect", "device_online", "device_offline", "ota", "config", "manual", "notify", "review", "diagnose", "pending", "archive"]);
+
 // ════════════════════════════════════════════════════════════
 // 一、品牌与引用完整性（原 36 项的主体）
 // ════════════════════════════════════════════════════════════
@@ -134,6 +154,8 @@ const LIFECYCLE_RANK = {
 check("timeline 生命周期语义顺序（触发 → 接警 → 处置 → 复核 → 归档）", () => {
   const bad = [];
   for (const i of incidents) {
+    // 普通事件没有告警生命周期可比，走下面的「普通事件节点类型」专项检查
+    if (incidentKind(i) === "routine") continue;
     // alarm_triggered 可以在任意时刻重复（处置中又有新告警到达），
     // 其余节点必须按生命周期单调推进；「归档」之后再出现接警 / 处置就是乱序。
     const seq = (i.timeline || []).filter((n) => n.type !== "alarm_triggered");
@@ -147,7 +169,7 @@ check("timeline 生命周期语义顺序（触发 → 接警 → 处置 → 复�
   return bad.length === 0 || `${bad.length} 个事件生命周期乱序：${bad.slice(0, 3).join("，")}`;
 });
 check("事件首节点是 alarm_triggered", () => {
-  const bad = incidents.filter((i) => (i.timeline || [])[0]?.type !== "alarm_triggered");
+  const bad = alarmIncidents.filter((i) => (i.timeline || [])[0]?.type !== "alarm_triggered");
   return bad.length === 0 || `${bad.length} 个事件不是从“触发”开始：${bad.slice(0, 3).map((i) => i.id).join(",")}`;
 });
 check("已结案事件的末节点是 archive", () => {
@@ -197,7 +219,7 @@ check("事件时间线末节点不早于事件内最新一条告警（在办事�
   return bad.length === 0 || `${bad.length} 个事件的末节点早于自己的最新告警`;
 });
 check("背景事件时间线首节点 = 最早告警（偏移最大）", () => {
-  const bad = incidents.filter((i) => {
+  const bad = alarmIncidents.filter((i) => {
     if (i.script_id) return false; // 剧本时间线是手写的叙事线（如 H 的首节点指向 B 的第 7 次误报）
     const first = (i.timeline || [])[0];
     if (!first) return true;
@@ -403,9 +425,10 @@ check("点位排行 Top10 降序且长度 ≤ 10", () => {
   for (let i = 1; i < p.length; i++) if (p[i].total > p[i - 1].total) return "未按降序";
   return true;
 });
-check("事件总数对得上 incidents 长度", () => kpi.incident_total === incidents.length || `${kpi.incident_total} != ${incidents.length}`);
-check("在办事件数 = status ≠ closed 的事件数", () => {
-  const n = incidents.filter((i) => i.status !== "closed").length;
+check("事件总数对得上 incidents 里的告警融合事件数", () =>
+  kpi.incident_total === alarmIncidents.length || `${kpi.incident_total} != ${alarmIncidents.length}`);
+check("在办事件数 = 告警融合事件里 status ≠ closed 的数量", () => {
+  const n = alarmIncidents.filter((i) => i.status !== "closed").length;
   return kpi.incident_open === n || `${kpi.incident_open} != ${n}`;
 });
 check("incident.alarm_count = alarm_ids 长度", () =>
@@ -583,7 +606,9 @@ check("daily 覆盖 7 个连续自然日（含今天）", () => {
   return JSON.stringify(ds) === JSON.stringify([0, 1, 2, 3, 4, 5, 6]) || ds.join(",");
 });
 check("daily.incidents 与明细相等", () => {
-  const bad = trends.daily.filter((d) => incidents.filter((i) => T.dayDiff(i.started_offset_minutes) === d.date_offset_days).length !== d.incidents);
+  const bad = trends.daily.filter(
+    (d) => incidents.filter((i) => OVERVIEW_INCIDENT(i) && T.dayDiff(i.started_offset_minutes) === d.date_offset_days).length !== d.incidents,
+  );
   return bad.length === 0 || bad.map((d) => d.label).join(",");
 });
 
@@ -743,9 +768,100 @@ check("narrative_tier 取值只有 script / related / noise", () => {
   const bad = new Set(alarms.map((a) => a.narrative_tier).filter((t) => !["script", "related", "noise"].includes(t)));
   return bad.size === 0 || [...bad].join(",");
 });
-check("每个事件至少关联 1 条告警", () => incidents.every((i) => i.alarm_ids.length >= 1) || "有空事件");
+check("每个事件至少关联 1 条告警", () =>
+  alarmIncidents.every((i) => i.alarm_ids.length >= 1) || "有空事件");
 check("每个事件至少 3 个时间线节点", () =>
   incidents.every((i) => (i.timeline || []).length >= 3) || `最少 ${Math.min(...incidents.map((i) => (i.timeline || []).length))} 个`);
+
+// —— 普通事件专项（BLF-1427）：事件中心 ≠ 告警中心 ——
+check("事件性质分布：告警融合与普通事件同时存在", () =>
+  (alarmIncidents.length > 0 && routineIncidents.length >= 100) ||
+  `告警融合 ${alarmIncidents.length} / 普通事件 ${routineIncidents.length}（普通事件需 ≥ 100）`);
+check("普通事件用 EV-R 新号段（不占用既有 EV-2026xxxx）", () =>
+  routineIncidents.every((i) => /^EV-R\d{4}$/.test(i.id)) ||
+  `${routineIncidents.filter((i) => !/^EV-R\d{4}$/.test(i.id)).length} 个普通事件不在新号段`);
+check("普通事件的性质 / 类型字段齐全", () => {
+  const bad = routineIncidents.filter(
+    (i) => i.kind !== "routine" || !ROUTINE_EVENT_TYPES.has(i.event_type),
+  );
+  return bad.length === 0 || `${bad.length} 个普通事件缺 kind / event_type`;
+});
+check("普通事件不带告警（alarm_ids 为空且 alarm_count=0）", () => {
+  const bad = routineIncidents.filter((i) => i.alarm_ids.length !== 0 || i.alarm_count !== 0);
+  return bad.length === 0 || `${bad.length} 个普通事件挂了告警`;
+});
+check("告警融合事件不声明 event_type", () =>
+  alarmIncidents.every((i) => i.event_type === undefined) || "告警融合事件带了 event_type");
+check("普通事件节点类型不串到告警语义（无 fusion / action / alarm_triggered）", () => {
+  const bad = [];
+  for (const i of routineIncidents) {
+    for (const n of i.timeline || []) {
+      if (!ROUTINE_NODE_TYPES.has(n.type)) {
+        bad.push(`${i.id}:${n.type}`);
+        break;
+      }
+    }
+  }
+  return bad.length === 0 || `${bad.length} 个普通事件出现告警节点：${bad.slice(0, 3).join("，")}`;
+});
+check("普通事件时间线：首节点即事件开端，在办停在 pending", () => {
+  const bad = [];
+  for (const i of routineIncidents) {
+    const first = (i.timeline || [])[0];
+    const last = (i.timeline || []).at(-1);
+    if (!first || first.at_offset_minutes !== i.started_offset_minutes) bad.push(`${i.id} 首节点≠started`);
+    else if (i.status === "closed" && last?.type !== "archive") bad.push(`${i.id} closed 未归档`);
+    else if (i.status !== "closed" && last?.type !== "pending") bad.push(`${i.id} 在办未停在 pending`);
+  }
+  return bad.length === 0 || `${bad.length} 个普通事件时间线不对：${bad.slice(0, 3).join("，")}`;
+});
+check("OTA 事件的批量台数全文一致（标题 = 回执，在办不得出现「升级完成」）", () => {
+  /*
+    回归守卫：OTA 模板里的台数曾经在标题与完成节点各抽一次随机数，
+    同一条事件「等 13 台」却「成功 19 台」（20 条里 19 条对不上）；
+    在办的批次还会先写「升级完成」再说「仍在升级」。两条都是自相矛盾的数据。
+    口径：闭环 = 完成台数等于标题台数；在办 = 无完成字样，且已完成 + 剩余 = 标题台数。
+  */
+  const bad = [];
+  for (const i of routineIncidents) {
+    if (i.event_type !== "ota") continue;
+    const batch = Number((i.title.match(/等 (\d+) 台终端/) || [])[1]);
+    const texts = (i.timeline || []).map((n) => n.text);
+    if (!batch) {
+      bad.push(`${i.id} 标题台数不可解析`);
+      continue;
+    }
+    const completed = texts.filter((t) => /升级完成|成功 \d+ 台/.test(t));
+    if (i.status === "closed") {
+      const done = completed.map((t) => Number((t.match(/成功 (\d+) 台/) || [])[1])).filter(Boolean);
+      if (done.length !== 1) bad.push(`${i.id} 完成节点 ${done.length} 个`);
+      else if (done[0] !== batch) bad.push(`${i.id} 成功 ${done[0]} 台 ≠ 标题 ${batch} 台`);
+    } else {
+      if (completed.length > 0) bad.push(`${i.id} 在办却已完成`);
+      const progress = texts.map((t) => t.match(/已完成 (\d+) 台 \/ 剩余 (\d+) 台/)).find(Boolean);
+      if (!progress) bad.push(`${i.id} 在办缺灰度进度`);
+      else if (Number(progress[1]) + Number(progress[2]) !== batch) {
+        bad.push(`${i.id} 已完成 ${progress[1]} + 剩余 ${progress[2]} ≠ 标题 ${batch} 台`);
+      }
+    }
+  }
+  return bad.length === 0 || `${bad.length} 条 OTA 自相矛盾：${bad.slice(0, 3).join("，")}`;
+});
+check("普通事件的标题不与该事件状态相反（设备离线：在办才写「待现场处理」）", () => {
+  /* 回归守卫：设备离线的标题曾写死「待现场处理」，闭环事件的标题就与
+     状态徽标、收尾节点（「现场更换电源模块后恢复」）相反。 */
+  const bad = routineIncidents.filter(
+    (i) =>
+      i.event_type === "device_offline" &&
+      Boolean(i.title.includes("待现场处理")) !== (i.status !== "closed"),
+  );
+  return bad.length === 0 || `${bad.length} 条标题与状态相反：${bad.slice(0, 3).map((i) => i.id).join("，")}`;
+});
+check("普通事件覆盖六类运营动作", () => {
+  const seen = new Set(routineIncidents.map((i) => i.event_type));
+  const missing = [...ROUTINE_EVENT_TYPES].filter((t) => !seen.has(t));
+  return missing.length === 0 || `缺 ${missing.join(",")}`;
+});
 
 // ════════════════════════════════════════════════════════════
 // 十二、告警状态与语义
@@ -971,6 +1087,14 @@ const RANGE_INCIDENT_WINDOWS = {
   },
 };
 const OPEN_INCIDENT = (i) => i.status !== "closed";
+/**
+ * 总览的事件口径：**只数告警融合事件**。
+ *
+ * Stage 1 把总览的「事件」定成「跨告警融合后的人工确认单元」，而 BLF-1427 追加的
+ * 120 条普通事件（巡检 / 上下线 / OTA / 配置 / 误报归档 / 补录）不经告警融合，
+ * 算进去总览的 KPI 注释就与数字自相矛盾。这里守住那条边界：总览只看告警侧，
+ * /event 事件中心才看全部事件。
+ */
 const sumOf = (list, pick) => list.reduce((total, row) => total + pick(row), 0);
 
 check("overview-ranges：三档齐全，顺序与 _meta.range_order 一致", () => {
@@ -1010,10 +1134,17 @@ check("三档的 totals 与明细窗口一致，且六块聚合逐项相加 = to
       const expected = range.scenes.find((x) => x.scene === scene).count;
       if (fromBuckets !== expected) problems.push(`${key}: trend.scenes[${scene}] ${fromBuckets} != ${expected}`);
     }
-    // 「在办事件」按窗口过滤：不能是全站一个数
-    const expectedOpen = incidents.filter((i) => RANGE_INCIDENT_WINDOWS[key](i) && OPEN_INCIDENT(i)).length;
+    // 「在办事件」按窗口过滤：不能是全站一个数；口径只含告警融合事件（见 OVERVIEW_INCIDENT）
+    const expectedOpen = incidents.filter(
+      (i) => OVERVIEW_INCIDENT(i) && RANGE_INCIDENT_WINDOWS[key](i) && OPEN_INCIDENT(i),
+    ).length;
     if (range.totals.open_incidents !== expectedOpen) {
       problems.push(`${key}: open_incidents=${range.totals.open_incidents} 明细=${expectedOpen}`);
+    }
+    // 总览的事件总数也只能数告警融合事件：普通事件只属于 /event
+    const expectedIncidents = incidents.filter((i) => OVERVIEW_INCIDENT(i) && RANGE_INCIDENT_WINDOWS[key](i)).length;
+    if (range.totals.incidents !== expectedIncidents) {
+      problems.push(`${key}: incidents=${range.totals.incidents} 明细=${expectedIncidents}`);
     }
     if (range.totals.open_incidents > range.totals.incidents) problems.push(`${key}: 在办数超过事件数`);
     if (sumOf(range.scenes, (r) => r.count) !== range.totals.alarms) problems.push(`${key}: scenes`);

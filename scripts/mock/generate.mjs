@@ -1214,6 +1214,256 @@ allAlarms.sort((a, b) => a.ts_offset_minutes - b.ts_offset_minutes || a.id.local
 incidents.sort((a, b) => a.started_offset_minutes - b.started_offset_minutes || a.id.localeCompare(b.id));
 
 // ============================================================
+// 9b. 普通事件（BLF-1427）
+//    此前 207 个事件全部是「告警融合」的产物，/event 与 /alarm 语义重叠：
+//    事件中心只是换了个分组的告警列表。这里补一档**平庸事件** ——
+//    巡检发现、设备上下线、OTA 批量升级、策略配置变更、误报归档、人工补录，
+//    它们没有告警可追溯，靠自身的运营动作成链。
+//
+//    两条硬约束：
+//      · 只追加：既有 207 条事件的 id / 字段一个不碰，新事件走 EV-R 号段；
+//      · 独立种子：不消耗全局 rng，其余 JSON 逐字节不变（生成器可复现）。
+// ============================================================
+const ROUTINE_TOTAL = 120;
+const ROUTINE_START_OFFSET = 20; // 最近 20 分钟起
+const ROUTINE_SPAN = 21 * DAY; // 摊在最近 21 个自然日
+const rrng = makeRng(SEED ^ 0x52544e31); // "RTN1"
+const rintR = (min, max) => Math.floor(rrng() * (max - min + 1)) + min;
+const pickR = (arr) => arr[Math.floor(rrng() * arr.length)];
+const chanceR = (p) => rrng() < p;
+const ROUTINE_OWNER_ROLES = ["site_admin", "duty_officer", "auditor"];
+const routineUser = (siteId, roles = ROUTINE_OWNER_ROLES) => {
+  const pool = USERS.filter((u) => u.site_id === siteId && roles.includes(u.role));
+  return pool.length ? pickR(pool) : pickR(USERS);
+};
+
+/** 普通事件模板：每类一个「运营动作链」，节点类型刻意与告警生命周期不同 */
+const ROUTINE_TEMPLATES = [
+  {
+    eventType: "inspection",
+    weight: 26,
+    level: 4,
+    openRate: 0,
+    title: (pt, n) => `日常巡检 #IP-${n}：${pt.room} 声学基线复测通过`,
+    steps: (pt, me, n) => [
+      { type: "inspect", actor: null, text: `巡检计划 IP-2026${n} 生成：${pt.room} 拾音与视频通道逐项复测` },
+      { type: "inspect", actor: me.id, text: `现场复测通过：本底噪声 ${rintR(38, 52)}dBA，镜头清晰度与遮挡检测正常`, gap: rintR(8, 26) },
+      { type: "archive", actor: me.id, text: "巡检结论归档，纳入本月设备健康报表", gap: rintR(5, 14) },
+    ],
+  },
+  {
+    eventType: "device_online",
+    weight: 20,
+    level: 4,
+    openRate: 0,
+    title: (pt, n) => `设备上线：${pt.room} 终端恢复心跳（#DO-${n}）`,
+    steps: (pt, me, n) => [
+      { type: "device_offline", actor: null, text: `${pt.room} 终端心跳中断，自动登记离线台账 #DO-${n}` },
+      { type: "device_online", actor: null, text: "网关心跳恢复，终端自动重新注册并回补 15 分钟缓存数据", gap: rintR(6, 40) },
+      { type: "archive", actor: me.id, text: "离线工单自动关闭，离线时长计入本月可用率", gap: rintR(2, 9) },
+    ],
+  },
+  {
+    eventType: "device_offline",
+    weight: 16,
+    level: 3,
+    openRate: 0.45,
+    // 在办与闭环两种结局要写在标题上：闭环事件还挂着「待现场处理」，列表标题就与
+    // 状态徽标、时间线收尾节点自相矛盾（曾出现 7 条闭环事件标题写「待现场处理」）。
+    title: (pt, n, f) =>
+      f.open
+        ? `设备离线：${pt.room} 心跳中断待现场处理（#DO-${n}）`
+        : `设备离线：${pt.room} 心跳中断已恢复（#DO-${n}）`,
+    steps: (pt, _me, n) => [
+      { type: "device_offline", actor: null, text: `${pt.room} 心跳中断超过 ${rintR(10, 25)} 分钟，升级为确认离线 #DO-${n}` },
+      { type: "diagnose", actor: "u-008", text: `远程诊断：最后上报 PoE 供电 ${rintR(41, 48)}V，低于阈值`, gap: rintR(5, 22) },
+    ],
+    tailClosed: (_pt, me) => ({
+      type: "archive",
+      actor: me.id,
+      text: "现场更换电源模块后恢复，离线工单归档",
+      gap: rintR(30, 90),
+    }),
+    tailOpen: (_pt, me) => ({
+      type: "pending",
+      actor: me.id,
+      text: "等待现场处理：已申请进入受限区域，尚未回单",
+      gap: rintR(20, 70),
+    }),
+  },
+  {
+    eventType: "ota",
+    weight: 18,
+    level: 4,
+    openRate: 0.12,
+    /*
+      批量台数与版本只抽**一次**：标题与回执节点必须说同一个数。
+
+      之前两边各自 rintR 一次，同一条事件经常自相矛盾（标题「等 13 台」、
+      回执「成功 19 台 / 失败 0 台」，20 条 OTA 里有 19 条对不上）。
+      在办的批次还要把「已完成 / 剩余」算好，保证两者相加等于批量台数。
+    */
+    facts: (_pt, _open) => {
+      const batch = rintR(6, 24);
+      const done = Math.max(1, Math.floor(batch * (0.4 + rrng() * 0.4)));
+      return { batch, version: pickR(["v3.9.1", "v3.9.2", "v3.10.0"]), done };
+    },
+    title: (pt, _n, f) => `OTA 批量升级：${pt.room} 等 ${f.batch} 台终端升至 ${f.version}`,
+    steps: (pt, _me, n, f) => [
+      {
+        type: "ota",
+        actor: null,
+        text: `升级任务 OT-${n} 下发：${pt.room} 所在分组静默升级（${f.batch} 台），避开上下课时段`,
+      },
+      // 在办的批次不能出现「升级完成」：否则同一条事件既已完成又在办
+      f.open
+        ? {
+            type: "ota",
+            actor: null,
+            text: `灰度批次回执：已完成 ${f.done} 台 / 剩余 ${f.batch - f.done} 台等待回执，版本校验中`,
+            gap: rintR(12, 48),
+          }
+        : {
+            type: "ota",
+            actor: null,
+            text: `升级完成，成功 ${f.batch} 台 / 失败 0 台，版本校验通过`,
+            gap: rintR(12, 48),
+          },
+    ],
+    // 收尾节点分开写：在办的 OTA 不能带 archive（闭环与在办是互斥的两种状态）
+    tailClosed: (_pt, me) => ({
+      type: "archive",
+      actor: me.id,
+      text: "固件台账已回写，升级窗口内无告警抖动",
+      gap: rintR(3, 12),
+    }),
+    tailOpen: (_pt, me, f) => ({
+      type: "pending",
+      actor: me.id,
+      text: `灰度批次仍在升级：剩余 ${f.batch - f.done} 台等待回执`,
+      gap: rintR(10, 40),
+    }),
+  },
+  {
+    eventType: "config",
+    weight: 16,
+    level: 4,
+    openRate: 0,
+    title: (pt, n) => `策略配置变更：${pt.room} 分贝阈值 65 → ${rintR(68, 74)}dB（#CF-${n}）`,
+    steps: (pt, me, n) => [
+      { type: "config", actor: me.id, text: `变更申请 CF-${n}：午休时段阈值上调，附前 7 天误报工单` },
+      { type: "config", actor: null, text: `配置生效，作用于 ${pt.room} 等 ${rintR(2, 12)} 个点位，回滚窗口 24 小时`, gap: rintR(8, 30) },
+      { type: "archive", actor: me.id, text: "变更记录归档，纳入规则变更审计日志", gap: rintR(2, 8) },
+    ],
+  },
+  {
+    eventType: "false_positive_archive",
+    weight: 14,
+    level: 4,
+    openRate: 0,
+    title: (pt, n) => `误报归档：${pt.room} ${pickR(["操场风噪", "走廊回声", "空调外机", "施工噪声"])}触发（#FP-${n}）`,
+    steps: (pt, me, n) => [
+      { type: "inspect", actor: null, text: `回溯核实 FP-${n}：${pt.room} 告警波形与历史误报样本相似度 ${rintR(88, 96)}%` },
+      { type: "inspect", actor: me.id, text: "现场确认非安全事件，已标记误报并回填误报原因", gap: rintR(10, 40) },
+      { type: "archive", actor: me.id, text: "误报样本入库，供规则迭代与阈值调优", gap: rintR(3, 10) },
+    ],
+  },
+  {
+    eventType: "manual",
+    weight: 10,
+    level: 4,
+    openRate: 0,
+    title: (pt, n) => `人工补录：${pt.room} ${pickR(["家长来访登记", "临时施工报备", "设备借用登记", "夜间加班报备"])}（#MR-${n}）`,
+    steps: (pt, me, n) => [
+      { type: "manual", actor: null, text: `人工补录 MR-${n}：${pt.room} 现场事项无系统告警，事后补录台账` },
+      { type: "review", actor: me.id, text: "值班主管核对现场记录与监控回放，确认无误", gap: rintR(10, 45) },
+      { type: "archive", actor: me.id, text: "补录完成，事件进入常规归档流", gap: rintR(2, 8) },
+    ],
+  },
+];
+
+/** 按权重挑模板（本地 rng，不动全局序列） */
+function pickRoutineTemplate() {
+  const total = ROUTINE_TEMPLATES.reduce((sum, t) => sum + t.weight, 0);
+  let r = rrng() * total;
+  for (const tpl of ROUTINE_TEMPLATES) {
+    r -= tpl.weight;
+    if (r <= 0) return tpl;
+  }
+  return ROUTINE_TEMPLATES[ROUTINE_TEMPLATES.length - 1];
+}
+
+{
+  const pointsBySite = new Map(SITES.map((s) => [s.id, points.filter((p) => p.site_id === s.id && p.has_device)]));
+  const routineSites = SITES.filter((s) => (pointsBySite.get(s.id) || []).length > 0);
+  for (let n = 1; n <= ROUTINE_TOTAL; n++) {
+    const site = pickR(routineSites);
+    const pt = pickR(pointsBySite.get(site.id));
+    const tpl = pickRoutineTemplate();
+    const me = routineUser(site.id);
+    const open = chanceR(tpl.openRate);
+    const started = ROUTINE_START_OFFSET + rintR(0, ROUTINE_SPAN);
+
+    // 同一个事件的事实只算一次，标题 / 节点 / 收尾共用一份；`open` 由外层注入
+    const facts = { ...(tpl.facts ? tpl.facts(pt, open) : {}), open };
+    const serial = String(n).padStart(4, "0");
+    const steps = tpl.steps(pt, me, serial, facts);
+    if (open && tpl.tailOpen) steps.push(tpl.tailOpen(pt, me, facts));
+    else if (!open && tpl.tailClosed) steps.push(tpl.tailClosed(pt, me, facts));
+
+    // 节点从 started 往后推（偏移递减 = 时间递增），首节点即事件开始
+    let cursor = started;
+    const timeline = steps.map((step, index) => {
+      if (index > 0) cursor -= Math.max(1, step.gap ?? 1);
+      return {
+        at_offset_minutes: Math.max(0, cursor),
+        type: step.type,
+        actor: step.actor ?? null,
+        text: step.text,
+      };
+    });
+    const ended = Math.min(...timeline.map((node) => node.at_offset_minutes));
+
+    incidents.push({
+      id: `EV-R${String(n).padStart(4, "0")}`,
+      kind: "routine",
+      event_type: tpl.eventType,
+      site_id: site.id,
+      scene: site.scene,
+      title: tpl.title(pt, serial, facts),
+      level: tpl.level,
+      level_label: LEVEL_NAME[tpl.level],
+      point_id: pt.id,
+      point_room: pt.room,
+      alarm_ids: [],
+      alarm_count: 0,
+      started_offset_minutes: started,
+      ended_offset_minutes: ended,
+      duration_minutes: Math.max(1, started - ended),
+      status: open ? "dispatched" : "closed",
+      owner_id: me.id,
+      evidence_count: 0,
+      script_id: null,
+      timeline,
+    });
+  }
+
+  // 重新排序：新事件按发生时间插进既有序列（既有 207 条相对顺序不变，稳定排序）
+  incidents.sort((a, b) => a.started_offset_minutes - b.started_offset_minutes || a.id.localeCompare(b.id));
+}
+
+/**
+ * 总览的事件口径：**只数告警融合事件**。
+ *
+ * Stage 1 把总览的「事件」定成「跨告警融合后的人工确认单元」（见 view.ts 的 KPI note），
+ * 而 BLF-1427 新增的 120 条普通事件（巡检 / 上下线 / OTA / 配置 / 误报归档 / 补录）
+ * 根本不经告警融合 —— 把它们算进 kpi / trends / overview-ranges，总览的 KPI 注释
+ * 就与数字自相矛盾（Codex review 第 3 轮）。这也是两个页面的职责边界：
+ * 总览看告警侧趋势，/event 事件中心才看全部事件。
+ */
+const overviewIncidents = incidents.filter((i) => i.kind !== "routine");
+
+// ============================================================
 // 10. 频谱（12 段）+ 波形桶（每段 2,000 桶 min/max）
 // ============================================================
 function synthSpectrum({ seconds, bins, cols, seedNum, profile }) {
@@ -1488,7 +1738,7 @@ const kpi = {
     name: SITES.find((x) => x.scene === s).name,
     count: unhandled.filter((a) => a.scene === s).length,
   })),
-  incident_open: incidents.filter((i) => i.status !== "closed").length,
+  incident_open: overviewIncidents.filter((i) => i.status !== "closed").length,
   level_breakdown_today: [1, 2, 3, 4].map((lv) => ({
     level: lv,
     label: LEVEL_NAME[lv],
@@ -1505,7 +1755,7 @@ const kpi = {
     count: last24h.filter((a) => a.level === lv).length,
   })),
   alarm_total: allAlarms.length,
-  incident_total: incidents.length,
+  incident_total: overviewIncidents.length,
   false_positive_rate: Number(((fpCount / allAlarms.length) * 100).toFixed(1)),
   avg_response_minutes: 4.2,
   response_p50_minutes: 3.1,
@@ -1571,7 +1821,7 @@ const dailyTrend = Array.from({ length: 7 }, (_, d) => {
     label: `${month}/${date}`,
     weekday,
     alarms: bucket.length,
-    incidents: incidents.filter((i) => dayDiff(i.started_offset_minutes) === d).length,
+    incidents: overviewIncidents.filter((i) => dayDiff(i.started_offset_minutes) === d).length,
   };
 });
 
@@ -1668,7 +1918,7 @@ const OVERVIEW_RANGE_DEFS = [
  * 滚动后的合计就是**逐桶相加**，不会出现「图里的总数对不上 KPI」。
  */
 function bucketOf({ label, list, incidentInBucket }) {
-  const windowIncidents = incidents.filter(incidentInBucket);
+  const windowIncidents = overviewIncidents.filter(incidentInBucket);
   return {
     label,
     alarms: list.length,

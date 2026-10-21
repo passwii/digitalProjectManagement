@@ -22,8 +22,40 @@
  * 靠 inline transform 实现的，被钉住之后筛选切换就完全看不到「卡片互相让位」。
  * `backwards` 只在延迟阶段填充首帧，播完即归还元素自身的样式。
  */
+/*
+ * ⚠️ 关键帧必须在本模块里再声明一份：CSS Modules 会把本文件的 animation-name
+ * 改写成 `<模块>_<名字>__hash`（实测 `AvMotion_avRiseIn__vTImi`），而 avPageIn /
+ * avRiseIn 定义在 globals.css 的**全局作用域**（不会被改写）—— 两边名字对不上，
+ * 整条 animation 就静默失效。
+ *
+ * 失效的后果不只是「没有动画」：`.inView` 的 `opacity: 0` 只靠这条动画摘掉，
+ * 帧丢了面板就永远全透明（/overview 的三联面板、/event 右侧 rail 曾整块空白）。
+ * `animation: :global(avPageIn)` 不是合法 CSS（webpack 直接报 Double colon），
+ * 所以这里按模块作用域各声明一份同内容的帧 —— 帧名带 Frames 后缀，避免与
+ * `.pageIn` 这个类名在 CSS Modules 的导出里撞名。
+ */
+@keyframes pageInFrames {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes riseInFrames {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
 .pageIn {
-  animation: avPageIn var(--av-dur-base) var(--av-ease-enter) backwards;
+  animation: pageInFrames var(--av-dur-base) var(--av-ease-enter) backwards;
 }
 
 /*
@@ -52,7 +84,7 @@
   }
 }
 .inView[data-av-inview="on"] {
-  animation: avRiseIn var(--av-dur-slow) var(--av-ease-enter) both;
+  animation: riseInFrames var(--av-dur-slow) var(--av-ease-enter) both;
   animation-delay: calc(var(--av-stagger-list) * var(--av-i, 0));
 }
 
@@ -62,7 +94,7 @@
  * 一旦动画把 transform 钉死，筛选切换的 FLIP 就失效了。
  */
 .itemIn {
-  animation: avRiseIn var(--av-dur-base) var(--av-ease-enter) backwards;
+  animation: riseInFrames var(--av-dur-base) var(--av-ease-enter) backwards;
   animation-delay: calc(var(--av-stagger-list) * var(--av-i, 0));
 }
 
