@@ -1,4 +1,5 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
+import { STREAM_MONITOR_SITE } from "@/lib/siteIdentity";
 import Script from "next/script";
 import { getCore } from "@/lib/av/server";
 import AvShell from "@/components/av/AvShell";
@@ -9,6 +10,46 @@ import { AV_MOTION_BOOTSTRAP_SCRIPT } from "@/lib/av/motion";
 export const metadata: Metadata = {
   title: "智能音视频平台",
   description: "音频与视频融合感知的全场景智能安防平台",
+  /**
+   * 站点自己的 PWA 清单（BLF-1389）。
+   *
+   * 为什么必须显式写：Next 的元数据合并里，**文件约定**形式的根 manifest
+   * （`app/manifest.ts`）会无条件覆盖 layout 写的 `metadata.manifest`。
+   * 根 manifest 已迁到 `app/manifest.webmanifest/route.ts`，元数据话语权才回到
+   * 各 layout 手里 —— 少了这一行，从主屏幕启动智能音视频平台时装的仍是
+   * 「数科云办公」，状态栏与启动闪屏都是主工作台的深蓝。
+   */
+  manifest: "/stream-monitor/manifest.webmanifest",
+  // iOS standalone：状态栏透明盖在站点顶栏上。
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "智能音视频平台",
+  },
+};
+
+/**
+ * 站点视口（BLF-1389）。
+ *
+ * `themeColor` 跟着站点自己的深浅双主题走：站点是**深浅两套**配色
+ * （`--bg` 深色 #07131f / 浅色 #f1f5f7），所以用 `media` 描述符分别给一份，
+ * 而不是像主工作台那样只给一个固定值 —— 固定值在浅色主题下会让状态栏
+ * 与页面顶色对不上（深蓝状态栏 + 浅灰页面）。
+ *
+ * ⚠️ manifest 的 `theme_color` 只能是**一个**值（规范如此），那里取深色
+ * （站点默认主题），与 `public/stream-monitor/manifest.webmanifest` 同值。
+ *
+ * `viewportFit: "cover"`：刘海 / 圆角屏下铺满，安全区由
+ * `AvShell.module.css` 的 `env(safe-area-inset-*)` 消化。
+ */
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+  themeColor: [
+    { media: "(prefers-color-scheme: dark)", color: STREAM_MONITOR_SITE.themeColor },
+    { media: "(prefers-color-scheme: light)", color: STREAM_MONITOR_SITE.lightThemeColor },
+  ],
 };
 
 /**

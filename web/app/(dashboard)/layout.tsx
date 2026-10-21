@@ -9,6 +9,7 @@ import { clearMetaCache, loadMe, useMe, useMenus } from "@/lib/useMeta";
 import { identityViewOf } from "@/lib/identityCore";
 import { SPARK_WINDOW_TARGET } from "@/lib/spark/navigation";
 import { AV_WINDOW_TARGET } from "@/lib/av/navigation";
+import { useIsMobile } from "@/lib/useIsMobile";
 import Avatar from "@/components/ui/Avatar";
 import Bell from "@/components/ui/Bell";
 import ThemeModePicker from "@/components/theme/ThemeModePicker";
@@ -379,6 +380,16 @@ function DashboardShell({ children, modal }: { children: React.ReactNode; modal?
   const { me, error: meError } = useMe();
   const { menus, isAdmin, ready: permsReady, loading: permsLoading, error: permsError, reload: reloadMenus, canApprove } = useMenus();
   const reduced = useReducedMotion();
+  /**
+   * 手机形态下两个独立站点的入口**不带** `target`（BLF-1389）。
+   *
+   * 桌面端 `target` 是有意为之：两个站点各有自己的浏览上下文
+   * （`spark-platform` / `stream-monitor`），桌面用户能同时开两个窗口对比。
+   * 但手机端 `target` 会开出一堆新标签页 —— 屏幕底部多一条地址栏，
+   * 回主工作台要连点好几次「返回」，而且 standalone 下（无地址栏）用户
+   * 根本不知道自己「跳」到了另一个标签页。
+   */
+  const isMobile = useIsMobile();
 
   const current = Object.keys(LABEL).find((k) => pathname === k || pathname.startsWith(k + "/"));
   const [registeredTitle, setRegisteredTitle] = useState<{ pathname: string; title: string } | null>(null);
@@ -526,11 +537,13 @@ function DashboardShell({ children, modal }: { children: React.ReactNode; modal?
                 <Link
                   href={n.href}
                   target={
-                    n.href === "/spark"
-                      ? SPARK_WINDOW_TARGET
-                      : n.href === "/stream-monitor"
-                        ? AV_WINDOW_TARGET
-                        : undefined
+                    isMobile
+                      ? undefined
+                      : n.href === "/spark"
+                        ? SPARK_WINDOW_TARGET
+                        : n.href === "/stream-monitor"
+                          ? AV_WINDOW_TARGET
+                          : undefined
                   }
                   className={`${s.navLink} ${active ? s.active : ""}`}
                   title={n.label}

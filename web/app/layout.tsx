@@ -36,6 +36,22 @@ export const metadata: Metadata = {
     statusBarStyle: "black-translucent",
     title: "数科云办公",
   },
+  /**
+   * PWA 清单（BLF-1389）。
+   *
+   * ⚠️ 这一行**必须**写，且必须与「把根 manifest 从 `app/manifest.ts` 迁到
+   * `app/manifest.webmanifest/route.ts`」**成对做**：
+   *
+   * Next 的元数据合并里，文件约定形式的 manifest（`app/manifest.ts`）会被写进
+   * `staticFilesMetadata.manifest`，在 `mergeStaticMetadata` 里**无条件覆盖**
+   * layout 显式写的 `metadata.manifest` —— 那样的话，两个站点的
+   * `<link rel="manifest">` 永远指向根这一份，站点自己的 PWA 身份形同虚设。
+   *
+   * 迁成 `route.ts` 之后，元数据只由 `metadata.manifest` 说了算；但
+   * `route.ts` 形式**不会**被自动注入 `<head>`（实测：漏写这一行时根页面
+   * 一条 manifest link 都没有），所以根布局必须自己显式声明。
+   */
+  manifest: "/manifest.webmanifest",
 };
 
 /**

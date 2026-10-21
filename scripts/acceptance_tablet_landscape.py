@@ -12,7 +12,7 @@ import os
 import sys
 import tempfile
 from pathlib import Path
-from typing import Any
+from typing import Any, TypeGuard
 from urllib.parse import urlparse
 
 from playwright.sync_api import Browser, Page, Route, TimeoutError as PlaywrightTimeoutError, sync_playwright
@@ -29,8 +29,15 @@ TARGET_ROUTES = [
     "/dashboard", "/projects", "/progress", "/costs", "/approvals", "/opportunities",
     "/assets", "/finance", "/reports", "/contacts", "/partners", "/admin", "/changelog",
     "/spark/dashboard", "/spark/stores", "/spark/billing", "/spark/security", "/spark/ops", "/spark/permission",
+    # 智能音视频平台（BLF-1389 补进路由表）：之前只覆盖 /spark，
+    # 音视频站点在平板 / 手机宽度下的布局从来没被这条脚本看过。
+    "/stream-monitor/overview", "/stream-monitor/monitor", "/stream-monitor/alarm",
+    "/stream-monitor/event", "/stream-monitor/device", "/stream-monitor/capability",
 ]
-REGRESSION_ROUTES = ["/dashboard", "/projects", "/approvals", "/finance", "/assets", "/reports", "/admin", "/spark/dashboard"]
+REGRESSION_ROUTES = [
+    "/dashboard", "/projects", "/approvals", "/finance", "/assets", "/reports", "/admin",
+    "/spark/dashboard", "/stream-monitor/overview",
+]
 
 ME = {
     "id": 7, "username": "13900000001", "real_name": "平板验收管理员", "status": "active", "dept_id": 1,
@@ -57,6 +64,7 @@ INTERESTING_ELEMENTS = [
     "[data-console-shell='true']", "[data-shell='sidebar']", "[data-shell='topbar']", "[data-shell='dock']",
     "main#main-content", "[data-page-header='true']", ".page-head", "table.grid", ".table-scroll",
     "[data-list-viewport='true']", "[data-dashboard-page='true']", "[data-spark-page='true']", ".spark-root",
+    "main#av-main", "[data-window-target='stream-monitor']",
 ]
 
 
@@ -104,7 +112,7 @@ def _fixture_response(path: str, method: str) -> Any:
         return MENUS
     if path.endswith("/meta/users/search"):
         return _paged()
-    if path.endswith("/meta/users") or path.endswith("/meta/depts") or path.endswith("/meta/dicts"):
+    if path.endswith(("/meta/users", "/meta/depts", "/meta/dicts")):
         return []
     if path.endswith("/notifications/count"):
         return {"unread": 0}
@@ -125,7 +133,7 @@ def _fixture_response(path: str, method: str) -> Any:
         return []
     if path == "/admin/params":
         return {}
-    if path in {"/admin/users", "/admin/logs"} or path.startswith("/admin/users?") or path.startswith("/admin/logs?"):
+    if path in {"/admin/users", "/admin/logs"} or path.startswith(("/admin/users?", "/admin/logs?")):
         return _paged()
     if path.endswith("/finance/books/recycle-bin/list"):
         return _paged()
@@ -179,9 +187,25 @@ def _is_spark(path: str) -> bool:
     return path.startswith("/spark/")
 
 
+def _is_stream_monitor(path: str) -> bool:
+    """智能音视频平台（BLF-1389 补进路由表）。
+
+    它跟 /spark 一样是**独立站点**：有自己的壳层（AvShell），
+    没有主工作台的业务侧栏与底部 Dock —— 所以主内容区要按 #av-main 选，
+    外壳类断言（侧栏 / Dock 互斥、顶栏标题）不适用。
+    """
+    return path.startswith("/stream-monitor/")
+
+
 def route_main_visible(route: str, state: dict[str, Any]) -> bool:
     shell = state["shell"]
-    element = shell.get("sparkMain") if _is_spark(route) else shell.get("main")
+    if _is_spark(route):
+        element = shell.get("sparkMain")
+    elif _is_stream_monitor(route):
+        # 音视频站点的主内容区是 #av-main（不是 #main-content）。
+        element = shell.get("avMain")
+    else:
+        element = shell.get("main")
     viewport_width = state.get("viewport", {}).get("width")
     if viewport_width is None:
         return _visible(element)
@@ -189,7 +213,7 @@ def route_main_visible(route: str, state: dict[str, Any]) -> bool:
 
 
 def page_title_within_viewport_passes(route: str, state: dict[str, Any]) -> bool:
-    if _is_spark(route):
+    if _is_spark(route) or _is_stream_monitor(route):
         return True
     title = state.get("pageTitle")
     if not title:
@@ -211,7 +235,7 @@ def tablet_filter_layout_valid(fields: list[dict[str, Any]]) -> bool:
 
 
 def shell_element_visible_in_viewport(element: dict[str, Any] | None, width: int) -> bool:
-    if not _visible(element):
+    if not _is_visible_element(element):
         return False
     style = element.get("style") or {}
     if float(style.get("opacity", "1")) <= 0:
@@ -221,6 +245,8 @@ def shell_element_visible_in_viewport(element: dict[str, Any] | None, width: int
 
 
 def topbar_within_viewport(topbar: dict[str, Any] | None, width: int) -> bool:
+    if not _is_visible_element(topbar):
+        return False
     return shell_element_visible_in_viewport(topbar, width) and topbar["rect"]["right"] <= width + 1
 
 
@@ -242,6 +268,18 @@ def _visible(element: dict[str, Any] | None) -> bool:
         return False
     rect, style = element.get("rect"), element.get("style") or {}
     return bool(rect and rect["width"] > 0 and rect["height"] > 0 and style.get("display") != "none" and style.get("visibility") != "hidden")
+
+
+def _is_visible_element(element: dict[str, Any] | None) -> TypeGuard[dict[str, Any]]:
+    """`_visible` 的**类型收窄**版本。
+
+    `_visible` 返回 `bool`，类型检查器无法据此把 `element` 从
+    `dict | None` 收窄成 `dict` —— 于是下面 `element.get(...)` /
+    `element["rect"]` 全都报「None 不是字典」。这不是新引入的问题
+    （BLF-1389 之前就在），但既然要动这个文件，就把它修掉：
+    用 `TypeGuard` 把「可见」这件事同时表达成类型事实。
+    """
+    return _visible(element)
 
 
 def measure_page(page: Page) -> dict[str, Any]:
@@ -282,7 +320,7 @@ def measure_page(page: Page) -> dict[str, Any]:
           return {
             url: location.href, title: document.title,
             viewport: { width: innerWidth, height: innerHeight, documentWidth: document.documentElement.scrollWidth, bodyWidth: document.body.scrollWidth },
-            shell: { sidebar: visible(document.querySelector('[data-shell="sidebar"]')), topbar: visible(document.querySelector('[data-shell="topbar"]')), dock: visible(document.querySelector('[data-shell="dock"]')), main: visible(document.querySelector('#main-content')), sparkMain: visible(document.querySelector('#spark-main')) },
+            shell: { sidebar: visible(document.querySelector('[data-shell="sidebar"]')), topbar: visible(document.querySelector('[data-shell="topbar"]')), dock: visible(document.querySelector('[data-shell="dock"]')), main: visible(document.querySelector('#main-content')), sparkMain: visible(document.querySelector('#spark-main')), avMain: visible(document.querySelector('#av-main')) },
             pageTitle, accountMenu: visible(document.querySelector('[role="menu"]')), tables, filters, overflowCandidates, elements,
           };
         }""", INTERESTING_ELEMENTS,
@@ -336,7 +374,9 @@ def _enter_fixture_session(page: Page, context) -> bool:
 
 def _wait_for_route(page: Page, route: str) -> None:
     page.goto(f"{FE_BASE}{route}", wait_until="domcontentloaded", timeout=25_000)
-    page.locator("#main-content, #spark-main").wait_for(state="visible", timeout=20_000)
+    # 三个站点的内容区 id 各不相同：主工作台 #main-content / 云电竞 #spark-main /
+    # 音视频 #av-main（BLF-1389）。
+    page.locator("#main-content, #spark-main, #av-main").wait_for(state="visible", timeout=20_000)
     page.wait_for_timeout(100)
 
 
@@ -357,12 +397,12 @@ def _route_checks(page: Page, route: str, width: int, height: int) -> tuple[int,
     ]
     invalid_tables = [table for table in state.get("tables", []) if not internal_table_scroll_valid(table)]
     checks.append(("宽表格仅在自身容器内横向滚动", not invalid_tables, json.dumps(invalid_tables, ensure_ascii=False)[:240]))
-    if not _is_spark(route):
+    if not _is_spark(route) and not _is_stream_monitor(route):
         shown, hidden = shell_expectation(width)
         visible_pair = shell_element_visible_in_viewport(state["shell"].get(shown), width) and not _visible(state["shell"].get(hidden))
         checks.append(("业务侧栏可见且 Dock 隐藏" if shown == "sidebar" else "手机 Dock 可见且侧栏隐藏", visible_pair, "检查导航外壳可见性与视口交集"))
         checks.append(("顶栏可见且位于视口内", topbar_within_viewport(state["shell"].get("topbar"), width), "检查 topbar visibility/bounds"))
-    if (width, height) == (1180, 820) and not _is_spark(route):
+    if (width, height) == (1180, 820) and not _is_spark(route) and not _is_stream_monitor(route):
         checks.append(("顶栏标题不溢出视口", page_title_within_viewport_passes(route, state), "标题矩形/视口宽度"))
         checks.append(("筛选字段与控件不相交", tablet_filter_layout_valid(state["filters"]), json.dumps(state["filters"], ensure_ascii=False)[:240]))
     for label, passed, extra in checks:

@@ -28,6 +28,21 @@ function source(path: string): string {
   return readFileSync(resolve(process.cwd(), path), "utf8");
 }
 
+/**
+ * 三份 PWA 清单：根一份（`route.ts`）+ 两个站点各一份（静态 JSON）。
+ *
+ * ⚠️ 根 manifest 在 BLF-1389 从 `app/manifest.ts` 迁到了
+ * `app/manifest.webmanifest/route.ts`：Next 的元数据合并里，文件约定形式的
+ * manifest 会**无条件覆盖** layout 显式写的 `metadata.manifest`，两个站点的
+ * 清单就永远轮不上。站点自己的清单落在 `public/<site>/manifest.webmanifest`
+ * （静态文件，不是 `.ts`），所以三个 Stage 6 守卫（`avSourceGuard` 的 hex、
+ * `siteBrandCopy` 的英文品牌、`siteCopyGuard` 的工程术语）都扫不到它们。
+ */
+const SITE_MANIFESTS = [
+  "public/spark/manifest.webmanifest",
+  "public/stream-monitor/manifest.webmanifest",
+] as const;
+
 /** 取出 `icons: { ... }` 整块（含嵌套数组），按大括号配平，避免正则跨块误匹配。 */
 function iconsBlock(): string {
   const layout = source("app/layout.tsx");
@@ -87,11 +102,25 @@ describe("站点图标（favicon）", () => {
   });
 
   it("manifest 的图标同样都能取到", () => {
-    const manifest = source("app/manifest.ts");
+    const manifest = source("app/manifest.webmanifest/route.ts");
     const paths = Array.from(manifest.matchAll(/src:\s*"(\/[\w./-]+)"/g), ([, path]) => path);
     assert.ok(paths.length > 0, "manifest 里没有声明任何图标");
 
     const missing = paths.filter((path) => !resolvesToFile(path));
     assert.deepEqual(missing, [], `manifest 引用了不存在的文件：${missing.join(", ")}`);
+  });
+
+  it("两个站点的 manifest 图标同样都能取到（BLF-1389）", () => {
+    // 站点 manifest 是静态 JSON（`public/<site>/manifest.webmanifest`），
+    // 里面的 icons 指向的是同一批 `public/icons/` 产物 —— 引用了不存在的文件
+    // 同样会退回浏览器默认图标，访客看不出装的是哪个应用。
+    for (const file of SITE_MANIFESTS) {
+      const manifest = source(file);
+      const paths = Array.from(manifest.matchAll(/"src":\s*"(\/[\w./-]+)"/g), ([, path]) => path);
+      assert.ok(paths.length > 0, `${file} 里没有声明任何图标`);
+
+      const missing = paths.filter((path) => !resolvesToFile(path));
+      assert.deepEqual(missing, [], `${file} 引用了不存在的文件：${missing.join(", ")}`);
+    }
   });
 });

@@ -16,8 +16,19 @@ describe("云电竞管理平台品牌契约", () => {
     assert.match(desktopLayout, /"\/spark": "云电竞管理平台"/);
     assert.match(desktopLayout, /n\.href === "\/spark"/);
     assert.match(mobileEntry, /href="\/spark"[\s\S]*?title="云电竞管理平台"/);
-    assert.match(mobileEntry, /target=\{SPARK_WINDOW_TARGET\}/);
     assert.doesNotMatch(mobileEntry, /NebulaCloud|Spark 演示站/);
+  });
+
+  it("桌面侧栏用独立浏览上下文打开站点，手机端改为同页导航（BLF-1389）", () => {
+    // 桌面端：两个站点各有自己的浏览上下文（`target`），桌面用户能同时开两个窗口。
+    assert.match(desktopLayout, /target=\{[\s\S]*?SPARK_WINDOW_TARGET/);
+    // 手机端：`target` 会在手机上开出一堆新标签页（底部多一条地址栏、
+    // 回主工作台要连点好几次「返回」），所以手机端入口**不带** target。
+    assert.doesNotMatch(
+      mobileEntry,
+      /target=\{SPARK_WINDOW_TARGET\}/,
+      "手机端入口不应再带 target：手机是单任务，同页导航才对",
+    );
   });
 
   it("Spark 壳层的品牌、可访问名称和 metadata 使用统一名称", () => {

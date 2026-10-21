@@ -16,9 +16,14 @@
  * 页面自身再按窄屏重排（见 pages/*.module.css 的窄屏段）；
  * 430px 以下再收一档，让 44px 触控档的顶栏第一行装得下（不换行成 3 行）。
  *
- * ⚠️ --av-head-h 与视口高度（min-height）**不归本文件管**：它们是 BLF-1389
+ * ⚠️ --av-head-h 与视口高度（min-height）原不属于本文件：它们是 BLF-1389
  * （移动端 PWA 适配）的范围。本 issue（BLF-1399）只动**水平内边距**，
  * 且只动一个量 —— --av-gutter（见下），与安全区无关。
+ *
+ * BLF-1389 补记（BLF-1389 起这两个归本文件管）：安全区
+ * （`env(safe-area-inset-*)`）与视口高度（100dvh）就在这里落地 ——
+ * 站点的壳层是本文件，壳层不吃掉安全区，页面内容就会被
+ * 刘海 / Home 指示条 / 横屏圆角压住。
  */
 
 .shell {
@@ -37,8 +42,37 @@
    * 不会再走偏。断点档位：桌面 20px / ≤900px 14px / ≤720px 12px。
    */
   --av-gutter: 20px;
+  /*
+   * 安全区（BLF-1389）。
+   *
+   * 站点是免登录的独立站点，手机上从主屏幕启动就是 standalone（无地址栏），
+   * 刘海 / Home 指示条 / 横屏圆角都会压到内容上。这里把四个方向的安全区
+   * 收成四个变量，各处（顶栏 / 侧栏 / 内容区）按需消费。
+   *
+   * 为什么用 `env(..., 0px)` 的回落：非全面屏与桌面浏览器上 env() 取不到值，
+   * 回落成 0px，样式与改动前等价（不会在没有安全区的设备上多出一圈空白）。
+   */
+  --av-safe-t: env(safe-area-inset-top, 0px);
+  --av-safe-b: env(safe-area-inset-bottom, 0px);
+  --av-safe-l: env(safe-area-inset-left, 0px);
+  --av-safe-r: env(safe-area-inset-right, 0px);
   display: flex;
+  /*
+   * 视口高度：100vh → 100dvh（BLF-1389）。
+   *
+   * `100vh` 在移动浏览器上是「**地址栏收起时**的视口高度」：用户往下滑、
+   * 地址栏收起来时，页面比可视区高，于是底部多出一截空白；再滚到底时
+   * 工具栏又弹出来，页面比可视区矮，于是出现「两截底色」（页面底色与
+   * 浏览器底色之间有一条缝）。
+   *
+   * `100dvh`（dvh = dynamic viewport height）跟着工具栏的展开 / 收起实时变化，
+   * 正好等于当前可视高度 —— 没有多余滚动，也没有两截底色。
+   *
+   * 降级顺序：先写 `100vh`（老浏览器），再写 `100dvh`（认得就覆盖）。
+   * 桌面浏览器两者相同，视觉无变化。
+   */
   min-height: 100vh;
+  min-height: 100dvh;
   background: var(--av-canvas);
   color: var(--av-ink);
   font-family: var(--font-body);
@@ -60,6 +94,25 @@
   border-right: 1px solid var(--nav-border);
   background: var(--av-rail);
   color: var(--nav-ink);
+  /*
+   * 抽屉侧栏的安全区（BLF-1389）。
+   *
+   * 窄屏下侧栏变成从左边滑出的抽屉，横屏时圆角屏的**左侧**安全区
+   * （`safe-area-inset-left`）会压住抽屉内容 —— 刘海那侧挖掉一块，
+   * 导航项贴过去就会被切掉。左右各让一格安全区，抽屉内容不被压。
+   * 底部同理：Home 指示条会盖住侧栏底部的「收起侧栏」按钮。
+   *
+   * 顶部（BLF-1389 复核 ③）：侧栏是 `inset: 0 auto 0 0`，**顶边就是视口
+   * 顶边** —— 竖屏 standalone 下状态栏压着侧栏的第一行（品牌行），
+   * 而顶栏（`.topbar`）已经留了顶部安全区、侧栏没留，两边就会错开。
+   * 给侧栏也留一格顶部安全区：状态栏那条带显示的是侧栏自己的底色
+   * （不是内容被压），品牌行整行落在状态栏下方。
+   */
+  padding-top: var(--av-safe-t);
+  padding-left: var(--av-safe-l);
+  padding-right: var(--av-safe-r);
+  padding-bottom: var(--av-safe-b);
+  box-sizing: border-box;
 }
 
 .brand {
@@ -304,7 +357,18 @@
   min-height: var(--av-head-h);
   align-items: center;
   gap: 12px;
-  padding: 0 var(--av-gutter);
+  /*
+   * 顶栏的安全区（BLF-1389）。
+   *
+   * 顶部：standalone 启动时状态栏透明盖在顶栏上，刘海那一块要留出来，
+   * 否则搜索框 / 菜单键会被刘海切掉。
+   * 左右：横屏时圆角屏两侧的安全区。
+   *
+   * 顶部内边距要**同时**加到 `min-height` 上（见窄屏段）：不然内边距
+   * 撑不开高度，顶栏内容仍然贴在刘海底下。
+   */
+  padding: var(--av-safe-t) calc(var(--av-gutter) + var(--av-safe-r)) 0
+    calc(var(--av-gutter) + var(--av-safe-l));
   border-bottom: 1px solid var(--av-divider);
   background: var(--av-surface);
 }
@@ -520,7 +584,12 @@
 
 .content {
   min-width: 0;
-  padding: 22px var(--av-gutter) 40px;
+  /*
+   * 内容区的安全区（BLF-1389）：底部留出 Home 指示条的高度，
+   * 否则最后一屏的表格 / 图表会被指示条盖住。
+   */
+  padding: 22px calc(var(--av-gutter) + var(--av-safe-r))
+    calc(40px + var(--av-safe-b)) calc(var(--av-gutter) + var(--av-safe-l));
 }
 
 .backdrop {
@@ -578,6 +647,16 @@
   .main {
     margin-left: 0;
   }
+  /*
+   * 抽屉里的导航项抬到 44px 触控档（BLF-1389）。
+   *
+   * 桌面档是 40px（列表行，不是控件，所以不参与 --av-ctl-shell 那一档），
+   * 但窄屏下侧栏变成了手指操作的抽屉：40px 的行高在手机上偏小，
+   * 连续点错。抬到 44px 与同段的顶栏控件对齐。
+   */
+  .navLink {
+    min-height: 44px;
+  }
   .menuButton {
     display: grid;
   }
@@ -592,7 +671,8 @@
     animation: avFadeIn var(--av-dur-base) var(--av-ease-enter) both;
   }
   .content {
-    padding: 16px var(--av-gutter) 32px;
+    padding: 16px calc(var(--av-gutter) + var(--av-safe-r))
+      calc(32px + var(--av-safe-b)) calc(var(--av-gutter) + var(--av-safe-l));
   }
   .searchBox {
     max-width: none;
@@ -618,7 +698,14 @@
   .topbar {
     flex-wrap: wrap;
     gap: 8px;
-    padding: 8px var(--av-gutter);
+    /*
+     * 窄屏顶栏：安全区继续生效（BLF-1389）。
+     * 顶部内边距 = 刘海高度 + 8px 的呼吸位；`min-height` 同步抬高，
+     * 否则顶栏内容仍然贴在刘海底下（内边距撑不开固定高度）。
+     */
+    min-height: calc(var(--av-head-h) + var(--av-safe-t));
+    padding: calc(var(--av-safe-t) + 8px) calc(var(--av-gutter) + var(--av-safe-r))
+      8px calc(var(--av-gutter) + var(--av-safe-l));
   }
   .searchBox {
     order: 3;
@@ -638,7 +725,8 @@
     padding-left: 8px;
   }
   .content {
-    padding: 12px var(--av-gutter) 28px;
+    padding: 12px calc(var(--av-gutter) + var(--av-safe-r))
+      calc(28px + var(--av-safe-b)) calc(var(--av-gutter) + var(--av-safe-l));
   }
 }
 
