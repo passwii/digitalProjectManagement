@@ -13,13 +13,16 @@
 // 量什么（每档宽度、dark、`?static=1` 冻结动效）：
 //   · rows：首屏 `.alarmList > li` 条数（必须等于 --rows）；
 //   · rowHeights：每条 `.alarmCard` 的实测高度（必须等于 --av-alarm-row-h）；
-//   · panelBottom − railContentBottom：左侧面板底边与 `railStack` **内容底边**
-//     （最后一张卡的底边）的差 —— `railStack` 本身被栅格 stretch 拉伸到整行高，
-//     它的盒子底边恒等于面板底边，量它等于恒真，没有意义；
+//   · panelNaturalBottom − railContentBottom：左侧面板的**自然底边**（自然高度算出来的
+//     底边，不含栅格拉伸）与 `railStack` **内容底边**（最后一张卡的底边）的差。
+//     三个量都不能用盒子的 rect：`railStack` 被栅格 stretch 到整行高，`splitWide`
+//     又把左面板 `height:100%` 拉到同一行高，于是 1280/1180（右栏更高）时
+//     `panelRect.bottom === railRect.bottom === railContentBottom`，用它们相减恒为 0，
+//     行高标定彻底失控也照样过（Codex P2 on PR #175）。自然高度才是行高在控制的量；
 //   · rowOverflow / clipped：行内内容溢出与文本裁切（负向自检见脚本末尾）；
 //   · loadMore：点「加载下一页」后条数 +N、新行是否带入场动效。
 //
-// 判定口径：|panelBottom − railContentBottom| ≤ 12px（三档宽度都要过）。
+// 判定口径：|panelNaturalBottom − railContentBottom| ≤ 12px（三档宽度都要过）。
 import { spawn } from "node:child_process";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -171,17 +174,22 @@ const MEASURE = `(() => {
     rowHeights: heights,
     rowHeightMin: heights.length ? Math.min(...heights) : null,
     rowHeightMax: heights.length ? Math.max(...heights) : null,
+    // 盒子 rect：1280/1180 被 splitWide 的 height:100% 拉伸，仅作诊断，不参与判定。
     panelTop: round(panelRect.top),
-    panelBottom: round(panelRect.bottom),
-    panelHeight: round(panelRect.height),
+    panelBoxBottom: round(panelRect.bottom),
+    panelBoxHeight: round(panelRect.height),
     panelNaturalHeight,
+    panelNaturalBottom: round(panelRect.top + panelNaturalHeight),
+    // 拉伸量 = 盒子高 − 自然高；> 0 说明这一档是右栏在撑高左面板。
+    panelStretch: round(panelRect.height - panelNaturalHeight),
     panelPaddingX: round(parseFloat(panelStyle.paddingLeft)),
     railTop: round(railRect.top),
     railBoxBottom: round(railRect.bottom),
     railContentBottom: round(railContentBottom),
     railCardHeights: railCards.map((card) => round(card.getBoundingClientRect().height)),
     railGap: railCards.length > 1 ? round(railCards[1].getBoundingClientRect().top - railCards[0].getBoundingClientRect().bottom) : null,
-    deltaPanelRail: round(panelRect.bottom - railContentBottom),
+    // 判定用的底边差：自然底边 vs 三卡栈内容底边（见文件头注释）。
+    deltaPanelRail: round(panelRect.top + panelNaturalHeight - railContentBottom),
     listHeight: listRect ? round(listRect.height) : null,
     chromeHeight,
     parts,
@@ -289,7 +297,7 @@ try {
       shot = file;
     }
     results.push({ width, theme: await evaluate(`document.documentElement.dataset.theme ?? null`), shot, ...metrics });
-    process.stderr.write(`measure ${width}px: rows=${metrics.rows} rowH=${metrics.rowHeightMin}–${metrics.rowHeightMax} panel=${metrics.panelHeight} rail=${metrics.railContentBottom - metrics.railTop} delta=${metrics.deltaPanelRail}\n`);
+    process.stderr.write(`measure ${width}px: rows=${metrics.rows} rowH=${metrics.rowHeightMin}–${metrics.rowHeightMax} panelNatural=${metrics.panelNaturalHeight} stretch=${metrics.panelStretch} railContent=${Math.round((metrics.railContentBottom - metrics.railTop) * 10) / 10} delta=${metrics.deltaPanelRail}\n`);
   }
 
   // 「加载下一页」：12 → 24，且新增行带入场动效（插入瞬间 opacity/transform 非终值）。
@@ -366,7 +374,7 @@ try {
     }
     if (REQUIRED_WIDTHS.includes(entry.width) && Math.abs(entry.deltaPanelRail) > ALIGN_TOLERANCE_PX) {
       failures.push(
-        `${entry.width}px：面板底边与三卡栈内容底边差 ${entry.deltaPanelRail}px（允许 ±${ALIGN_TOLERANCE_PX}px）`,
+        `${entry.width}px：面板自然底边与三卡栈内容底边差 ${entry.deltaPanelRail}px（允许 ±${ALIGN_TOLERANCE_PX}px；拉伸量 ${entry.panelStretch}px 不参与判定）`,
       );
     }
     if (entry.rowOverflow.length > 0) {

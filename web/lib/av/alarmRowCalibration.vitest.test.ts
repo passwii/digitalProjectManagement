@@ -97,6 +97,15 @@ describe("/alarm 行高标定（BLF-1426）", () => {
     );
   });
 
+  it("量距脚本用面板自然底边算底边差（不能让 splitWide 的拉伸把判定变成恒真）", () => {
+    const script = readFileSync(resolve(process.cwd(), "..", "scripts", "av-alarm-row-calibration.mjs"), "utf8");
+    expect(script).toMatch(/panelNaturalBottom:\s*round\(panelRect\.top \+ panelNaturalHeight\)/);
+    expect(script).toMatch(/deltaPanelRail:\s*round\(panelRect\.top \+ panelNaturalHeight - railContentBottom\)/);
+    // 1280/1180 时左面板被 splitWide 的 height:100% 拉到与 railStack 同高，
+    // 用盒子 rect 相减差值恒为 0：行高失控也照样「通过」。
+    expect(script, "deltaPanelRail 不能直接用被拉伸的 panelRect.bottom").not.toMatch(/deltaPanelRail:\s*round\(panelRect\.bottom/);
+  });
+
   it("服务端首屏、客户端翻页、server 默认值引用同一个常量", () => {
     const pageData = readFileSync(resolve(process.cwd(), "lib/av/pageData.ts"), "utf8");
     const server = readFileSync(resolve(process.cwd(), "lib/av/server.ts"), "utf8");

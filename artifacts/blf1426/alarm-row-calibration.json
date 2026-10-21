@@ -1,5 +1,5 @@
 {
-  "baseUrl": "http://127.0.0.1:3003",
+  "baseUrl": "http://127.0.0.1:3011",
   "expectedRows": 12,
   "results": [
     {
@@ -24,9 +24,11 @@
       "rowHeightMin": 67,
       "rowHeightMax": 67,
       "panelTop": 189.7,
-      "panelBottom": 1153.7,
-      "panelHeight": 964,
+      "panelBoxBottom": 1153.7,
+      "panelBoxHeight": 964,
       "panelNaturalHeight": 964,
+      "panelNaturalBottom": 1153.7,
+      "panelStretch": 0,
       "panelPaddingX": 0,
       "railTop": 189.7,
       "railBoxBottom": 1153.7,
@@ -52,7 +54,6 @@
           23,
           22
         ],
-        "mainRowGap": null,
         "paddingTop": 8,
         "paddingBottom": 8
       },
@@ -63,7 +64,6 @@
         "foot": 38,
         "panelPaddingTop": 0,
         "panelPaddingBottom": 0,
-        "panelRowGap": null,
         "body": {
           "h": 910,
           "padTop": 12,
@@ -107,9 +107,11 @@
       "rowHeightMin": 67,
       "rowHeightMax": 67,
       "panelTop": 189.7,
-      "panelBottom": 1162.2,
-      "panelHeight": 972.5,
+      "panelBoxBottom": 1162.2,
+      "panelBoxHeight": 972.5,
       "panelNaturalHeight": 964,
+      "panelNaturalBottom": 1153.7,
+      "panelStretch": 8.5,
       "panelPaddingX": 0,
       "railTop": 189.7,
       "railBoxBottom": 1162.2,
@@ -120,7 +122,7 @@
         353.5
       ],
       "railGap": 12,
-      "deltaPanelRail": 0,
+      "deltaPanelRail": -8.5,
       "listHeight": 804,
       "chromeHeight": 154,
       "parts": {
@@ -135,7 +137,6 @@
           23,
           22
         ],
-        "mainRowGap": null,
         "paddingTop": 8,
         "paddingBottom": 8
       },
@@ -146,7 +147,6 @@
         "foot": 38,
         "panelPaddingTop": 0,
         "panelPaddingBottom": 0,
-        "panelRowGap": null,
         "body": {
           "h": 910,
           "padTop": 12,
@@ -190,9 +190,11 @@
       "rowHeightMin": 67,
       "rowHeightMax": 67,
       "panelTop": 188.2,
-      "panelBottom": 1160.7,
-      "panelHeight": 972.5,
+      "panelBoxBottom": 1160.7,
+      "panelBoxHeight": 972.5,
       "panelNaturalHeight": 964,
+      "panelNaturalBottom": 1152.2,
+      "panelStretch": 8.5,
       "panelPaddingX": 0,
       "railTop": 188.2,
       "railBoxBottom": 1160.7,
@@ -203,7 +205,7 @@
         353.5
       ],
       "railGap": 12,
-      "deltaPanelRail": 0,
+      "deltaPanelRail": -8.5,
       "listHeight": 804,
       "chromeHeight": 154,
       "parts": {
@@ -218,7 +220,6 @@
           23,
           22
         ],
-        "mainRowGap": null,
         "paddingTop": 8,
         "paddingBottom": 8
       },
@@ -229,7 +230,6 @@
         "foot": 38,
         "panelPaddingTop": 0,
         "panelPaddingBottom": 0,
-        "panelRowGap": null,
         "body": {
           "h": 910,
           "padTop": 12,
@@ -273,9 +273,11 @@
       "rowHeightMin": 67,
       "rowHeightMax": 67,
       "panelTop": 189.7,
-      "panelBottom": 1153.7,
-      "panelHeight": 964,
+      "panelBoxBottom": 1153.7,
+      "panelBoxHeight": 964,
       "panelNaturalHeight": 964,
+      "panelNaturalBottom": 1153.7,
+      "panelStretch": 0,
       "panelPaddingX": 0,
       "railTop": 189.7,
       "railBoxBottom": 1153.7,
@@ -301,7 +303,6 @@
           23,
           22
         ],
-        "mainRowGap": null,
         "paddingTop": 8,
         "paddingBottom": 8
       },
@@ -312,7 +313,6 @@
         "foot": 38,
         "panelPaddingTop": 0,
         "panelPaddingBottom": 0,
-        "panelRowGap": null,
         "body": {
           "h": 910,
           "padTop": 12,
