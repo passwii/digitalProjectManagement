@@ -13,6 +13,9 @@ import {
   BarChart,
   CartesianGrid,
   Cell,
+  ComposedChart,
+  LabelList,
+  Line,
   Pie,
   PieChart,
   ReferenceDot,
@@ -20,11 +23,13 @@ import {
   Tooltip,
   XAxis,
   YAxis,
+  type TooltipContentProps,
 } from "recharts";
 import { useTheme } from "@/components/theme/ThemeProvider";
 import type { AvColorTone, AvSeriesIndex } from "@/lib/av/tone";
-import { AV_SERIES_INDEXES, isSeriesTone, seriesIndexOf } from "@/lib/av/tone";
+import { AV_SERIES_INDEXES, isSeriesTone, seriesIndexOf, seriesToneFor } from "@/lib/av/tone";
 import { AV_CHART_HEIGHT } from "@/lib/av/chartHeights";
+import { percentDomain, percentTicks } from "@/lib/av/chartAxis";
 import s from "./AvCharts.module.css";
 
 /**
@@ -328,17 +333,25 @@ export interface DonutDatum {
   tone: AvColorTone;
 }
 
-/** 环形占比：场景分布 / 告警分级 / 设备状态。中心文案由调用方给。 */
+/**
+ * 环形占比：场景分布 / 告警分级 / 设备状态。中心文案由调用方给。
+ *
+ * `centerTone`（BLF-1428）：环心数字可以取一个色调（语义色或 `series-*`），
+ * 于是「环是多色的、中间那个总数也是这套色里的一个」——之前它只能是正文色，
+ * 在深色主题里比环形图还弱。不传时仍是正文色，其它页面不受影响。
+ */
 export function AvDonut({
   data,
   centerValue,
   centerLabel,
+  centerTone,
   height = AV_CHART_HEIGHT.md,
   label,
 }: {
   data: DonutDatum[];
   centerValue: string;
   centerLabel: string;
+  centerTone?: AvColorTone;
   height?: number;
   label: string;
 }) {
@@ -368,7 +381,11 @@ export function AvDonut({
             <Tooltip contentStyle={tooltipStyle(palette)} />
           </PieChart>
         </ResponsiveContainer>
-        <div className={s.donutCenter} aria-hidden="true">
+        <div
+          className={s.donutCenter}
+          style={centerTone ? ({ "--donut-tone": toneColor(palette, centerTone) } as React.CSSProperties) : undefined}
+          aria-hidden="true"
+        >
           <strong>{centerValue}</strong>
           <span>{centerLabel}</span>
         </div>
@@ -447,17 +464,32 @@ interface ChartSeriesProps {
   series: ChartSeriesSpec[];
   height?: number;
   label: string;
+  /** 数值单位（`%` / `台`）：只影响 tooltip 与 Y 轴刻度文案，不改数据。 */
+  unit?: string;
+  /** Y 轴取值区间；不给时由 recharts 自动算（自动档在「90.8–100」这种窄段上会留白过多）。 */
+  domain?: [number, number];
+  /** 显式刻度；窄区间的自动刻度会凑成 89/93/97 这种不好读的中间值。 */
+  ticks?: number[];
   /** 峰值标注：画在主系列的最高点上（`key` 指定对哪条系列取点） */
   peak?: { key: string; label: string; value: number; caption: string };
 }
 
 /**
- * 多系列折线 / 面积（总览「告警趋势」）。
+ * 多系列折线 / 面积（总览「告警趋势」、/device「近 24 小时在线率」）。
  *
  * 每个系列一条独立的渐变 `linearGradient`（id 带系列 key，避免互相覆盖）；
  * 峰值用 `ReferenceDot` 标在最高点，配一条 `caption`（「峰值 11:00 · 11 条」）。
  */
-export function AvMultiTrendChart({ data, series, height = AV_CHART_HEIGHT.lg, label, peak }: ChartSeriesProps) {
+export function AvMultiTrendChart({
+  data,
+  series,
+  height = AV_CHART_HEIGHT.lg,
+  label,
+  unit,
+  domain,
+  ticks,
+  peak,
+}: ChartSeriesProps) {
   const palette = useAvPalette();
   // 只调一次 hook：每个系列只是相位不同（begin 递增），不是各自一套动画参数。
   // 在 map 里调 hook 会违反规则（series 长度可随范围变化），这里显式拆开。
@@ -467,7 +499,7 @@ export function AvMultiTrendChart({ data, series, height = AV_CHART_HEIGHT.lg, l
   return (
     <ChartFrame height={height} label={label}>
       <ResponsiveContainer width="100%" height="100%">
-        <AreaChart data={data} margin={{ top: 12, right: 8, bottom: 0, left: -18 }}>
+        <AreaChart data={data} margin={{ top: 12, right: 8, bottom: 0, left: unit === undefined ? -18 : -10 }}>
           <defs>
             {series.map((item) =>
               item.fill === "gradient" ? (
@@ -491,10 +523,17 @@ export function AvMultiTrendChart({ data, series, height = AV_CHART_HEIGHT.lg, l
             tick={{ fill: palette.inkSoft, fontSize: 10 }}
             axisLine={false}
             tickLine={false}
-            width={44}
+            width={unit === undefined ? 44 : 48}
             allowDecimals={false}
+            domain={domain ?? ["auto", "auto"]}
+            ticks={ticks}
+            tickFormatter={unit ? (value: number) => `${Math.round(value)}${unit}` : undefined}
           />
-          <Tooltip contentStyle={tooltipStyle(palette)} cursor={{ stroke: palette.axis }} />
+          <Tooltip
+            contentStyle={tooltipStyle(palette)}
+            cursor={{ stroke: palette.axis }}
+            formatter={unit ? (value) => `${String(value)}${unit}` : undefined}
+          />
           {series.map((item, index) => (
             <Area
               key={item.key}
@@ -574,6 +613,213 @@ export function AvMultiBarChart({ data, series, height = AV_CHART_HEIGHT.lg, lab
               maxBarSize={26}
             />
           ))}
+        </BarChart>
+      </ResponsiveContainer>
+    </ChartFrame>
+  );
+}
+
+/** 堆叠柱上的第二视觉（比率折线）：`data` 里的字段名 + 图例文案 + 色调。 */
+export interface StackedRateSpec {
+  key: string;
+  label: string;
+  tone: AvColorTone;
+}
+
+/** 比率折线的取值区间：口径在 `lib/av/chartAxis.ts`，与趋势图的 Y 轴共用一份。 */
+function rateDomainOf(data: Record<string, string | number>[], key: string): [number, number] {
+  return percentDomain(data.map((row) => Number(row[key])));
+}
+
+/**
+ * 悬停卡片：默认的 Tooltip 只列「系列 → 数值」，而这张图要回答的是
+ * 「这个站点在线 129 / 共 142」—— 业务口径由调用方的 `footnote` 补一行。
+ */
+function StackedBarTooltip({
+  active,
+  payload,
+  label,
+  palette,
+  footnote,
+}: {
+  active?: boolean;
+  payload?: TooltipContentProps["payload"];
+  label?: string | number;
+  palette: Palette;
+  footnote?: (datum: Record<string, string | number>) => string;
+}) {
+  const datum = payload?.[0]?.payload as Record<string, string | number> | undefined;
+  if (!active || !payload || !datum) return null;
+  const note = footnote?.(datum);
+  return (
+    <div
+      className={s.tooltip}
+      style={{ background: palette.surface, borderColor: palette.axis, color: palette.ink }}
+    >
+      <strong className={s.tooltipTitle}>{String(label ?? datum.label)}</strong>
+      {payload.map((entry) => (
+        <span key={String(entry.dataKey)} className={s.tooltipRow}>
+          <i aria-hidden="true" style={{ background: entry.color ?? entry.fill ?? palette.neutral }} />
+          <span>{entry.name}</span>
+          <b>{entry.value}</b>
+        </span>
+      ))}
+      {note ? <span className={s.tooltipFoot}>{note}</span> : null}
+    </div>
+  );
+}
+
+/**
+ * 堆叠柱 + 第二视觉（在线率折线）：/device「站点在线情况」。
+ *
+ * 一张图回答两件事：每个站点「在线 / 离线 / 维护中」的台数构成（堆叠柱，左轴），
+ * 以及同站点的在线率（折线 + 点，右轴 0–100%）。在线率单独画一条线而不是再堆一段
+ * 柱子 —— 它是比率不是台数，混进堆叠柱会让「柱子总高 = 总台数」这条读法失效。
+ *
+ * 悬停口径见 `StackedBarTooltip`（`footnote` 由调用方给，/device 给的是「在线 129/142」）。
+ */
+export function AvStackedBarChart({
+  data,
+  series,
+  rate,
+  height = AV_CHART_HEIGHT.lg,
+  label,
+  footnote,
+}: {
+  data: Record<string, string | number>[];
+  series: ChartSeriesSpec[];
+  rate?: StackedRateSpec;
+  height?: number;
+  label: string;
+  /** 悬停卡片的业务口径补一行（如「在线 129/142」）。 */
+  footnote?: (datum: Record<string, string | number>) => string;
+}) {
+  const palette = useAvPalette();
+  const animation = useChartAnimation();
+  if (!palette) return <ChartFrame height={height} label={label} />;
+  const rateTone = rate ? toneColor(palette, rate.tone) : palette.signal;
+  const rateDomain = rate ? rateDomainOf(data, rate.key) : null;
+  return (
+    <ChartFrame height={height} label={label}>
+      <ResponsiveContainer width="100%" height="100%">
+        <ComposedChart data={data} margin={{ top: 18, right: 0, bottom: 0, left: -6 }} barGap={2}>
+          <CartesianGrid stroke={palette.grid} vertical={false} />
+          <XAxis
+            dataKey="label"
+            tick={{ fill: palette.inkSoft, fontSize: 10 }}
+            axisLine={{ stroke: palette.axis }}
+            tickLine={false}
+            interval={0}
+          />
+          <YAxis
+            yAxisId="count"
+            tick={{ fill: palette.inkSoft, fontSize: 10 }}
+            axisLine={false}
+            tickLine={false}
+            width={44}
+            allowDecimals={false}
+          />
+          {rate && rateDomain ? (
+            <YAxis
+              yAxisId="rate"
+              orientation="right"
+              domain={rateDomain}
+              ticks={percentTicks(rateDomain)}
+              tick={{ fill: palette.inkSoft, fontSize: 9 }}
+              axisLine={false}
+              tickLine={false}
+              width={38}
+              tickFormatter={(value: number) => `${Math.round(value)}%`}
+            />
+          ) : null}
+          <Tooltip
+            cursor={{ fill: palette.grid }}
+            content={(props: TooltipContentProps) => (
+              <StackedBarTooltip
+                active={props.active}
+                payload={props.payload}
+                label={props.label}
+                palette={palette}
+                footnote={footnote}
+              />
+            )}
+          />
+          {series.map((item, index) => (
+            <Bar
+              key={item.key}
+              yAxisId="count"
+              dataKey={item.key}
+              name={item.label}
+              stackId="av-device-status"
+              fill={toneColor(palette, item.tone)}
+              {...animation}
+              animationBegin={animation.animationBegin + index * CHART_SERIES_OFFSET_MS}
+              maxBarSize={44}
+            />
+          ))}
+          {rate ? (
+            <Line
+              yAxisId="rate"
+              type="monotone"
+              dataKey={rate.key}
+              name={rate.label}
+              stroke={rateTone}
+              strokeWidth={1.8}
+              dot={{ r: 2.4, stroke: rateTone, strokeWidth: 1.4, fill: palette.surface }}
+              activeDot={{ r: 4 }}
+              {...animation}
+              animationBegin={animation.animationBegin + series.length * CHART_SERIES_OFFSET_MS}
+            />
+          ) : null}
+        </ComposedChart>
+      </ResponsiveContainer>
+    </ChartFrame>
+  );
+}
+
+/**
+ * 横向柱状（/device「型号构成」）。
+ *
+ * 每根柱子按序号取 `series-1..8` —— 型号之间没有语义色，用语义色循环会把
+ * 「珊瑚 = 一级告警」那套含义借到型号上（BLF-1423 定过这条界线）。
+ * 数值直接标在柱尾（`LabelList`），所以 X 轴不必显形，省下一行刻度。
+ */
+export function AvHorizontalBarChart({
+  data,
+  valueLabel,
+  height = AV_CHART_HEIGHT.lg,
+  label,
+}: {
+  data: { label: string; value: number }[];
+  /** 悬停卡片里「数值」那一列的名字（如「台数」）。 */
+  valueLabel: string;
+  height?: number;
+  label: string;
+}) {
+  const palette = useAvPalette();
+  const animation = useChartAnimation();
+  if (!palette) return <ChartFrame height={height} label={label} />;
+  return (
+    <ChartFrame height={height} label={label}>
+      <ResponsiveContainer width="100%" height="100%">
+        <BarChart data={data} layout="vertical" margin={{ top: 2, right: 40, bottom: 0, left: 2 }}>
+          <CartesianGrid stroke={palette.grid} horizontal={false} />
+          <XAxis type="number" hide />
+          <YAxis
+            type="category"
+            dataKey="label"
+            width={150}
+            tick={{ fill: palette.inkSoft, fontSize: 10 }}
+            axisLine={false}
+            tickLine={false}
+          />
+          <Tooltip contentStyle={tooltipStyle(palette)} cursor={{ fill: palette.grid }} />
+          <Bar dataKey="value" name={valueLabel} {...animation} maxBarSize={16}>
+            {data.map((row, index) => (
+              <Cell key={row.label} fill={toneColor(palette, seriesToneFor(index))} />
+            ))}
+            <LabelList dataKey="value" position="right" fill={palette.inkSoft} fontSize={10} />
+          </Bar>
         </BarChart>
       </ResponsiveContainer>
     </ChartFrame>

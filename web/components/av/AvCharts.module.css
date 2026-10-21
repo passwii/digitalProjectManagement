@@ -57,3 +57,68 @@
   color: var(--av-ink-3);
   font-size: var(--av-text-micro);
 }
+
+/*
+ * 环心数字的色调（BLF-1428）。
+ *
+ * `AvDonut` 的 `centerTone` 把色调写成内联 `--donut-tone`，这里只做回落：
+ * 不传时仍是正文色，其它页面（总览分级 / 场景、告警分级）零改动。
+ */
+.donutCenter strong {
+  color: var(--donut-tone, var(--av-ink));
+}
+
+/*
+ * 堆叠柱的自定义悬停卡片（「站点在线情况」）。
+ *
+ * recharts 的默认卡片是白底黑字的 inline style，深色主题下与面板打架，
+ * 而且读不出「在线 129/142」这种业务口径 —— 所以样式与内容都自己给。
+ * 颜色全部由 `AvCharts.tsx` 在运行时写成内联令牌值（SVG / 悬停层不认 var()）。
+ */
+.tooltip {
+  display: grid;
+  gap: var(--av-space-1);
+  min-width: 132px;
+  padding: var(--av-space-2);
+  border: 1px solid var(--av-divider);
+  border-radius: 0;
+  font-size: var(--av-text-note);
+  line-height: 1.5;
+  pointer-events: none;
+}
+
+.tooltipTitle {
+  font-size: var(--av-text-note);
+  font-weight: 600;
+}
+
+.tooltipRow {
+  display: flex;
+  align-items: center;
+  gap: var(--av-space-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.tooltipRow i {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: var(--av-radius-pill);
+}
+
+.tooltipRow span {
+  flex: 1;
+}
+
+.tooltipRow b {
+  font-family: var(--font-mono);
+  font-size: var(--av-text-note);
+}
+
+.tooltipFoot {
+  padding-top: var(--av-space-1);
+  border-top: 1px solid var(--av-divider-soft);
+  font-family: var(--font-mono);
+  font-size: var(--av-text-micro);
+  font-variant-numeric: tabular-nums;
+}
