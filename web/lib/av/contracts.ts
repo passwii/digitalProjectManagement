@@ -16,6 +16,7 @@ import type {
   AlarmsIndex,
   DeviceStatus,
   Incident,
+  IncidentKind,
   OverviewRangeKey,
   Rule,
   Scene,
@@ -139,6 +140,10 @@ export interface EventRow {
   sceneName: string;
   siteName: string;
   room: string;
+  /** 事件性质：告警融合事件（alarm） / 普通事件（routine） */
+  kind: IncidentKind;
+  /** 类型列文案：告警融合 / 巡检发现 / 设备上线 / OTA 升级 / 配置变更 / 误报归档 / 人工补录 */
+  eventType: string;
   durationMinutes: number;
   status: Incident["status"];
   statusLabel: string;
@@ -170,13 +175,14 @@ export interface EventDetail {
 export interface EventViewProps {
   rows: EventRow[];
   /**
-   * **只包含当前选中事件**的详情：207 个事件的完整时间线一起序列化会把 HTML 撑到
-   * 700KB+。切换事件走 `/stream-monitor/event/:id` 的服务端渲染（深链接本来就要支持），
+   * **只包含当前选中事件**的详情：327 个事件的完整时间线一起序列化会把 HTML 撑到
+   * 1MB+。切换事件走 `/stream-monitor/event/:id` 的服务端渲染（深链接本来就要支持），
    * 首屏只带一条详情。
    */
   detail: EventDetail | null;
   initialId: string | null;
-  counts: { total: number; open: number; closed: number };
+  /** alarm / routine 是事件性质分组计数，供右上角唯一一层筛选直接读 */
+  counts: { total: number; open: number; closed: number; alarm: number; routine: number };
   /** user.id → 展示名（时间线节点里的 actor 是 id，不转换会直接暴露 u-003） */
   userNames: Record<string, string>;
 }

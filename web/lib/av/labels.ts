@@ -17,7 +17,9 @@ import type {
   AlarmLevel,
   AlarmStatus,
   DeviceStatus,
+  IncidentKind,
   RoomType,
+  RoutineEventType,
   Scene,
   TimelineNodeType,
 } from "./types";
@@ -117,7 +119,50 @@ export const TIMELINE_LABEL: Record<TimelineNodeType, string> = {
   archive: "归档结案",
   diagnose: "运维诊断",
   pending: "待处理",
+  inspect: "例行巡检",
+  device_online: "设备上线",
+  device_offline: "设备下线",
+  ota: "OTA 升级",
+  config: "配置变更",
+  manual: "人工补录",
 };
+
+// ---------------------------------------------------------------------------
+// 事件性质（BLF-1427）：事件中心 = 告警融合事件 + 普通事件
+// ---------------------------------------------------------------------------
+
+/** 紧凑标签，用在分段控件 / 表格类型列 */
+export const EVENT_KIND_LABEL: Record<IncidentKind, string> = {
+  alarm: "告警融合",
+  routine: "普通事件",
+};
+
+/** 完整文案，用在详情 / 空态 */
+export const EVENT_KIND_FULL_LABEL: Record<IncidentKind, string> = {
+  alarm: "告警融合事件",
+  routine: "普通事件",
+};
+
+export const ROUTINE_EVENT_TYPE_LABEL: Record<RoutineEventType, string> = {
+  inspection: "巡检发现",
+  device_online: "设备上线",
+  device_offline: "设备离线",
+  ota: "OTA 升级",
+  config: "配置变更",
+  false_positive_archive: "误报归档",
+  manual: "人工补录",
+};
+
+/** 历史数据没有 `kind` 字段：缺省即告警融合事件 */
+export function incidentKind(incident: { kind?: IncidentKind }): IncidentKind {
+  return incident.kind === "routine" ? "routine" : "alarm";
+}
+
+/** 表格「事件类型」列 */
+export function eventTypeText(incident: { kind?: IncidentKind; event_type?: RoutineEventType }): string {
+  if (incidentKind(incident) === "alarm") return EVENT_KIND_LABEL.alarm;
+  return (incident.event_type && ROUTINE_EVENT_TYPE_LABEL[incident.event_type]) || EVENT_KIND_LABEL.routine;
+}
 
 export const DISPOSITION_ACTION_LABEL = {
   close: "闭环",

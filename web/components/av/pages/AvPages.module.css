@@ -1351,6 +1351,113 @@
   box-shadow: inset 2px 0 0 var(--av-signal);
 }
 
+/*
+ * 唯一一层筛选（BLF-1427）：性质走分段控件，状态 / 场景走原生下拉。
+ * 上一版是「页头一层状态 tab + 面板内一层场景 tab」，同一块右上区域摞了两层控件，
+ * 信息层级重复；现在页头只有这一组，面板内不再有筛选。
+ */
+.eventFilters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--av-space-2);
+}
+
+.eventSelect {
+  display: inline-flex;
+  height: var(--av-ctl-page);
+  align-items: center;
+  gap: var(--av-space-1);
+  padding: 0 var(--av-space-2);
+  border: 1px solid var(--av-divider);
+  border-radius: var(--av-radius-card);
+  background: var(--av-surface-soft);
+  color: var(--av-ink-2);
+  font-size: var(--av-text-note);
+  transition: border-color var(--av-dur-quick) var(--av-ease-standard);
+}
+
+.eventSelect:hover,
+.eventSelect:focus-within {
+  border-color: var(--av-signal);
+}
+
+.eventSelectLabel {
+  color: var(--av-ink-3);
+  font-size: var(--av-text-micro);
+  white-space: nowrap;
+}
+
+.eventSelect select {
+  height: 100%;
+  padding: 0 var(--av-space-1);
+  border: 0;
+  background: transparent;
+  color: var(--av-ink);
+  font-family: inherit;
+  font-size: inherit;
+  cursor: pointer;
+}
+
+.eventSelect select:focus-visible {
+  outline: none;
+}
+
+/* 页码：事件列表的翻页条（首屏 ≤ 20 行，翻页到末页） */
+.pager {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--av-space-1);
+}
+
+.pagerButton {
+  min-width: var(--av-ctl-page-tab);
+  height: var(--av-ctl-page);
+  padding: 0 var(--av-space-2);
+  border: 1px solid var(--av-divider);
+  border-radius: var(--av-radius-card);
+  background: transparent;
+  color: var(--av-ink-2);
+  font-family: var(--font-mono);
+  font-size: var(--av-text-note);
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  transition:
+    border-color var(--av-dur-quick) var(--av-ease-standard),
+    background-color var(--av-dur-quick) var(--av-ease-standard),
+    color var(--av-dur-quick) var(--av-ease-standard);
+}
+
+.pagerButton:hover:not(:disabled) {
+  border-color: var(--av-signal);
+  color: var(--av-signal);
+}
+
+.pagerButton[data-active="true"] {
+  border-color: var(--av-signal);
+  background: var(--av-surface);
+  color: var(--av-ink);
+  font-weight: 600;
+}
+
+.pagerButton:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.pagerButton:focus-visible {
+  outline: 2px solid var(--av-signal);
+  outline-offset: 1px;
+}
+
+.pagerGap {
+  padding: 0 2px;
+  color: var(--av-ink-3);
+  font-size: var(--av-text-note);
+}
+
 .timeline {
   display: grid;
   gap: 0;
@@ -2232,6 +2339,10 @@
   /* 窄屏用卡片流：事件表在 390px 上没有任何一列还能读 */
   .eventCards {
     display: grid;
+  }
+  /* 窄屏页头改成上下堆叠，筛选组跟着正文左对齐 */
+  .eventFilters {
+    justify-content: flex-start;
   }
   .eventTable {
     display: none;

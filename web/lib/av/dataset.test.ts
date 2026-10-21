@@ -212,6 +212,8 @@ describe("智能音视频平台 数据契约（web/public/stream-monitor-data）
           "alarm_ids", "alarm_count", "started_offset_minutes", "ended_offset_minutes",
           "duration_minutes", "status", "owner_id", "evidence_count", "script_id", "timeline",
         ],
+        // 事件性质（BLF-1427）：历史记录没有这两个字段，缺省即告警融合事件
+        optional: ["kind", "event_type"],
       },
       {
         name: "Point",

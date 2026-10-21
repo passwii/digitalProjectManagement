@@ -38,6 +38,7 @@ import {
   ALGORITHM_STATUS_LABEL,
   ALGORITHM_STATUS_TONE,
   DEVICE_STATUS_LABEL,
+  incidentKind,
   levelMeta,
   sceneMeta,
   type AvTone,
@@ -246,6 +247,8 @@ export async function getEventData(initialId: string | null = null): Promise<Eve
   const rows: EventRow[] = incidentRows(core.incidents, core).map((row) => ({
     id: row.id,
     title: row.title,
+    kind: row.kind,
+    eventType: row.eventType,
     level: row.level,
     levelLabel: row.levelLabel,
     tone: row.tone,
@@ -290,11 +293,18 @@ export async function getEventData(initialId: string | null = null): Promise<Eve
   }
 
   const open = core.incidents.filter((incident) => incident.status !== "closed").length;
+  const alarmKind = core.incidents.filter((incident) => incidentKind(incident) === "alarm").length;
   return {
     rows,
     detail,
     initialId: detail ? detail.incident.id : null,
-    counts: { total: core.incidents.length, open, closed: core.incidents.length - open },
+    counts: {
+      total: core.incidents.length,
+      open,
+      closed: core.incidents.length - open,
+      alarm: alarmKind,
+      routine: core.incidents.length - alarmKind,
+    },
     userNames: Object.fromEntries(core.users.map((user) => [user.id, user.name])),
   };
 }

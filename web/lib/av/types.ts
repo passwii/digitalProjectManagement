@@ -190,7 +190,10 @@ export interface Alarm {
 export type TimelineNodeType =
   | "alarm_triggered" | "fusion" | "action" | "notify" | "acknowledge"
   | "dispatch" | "arrive" | "handle" | "review" | "archive"
-  | "diagnose" | "pending";
+  | "diagnose" | "pending"
+  // 普通事件（巡检 / 设备上下线 / OTA / 配置变更 / 人工补录）专用节点：
+  // 告警融合事件不出现这几种，反过来普通事件也不出现 fusion / action。
+  | "inspect" | "device_online" | "device_offline" | "ota" | "config" | "manual";
 
 export interface TimelineNode {
   at_offset_minutes: number;
@@ -200,8 +203,34 @@ export interface TimelineNode {
   text: string;
 }
 
+/**
+ * 事件性质（BLF-1427）：
+ *   · alarm   —— 告警融合事件：多起告警按点位与时间窗融合，全程可追溯（本平台的核心叙事）
+ *   · routine —— 普通事件：巡检发现、设备上下线、OTA 批量升级、策略配置变更、
+ *                误报归档、人工补录。没有告警可追溯，靠自身的运营动作成链。
+ *
+ * 为什么是可选字段：既有 207 条事件产出于「只有告警融合」的时期，
+ * 缺省即 `alarm`（读取方用 `incidentKind()` 归一）。新增普通事件显式带 `kind`，
+ * mock 数据因此保持纯追加 —— 老记录一个字节都不用改。
+ */
+export type IncidentKind = "alarm" | "routine";
+
+/** 普通事件的分类码（告警融合事件没有这个字段） */
+export type RoutineEventType =
+  | "inspection"
+  | "device_online"
+  | "device_offline"
+  | "ota"
+  | "config"
+  | "false_positive_archive"
+  | "manual";
+
 export interface Incident {
   id: string;
+  /** 缺省 = "alarm"（历史数据没有这个字段） */
+  kind?: IncidentKind;
+  /** 仅普通事件有值 */
+  event_type?: RoutineEventType;
   site_id: string;
   scene: Scene;
   title: string;
