@@ -62,6 +62,30 @@ async function screenshot(file, beyond = true) {
   return { file, md5: createHash("md5").update(buffer).digest("hex") };
 }
 
+/**
+ * 整页截图（数据流推进后那些）。
+ *
+ * `captureBeyondViewport` 会先改视口尺寸再截，recharts 会把这当成一次重排、
+ * 动画从 0 重跑 —— 抓到的就是“空白图”。这里改成先把视口调到整页高度、等图表重排完，
+ * 再用普通截图（beyond=false）。
+ */
+async function screenshotTall(file) {
+  const height = await evaluate("Math.ceil(document.documentElement.scrollHeight)");
+  await send("Emulation.setDeviceMetricsOverride", {
+    width: 1440,
+    height: Math.min(3200, Math.max(1600, height)),
+    deviceScaleFactor: 1,
+    mobile: false,
+  });
+  await sleep(1200); // 等 recharts 按新尺寸重排 + 动画跑完
+  const shot = await send("Page.captureScreenshot", { format: "png", captureBeyondViewport: false });
+  const buffer = Buffer.from(shot.data, "base64");
+  writeFileSync(file, buffer);
+  await send("Emulation.setDeviceMetricsOverride", { width: 1440, height: 1600, deviceScaleFactor: 1, mobile: false });
+  await sleep(400);
+  return { file, md5: createHash("md5").update(buffer).digest("hex") };
+}
+
 /** 页面上的「事实」：KPI 四值、趋势曲线、热力行数、系列颜色。 */
 const READ_STATE = `(() => {
   const page = document.querySelector('[data-av-page="overview"]');
@@ -89,6 +113,22 @@ const READ_STATE = `(() => {
     peakLabel: trendPanel ? (Array.from(trendPanel.querySelectorAll("text")).map((t) => t.textContent).find((t) => t && t.startsWith("峰值")) || "") : "",
     legend: Array.from(page.querySelectorAll('[data-motion-key="overview-trend"] [class*="legendItem"]')).map((item) => item.textContent),
     trendTotal: (trendPanel ? trendPanel.querySelector('[class*="softNote"]') || {} : {}).textContent || "",
+    // 分级 / 场景：环形图中心的总数 + 列表（两个环形图要分开取，不能混）
+    donutCenter: (page.querySelector('[data-motion-key="overview-levels"] [class*="donutCenter"] strong') || {}).textContent || "",
+    sceneCenter: (page.querySelector('[data-motion-key="overview-scenes"] [class*="donutCenter"] strong') || {}).textContent || "",
+    sceneLegend: Array.from(page.querySelectorAll('[data-motion-key="overview-scenes"] [class*="legendItem"]')).map(
+      (item) => item.textContent || "",
+    ),
+    levelRows: Array.from(page.querySelectorAll('[class*="levelRow"]')).map((row) => ({
+      total: (row.querySelector('[class*="levelTotal"]') || {}).textContent || "",
+      unhandled: (row.querySelector('[class*="levelSub"]') || {}).textContent || "",
+    })),
+    // 趋势图的横轴刻度：推进后最旧的桶应该从左边被挤出去
+    // （recharts v3 把轴刻度渲染在独立图层，按 xAxis 分组取不到，
+    //  所以按「形如 13:00 / 10/19」过滤，把 y 轴数字排除在外）
+    axisLabels: Array.from((trendPanel || page).querySelectorAll('[class*="axis-tick-value"]'))
+      .map((t) => (t.textContent || "").trim())
+      .filter((t) => /^\\d{1,2}:\\d{2}$/.test(t) || /^\\d{1,2}\\/\\d{1,2}$/.test(t)),
   };
 })()`;
 
@@ -228,7 +268,64 @@ try {
   };
   if (!report.liveStream.moved) report.failures.push("动效开启时 6 秒内 KPI / 曲线 / 热力都没有推进");
   if (pulseAfter < 1) report.failures.push("数据流推进时没有热力脉冲（data-hot 未出现）");
-  await screenshot(`${outDir}/overview-flow.png`);
+  await screenshotTall(`${outDir}/overview-flow.png`);
+
+  // ---- 5b. 推进后「同一窗口」：分级列表合计 == 环形图中心 == KPI 告警数 ----
+  const digits = (text) => Number((String(text).match(/\d+/g) || []).join(""));
+  const levelSum = flowAfter.levelRows.reduce((total, row) => total + digits(row.total), 0);
+  const donutCenter = digits(flowAfter.donutCenter);
+  const kpiAlarms = digits(flowAfter.metrics[0]?.value);
+  report.sameWindow = { levelSum, donutCenter, kpiAlarms, axisFirst: flowAfter.axisLabels[0], axisLast: flowAfter.axisLabels.at(-1) };
+  if (levelSum !== donutCenter) {
+    report.failures.push(`推进后分级列表合计 ${levelSum} != 环形图中心 ${donutCenter}`);
+  }
+  if (levelSum !== kpiAlarms) {
+    report.failures.push(`推进后分级合计 ${levelSum} != KPI 告警数 ${kpiAlarms}`);
+  }
+  // 窗口向前滚：推进一帧后，横轴最左边的桶应该换掉（不再是静态首帧那个）
+  if (flowBefore.axisLabels[0] && flowAfter.axisLabels[0] === flowBefore.axisLabels[0]) {
+    report.failures.push(`推进后横轴最左桶没有往后滚（仍为 ${flowAfter.axisLabels[0]}）`);
+  }
+  // 场景环形图的「合计」也必须与 KPI 同一窗口（否则同屏会出现两个总数）
+  const sceneCenter = digits(flowAfter.sceneCenter);
+  const sceneSum = flowAfter.sceneLegend.reduce((total, item) => total + digits(item), 0);
+  report.sameWindow.sceneCenter = sceneCenter;
+  report.sameWindow.sceneSum = sceneSum;
+  if (sceneCenter !== kpiAlarms || sceneSum !== kpiAlarms) {
+    report.failures.push(`推进后场景合计 ${sceneSum} / 环形图中心 ${sceneCenter} != KPI 告警数 ${kpiAlarms}`);
+  }
+
+  // ---- 5c. 周档：新增桶的日期必须向前走（不能从 10/19 倒退到 10/11） ----
+  const toDay = (label) => {
+    const [month, day] = String(label).split("/").map(Number);
+    return month * 31 + day;
+  };
+  await send("Page.navigate", { url: `${baseUrl}/stream-monitor/overview?static=1` });
+  await sleep(2600);
+  await evaluate(clickRange("近 7 日"));
+  await sleep(1400);
+  const weekStatic = await evaluate(READ_STATE);
+  await send("Page.navigate", { url: `${baseUrl}/stream-monitor/overview?static=0` });
+  await sleep(3000);
+  await evaluate(clickRange("近 7 日"));
+  await sleep(6200); // 至少一帧
+  const weekFlow = await evaluate(READ_STATE);
+  report.weekAxis = {
+    staticLast: weekStatic.axisLabels.at(-1),
+    flowLast: weekFlow.axisLabels.at(-1),
+    flowAll: weekFlow.axisLabels,
+  };
+  if (toDay(weekFlow.axisLabels.at(-1)) <= toDay(weekStatic.axisLabels.at(-1))) {
+    report.failures.push(
+      `周档推进后横轴末尾仍为 ${weekFlow.axisLabels.at(-1)}（静态 ${weekStatic.axisLabels.at(-1)}，时间轴没有向前走）`,
+    );
+  }
+  // 周档推进后，分级图同样要跟 KPI 对得上
+  const weekLevelSum = weekFlow.levelRows.reduce((total, row) => total + digits(row.total), 0);
+  if (weekLevelSum !== digits(weekFlow.metrics[0]?.value)) {
+    report.failures.push(`周档推进后分级合计 ${weekLevelSum} != KPI 告警数 ${digits(weekFlow.metrics[0]?.value)}`);
+  }
+  await screenshotTall(`${outDir}/overview-week-flow.png`);
 
   await evaluate(clickRange("今日"));
   await sleep(80);
@@ -254,7 +351,14 @@ try {
   );
   console.log(
     JSON.stringify(
-      { ranges: compact, staticStability: report.staticStability, liveStream: report.liveStream, transition: report.transition },
+      {
+        ranges: compact,
+        staticStability: report.staticStability,
+        liveStream: report.liveStream,
+        sameWindow: report.sameWindow,
+        weekAxis: report.weekAxis,
+        transition: report.transition,
+      },
       null,
       2,
     ),

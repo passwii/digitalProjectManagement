@@ -1660,6 +1660,32 @@ const OVERVIEW_RANGE_DEFS = [
   },
 ];
 
+/**
+ * 一个桶的完整内容（小时桶 / 日桶 / 历史上同期的桶共用同一形状）。
+ *
+ * 为什么桶里要带 `levels` 与 `open_incidents`：数据流推进时前端只做「切片 + 拼接」，
+ * 分级环形图与「在办事件」两个数字也必须跟着滚动窗口走。桶把这两项拆好，
+ * 滚动后的合计就是**逐桶相加**，不会出现「图里的总数对不上 KPI」。
+ */
+function bucketOf({ label, list, incidentInBucket }) {
+  const windowIncidents = incidents.filter(incidentInBucket);
+  return {
+    label,
+    alarms: list.length,
+    handled: list.filter(isHandled).length,
+    // 未处置口径与 kpi.json 一致（new + dispatched）；帧里的 totals 直接由逐桶相加得到
+    unhandled: list.filter(isUnhandled).length,
+    incidents: windowIncidents.length,
+    /** 其中仍在办（未 closed）的事件数：事件卡片的「在办 N 起」按窗口过滤，不再全站一个数 */
+    open_incidents: windowIncidents.filter((it) => it.status !== "closed").length,
+    false_positive: list.filter((a) => a.false_positive).length,
+    levels: windowLevels(list),
+    // 场景构成也按桶存：场景环形图中心的「合计」必须与 KPI 同窗口，
+    // 否则推进一帧后同一屏会同时出现 483 与 532 两个总数。
+    scenes: windowScenes(list),
+  };
+}
+
 /** 小时桶（偏移 [lo,hi)），新 → 旧；今天的桶只覆盖自然日内的部分。 */
 function hourBuckets(def) {
   return Array.from({ length: def.bucket_count }, (_, i) => {
@@ -1667,15 +1693,11 @@ function hourBuckets(def) {
     const hi = lo + HOUR;
     const list = allAlarms.filter((a) => def.inWindow(a) && a.ts_offset_minutes >= lo && a.ts_offset_minutes < hi);
     const clock = clockHour(lo);
-    return {
+    return bucketOf({
       label: `${String(clock).padStart(2, "0")}:00`,
-      alarms: list.length,
-      handled: list.filter(isHandled).length,
-      // 未处置口径与 kpi.json 一致（new + dispatched）；帧里的 totals 直接由逐桶相加得到
-      unhandled: list.filter(isUnhandled).length,
-      incidents: incidents.filter((it) => it.started_offset_minutes >= lo && it.started_offset_minutes < hi).length,
-      false_positive: list.filter((a) => a.false_positive).length,
-    };
+      list,
+      incidentInBucket: (it) => it.started_offset_minutes >= lo && it.started_offset_minutes < hi,
+    });
   });
 }
 
@@ -1684,14 +1706,11 @@ function dayBuckets(def) {
   return Array.from({ length: def.bucket_count }, (_, d) => {
     const list = allAlarms.filter((a) => def.inWindow(a) && dayDiff(a.ts_offset_minutes) === d);
     const local = new Date(localMs(d * DAY));
-    return {
+    return bucketOf({
       label: `${local.getUTCMonth() + 1}/${local.getUTCDate()}`,
-      alarms: list.length,
-      handled: list.filter(isHandled).length,
-      unhandled: list.filter(isUnhandled).length,
-      incidents: incidents.filter((it) => dayDiff(it.started_offset_minutes) === d).length,
-      false_positive: list.filter((a) => a.false_positive).length,
-    };
+      list,
+      incidentInBucket: (it) => dayDiff(it.started_offset_minutes) === d,
+    });
   });
 }
 
@@ -1815,39 +1834,43 @@ function historicalHourBucket(daysAgo, clock) {
   const list = allAlarms.filter(
     (a) => dayDiff(a.ts_offset_minutes) === daysAgo && clockHour(a.ts_offset_minutes) === clock,
   );
-  return {
+  return bucketOf({
     label: `${String(clock).padStart(2, "0")}:00`,
-    alarms: list.length,
-    handled: list.filter(isHandled).length,
-    unhandled: list.filter(isUnhandled).length,
-    incidents: incidents.filter(
-      (it) => dayDiff(it.started_offset_minutes) === daysAgo && clockHour(it.started_offset_minutes) === clock,
-    ).length,
-    false_positive: list.filter((a) => a.false_positive).length,
-  };
+    list,
+    incidentInBucket: (it) =>
+      dayDiff(it.started_offset_minutes) === daysAgo && clockHour(it.started_offset_minutes) === clock,
+  });
 }
 
 function historicalDayBucket(daysAgo) {
   const list = allAlarms.filter((a) => dayDiff(a.ts_offset_minutes) === daysAgo);
   const local = new Date(localMs(daysAgo * DAY));
-  return {
+  return bucketOf({
     label: `${local.getUTCMonth() + 1}/${local.getUTCDate()}`,
-    alarms: list.length,
-    handled: list.filter(isHandled).length,
-    unhandled: list.filter(isUnhandled).length,
-    incidents: incidents.filter((it) => dayDiff(it.started_offset_minutes) === daysAgo).length,
-    false_positive: list.filter((a) => a.false_positive).length,
-  };
+    list,
+    incidentInBucket: (it) => dayDiff(it.started_offset_minutes) === daysAgo,
+  });
+}
+
+/**
+ * 推进帧里新增那一格的日期文案：窗口是向「未来」滚的，标签也必须向前走。
+ *
+ * 值取自历史上 8 天前的同一天（数据真实存在），但标签不能跟着用那一天 ——
+ * 否则周档会看着时间轴从 10/19 倒退到 10/11。所以这里给「今天 + N 天」的模拟日期。
+ */
+function futureDayLabel(daysAhead) {
+  const local = new Date(localMs(-daysAhead * DAY));
+  return `${local.getUTCMonth() + 1}/${local.getUTCDate()}`;
 }
 
 /**
  * 演示帧：窗口每 tick 向「现在」滚动一格 —— 最旧的一格掉出、最新的一格补进来。
- * 因此帧里给出的是**滚动后**的 totals（KPI 四值直接读它），而不是让前端做加法：
+ * 因此帧里给出的是**滚动后**的 totals / levels（KPI 与分级图直接读它），而不是让前端做加法：
  * 前端（尤其 TSX）不参与任何业务数字的运算。
  */
-function buildStreamFrames(def, trend, baseTotals) {
+function buildStreamFrames(def, trend) {
   // trend 是「新 → 旧」：滚动一格 = 去掉数组末尾（最旧）并在开头补一格（最新）
-  let totals = { ...baseTotals };
+  let totals = totalsFrom(trend);
   const isDaily = def.granularity === "day";
   const addedBuckets = [];
   const frames = [];
@@ -1866,18 +1889,32 @@ function buildStreamFrames(def, trend, baseTotals) {
       daysAgo += 1;
       added = isDaily ? historicalDayBucket(daysAgo) : historicalHourBucket(daysAgo, clock);
     }
+    // 新补进来的那一格代表「刚刚到达」：时间轴向前走（周档要换成今天的 N 天后），
+    // 而且这一格里的事件全部是刚入库的 —— 一个也还没关闭，所以在办 = 事件数。
+    added = {
+      ...added,
+      label: isDaily ? futureDayLabel(i + 1) : added.label,
+      open_incidents: added.incidents,
+    };
     // 逐桶重算（不做「加减近似」）：未处置 = new + dispatched，与 kpi.json 同口径，
     // 用减法会在「已确认（acknowledged）」上漂出负数 —— 帧里的数字必须能对得上明细。
     addedBuckets.unshift(added);
     const rolling = [...addedBuckets, ...trend.slice(0, trend.length - (i + 1))];
-    totals = totalsFrom(rolling, baseTotals.open_incidents);
+    totals = totalsFrom(rolling);
     frames.push({
       trend_label: added.label,
       alarms: added.alarms,
       handled: added.handled,
       unhandled: added.unhandled,
       incidents: added.incidents,
+      open_incidents: added.open_incidents,
       false_positive: added.false_positive,
+      // `added_levels` 是**新增那一格自己**的分级构成（与上面的 alarms / handled 同一格），
+      // `levels` 是滚动后整个窗口的合计（页面读它画分级图）。两个分开存，
+      // 才能让「逐桶相加 = 滚动后合计」在数据文件里被直接验算。
+      added_levels: added.levels,
+      levels: levelsFrom(rolling),
+      scenes: scenesFrom(rolling),
       heat: { row: 0, hour: isDaily ? ANCHOR_CLOCK / HOUR : clock },
       totals,
     });
@@ -1886,7 +1923,7 @@ function buildStreamFrames(def, trend, baseTotals) {
 }
 
 /** 桶列表 → totals。比率也在这里算好，前端只负责格式化，不做业务除法。 */
-function totalsFrom(buckets, openIncidents) {
+function totalsFrom(buckets) {
   const sum = (key) => buckets.reduce((total, b) => total + b[key], 0);
   const alarms = sum("alarms");
   const handled = sum("handled");
@@ -1897,13 +1934,31 @@ function totalsFrom(buckets, openIncidents) {
     unhandled: sum("unhandled"),
     false_positive: falsePositive,
     incidents: sum("incidents"),
-    open_incidents: openIncidents,
+    // 在办事件 **按窗口过滤**：全站一个数的话，今日只有 10 起事件却显示「在办 36 起」
+    open_incidents: sum("open_incidents"),
     handled_rate: alarms ? Number(((handled / alarms) * 100).toFixed(1)) : 0,
     false_positive_rate: alarms ? Number(((falsePositive / alarms) * 100).toFixed(1)) : 0,
   };
 }
 
-const openIncidents = incidents.filter((it) => it.status !== "closed").length;
+/** 桶列表 → 分级构成（总数 + 其中未处置），与 `totalsFrom` 同一套逐桶相加。 */
+function levelsFrom(buckets) {
+  return [1, 2, 3, 4].map((level) => ({
+    level,
+    total: buckets.reduce((total, b) => total + b.levels.find((row) => row.level === level).total, 0),
+    unhandled: buckets.reduce((total, b) => total + b.levels.find((row) => row.level === level).unhandled, 0),
+  }));
+}
+
+/** 桶列表 → 场景构成（同样逐桶相加，保证环形图合计 = KPI 总数）。 */
+function scenesFrom(buckets) {
+  return ["campus", "hospital", "justice"].map((scene) => ({
+    scene,
+    name: SITES.find((x) => x.scene === scene).name,
+    count: buckets.reduce((total, b) => total + b.scenes.find((row) => row.scene === scene).count, 0),
+    unhandled: buckets.reduce((total, b) => total + b.scenes.find((row) => row.scene === scene).unhandled, 0),
+  }));
+}
 
 const overviewRanges = {};
 for (const def of OVERVIEW_RANGE_DEFS) {
@@ -1912,7 +1967,7 @@ for (const def of OVERVIEW_RANGE_DEFS) {
   const heatmap = windowHeatmap(def, windowAlarms);
   const peak = trend.reduce((best, row) => (row.alarms > best.alarms ? row : best), trend[0]);
   // totals 由 trend 的桶相加得到（不用另一套过滤），这样「逐桶相加 = 总量」天然成立
-  const totals = totalsFrom(trend, openIncidents);
+  const totals = totalsFrom(trend);
   overviewRanges[def.key] = {
     key: def.key,
     label: def.label,
@@ -1926,15 +1981,15 @@ for (const def of OVERVIEW_RANGE_DEFS) {
     ],
     totals,
     peak: { label: peak.label, value: peak.alarms },
-    levels: windowLevels(windowAlarms),
-    scenes: windowScenes(windowAlarms),
+    levels: levelsFrom(trend),
+    scenes: scenesFrom(trend),
     trend,
     heatmap: { ...heatmap, max: Math.max(1, ...heatmap.rows.flatMap((row) => row.cells.map((cell) => cell.count))) },
     points: windowPoints(windowAlarms),
     types: windowTypes(windowAlarms),
     // 键名刻意不叫 demo：`public/stream-monitor-data/*.json` 是访客可下载的公开数据，
     // siteCopyGuard 会把任何 demo / 「演示」判成「把自己写小」的措辞。
-    stream: buildStreamFrames(def, trend, totals),
+    stream: buildStreamFrames(def, trend),
   };
 }
 
@@ -1944,9 +1999,11 @@ const overviewRangeFile = {
     calc_note:
       "总览页三档口径（BLF-1424）：live = 偏移 [0,1440) 的滚动 24 小时；" +
       "today = 今天自然日（锚点正午，00:00 → 12:00）；week = 最近 7 个自然日（dayDiff 0..6）。" +
-      "每档的 totals / levels / scenes / trend / heatmap / points / types 都只统计该窗口内的告警，" +
-      "所以逐项相加必须等于 totals.alarms。stream.frames 是页面数据流推进用的固定帧：窗口每 tick 向现在滚动一格" +
-      "（最旧一格掉出、最新一格补进来），帧里直接给出滚动后的 totals，前端不做业务运算。" +
+      "每档的 totals / levels / scenes / trend / heatmap / points / types 都只统计该窗口内的告警（totals.open_incidents 也只数窗口内未关闭的事件），" +
+      "所以逐项相加必须等于 totals.alarms。趋势桶自带 levels / open_incidents，帧的滚动合计就是逐桶相加，" +
+      "分级环形图与「在办 N 起」会跟着数据流一起变。stream.frames 是页面数据流推进用的固定帧：窗口每 tick 向现在滚动一格" +
+      "（最旧一格掉出、最新一格补进来），新增格的取值来自历史上同期的桶，但标签向前走（周档是今天 + N 天），" +
+      "帧里直接给出滚动后的 totals / levels，前端不做业务运算。" +
       "?static=1 与 prefers-reduced-motion 下只展示第 0 帧（不推进）。",
     range_order: OVERVIEW_RANGE_DEFS.map((d) => d.key),
   },

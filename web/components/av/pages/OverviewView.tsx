@@ -68,13 +68,18 @@ export default function OverviewView(props: OverviewProps) {
   const atTick = useMemo(() => overviewRangeAtTick(view, tick), [view, tick]);
   const pulse = enabled ? atTick.pulse : null;
 
-  const sceneTotal = view.scenes.reduce((sum, scene) => sum + scene.value, 0);
-  const sceneDonut: DonutDatum[] = view.scenes.map((scene) => ({
+  /*
+   * 分级 / 场景两块环形图与 KPI 必须读**同一帧**的数据：`atTick.levels` / `atTick.scenes`
+   * 是滚动后窗口的构成，两者的合计都等于 `atTick.totals.alarms`。用静态 `view.*` 的话，
+   * 推进几帧后同一屏会同时出现两个总数（如 KPI 483、场景 532）。
+   */
+  const sceneTotal = atTick.scenes.reduce((sum, scene) => sum + scene.value, 0);
+  const sceneDonut: DonutDatum[] = atTick.scenes.map((scene) => ({
     label: scene.label,
     value: scene.value,
     tone: scene.tone,
   }));
-  const levelDonut: DonutDatum[] = view.levels.map((row) => ({
+  const levelDonut: DonutDatum[] = atTick.levels.map((row) => ({
     label: row.label,
     value: row.total,
     tone: row.tone,
@@ -178,7 +183,7 @@ export default function OverviewView(props: OverviewProps) {
               label={`${view.windowLabel}告警分级环形图`}
             />
             <ul className={s.levelList}>
-              {view.levels.map((row) => (
+              {atTick.levels.map((row) => (
                 <li key={row.level} className={s.levelRow}>
                   <AvLevelBadge level={row.level} label={row.label} />
                   <span className={s.levelSpacer} />
@@ -196,7 +201,7 @@ export default function OverviewView(props: OverviewProps) {
             title="场景分布"
             subtitle={`${view.windowLabel}告警按业务场景`}
             icon="capability"
-            meta={`${view.scenes.length} 个场景`}
+            meta={`${atTick.scenes.length} 个场景`}
             motionKey="overview-scenes"
           >
             <AvDonut
@@ -206,7 +211,7 @@ export default function OverviewView(props: OverviewProps) {
               label={`${view.windowLabel}场景分布环形图`}
             />
             <AvLegend
-              items={view.scenes.map((scene) => ({
+              items={atTick.scenes.map((scene) => ({
                 label: `${scene.label}（${scene.site}）`,
                 value: formatCount(scene.value),
                 tone: scene.tone,

@@ -126,6 +126,19 @@ describe("总览 · 三档时间范围的数据", () => {
     }
   });
 
+  it("「在办事件」按所选范围过滤，不再三档共用全站一个数", () => {
+    const open = ranges.map((range) => range.totals.open_incidents);
+    for (const range of ranges) {
+      const bucketSum = range.trend.reduce((total, row) => total + row.open_incidents, 0);
+      expect(range.totals.open_incidents, `${range.key} 的在办数必须等于逐桶相加`).toBe(bucketSum);
+      expect(range.totals.open_incidents, `${range.key} 的在办数不可能超过窗口内的事件数`).toBeLessThanOrEqual(
+        range.totals.incidents,
+      );
+    }
+    // 曾经三档全是 36（全站未关闭事件总数）：今日只有 10 起事件却显示在办 36 起
+    expect(new Set(open).size, `三档在办数完全相同：${open.join(" / ")}`).toBeGreaterThan(1);
+  });
+
   it("峰值标注落在当前曲线的最高点上", () => {
     for (const model of models) {
       const peak = overviewPeak(model.trend);
@@ -147,20 +160,55 @@ describe("总览 · 演示态推进", () => {
       const base = overviewRangeAtTick(model, 0);
       expect(base.pulse).toBeNull();
       expect(base.trend).toHaveLength(model.trend.length);
+      expect(base.levels).toEqual(model.levels);
+      expect(base.scenes).toEqual(model.scenes);
 
       const seen = new Set(base.kpis.map((kpi) => `${kpi.label}=${kpi.value}`));
       for (let tick = 1; tick <= frames.length; tick += 1) {
         const frame = overviewRangeAtTick(model, tick);
         expect(frame.trend).toHaveLength(model.trend.length);
         expect(frame.trend[frame.trend.length - 1]?.label).toBe(frames[tick - 1].label);
+        // 窗口是向前滚的：最旧的那几格被挤出去，剩下的从原来的第 tick 格开始
+        expect(frame.trend[0]?.label, `${model.key} tick ${tick} 没有挤掉最旧的桶`).toBe(model.trend[tick]?.label);
         expect(frame.pulse).not.toBeNull();
         const row = model.heatmap.rows[frame.pulse!.row];
         expect(row, `${model.key} tick ${tick} 的脉冲行越界`).toBeTruthy();
         expect(row.cells.some((cell) => cell.hour === frame.pulse!.hour)).toBe(true);
+        // 画出来的曲线切片、分级切片与帧里的 totals 必须是同一个窗口
+        const visible = frame.trend.reduce((total, item) => total + item.alarms, 0);
+        expect(visible, `${model.key} tick ${tick} 的曲线切片合计 ${visible} != KPI ${frame.totals.alarms}`).toBe(
+          frame.totals.alarms,
+        );
+        expect(frame.levels.reduce((total, item) => total + item.total, 0), `${model.key} tick ${tick} 分级脱节`).toBe(
+          frame.totals.alarms,
+        );
+        expect(
+          frame.levels.reduce((total, item) => total + item.unhandled, 0),
+          `${model.key} tick ${tick} 未处置脱节`,
+        ).toBe(frame.totals.unhandled);
+        // 场景环形图中心的「合计」也得与 KPI 同一窗口
+        expect(
+          frame.scenes.reduce((total, item) => total + item.value, 0),
+          `${model.key} tick ${tick} 场景分布脱节`,
+        ).toBe(frame.totals.alarms);
         for (const kpi of frame.kpis) seen.add(`${kpi.label}=${kpi.value}`);
       }
       // 至少有一张卡在推进中真的变了（否则「KPI 微幅变化」只是文案）
       expect(seen.size, `${model.key} 的演示帧没有带来任何 KPI 变化`).toBeGreaterThan(4);
+    }
+  });
+
+  it("周档推进时新增桶的日期向前走（时间轴不会从 10/19 倒退到 10/11）", () => {
+    const week = models.find((model) => model.key === "week")!;
+    const toDay = (label: string) => {
+      const [month, day] = label.split("/").map(Number);
+      return month * 31 + day; // 同一年内单调比较够用
+    };
+    let previous = toDay(week.trend[week.trend.length - 1].label);
+    for (const frame of week.stream.frames) {
+      const current = toDay(frame.label);
+      expect(current, `周档新增桶的标签 ${frame.label} 没有向前推进`).toBeGreaterThan(previous);
+      previous = current;
     }
   });
 
@@ -171,6 +219,8 @@ describe("总览 · 演示态推进", () => {
       expect(beyond).toEqual(last);
       expect(overviewRangeAtTick(model, -1)).toEqual({
         kpis: model.kpis,
+        levels: model.levels,
+        scenes: model.scenes,
         trend: model.trend,
         totals: model.totals,
         peak: model.peak,

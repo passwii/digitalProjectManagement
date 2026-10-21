@@ -113,14 +113,25 @@ const spectra = await loadDataset(); // 或者 loadSpectrum("sp-001")
 | `week` | 最近 7 个自然日（`dayDiff` 0..6） | 7 个日桶 | 7 行 × 24 格 |
 
 每档都带 `totals`（KPI 四值的唯一来源）、`levels` / `scenes` / `points` / `types`，
-以及 `stream`（页面数据流推进用的固定帧）。三条硬约定：
+以及 `stream`（页面数据流推进用的固定帧）。四条硬约定：
 
 1. 每档的 `trend` / `levels` / `scenes` / `heatmap` **逐项相加 = `totals.alarms`**
    （`validate.mjs` 检查项「三档的 totals 与明细窗口一致…」）；
-2. `stream.frames[i].totals` 是**滚动之后**的汇总，前端不做业务运算 ——
-   滚动语义是「最旧一格掉出、最新一格补进来」，帧里的新增格取自一两周前同时段的真实历史桶
+2. `totals.open_incidents`（KPI「在办 N 起」）是**该窗口内未关闭的事件数**，不是全站总数 ——
+   桶里存 `open_incidents`，档位与帧都靠逐桶相加得来；
+3. `stream.frames[i]` 里 `alarms` / `levels` / `added_levels` / `scenes` 分两层看：
+   前缀（`alarms`…）是**新增那一格自己**的数，`totals` / `levels` / `scenes` 是**滚动之后**整个窗口的汇总，
+   前端不做业务运算；滚动语义是「最旧一格掉出、最新一格补进来」，帧里的新增格取自一两周前同时段的真实历史桶
    （并跳过与被挤掉的旧桶完全相同的候选，否则那一帧推进后画面不动）；
-3. 追加文件、不动既有 JSON：重跑生成器后 `git diff` 里只会看到新文件 + `index.json` 的一行。
+4. 新增格的**标签向前走**：小时档是下一个钟点，日档是「今天 + N 天」的模拟日期
+   （值取自历史桶，但标签不能跟着用那一天，否则周档会从 10/19 倒退到 10/11）。
+
+> 桶（`trend[]` 的每一项）自带 `levels` / `scenes` / `open_incidents`，所以「窗口滚动后
+> 环形图的切片合计与 KPI 同一个数」可以被 `validate.mjs` 逐桶验算；页面侧只切片拼接。
+
+### 追加文件、不动既有 JSON
+
+重跑生成器后 `git diff` 里只会看到新文件 + `index.json` 的一行。
 
 > 键名是 `stream` 不是 `demo`：这个目录访客可以直接下载，`siteCopyGuard` 会把
 > `\bdemo\b` / 「演示」判成「把自己写小」的文案。

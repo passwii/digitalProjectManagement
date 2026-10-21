@@ -505,12 +505,16 @@ export interface OverviewTrendDatum {
   [key: string]: string | number;
 }
 
-/** 数据流里的一帧：结构上就是「右端新增的一格 + 滚动后的四张 KPI 卡」。 */
+/** 数据流里的一帧：结构上就是「右端新增的一格 + 滚动后的四张 KPI 卡 + 滚动后的分级 / 场景」。 */
 export interface OverviewStreamFrameModel {
   label: string;
   point: OverviewTrendDatum;
   kpis: KpiCard[];
   totals: OverviewTotals;
+  /** 与 `totals` 同一帧、同一窗口的分级构成（分级图不能停在静态值上） */
+  levels: OverviewRangeModel["levels"];
+  /** 与 `totals` 同一窗口的场景构成（场景环形图的「合计」不能与 KPI 脱节） */
+  scenes: OverviewRangeModel["scenes"];
   pulse: { row: number; hour: number };
 }
 
@@ -696,6 +700,20 @@ export function overviewRangeModel(range: OverviewRange): OverviewRangeModel {
         },
         kpis: overviewKpisFrom(range, frame.totals),
         totals: frame.totals,
+        levels: frame.levels.map((row) => ({
+          level: row.level,
+          label: levelMeta(row.level).label,
+          total: row.total,
+          unhandled: row.unhandled,
+          tone: levelMeta(row.level).tone,
+        })),
+        scenes: frame.scenes.map((row) => ({
+          label: sceneMeta(row.scene).fallbackName,
+          value: row.count,
+          tone: sceneMeta(row.scene).tone,
+          site: row.name,
+          scene: row.scene,
+        })),
         pulse: frame.heat,
       })),
     },
@@ -705,14 +723,18 @@ export function overviewRangeModel(range: OverviewRange): OverviewRangeModel {
 /**
  * 数据流进度 → 当前要渲染的内容。
  *
- * 滚动语义与 generator 一致：右端补 tick 个新格，左端丢掉同样多的旧格
- * （长度不变，横轴不会跳）。这里只做**切片与拼接**，不产生任何新数字。
+ * 滚动语义与 generator 一致：`model.trend` 已经是「旧 → 新」，所以推进 tick 帧 = n
+ * **从头（最旧）去掉 n 个桶、末尾接上 n 个新桶** —— 长度不变，横轴永远向前走。
+ * （之前的实现从头保留、从尾砍，砍掉的恰好是最新那几个桶，导致「图里的切片」
+ * 与帧里的 totals 对不上。）这里只做**切片与拼接**，不产生任何新数字。
  */
 export function overviewRangeAtTick(
   model: OverviewRangeModel,
   tick: number,
 ): {
   kpis: KpiCard[];
+  levels: OverviewRangeModel["levels"];
+  scenes: OverviewRangeModel["scenes"];
   trend: OverviewTrendDatum[];
   totals: OverviewTotals;
   peak: { label: string; value: number };
@@ -721,13 +743,24 @@ export function overviewRangeAtTick(
   const frames = model.stream.frames;
   const applied = Math.max(0, Math.min(tick, frames.length));
   if (applied === 0) {
-    return { kpis: model.kpis, trend: model.trend, totals: model.totals, peak: model.peak, pulse: null };
+    return {
+      kpis: model.kpis,
+      levels: model.levels,
+      scenes: model.scenes,
+      trend: model.trend,
+      totals: model.totals,
+      peak: model.peak,
+      pulse: null,
+    };
   }
-  const head = model.trend.slice(0, Math.max(0, model.trend.length - applied));
+  const head = model.trend.slice(applied);
   const tail = frames.slice(0, applied).map((frame) => frame.point);
   const trend = [...head, ...tail];
   return {
     kpis: frames[applied - 1].kpis,
+    // 分级图 / 场景图跟着同一帧走：环形图切片与中心的总数必须来自同一个窗口
+    levels: frames[applied - 1].levels,
+    scenes: frames[applied - 1].scenes,
     trend,
     totals: frames[applied - 1].totals,
     // 峰值跟着推进后的曲线重算：标注必须落在当前画出来的那条线上

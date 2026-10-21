@@ -1,7 +1,7 @@
 {
   "_meta": {
     "generated_at": "2026-10-19T12:00:00+08:00",
-    "calc_note": "总览页三档口径（BLF-1424）：live = 偏移 [0,1440) 的滚动 24 小时；today = 今天自然日（锚点正午，00:00 → 12:00）；week = 最近 7 个自然日（dayDiff 0..6）。每档的 totals / levels / scenes / trend / heatmap / points / types 都只统计该窗口内的告警，所以逐项相加必须等于 totals.alarms。stream.frames 是页面数据流推进用的固定帧：窗口每 tick 向现在滚动一格（最旧一格掉出、最新一格补进来），帧里直接给出滚动后的 totals，前端不做业务运算。?static=1 与 prefers-reduced-motion 下只展示第 0 帧（不推进）。",
+    "calc_note": "总览页三档口径（BLF-1424）：live = 偏移 [0,1440) 的滚动 24 小时；today = 今天自然日（锚点正午，00:00 → 12:00）；week = 最近 7 个自然日（dayDiff 0..6）。每档的 totals / levels / scenes / trend / heatmap / points / types 都只统计该窗口内的告警（totals.open_incidents 也只数窗口内未关闭的事件），所以逐项相加必须等于 totals.alarms。趋势桶自带 levels / open_incidents，帧的滚动合计就是逐桶相加，分级环形图与「在办 N 起」会跟着数据流一起变。stream.frames 是页面数据流推进用的固定帧：窗口每 tick 向现在滚动一格（最旧一格掉出、最新一格补进来），新增格的取值来自历史上同期的桶，但标签向前走（周档是今天 + N 天），帧里直接给出滚动后的 totals / levels，前端不做业务运算。?static=1 与 prefers-reduced-motion 下只展示第 0 帧（不推进）。",
     "range_order": [
       "live",
       "today",
@@ -46,7 +46,7 @@
         "unhandled": 25,
         "false_positive": 1,
         "incidents": 12,
-        "open_incidents": 36,
+        "open_incidents": 3,
         "handled_rate": 54.8,
         "false_positive_rate": 1.4
       },
@@ -103,7 +103,50 @@
           "handled": 2,
           "unhandled": 2,
           "incidents": 2,
-          "false_positive": 0
+          "open_incidents": 0,
+          "false_positive": 0,
+          "levels": [
+            {
+              "level": 1,
+              "total": 1,
+              "unhandled": 0
+            },
+            {
+              "level": 2,
+              "total": 2,
+              "unhandled": 0
+            },
+            {
+              "level": 3,
+              "total": 2,
+              "unhandled": 2
+            },
+            {
+              "level": 4,
+              "total": 0,
+              "unhandled": 0
+            }
+          ],
+          "scenes": [
+            {
+              "scene": "campus",
+              "name": "示范第一中学",
+              "count": 2,
+              "unhandled": 0
+            },
+            {
+              "scene": "hospital",
+              "name": "市人民医院",
+              "count": 2,
+              "unhandled": 2
+            },
+            {
+              "scene": "justice",
+              "name": "市执法办案管理中心",
+              "count": 1,
+              "unhandled": 0
+            }
+          ]
         },
         {
           "label": "11:00",
@@ -111,7 +154,50 @@
           "handled": 3,
           "unhandled": 7,
           "incidents": 2,
-          "false_positive": 0
+          "open_incidents": 1,
+          "false_positive": 0,
+          "levels": [
+            {
+              "level": 1,
+              "total": 4,
+              "unhandled": 2
+            },
+            {
+              "level": 2,
+              "total": 4,
+              "unhandled": 2
+            },
+            {
+              "level": 3,
+              "total": 1,
+              "unhandled": 1
+            },
+            {
+              "level": 4,
+              "total": 2,
+              "unhandled": 2
+            }
+          ],
+          "scenes": [
+            {
+              "scene": "campus",
+              "name": "示范第一中学",
+              "count": 5,
+              "unhandled": 1
+            },
+            {
+              "scene": "hospital",
+              "name": "市人民医院",
+              "count": 2,
+              "unhandled": 2
+            },
+            {
+              "scene": "justice",
+              "name": "市执法办案管理中心",
+              "count": 4,
+              "unhandled": 4
+            }
+          ]
         },
         {
           "label": "10:00",
@@ -119,7 +205,50 @@
           "handled": 7,
           "unhandled": 0,
           "incidents": 1,
-          "false_positive": 0
+          "open_incidents": 0,
+          "false_positive": 0,
+          "levels": [
+            {
+              "level": 1,
+              "total": 4,
+              "unhandled": 0
+            },
+            {
+              "level": 2,
+              "total": 2,
+              "unhandled": 0
+            },
+            {
+              "level": 3,
+              "total": 3,
+              "unhandled": 0
+            },
+            {
+              "level": 4,
+              "total": 0,
+              "unhandled": 0
+            }
+          ],
+          "scenes": [
+            {
+              "scene": "campus",
+              "name": "示范第一中学",
+              "count": 4,
+              "unhandled": 0
+            },
+            {
+              "scene": "hospital",
+              "name": "市人民医院",
+              "count": 5,
+              "unhandled": 0
+            },
+            {
+              "scene": "justice",
+              "name": "市执法办案管理中心",
+              "count": 0,
+              "unhandled": 0
+            }
+          ]
         },
         {
           "label": "09:00",
@@ -127,7 +256,50 @@
           "handled": 1,
           "unhandled": 2,
           "incidents": 1,
-          "false_positive": 0
+          "open_incidents": 0,
+          "false_positive": 0,
+          "levels": [
+            {
+              "level": 1,
+              "total": 0,
+              "unhandled": 0
+            },
+            {
+              "level": 2,
+              "total": 2,
+              "unhandled": 1
+            },
+            {
+              "level": 3,
+              "total": 1,
+              "unhandled": 1
+            },
+            {
+              "level": 4,
+              "total": 0,
+              "unhandled": 0
+            }
+          ],
+          "scenes": [
+            {
+              "scene": "campus",
+              "name": "示范第一中学",
+              "count": 2,
+              "unhandled": 2
+            },
+            {
+              "scene": "hospital",
+              "name": "市人民医院",
+              "count": 1,
+              "unhandled": 0
+            },
+            {
+              "scene": "justice",
+              "name": "市执法办案管理中心",
+              "count": 0,
+              "unhandled": 0
+            }
+          ]
         },
         {
           "label": "08:00",
@@ -135,7 +307,50 @@
           "handled": 0,
           "unhandled": 10,
           "incidents": 2,
-          "false_positive": 0
+          "open_incidents": 2,
+          "false_positive": 0,
+          "levels": [
+            {
+              "level": 1,
+              "total": 0,
+              "unhandled": 0
+            },
+            {
+              "level": 2,
+              "total": 10,
+              "unhandled": 10
+            },
+            {
+              "level": 3,
+              "total": 1,
+              "unhandled": 0
+            },
+            {
+              "level": 4,
+              "total": 0,
+              "unhandled": 0
+            }
+          ],
+          "scenes": [
+            {
+              "scene": "campus",
+              "name": "示范第一中学",
+              "count": 10,
+              "unhandled": 9
+            },
+            {
+              "scene": "hospital",
+              "name": "市人民医院",
+              "count": 1,
+              "unhandled": 1
+            },
+            {
+              "scene": "justice",
+              "name": "市执法办案管理中心",
+              "count": 0,
+              "unhandled": 0
+            }
+          ]
         },
         {
           "label": "07:00",
@@ -143,7 +358,50 @@
           "handled": 0,
           "unhandled": 0,
           "incidents": 0,
-          "false_positive": 0
+          "open_incidents": 0,
+          "false_positive": 0,
+          "levels": [
+            {
+              "level": 1,
+              "total": 0,
+              "unhandled": 0
+            },
+            {
+              "level": 2,
+              "total": 0,
+              "unhandled": 0
+            },
+            {
+              "level": 3,
+              "total": 0,
+              "unhandled": 0
+            },
+            {
+              "level": 4,
+              "total": 0,
+              "unhandled": 0
+            }
+          ],
+          "scenes": [
+            {
+              "scene": "campus",
+              "name": "示范第一中学",
+              "count": 0,
+              "unhandled": 0
+            },
+            {
+              "scene": "hospital",
+              "name": "市人民医院",
+              "count": 0,
+              "unhandled": 0
+            },
+            {
+              "scene": "justice",
+              "name": "市执法办案管理中心",
+              "count": 0,
+              "unhandled": 0
+            }
+          ]
         },
         {
           "label": "06:00",
@@ -151,7 +409,50 @@
           "handled": 0,
           "unhandled": 1,
           "incidents": 0,
-          "false_positive": 0
+          "open_incidents": 0,
+          "false_positive": 0,
+          "levels": [
+            {
+              "level": 1,
+              "total": 0,
+              "unhandled": 0
+            },
+            {
+              "level": 2,
+              "total": 0,
+              "unhandled": 0
+            },
+            {
+              "level": 3,
+              "total": 2,
+              "unhandled": 1
+            },
+            {
+              "level": 4,
+              "total": 0,
+              "unhandled": 0
+            }
+          ],
+          "scenes": [
+            {
+              "scene": "campus",
+              "name": "示范第一中学",
+              "count": 1,
+              "unhandled": 0
+            },
+            {
+              "scene": "hospital",
+              "name": "市人民医院",
+              "count": 0,
+              "unhandled": 0
+            },
+            {
+              "scene": "justice",
+              "name": "市执法办案管理中心",
+              "count": 1,
+              "unhandled": 1
+            }
+          ]
         },
         {
           "label": "05:00",
@@ -159,7 +460,50 @@
           "handled": 3,
           "unhandled": 0,
           "incidents": 2,
-          "false_positive": 0
+          "open_incidents": 0,
+          "false_positive": 0,
+          "levels": [
+            {
+              "level": 1,
+              "total": 1,
+              "unhandled": 0
+            },
+            {
+              "level": 2,
+              "total": 2,
+              "unhandled": 0
+            },
+            {
+              "level": 3,
+              "total": 0,
+              "unhandled": 0
+            },
+            {
+              "level": 4,
+              "total": 0,
+              "unhandled": 0
+            }
+          ],
+          "scenes": [
+            {
+              "scene": "campus",
+              "name": "示范第一中学",
+              "count": 0,
+              "unhandled": 0
+            },
+            {
+              "scene": "hospital",
+              "name": "市人民医院",
+              "count": 2,
+              "unhandled": 0
+            },
+            {
+              "scene": "justice",
+              "name": "市执法办案管理中心",
+              "count": 1,
+              "unhandled": 0
+            }
+          ]
         },
         {
           "label": "04:00",
@@ -167,7 +511,50 @@
           "handled": 0,
           "unhandled": 0,
           "incidents": 0,
-          "false_positive": 0
+          "open_incidents": 0,
+          "false_positive": 0,
+          "levels": [
+            {
+              "level": 1,
+              "total": 0,
+              "unhandled": 0
+            },
+            {
+              "level": 2,
+              "total": 0,
+              "unhandled": 0
+            },
+            {
+              "level": 3,
+              "total": 0,
+              "unhandled": 0
+            },
+            {
+              "level": 4,
+              "total": 0,
+              "unhandled": 0
+            }
+          ],
+          "scenes": [
+            {
+              "scene": "campus",
+              "name": "示范第一中学",
+              "count": 0,
+              "unhandled": 0
+            },
+            {
+              "scene": "hospital",
+              "name": "市人民医院",
+              "count": 0,
+              "unhandled": 0
+            },
+            {
+              "scene": "justice",
+              "name": "市执法办案管理中心",
+              "count": 0,
+              "unhandled": 0
+            }
+          ]
         },
         {
           "label": "03:00",
@@ -175,7 +562,50 @@
           "handled": 0,
           "unhandled": 0,
           "incidents": 0,
-          "false_positive": 0
+          "open_incidents": 0,
+          "false_positive": 0,
+          "levels": [
+            {
+              "level": 1,
+              "total": 0,
+              "unhandled": 0
+            },
+            {
+              "level": 2,
+              "total": 0,
+              "unhandled": 0
+            },
+            {
+              "level": 3,
+              "total": 0,
+              "unhandled": 0
+            },
+            {
+              "level": 4,
+              "total": 0,
+              "unhandled": 0
+            }
+          ],
+          "scenes": [
+            {
+              "scene": "campus",
+              "name": "示范第一中学",
+              "count": 0,
+              "unhandled": 0
+            },
+            {
+              "scene": "hospital",
+              "name": "市人民医院",
+              "count": 0,
+              "unhandled": 0
+            },
+            {
+              "scene": "justice",
+              "name": "市执法办案管理中心",
+              "count": 0,
+              "unhandled": 0
+            }
+          ]
         },
         {
           "label": "02:00",
@@ -183,7 +613,50 @@
           "handled": 0,
           "unhandled": 2,
           "incidents": 0,
-          "false_positive": 0
+          "open_incidents": 0,
+          "false_positive": 0,
+          "levels": [
+            {
+              "level": 1,
+              "total": 1,
+              "unhandled": 1
+            },
+            {
+              "level": 2,
+              "total": 0,
+              "unhandled": 0
+            },
+            {
+              "level": 3,
+              "total": 2,
+              "unhandled": 1
+            },
+            {
+              "level": 4,
+              "total": 0,
+              "unhandled": 0
+            }
+          ],
+          "scenes": [
+            {
+              "scene": "campus",
+              "name": "示范第一中学",
+              "count": 1,
+              "unhandled": 1
+            },
+            {
+              "scene": "hospital",
+              "name": "市人民医院",
+              "count": 1,
+              "unhandled": 1
+            },
+            {
+              "scene": "justice",
+              "name": "市执法办案管理中心",
+              "count": 1,
+              "unhandled": 0
+            }
+          ]
         },
         {
           "label": "01:00",
@@ -191,7 +664,50 @@
           "handled": 2,
           "unhandled": 1,
           "incidents": 0,
-          "false_positive": 0
+          "open_incidents": 0,
+          "false_positive": 0,
+          "levels": [
+            {
+              "level": 1,
+              "total": 2,
+              "unhandled": 1
+            },
+            {
+              "level": 2,
+              "total": 0,
+              "unhandled": 0
+            },
+            {
+              "level": 3,
+              "total": 1,
+              "unhandled": 0
+            },
+            {
+              "level": 4,
+              "total": 0,
+              "unhandled": 0
+            }
+          ],
+          "scenes": [
+            {
+              "scene": "campus",
+              "name": "示范第一中学",
+              "count": 2,
+              "unhandled": 1
+            },
+            {
+              "scene": "hospital",
+              "name": "市人民医院",
+              "count": 1,
+              "unhandled": 0
+            },
+            {
+              "scene": "justice",
+              "name": "市执法办案管理中心",
+              "count": 0,
+              "unhandled": 0
+            }
+          ]
         },
         {
           "label": "00:00",
@@ -199,7 +715,50 @@
           "handled": 0,
           "unhandled": 0,
           "incidents": 0,
-          "false_positive": 0
+          "open_incidents": 0,
+          "false_positive": 0,
+          "levels": [
+            {
+              "level": 1,
+              "total": 0,
+              "unhandled": 0
+            },
+            {
+              "level": 2,
+              "total": 0,
+              "unhandled": 0
+            },
+            {
+              "level": 3,
+              "total": 0,
+              "unhandled": 0
+            },
+            {
+              "level": 4,
+              "total": 0,
+              "unhandled": 0
+            }
+          ],
+          "scenes": [
+            {
+              "scene": "campus",
+              "name": "示范第一中学",
+              "count": 0,
+              "unhandled": 0
+            },
+            {
+              "scene": "hospital",
+              "name": "市人民医院",
+              "count": 0,
+              "unhandled": 0
+            },
+            {
+              "scene": "justice",
+              "name": "市执法办案管理中心",
+              "count": 0,
+              "unhandled": 0
+            }
+          ]
         },
         {
           "label": "23:00",
@@ -207,7 +766,50 @@
           "handled": 0,
           "unhandled": 0,
           "incidents": 0,
-          "false_positive": 0
+          "open_incidents": 0,
+          "false_positive": 0,
+          "levels": [
+            {
+              "level": 1,
+              "total": 0,
+              "unhandled": 0
+            },
+            {
+              "level": 2,
+              "total": 0,
+              "unhandled": 0
+            },
+            {
+              "level": 3,
+              "total": 0,
+              "unhandled": 0
+            },
+            {
+              "level": 4,
+              "total": 0,
+              "unhandled": 0
+            }
+          ],
+          "scenes": [
+            {
+              "scene": "campus",
+              "name": "示范第一中学",
+              "count": 0,
+              "unhandled": 0
+            },
+            {
+              "scene": "hospital",
+              "name": "市人民医院",
+              "count": 0,
+              "unhandled": 0
+            },
+            {
+              "scene": "justice",
+              "name": "市执法办案管理中心",
+              "count": 0,
+              "unhandled": 0
+            }
+          ]
         },
         {
           "label": "22:00",
@@ -215,7 +817,50 @@
           "handled": 0,
           "unhandled": 0,
           "incidents": 0,
-          "false_positive": 0
+          "open_incidents": 0,
+          "false_positive": 0,
+          "levels": [
+            {
+              "level": 1,
+              "total": 0,
+              "unhandled": 0
+            },
+            {
+              "level": 2,
+              "total": 0,
+              "unhandled": 0
+            },
+            {
+              "level": 3,
+              "total": 0,
+              "unhandled": 0
+            },
+            {
+              "level": 4,
+              "total": 0,
+              "unhandled": 0
+            }
+          ],
+          "scenes": [
+            {
+              "scene": "campus",
+              "name": "示范第一中学",
+              "count": 0,
+              "unhandled": 0
+            },
+            {
+              "scene": "hospital",
+              "name": "市人民医院",
+              "count": 0,
+              "unhandled": 0
+            },
+            {
+              "scene": "justice",
+              "name": "市执法办案管理中心",
+              "count": 0,
+              "unhandled": 0
+            }
+          ]
         },
         {
           "label": "21:00",
@@ -223,7 +868,50 @@
           "handled": 2,
           "unhandled": 0,
           "incidents": 0,
-          "false_positive": 0
+          "open_incidents": 0,
+          "false_positive": 0,
+          "levels": [
+            {
+              "level": 1,
+              "total": 0,
+              "unhandled": 0
+            },
+            {
+              "level": 2,
+              "total": 0,
+              "unhandled": 0
+            },
+            {
+              "level": 3,
+              "total": 2,
+              "unhandled": 0
+            },
+            {
+              "level": 4,
+              "total": 0,
+              "unhandled": 0
+            }
+          ],
+          "scenes": [
+            {
+              "scene": "campus",
+              "name": "示范第一中学",
+              "count": 2,
+              "unhandled": 0
+            },
+            {
+              "scene": "hospital",
+              "name": "市人民医院",
+              "count": 0,
+              "unhandled": 0
+            },
+            {
+              "scene": "justice",
+              "name": "市执法办案管理中心",
+              "count": 0,
+              "unhandled": 0
+            }
+          ]
         },
         {
           "label": "20:00",
@@ -231,7 +919,50 @@
           "handled": 0,
           "unhandled": 0,
           "incidents": 0,
-          "false_positive": 0
+          "open_incidents": 0,
+          "false_positive": 0,
+          "levels": [
+            {
+              "level": 1,
+              "total": 0,
+              "unhandled": 0
+            },
+            {
+              "level": 2,
+              "total": 0,
+              "unhandled": 0
+            },
+            {
+              "level": 3,
+              "total": 1,
+              "unhandled": 0
+            },
+            {
+              "level": 4,
+              "total": 0,
+              "unhandled": 0
+            }
+          ],
+          "scenes": [
+            {
+              "scene": "campus",
+              "name": "示范第一中学",
+              "count": 1,
+              "unhandled": 0
+            },
+            {
+              "scene": "hospital",
+              "name": "市人民医院",
+              "count": 0,
+              "unhandled": 0
+            },
+            {
+              "scene": "justice",
+              "name": "市执法办案管理中心",
+              "count": 0,
+              "unhandled": 0
+            }
+          ]
         },
         {
           "label": "19:00",
@@ -239,7 +970,50 @@
           "handled": 1,
           "unhandled": 0,
           "incidents": 0,
-          "false_positive": 0
+          "open_incidents": 0,
+          "false_positive": 0,
+          "levels": [
+            {
+              "level": 1,
+              "total": 0,
+              "unhandled": 0
+            },
+            {
+              "level": 2,
+              "total": 1,
+              "unhandled": 0
+            },
+            {
+              "level": 3,
+              "total": 0,
+              "unhandled": 0
+            },
+            {
+              "level": 4,
+              "total": 0,
+              "unhandled": 0
+            }
+          ],
+          "scenes": [
+            {
+              "scene": "campus",
+              "name": "示范第一中学",
+              "count": 0,
+              "unhandled": 0
+            },
+            {
+              "scene": "hospital",
+              "name": "市人民医院",
+              "count": 1,
+              "unhandled": 0
+            },
+            {
+              "scene": "justice",
+              "name": "市执法办案管理中心",
+              "count": 0,
+              "unhandled": 0
+            }
+          ]
         },
         {
           "label": "18:00",
@@ -247,7 +1021,50 @@
           "handled": 7,
           "unhandled": 0,
           "incidents": 1,
-          "false_positive": 0
+          "open_incidents": 0,
+          "false_positive": 0,
+          "levels": [
+            {
+              "level": 1,
+              "total": 0,
+              "unhandled": 0
+            },
+            {
+              "level": 2,
+              "total": 6,
+              "unhandled": 0
+            },
+            {
+              "level": 3,
+              "total": 1,
+              "unhandled": 0
+            },
+            {
+              "level": 4,
+              "total": 0,
+              "unhandled": 0
+            }
+          ],
+          "scenes": [
+            {
+              "scene": "campus",
+              "name": "示范第一中学",
+              "count": 6,
+              "unhandled": 0
+            },
+            {
+              "scene": "hospital",
+              "name": "市人民医院",
+              "count": 1,
+              "unhandled": 0
+            },
+            {
+              "scene": "justice",
+              "name": "市执法办案管理中心",
+              "count": 0,
+              "unhandled": 0
+            }
+          ]
         },
         {
           "label": "17:00",
@@ -255,7 +1072,50 @@
           "handled": 2,
           "unhandled": 0,
           "incidents": 0,
-          "false_positive": 0
+          "open_incidents": 0,
+          "false_positive": 0,
+          "levels": [
+            {
+              "level": 1,
+              "total": 0,
+              "unhandled": 0
+            },
+            {
+              "level": 2,
+              "total": 1,
+              "unhandled": 0
+            },
+            {
+              "level": 3,
+              "total": 0,
+              "unhandled": 0
+            },
+            {
+              "level": 4,
+              "total": 1,
+              "unhandled": 0
+            }
+          ],
+          "scenes": [
+            {
+              "scene": "campus",
+              "name": "示范第一中学",
+              "count": 2,
+              "unhandled": 0
+            },
+            {
+              "scene": "hospital",
+              "name": "市人民医院",
+              "count": 0,
+              "unhandled": 0
+            },
+            {
+              "scene": "justice",
+              "name": "市执法办案管理中心",
+              "count": 0,
+              "unhandled": 0
+            }
+          ]
         },
         {
           "label": "16:00",
@@ -263,7 +1123,50 @@
           "handled": 2,
           "unhandled": 0,
           "incidents": 0,
-          "false_positive": 1
+          "open_incidents": 0,
+          "false_positive": 1,
+          "levels": [
+            {
+              "level": 1,
+              "total": 0,
+              "unhandled": 0
+            },
+            {
+              "level": 2,
+              "total": 0,
+              "unhandled": 0
+            },
+            {
+              "level": 3,
+              "total": 1,
+              "unhandled": 0
+            },
+            {
+              "level": 4,
+              "total": 1,
+              "unhandled": 0
+            }
+          ],
+          "scenes": [
+            {
+              "scene": "campus",
+              "name": "示范第一中学",
+              "count": 2,
+              "unhandled": 0
+            },
+            {
+              "scene": "hospital",
+              "name": "市人民医院",
+              "count": 0,
+              "unhandled": 0
+            },
+            {
+              "scene": "justice",
+              "name": "市执法办案管理中心",
+              "count": 0,
+              "unhandled": 0
+            }
+          ]
         },
         {
           "label": "15:00",
@@ -271,7 +1174,50 @@
           "handled": 2,
           "unhandled": 0,
           "incidents": 1,
-          "false_positive": 0
+          "open_incidents": 0,
+          "false_positive": 0,
+          "levels": [
+            {
+              "level": 1,
+              "total": 1,
+              "unhandled": 0
+            },
+            {
+              "level": 2,
+              "total": 0,
+              "unhandled": 0
+            },
+            {
+              "level": 3,
+              "total": 1,
+              "unhandled": 0
+            },
+            {
+              "level": 4,
+              "total": 0,
+              "unhandled": 0
+            }
+          ],
+          "scenes": [
+            {
+              "scene": "campus",
+              "name": "示范第一中学",
+              "count": 1,
+              "unhandled": 0
+            },
+            {
+              "scene": "hospital",
+              "name": "市人民医院",
+              "count": 1,
+              "unhandled": 0
+            },
+            {
+              "scene": "justice",
+              "name": "市执法办案管理中心",
+              "count": 0,
+              "unhandled": 0
+            }
+          ]
         },
         {
           "label": "14:00",
@@ -279,7 +1225,50 @@
           "handled": 1,
           "unhandled": 0,
           "incidents": 0,
-          "false_positive": 0
+          "open_incidents": 0,
+          "false_positive": 0,
+          "levels": [
+            {
+              "level": 1,
+              "total": 0,
+              "unhandled": 0
+            },
+            {
+              "level": 2,
+              "total": 0,
+              "unhandled": 0
+            },
+            {
+              "level": 3,
+              "total": 1,
+              "unhandled": 0
+            },
+            {
+              "level": 4,
+              "total": 0,
+              "unhandled": 0
+            }
+          ],
+          "scenes": [
+            {
+              "scene": "campus",
+              "name": "示范第一中学",
+              "count": 0,
+              "unhandled": 0
+            },
+            {
+              "scene": "hospital",
+              "name": "市人民医院",
+              "count": 0,
+              "unhandled": 0
+            },
+            {
+              "scene": "justice",
+              "name": "市执法办案管理中心",
+              "count": 1,
+              "unhandled": 0
+            }
+          ]
         },
         {
           "label": "13:00",
@@ -287,7 +1276,50 @@
           "handled": 5,
           "unhandled": 0,
           "incidents": 0,
-          "false_positive": 0
+          "open_incidents": 0,
+          "false_positive": 0,
+          "levels": [
+            {
+              "level": 1,
+              "total": 1,
+              "unhandled": 0
+            },
+            {
+              "level": 2,
+              "total": 0,
+              "unhandled": 0
+            },
+            {
+              "level": 3,
+              "total": 3,
+              "unhandled": 0
+            },
+            {
+              "level": 4,
+              "total": 1,
+              "unhandled": 0
+            }
+          ],
+          "scenes": [
+            {
+              "scene": "campus",
+              "name": "示范第一中学",
+              "count": 2,
+              "unhandled": 0
+            },
+            {
+              "scene": "hospital",
+              "name": "市人民医院",
+              "count": 2,
+              "unhandled": 0
+            },
+            {
+              "scene": "justice",
+              "name": "市执法办案管理中心",
+              "count": 1,
+              "unhandled": 0
+            }
+          ]
         }
       ],
       "heatmap": {
@@ -520,7 +1552,72 @@
             "handled": 4,
             "unhandled": 0,
             "incidents": 0,
+            "open_incidents": 0,
             "false_positive": 0,
+            "added_levels": [
+              {
+                "level": 1,
+                "total": 0,
+                "unhandled": 0
+              },
+              {
+                "level": 2,
+                "total": 2,
+                "unhandled": 0
+              },
+              {
+                "level": 3,
+                "total": 1,
+                "unhandled": 0
+              },
+              {
+                "level": 4,
+                "total": 1,
+                "unhandled": 0
+              }
+            ],
+            "levels": [
+              {
+                "level": 1,
+                "total": 14,
+                "unhandled": 4
+              },
+              {
+                "level": 2,
+                "total": 32,
+                "unhandled": 13
+              },
+              {
+                "level": 3,
+                "total": 21,
+                "unhandled": 6
+              },
+              {
+                "level": 4,
+                "total": 5,
+                "unhandled": 2
+              }
+            ],
+            "scenes": [
+              {
+                "scene": "campus",
+                "name": "示范第一中学",
+                "count": 44,
+                "unhandled": 14
+              },
+              {
+                "scene": "hospital",
+                "name": "市人民医院",
+                "count": 18,
+                "unhandled": 6
+              },
+              {
+                "scene": "justice",
+                "name": "市执法办案管理中心",
+                "count": 10,
+                "unhandled": 5
+              }
+            ],
             "heat": {
               "row": 0,
               "hour": 13
@@ -531,7 +1628,7 @@
               "unhandled": 25,
               "false_positive": 1,
               "incidents": 12,
-              "open_incidents": 36,
+              "open_incidents": 3,
               "handled_rate": 54.2,
               "false_positive_rate": 1.4
             }
@@ -542,7 +1639,72 @@
             "handled": 5,
             "unhandled": 0,
             "incidents": 1,
+            "open_incidents": 1,
             "false_positive": 1,
+            "added_levels": [
+              {
+                "level": 1,
+                "total": 1,
+                "unhandled": 0
+              },
+              {
+                "level": 2,
+                "total": 3,
+                "unhandled": 0
+              },
+              {
+                "level": 3,
+                "total": 0,
+                "unhandled": 0
+              },
+              {
+                "level": 4,
+                "total": 1,
+                "unhandled": 0
+              }
+            ],
+            "levels": [
+              {
+                "level": 1,
+                "total": 15,
+                "unhandled": 4
+              },
+              {
+                "level": 2,
+                "total": 35,
+                "unhandled": 13
+              },
+              {
+                "level": 3,
+                "total": 20,
+                "unhandled": 6
+              },
+              {
+                "level": 4,
+                "total": 6,
+                "unhandled": 2
+              }
+            ],
+            "scenes": [
+              {
+                "scene": "campus",
+                "name": "示范第一中学",
+                "count": 46,
+                "unhandled": 14
+              },
+              {
+                "scene": "hospital",
+                "name": "市人民医院",
+                "count": 19,
+                "unhandled": 6
+              },
+              {
+                "scene": "justice",
+                "name": "市执法办案管理中心",
+                "count": 11,
+                "unhandled": 5
+              }
+            ],
             "heat": {
               "row": 0,
               "hour": 14
@@ -553,7 +1715,7 @@
               "unhandled": 25,
               "false_positive": 2,
               "incidents": 13,
-              "open_incidents": 36,
+              "open_incidents": 4,
               "handled_rate": 56.6,
               "false_positive_rate": 2.6
             }
@@ -564,7 +1726,72 @@
             "handled": 1,
             "unhandled": 0,
             "incidents": 0,
+            "open_incidents": 0,
             "false_positive": 0,
+            "added_levels": [
+              {
+                "level": 1,
+                "total": 0,
+                "unhandled": 0
+              },
+              {
+                "level": 2,
+                "total": 0,
+                "unhandled": 0
+              },
+              {
+                "level": 3,
+                "total": 0,
+                "unhandled": 0
+              },
+              {
+                "level": 4,
+                "total": 1,
+                "unhandled": 0
+              }
+            ],
+            "levels": [
+              {
+                "level": 1,
+                "total": 14,
+                "unhandled": 4
+              },
+              {
+                "level": 2,
+                "total": 35,
+                "unhandled": 13
+              },
+              {
+                "level": 3,
+                "total": 19,
+                "unhandled": 6
+              },
+              {
+                "level": 4,
+                "total": 7,
+                "unhandled": 2
+              }
+            ],
+            "scenes": [
+              {
+                "scene": "campus",
+                "name": "示范第一中学",
+                "count": 45,
+                "unhandled": 14
+              },
+              {
+                "scene": "hospital",
+                "name": "市人民医院",
+                "count": 19,
+                "unhandled": 6
+              },
+              {
+                "scene": "justice",
+                "name": "市执法办案管理中心",
+                "count": 11,
+                "unhandled": 5
+              }
+            ],
             "heat": {
               "row": 0,
               "hour": 15
@@ -575,7 +1802,7 @@
               "unhandled": 25,
               "false_positive": 2,
               "incidents": 12,
-              "open_incidents": 36,
+              "open_incidents": 4,
               "handled_rate": 56,
               "false_positive_rate": 2.7
             }
@@ -586,7 +1813,72 @@
             "handled": 1,
             "unhandled": 0,
             "incidents": 0,
+            "open_incidents": 0,
             "false_positive": 0,
+            "added_levels": [
+              {
+                "level": 1,
+                "total": 0,
+                "unhandled": 0
+              },
+              {
+                "level": 2,
+                "total": 1,
+                "unhandled": 0
+              },
+              {
+                "level": 3,
+                "total": 0,
+                "unhandled": 0
+              },
+              {
+                "level": 4,
+                "total": 0,
+                "unhandled": 0
+              }
+            ],
+            "levels": [
+              {
+                "level": 1,
+                "total": 14,
+                "unhandled": 4
+              },
+              {
+                "level": 2,
+                "total": 36,
+                "unhandled": 13
+              },
+              {
+                "level": 3,
+                "total": 18,
+                "unhandled": 6
+              },
+              {
+                "level": 4,
+                "total": 6,
+                "unhandled": 2
+              }
+            ],
+            "scenes": [
+              {
+                "scene": "campus",
+                "name": "示范第一中学",
+                "count": 44,
+                "unhandled": 14
+              },
+              {
+                "scene": "hospital",
+                "name": "市人民医院",
+                "count": 19,
+                "unhandled": 6
+              },
+              {
+                "scene": "justice",
+                "name": "市执法办案管理中心",
+                "count": 11,
+                "unhandled": 5
+              }
+            ],
             "heat": {
               "row": 0,
               "hour": 16
@@ -597,7 +1889,7 @@
               "unhandled": 25,
               "false_positive": 1,
               "incidents": 12,
-              "open_incidents": 36,
+              "open_incidents": 4,
               "handled_rate": 55.4,
               "false_positive_rate": 1.4
             }
@@ -608,7 +1900,72 @@
             "handled": 10,
             "unhandled": 0,
             "incidents": 1,
+            "open_incidents": 1,
             "false_positive": 1,
+            "added_levels": [
+              {
+                "level": 1,
+                "total": 1,
+                "unhandled": 0
+              },
+              {
+                "level": 2,
+                "total": 3,
+                "unhandled": 0
+              },
+              {
+                "level": 3,
+                "total": 4,
+                "unhandled": 0
+              },
+              {
+                "level": 4,
+                "total": 2,
+                "unhandled": 0
+              }
+            ],
+            "levels": [
+              {
+                "level": 1,
+                "total": 15,
+                "unhandled": 4
+              },
+              {
+                "level": 2,
+                "total": 38,
+                "unhandled": 13
+              },
+              {
+                "level": 3,
+                "total": 22,
+                "unhandled": 6
+              },
+              {
+                "level": 4,
+                "total": 7,
+                "unhandled": 2
+              }
+            ],
+            "scenes": [
+              {
+                "scene": "campus",
+                "name": "示范第一中学",
+                "count": 48,
+                "unhandled": 14
+              },
+              {
+                "scene": "hospital",
+                "name": "市人民医院",
+                "count": 23,
+                "unhandled": 6
+              },
+              {
+                "scene": "justice",
+                "name": "市执法办案管理中心",
+                "count": 11,
+                "unhandled": 5
+              }
+            ],
             "heat": {
               "row": 0,
               "hour": 17
@@ -619,7 +1976,7 @@
               "unhandled": 25,
               "false_positive": 2,
               "incidents": 13,
-              "open_incidents": 36,
+              "open_incidents": 5,
               "handled_rate": 59.8,
               "false_positive_rate": 2.4
             }
@@ -630,7 +1987,72 @@
             "handled": 1,
             "unhandled": 0,
             "incidents": 0,
+            "open_incidents": 0,
             "false_positive": 0,
+            "added_levels": [
+              {
+                "level": 1,
+                "total": 0,
+                "unhandled": 0
+              },
+              {
+                "level": 2,
+                "total": 0,
+                "unhandled": 0
+              },
+              {
+                "level": 3,
+                "total": 1,
+                "unhandled": 0
+              },
+              {
+                "level": 4,
+                "total": 0,
+                "unhandled": 0
+              }
+            ],
+            "levels": [
+              {
+                "level": 1,
+                "total": 15,
+                "unhandled": 4
+              },
+              {
+                "level": 2,
+                "total": 32,
+                "unhandled": 13
+              },
+              {
+                "level": 3,
+                "total": 22,
+                "unhandled": 6
+              },
+              {
+                "level": 4,
+                "total": 7,
+                "unhandled": 2
+              }
+            ],
+            "scenes": [
+              {
+                "scene": "campus",
+                "name": "示范第一中学",
+                "count": 43,
+                "unhandled": 14
+              },
+              {
+                "scene": "hospital",
+                "name": "市人民医院",
+                "count": 22,
+                "unhandled": 6
+              },
+              {
+                "scene": "justice",
+                "name": "市执法办案管理中心",
+                "count": 11,
+                "unhandled": 5
+              }
+            ],
             "heat": {
               "row": 0,
               "hour": 18
@@ -641,7 +2063,7 @@
               "unhandled": 25,
               "false_positive": 2,
               "incidents": 12,
-              "open_incidents": 36,
+              "open_incidents": 5,
               "handled_rate": 56.6,
               "false_positive_rate": 2.6
             }
@@ -652,7 +2074,72 @@
             "handled": 1,
             "unhandled": 0,
             "incidents": 0,
+            "open_incidents": 0,
             "false_positive": 1,
+            "added_levels": [
+              {
+                "level": 1,
+                "total": 0,
+                "unhandled": 0
+              },
+              {
+                "level": 2,
+                "total": 0,
+                "unhandled": 0
+              },
+              {
+                "level": 3,
+                "total": 1,
+                "unhandled": 0
+              },
+              {
+                "level": 4,
+                "total": 0,
+                "unhandled": 0
+              }
+            ],
+            "levels": [
+              {
+                "level": 1,
+                "total": 15,
+                "unhandled": 4
+              },
+              {
+                "level": 2,
+                "total": 31,
+                "unhandled": 13
+              },
+              {
+                "level": 3,
+                "total": 23,
+                "unhandled": 6
+              },
+              {
+                "level": 4,
+                "total": 7,
+                "unhandled": 2
+              }
+            ],
+            "scenes": [
+              {
+                "scene": "campus",
+                "name": "示范第一中学",
+                "count": 44,
+                "unhandled": 14
+              },
+              {
+                "scene": "hospital",
+                "name": "市人民医院",
+                "count": 21,
+                "unhandled": 6
+              },
+              {
+                "scene": "justice",
+                "name": "市执法办案管理中心",
+                "count": 11,
+                "unhandled": 5
+              }
+            ],
             "heat": {
               "row": 0,
               "hour": 19
@@ -663,7 +2150,7 @@
               "unhandled": 25,
               "false_positive": 3,
               "incidents": 12,
-              "open_incidents": 36,
+              "open_incidents": 5,
               "handled_rate": 56.6,
               "false_positive_rate": 3.9
             }
@@ -674,7 +2161,72 @@
             "handled": 4,
             "unhandled": 0,
             "incidents": 0,
+            "open_incidents": 0,
             "false_positive": 1,
+            "added_levels": [
+              {
+                "level": 1,
+                "total": 1,
+                "unhandled": 0
+              },
+              {
+                "level": 2,
+                "total": 1,
+                "unhandled": 0
+              },
+              {
+                "level": 3,
+                "total": 2,
+                "unhandled": 0
+              },
+              {
+                "level": 4,
+                "total": 0,
+                "unhandled": 0
+              }
+            ],
+            "levels": [
+              {
+                "level": 1,
+                "total": 16,
+                "unhandled": 4
+              },
+              {
+                "level": 2,
+                "total": 32,
+                "unhandled": 13
+              },
+              {
+                "level": 3,
+                "total": 24,
+                "unhandled": 6
+              },
+              {
+                "level": 4,
+                "total": 7,
+                "unhandled": 2
+              }
+            ],
+            "scenes": [
+              {
+                "scene": "campus",
+                "name": "示范第一中学",
+                "count": 45,
+                "unhandled": 14
+              },
+              {
+                "scene": "hospital",
+                "name": "市人民医院",
+                "count": 21,
+                "unhandled": 6
+              },
+              {
+                "scene": "justice",
+                "name": "市执法办案管理中心",
+                "count": 13,
+                "unhandled": 5
+              }
+            ],
             "heat": {
               "row": 0,
               "hour": 20
@@ -685,7 +2237,7 @@
               "unhandled": 25,
               "false_positive": 4,
               "incidents": 12,
-              "open_incidents": 36,
+              "open_incidents": 5,
               "handled_rate": 59.5,
               "false_positive_rate": 5.1
             }
@@ -730,7 +2282,7 @@
         "unhandled": 25,
         "false_positive": 0,
         "incidents": 10,
-        "open_incidents": 36,
+        "open_incidents": 3,
         "handled_rate": 36,
         "false_positive_rate": 0
       },
@@ -787,7 +2339,50 @@
           "handled": 2,
           "unhandled": 2,
           "incidents": 2,
-          "false_positive": 0
+          "open_incidents": 0,
+          "false_positive": 0,
+          "levels": [
+            {
+              "level": 1,
+              "total": 1,
+              "unhandled": 0
+            },
+            {
+              "level": 2,
+              "total": 2,
+              "unhandled": 0
+            },
+            {
+              "level": 3,
+              "total": 2,
+              "unhandled": 2
+            },
+            {
+              "level": 4,
+              "total": 0,
+              "unhandled": 0
+            }
+          ],
+          "scenes": [
+            {
+              "scene": "campus",
+              "name": "示范第一中学",
+              "count": 2,
+              "unhandled": 0
+            },
+            {
+              "scene": "hospital",
+              "name": "市人民医院",
+              "count": 2,
+              "unhandled": 2
+            },
+            {
+              "scene": "justice",
+              "name": "市执法办案管理中心",
+              "count": 1,
+              "unhandled": 0
+            }
+          ]
         },
         {
           "label": "11:00",
@@ -795,7 +2390,50 @@
           "handled": 3,
           "unhandled": 7,
           "incidents": 2,
-          "false_positive": 0
+          "open_incidents": 1,
+          "false_positive": 0,
+          "levels": [
+            {
+              "level": 1,
+              "total": 4,
+              "unhandled": 2
+            },
+            {
+              "level": 2,
+              "total": 4,
+              "unhandled": 2
+            },
+            {
+              "level": 3,
+              "total": 1,
+              "unhandled": 1
+            },
+            {
+              "level": 4,
+              "total": 2,
+              "unhandled": 2
+            }
+          ],
+          "scenes": [
+            {
+              "scene": "campus",
+              "name": "示范第一中学",
+              "count": 5,
+              "unhandled": 1
+            },
+            {
+              "scene": "hospital",
+              "name": "市人民医院",
+              "count": 2,
+              "unhandled": 2
+            },
+            {
+              "scene": "justice",
+              "name": "市执法办案管理中心",
+              "count": 4,
+              "unhandled": 4
+            }
+          ]
         },
         {
           "label": "10:00",
@@ -803,7 +2441,50 @@
           "handled": 7,
           "unhandled": 0,
           "incidents": 1,
-          "false_positive": 0
+          "open_incidents": 0,
+          "false_positive": 0,
+          "levels": [
+            {
+              "level": 1,
+              "total": 4,
+              "unhandled": 0
+            },
+            {
+              "level": 2,
+              "total": 2,
+              "unhandled": 0
+            },
+            {
+              "level": 3,
+              "total": 3,
+              "unhandled": 0
+            },
+            {
+              "level": 4,
+              "total": 0,
+              "unhandled": 0
+            }
+          ],
+          "scenes": [
+            {
+              "scene": "campus",
+              "name": "示范第一中学",
+              "count": 4,
+              "unhandled": 0
+            },
+            {
+              "scene": "hospital",
+              "name": "市人民医院",
+              "count": 5,
+              "unhandled": 0
+            },
+            {
+              "scene": "justice",
+              "name": "市执法办案管理中心",
+              "count": 0,
+              "unhandled": 0
+            }
+          ]
         },
         {
           "label": "09:00",
@@ -811,7 +2492,50 @@
           "handled": 1,
           "unhandled": 2,
           "incidents": 1,
-          "false_positive": 0
+          "open_incidents": 0,
+          "false_positive": 0,
+          "levels": [
+            {
+              "level": 1,
+              "total": 0,
+              "unhandled": 0
+            },
+            {
+              "level": 2,
+              "total": 2,
+              "unhandled": 1
+            },
+            {
+              "level": 3,
+              "total": 1,
+              "unhandled": 1
+            },
+            {
+              "level": 4,
+              "total": 0,
+              "unhandled": 0
+            }
+          ],
+          "scenes": [
+            {
+              "scene": "campus",
+              "name": "示范第一中学",
+              "count": 2,
+              "unhandled": 2
+            },
+            {
+              "scene": "hospital",
+              "name": "市人民医院",
+              "count": 1,
+              "unhandled": 0
+            },
+            {
+              "scene": "justice",
+              "name": "市执法办案管理中心",
+              "count": 0,
+              "unhandled": 0
+            }
+          ]
         },
         {
           "label": "08:00",
@@ -819,7 +2543,50 @@
           "handled": 0,
           "unhandled": 10,
           "incidents": 2,
-          "false_positive": 0
+          "open_incidents": 2,
+          "false_positive": 0,
+          "levels": [
+            {
+              "level": 1,
+              "total": 0,
+              "unhandled": 0
+            },
+            {
+              "level": 2,
+              "total": 10,
+              "unhandled": 10
+            },
+            {
+              "level": 3,
+              "total": 1,
+              "unhandled": 0
+            },
+            {
+              "level": 4,
+              "total": 0,
+              "unhandled": 0
+            }
+          ],
+          "scenes": [
+            {
+              "scene": "campus",
+              "name": "示范第一中学",
+              "count": 10,
+              "unhandled": 9
+            },
+            {
+              "scene": "hospital",
+              "name": "市人民医院",
+              "count": 1,
+              "unhandled": 1
+            },
+            {
+              "scene": "justice",
+              "name": "市执法办案管理中心",
+              "count": 0,
+              "unhandled": 0
+            }
+          ]
         },
         {
           "label": "07:00",
@@ -827,7 +2594,50 @@
           "handled": 0,
           "unhandled": 0,
           "incidents": 0,
-          "false_positive": 0
+          "open_incidents": 0,
+          "false_positive": 0,
+          "levels": [
+            {
+              "level": 1,
+              "total": 0,
+              "unhandled": 0
+            },
+            {
+              "level": 2,
+              "total": 0,
+              "unhandled": 0
+            },
+            {
+              "level": 3,
+              "total": 0,
+              "unhandled": 0
+            },
+            {
+              "level": 4,
+              "total": 0,
+              "unhandled": 0
+            }
+          ],
+          "scenes": [
+            {
+              "scene": "campus",
+              "name": "示范第一中学",
+              "count": 0,
+              "unhandled": 0
+            },
+            {
+              "scene": "hospital",
+              "name": "市人民医院",
+              "count": 0,
+              "unhandled": 0
+            },
+            {
+              "scene": "justice",
+              "name": "市执法办案管理中心",
+              "count": 0,
+              "unhandled": 0
+            }
+          ]
         },
         {
           "label": "06:00",
@@ -835,7 +2645,50 @@
           "handled": 0,
           "unhandled": 1,
           "incidents": 0,
-          "false_positive": 0
+          "open_incidents": 0,
+          "false_positive": 0,
+          "levels": [
+            {
+              "level": 1,
+              "total": 0,
+              "unhandled": 0
+            },
+            {
+              "level": 2,
+              "total": 0,
+              "unhandled": 0
+            },
+            {
+              "level": 3,
+              "total": 2,
+              "unhandled": 1
+            },
+            {
+              "level": 4,
+              "total": 0,
+              "unhandled": 0
+            }
+          ],
+          "scenes": [
+            {
+              "scene": "campus",
+              "name": "示范第一中学",
+              "count": 1,
+              "unhandled": 0
+            },
+            {
+              "scene": "hospital",
+              "name": "市人民医院",
+              "count": 0,
+              "unhandled": 0
+            },
+            {
+              "scene": "justice",
+              "name": "市执法办案管理中心",
+              "count": 1,
+              "unhandled": 1
+            }
+          ]
         },
         {
           "label": "05:00",
@@ -843,7 +2696,50 @@
           "handled": 3,
           "unhandled": 0,
           "incidents": 2,
-          "false_positive": 0
+          "open_incidents": 0,
+          "false_positive": 0,
+          "levels": [
+            {
+              "level": 1,
+              "total": 1,
+              "unhandled": 0
+            },
+            {
+              "level": 2,
+              "total": 2,
+              "unhandled": 0
+            },
+            {
+              "level": 3,
+              "total": 0,
+              "unhandled": 0
+            },
+            {
+              "level": 4,
+              "total": 0,
+              "unhandled": 0
+            }
+          ],
+          "scenes": [
+            {
+              "scene": "campus",
+              "name": "示范第一中学",
+              "count": 0,
+              "unhandled": 0
+            },
+            {
+              "scene": "hospital",
+              "name": "市人民医院",
+              "count": 2,
+              "unhandled": 0
+            },
+            {
+              "scene": "justice",
+              "name": "市执法办案管理中心",
+              "count": 1,
+              "unhandled": 0
+            }
+          ]
         },
         {
           "label": "04:00",
@@ -851,7 +2747,50 @@
           "handled": 0,
           "unhandled": 0,
           "incidents": 0,
-          "false_positive": 0
+          "open_incidents": 0,
+          "false_positive": 0,
+          "levels": [
+            {
+              "level": 1,
+              "total": 0,
+              "unhandled": 0
+            },
+            {
+              "level": 2,
+              "total": 0,
+              "unhandled": 0
+            },
+            {
+              "level": 3,
+              "total": 0,
+              "unhandled": 0
+            },
+            {
+              "level": 4,
+              "total": 0,
+              "unhandled": 0
+            }
+          ],
+          "scenes": [
+            {
+              "scene": "campus",
+              "name": "示范第一中学",
+              "count": 0,
+              "unhandled": 0
+            },
+            {
+              "scene": "hospital",
+              "name": "市人民医院",
+              "count": 0,
+              "unhandled": 0
+            },
+            {
+              "scene": "justice",
+              "name": "市执法办案管理中心",
+              "count": 0,
+              "unhandled": 0
+            }
+          ]
         },
         {
           "label": "03:00",
@@ -859,7 +2798,50 @@
           "handled": 0,
           "unhandled": 0,
           "incidents": 0,
-          "false_positive": 0
+          "open_incidents": 0,
+          "false_positive": 0,
+          "levels": [
+            {
+              "level": 1,
+              "total": 0,
+              "unhandled": 0
+            },
+            {
+              "level": 2,
+              "total": 0,
+              "unhandled": 0
+            },
+            {
+              "level": 3,
+              "total": 0,
+              "unhandled": 0
+            },
+            {
+              "level": 4,
+              "total": 0,
+              "unhandled": 0
+            }
+          ],
+          "scenes": [
+            {
+              "scene": "campus",
+              "name": "示范第一中学",
+              "count": 0,
+              "unhandled": 0
+            },
+            {
+              "scene": "hospital",
+              "name": "市人民医院",
+              "count": 0,
+              "unhandled": 0
+            },
+            {
+              "scene": "justice",
+              "name": "市执法办案管理中心",
+              "count": 0,
+              "unhandled": 0
+            }
+          ]
         },
         {
           "label": "02:00",
@@ -867,7 +2849,50 @@
           "handled": 0,
           "unhandled": 2,
           "incidents": 0,
-          "false_positive": 0
+          "open_incidents": 0,
+          "false_positive": 0,
+          "levels": [
+            {
+              "level": 1,
+              "total": 1,
+              "unhandled": 1
+            },
+            {
+              "level": 2,
+              "total": 0,
+              "unhandled": 0
+            },
+            {
+              "level": 3,
+              "total": 2,
+              "unhandled": 1
+            },
+            {
+              "level": 4,
+              "total": 0,
+              "unhandled": 0
+            }
+          ],
+          "scenes": [
+            {
+              "scene": "campus",
+              "name": "示范第一中学",
+              "count": 1,
+              "unhandled": 1
+            },
+            {
+              "scene": "hospital",
+              "name": "市人民医院",
+              "count": 1,
+              "unhandled": 1
+            },
+            {
+              "scene": "justice",
+              "name": "市执法办案管理中心",
+              "count": 1,
+              "unhandled": 0
+            }
+          ]
         },
         {
           "label": "01:00",
@@ -875,7 +2900,50 @@
           "handled": 2,
           "unhandled": 1,
           "incidents": 0,
-          "false_positive": 0
+          "open_incidents": 0,
+          "false_positive": 0,
+          "levels": [
+            {
+              "level": 1,
+              "total": 2,
+              "unhandled": 1
+            },
+            {
+              "level": 2,
+              "total": 0,
+              "unhandled": 0
+            },
+            {
+              "level": 3,
+              "total": 1,
+              "unhandled": 0
+            },
+            {
+              "level": 4,
+              "total": 0,
+              "unhandled": 0
+            }
+          ],
+          "scenes": [
+            {
+              "scene": "campus",
+              "name": "示范第一中学",
+              "count": 2,
+              "unhandled": 1
+            },
+            {
+              "scene": "hospital",
+              "name": "市人民医院",
+              "count": 1,
+              "unhandled": 0
+            },
+            {
+              "scene": "justice",
+              "name": "市执法办案管理中心",
+              "count": 0,
+              "unhandled": 0
+            }
+          ]
         }
       ],
       "heatmap": {
@@ -1108,7 +3176,72 @@
             "handled": 5,
             "unhandled": 0,
             "incidents": 0,
+            "open_incidents": 0,
             "false_positive": 0,
+            "added_levels": [
+              {
+                "level": 1,
+                "total": 0,
+                "unhandled": 0
+              },
+              {
+                "level": 2,
+                "total": 1,
+                "unhandled": 0
+              },
+              {
+                "level": 3,
+                "total": 4,
+                "unhandled": 0
+              },
+              {
+                "level": 4,
+                "total": 0,
+                "unhandled": 0
+              }
+            ],
+            "levels": [
+              {
+                "level": 1,
+                "total": 11,
+                "unhandled": 3
+              },
+              {
+                "level": 2,
+                "total": 23,
+                "unhandled": 13
+              },
+              {
+                "level": 3,
+                "total": 16,
+                "unhandled": 6
+              },
+              {
+                "level": 4,
+                "total": 2,
+                "unhandled": 2
+              }
+            ],
+            "scenes": [
+              {
+                "scene": "campus",
+                "name": "示范第一中学",
+                "count": 27,
+                "unhandled": 13
+              },
+              {
+                "scene": "hospital",
+                "name": "市人民医院",
+                "count": 17,
+                "unhandled": 6
+              },
+              {
+                "scene": "justice",
+                "name": "市执法办案管理中心",
+                "count": 8,
+                "unhandled": 5
+              }
+            ],
             "heat": {
               "row": 0,
               "hour": 13
@@ -1119,7 +3252,7 @@
               "unhandled": 24,
               "false_positive": 0,
               "incidents": 10,
-              "open_incidents": 36,
+              "open_incidents": 3,
               "handled_rate": 40.4,
               "false_positive_rate": 0
             }
@@ -1130,7 +3263,72 @@
             "handled": 5,
             "unhandled": 0,
             "incidents": 1,
+            "open_incidents": 1,
             "false_positive": 1,
+            "added_levels": [
+              {
+                "level": 1,
+                "total": 1,
+                "unhandled": 0
+              },
+              {
+                "level": 2,
+                "total": 3,
+                "unhandled": 0
+              },
+              {
+                "level": 3,
+                "total": 0,
+                "unhandled": 0
+              },
+              {
+                "level": 4,
+                "total": 1,
+                "unhandled": 0
+              }
+            ],
+            "levels": [
+              {
+                "level": 1,
+                "total": 11,
+                "unhandled": 2
+              },
+              {
+                "level": 2,
+                "total": 26,
+                "unhandled": 13
+              },
+              {
+                "level": 3,
+                "total": 14,
+                "unhandled": 5
+              },
+              {
+                "level": 4,
+                "total": 3,
+                "unhandled": 2
+              }
+            ],
+            "scenes": [
+              {
+                "scene": "campus",
+                "name": "示范第一中学",
+                "count": 28,
+                "unhandled": 12
+              },
+              {
+                "scene": "hospital",
+                "name": "市人民医院",
+                "count": 17,
+                "unhandled": 5
+              },
+              {
+                "scene": "justice",
+                "name": "市执法办案管理中心",
+                "count": 9,
+                "unhandled": 5
+              }
+            ],
             "heat": {
               "row": 0,
               "hour": 14
@@ -1141,7 +3339,7 @@
               "unhandled": 22,
               "false_positive": 1,
               "incidents": 11,
-              "open_incidents": 36,
+              "open_incidents": 4,
               "handled_rate": 48.1,
               "false_positive_rate": 1.9
             }
@@ -1152,7 +3350,72 @@
             "handled": 1,
             "unhandled": 0,
             "incidents": 0,
+            "open_incidents": 0,
             "false_positive": 0,
+            "added_levels": [
+              {
+                "level": 1,
+                "total": 0,
+                "unhandled": 0
+              },
+              {
+                "level": 2,
+                "total": 0,
+                "unhandled": 0
+              },
+              {
+                "level": 3,
+                "total": 0,
+                "unhandled": 0
+              },
+              {
+                "level": 4,
+                "total": 1,
+                "unhandled": 0
+              }
+            ],
+            "levels": [
+              {
+                "level": 1,
+                "total": 11,
+                "unhandled": 2
+              },
+              {
+                "level": 2,
+                "total": 26,
+                "unhandled": 13
+              },
+              {
+                "level": 3,
+                "total": 14,
+                "unhandled": 5
+              },
+              {
+                "level": 4,
+                "total": 4,
+                "unhandled": 2
+              }
+            ],
+            "scenes": [
+              {
+                "scene": "campus",
+                "name": "示范第一中学",
+                "count": 28,
+                "unhandled": 12
+              },
+              {
+                "scene": "hospital",
+                "name": "市人民医院",
+                "count": 18,
+                "unhandled": 5
+              },
+              {
+                "scene": "justice",
+                "name": "市执法办案管理中心",
+                "count": 9,
+                "unhandled": 5
+              }
+            ],
             "heat": {
               "row": 0,
               "hour": 15
@@ -1163,7 +3426,7 @@
               "unhandled": 22,
               "false_positive": 1,
               "incidents": 11,
-              "open_incidents": 36,
+              "open_incidents": 4,
               "handled_rate": 49.1,
               "false_positive_rate": 1.8
             }
@@ -1174,7 +3437,72 @@
             "handled": 1,
             "unhandled": 0,
             "incidents": 0,
+            "open_incidents": 0,
             "false_positive": 0,
+            "added_levels": [
+              {
+                "level": 1,
+                "total": 0,
+                "unhandled": 0
+              },
+              {
+                "level": 2,
+                "total": 1,
+                "unhandled": 0
+              },
+              {
+                "level": 3,
+                "total": 0,
+                "unhandled": 0
+              },
+              {
+                "level": 4,
+                "total": 0,
+                "unhandled": 0
+              }
+            ],
+            "levels": [
+              {
+                "level": 1,
+                "total": 11,
+                "unhandled": 2
+              },
+              {
+                "level": 2,
+                "total": 27,
+                "unhandled": 13
+              },
+              {
+                "level": 3,
+                "total": 14,
+                "unhandled": 5
+              },
+              {
+                "level": 4,
+                "total": 4,
+                "unhandled": 2
+              }
+            ],
+            "scenes": [
+              {
+                "scene": "campus",
+                "name": "示范第一中学",
+                "count": 29,
+                "unhandled": 12
+              },
+              {
+                "scene": "hospital",
+                "name": "市人民医院",
+                "count": 18,
+                "unhandled": 5
+              },
+              {
+                "scene": "justice",
+                "name": "市执法办案管理中心",
+                "count": 9,
+                "unhandled": 5
+              }
+            ],
             "heat": {
               "row": 0,
               "hour": 16
@@ -1185,7 +3513,7 @@
               "unhandled": 22,
               "false_positive": 1,
               "incidents": 11,
-              "open_incidents": 36,
+              "open_incidents": 4,
               "handled_rate": 50,
               "false_positive_rate": 1.8
             }
@@ -1196,7 +3524,72 @@
             "handled": 10,
             "unhandled": 0,
             "incidents": 1,
+            "open_incidents": 1,
             "false_positive": 1,
+            "added_levels": [
+              {
+                "level": 1,
+                "total": 1,
+                "unhandled": 0
+              },
+              {
+                "level": 2,
+                "total": 3,
+                "unhandled": 0
+              },
+              {
+                "level": 3,
+                "total": 4,
+                "unhandled": 0
+              },
+              {
+                "level": 4,
+                "total": 2,
+                "unhandled": 0
+              }
+            ],
+            "levels": [
+              {
+                "level": 1,
+                "total": 11,
+                "unhandled": 2
+              },
+              {
+                "level": 2,
+                "total": 28,
+                "unhandled": 13
+              },
+              {
+                "level": 3,
+                "total": 18,
+                "unhandled": 5
+              },
+              {
+                "level": 4,
+                "total": 6,
+                "unhandled": 2
+              }
+            ],
+            "scenes": [
+              {
+                "scene": "campus",
+                "name": "示范第一中学",
+                "count": 35,
+                "unhandled": 12
+              },
+              {
+                "scene": "hospital",
+                "name": "市人民医院",
+                "count": 20,
+                "unhandled": 5
+              },
+              {
+                "scene": "justice",
+                "name": "市执法办案管理中心",
+                "count": 8,
+                "unhandled": 5
+              }
+            ],
             "heat": {
               "row": 0,
               "hour": 17
@@ -1207,7 +3600,7 @@
               "unhandled": 22,
               "false_positive": 2,
               "incidents": 10,
-              "open_incidents": 36,
+              "open_incidents": 5,
               "handled_rate": 55.6,
               "false_positive_rate": 3.2
             }
@@ -1218,7 +3611,72 @@
             "handled": 1,
             "unhandled": 0,
             "incidents": 0,
+            "open_incidents": 0,
             "false_positive": 0,
+            "added_levels": [
+              {
+                "level": 1,
+                "total": 0,
+                "unhandled": 0
+              },
+              {
+                "level": 2,
+                "total": 0,
+                "unhandled": 0
+              },
+              {
+                "level": 3,
+                "total": 1,
+                "unhandled": 0
+              },
+              {
+                "level": 4,
+                "total": 0,
+                "unhandled": 0
+              }
+            ],
+            "levels": [
+              {
+                "level": 1,
+                "total": 11,
+                "unhandled": 2
+              },
+              {
+                "level": 2,
+                "total": 28,
+                "unhandled": 13
+              },
+              {
+                "level": 3,
+                "total": 17,
+                "unhandled": 4
+              },
+              {
+                "level": 4,
+                "total": 6,
+                "unhandled": 2
+              }
+            ],
+            "scenes": [
+              {
+                "scene": "campus",
+                "name": "示范第一中学",
+                "count": 35,
+                "unhandled": 12
+              },
+              {
+                "scene": "hospital",
+                "name": "市人民医院",
+                "count": 20,
+                "unhandled": 5
+              },
+              {
+                "scene": "justice",
+                "name": "市执法办案管理中心",
+                "count": 7,
+                "unhandled": 4
+              }
+            ],
             "heat": {
               "row": 0,
               "hour": 18
@@ -1229,7 +3687,7 @@
               "unhandled": 21,
               "false_positive": 2,
               "incidents": 10,
-              "open_incidents": 36,
+              "open_incidents": 5,
               "handled_rate": 58.1,
               "false_positive_rate": 3.2
             }
@@ -1240,7 +3698,72 @@
             "handled": 1,
             "unhandled": 0,
             "incidents": 0,
+            "open_incidents": 0,
             "false_positive": 1,
+            "added_levels": [
+              {
+                "level": 1,
+                "total": 0,
+                "unhandled": 0
+              },
+              {
+                "level": 2,
+                "total": 0,
+                "unhandled": 0
+              },
+              {
+                "level": 3,
+                "total": 1,
+                "unhandled": 0
+              },
+              {
+                "level": 4,
+                "total": 0,
+                "unhandled": 0
+              }
+            ],
+            "levels": [
+              {
+                "level": 1,
+                "total": 11,
+                "unhandled": 2
+              },
+              {
+                "level": 2,
+                "total": 28,
+                "unhandled": 13
+              },
+              {
+                "level": 3,
+                "total": 18,
+                "unhandled": 4
+              },
+              {
+                "level": 4,
+                "total": 6,
+                "unhandled": 2
+              }
+            ],
+            "scenes": [
+              {
+                "scene": "campus",
+                "name": "示范第一中学",
+                "count": 36,
+                "unhandled": 12
+              },
+              {
+                "scene": "hospital",
+                "name": "市人民医院",
+                "count": 20,
+                "unhandled": 5
+              },
+              {
+                "scene": "justice",
+                "name": "市执法办案管理中心",
+                "count": 7,
+                "unhandled": 4
+              }
+            ],
             "heat": {
               "row": 0,
               "hour": 19
@@ -1251,7 +3774,7 @@
               "unhandled": 21,
               "false_positive": 3,
               "incidents": 10,
-              "open_incidents": 36,
+              "open_incidents": 5,
               "handled_rate": 58.7,
               "false_positive_rate": 4.8
             }
@@ -1262,7 +3785,72 @@
             "handled": 4,
             "unhandled": 0,
             "incidents": 0,
+            "open_incidents": 0,
             "false_positive": 1,
+            "added_levels": [
+              {
+                "level": 1,
+                "total": 1,
+                "unhandled": 0
+              },
+              {
+                "level": 2,
+                "total": 1,
+                "unhandled": 0
+              },
+              {
+                "level": 3,
+                "total": 2,
+                "unhandled": 0
+              },
+              {
+                "level": 4,
+                "total": 0,
+                "unhandled": 0
+              }
+            ],
+            "levels": [
+              {
+                "level": 1,
+                "total": 12,
+                "unhandled": 2
+              },
+              {
+                "level": 2,
+                "total": 19,
+                "unhandled": 3
+              },
+              {
+                "level": 3,
+                "total": 19,
+                "unhandled": 4
+              },
+              {
+                "level": 4,
+                "total": 6,
+                "unhandled": 2
+              }
+            ],
+            "scenes": [
+              {
+                "scene": "campus",
+                "name": "示范第一中学",
+                "count": 28,
+                "unhandled": 3
+              },
+              {
+                "scene": "hospital",
+                "name": "市人民医院",
+                "count": 19,
+                "unhandled": 4
+              },
+              {
+                "scene": "justice",
+                "name": "市执法办案管理中心",
+                "count": 9,
+                "unhandled": 4
+              }
+            ],
             "heat": {
               "row": 0,
               "hour": 20
@@ -1273,7 +3861,7 @@
               "unhandled": 11,
               "false_positive": 4,
               "incidents": 8,
-              "open_incidents": 36,
+              "open_incidents": 3,
               "handled_rate": 73.2,
               "false_positive_rate": 7.1
             }
@@ -1318,7 +3906,7 @@
         "unhandled": 30,
         "false_positive": 29,
         "incidents": 22,
-        "open_incidents": 36,
+        "open_incidents": 8,
         "handled_rate": 86.3,
         "false_positive_rate": 5.5
       },
@@ -1375,7 +3963,50 @@
           "handled": 18,
           "unhandled": 25,
           "incidents": 10,
-          "false_positive": 0
+          "open_incidents": 3,
+          "false_positive": 0,
+          "levels": [
+            {
+              "level": 1,
+              "total": 13,
+              "unhandled": 4
+            },
+            {
+              "level": 2,
+              "total": 22,
+              "unhandled": 13
+            },
+            {
+              "level": 3,
+              "total": 13,
+              "unhandled": 6
+            },
+            {
+              "level": 4,
+              "total": 2,
+              "unhandled": 2
+            }
+          ],
+          "scenes": [
+            {
+              "scene": "campus",
+              "name": "示范第一中学",
+              "count": 27,
+              "unhandled": 14
+            },
+            {
+              "scene": "hospital",
+              "name": "市人民医院",
+              "count": 15,
+              "unhandled": 6
+            },
+            {
+              "scene": "justice",
+              "name": "市执法办案管理中心",
+              "count": 8,
+              "unhandled": 5
+            }
+          ]
         },
         {
           "label": "10/18",
@@ -1383,7 +4014,50 @@
           "handled": 32,
           "unhandled": 0,
           "incidents": 2,
-          "false_positive": 1
+          "open_incidents": 0,
+          "false_positive": 1,
+          "levels": [
+            {
+              "level": 1,
+              "total": 2,
+              "unhandled": 0
+            },
+            {
+              "level": 2,
+              "total": 12,
+              "unhandled": 0
+            },
+            {
+              "level": 3,
+              "total": 15,
+              "unhandled": 0
+            },
+            {
+              "level": 4,
+              "total": 4,
+              "unhandled": 0
+            }
+          ],
+          "scenes": [
+            {
+              "scene": "campus",
+              "name": "示范第一中学",
+              "count": 23,
+              "unhandled": 0
+            },
+            {
+              "scene": "hospital",
+              "name": "市人民医院",
+              "count": 7,
+              "unhandled": 0
+            },
+            {
+              "scene": "justice",
+              "name": "市执法办案管理中心",
+              "count": 3,
+              "unhandled": 0
+            }
+          ]
         },
         {
           "label": "10/17",
@@ -1391,7 +4065,50 @@
           "handled": 33,
           "unhandled": 1,
           "incidents": 2,
-          "false_positive": 0
+          "open_incidents": 1,
+          "false_positive": 0,
+          "levels": [
+            {
+              "level": 1,
+              "total": 5,
+              "unhandled": 0
+            },
+            {
+              "level": 2,
+              "total": 14,
+              "unhandled": 1
+            },
+            {
+              "level": 3,
+              "total": 15,
+              "unhandled": 0
+            },
+            {
+              "level": 4,
+              "total": 3,
+              "unhandled": 0
+            }
+          ],
+          "scenes": [
+            {
+              "scene": "campus",
+              "name": "示范第一中学",
+              "count": 18,
+              "unhandled": 1
+            },
+            {
+              "scene": "hospital",
+              "name": "市人民医院",
+              "count": 15,
+              "unhandled": 0
+            },
+            {
+              "scene": "justice",
+              "name": "市执法办案管理中心",
+              "count": 4,
+              "unhandled": 0
+            }
+          ]
         },
         {
           "label": "10/16",
@@ -1399,7 +4116,50 @@
           "handled": 64,
           "unhandled": 0,
           "incidents": 1,
-          "false_positive": 9
+          "open_incidents": 0,
+          "false_positive": 9,
+          "levels": [
+            {
+              "level": 1,
+              "total": 8,
+              "unhandled": 0
+            },
+            {
+              "level": 2,
+              "total": 25,
+              "unhandled": 0
+            },
+            {
+              "level": 3,
+              "total": 29,
+              "unhandled": 0
+            },
+            {
+              "level": 4,
+              "total": 7,
+              "unhandled": 0
+            }
+          ],
+          "scenes": [
+            {
+              "scene": "campus",
+              "name": "示范第一中学",
+              "count": 39,
+              "unhandled": 0
+            },
+            {
+              "scene": "hospital",
+              "name": "市人民医院",
+              "count": 20,
+              "unhandled": 0
+            },
+            {
+              "scene": "justice",
+              "name": "市执法办案管理中心",
+              "count": 10,
+              "unhandled": 0
+            }
+          ]
         },
         {
           "label": "10/15",
@@ -1407,7 +4167,50 @@
           "handled": 115,
           "unhandled": 2,
           "incidents": 3,
-          "false_positive": 9
+          "open_incidents": 2,
+          "false_positive": 9,
+          "levels": [
+            {
+              "level": 1,
+              "total": 17,
+              "unhandled": 0
+            },
+            {
+              "level": 2,
+              "total": 38,
+              "unhandled": 2
+            },
+            {
+              "level": 3,
+              "total": 58,
+              "unhandled": 0
+            },
+            {
+              "level": 4,
+              "total": 14,
+              "unhandled": 0
+            }
+          ],
+          "scenes": [
+            {
+              "scene": "campus",
+              "name": "示范第一中学",
+              "count": 66,
+              "unhandled": 0
+            },
+            {
+              "scene": "hospital",
+              "name": "市人民医院",
+              "count": 51,
+              "unhandled": 1
+            },
+            {
+              "scene": "justice",
+              "name": "市执法办案管理中心",
+              "count": 10,
+              "unhandled": 1
+            }
+          ]
         },
         {
           "label": "10/14",
@@ -1415,7 +4218,50 @@
           "handled": 108,
           "unhandled": 0,
           "incidents": 1,
-          "false_positive": 5
+          "open_incidents": 0,
+          "false_positive": 5,
+          "levels": [
+            {
+              "level": 1,
+              "total": 16,
+              "unhandled": 0
+            },
+            {
+              "level": 2,
+              "total": 43,
+              "unhandled": 0
+            },
+            {
+              "level": 3,
+              "total": 48,
+              "unhandled": 0
+            },
+            {
+              "level": 4,
+              "total": 10,
+              "unhandled": 0
+            }
+          ],
+          "scenes": [
+            {
+              "scene": "campus",
+              "name": "示范第一中学",
+              "count": 58,
+              "unhandled": 0
+            },
+            {
+              "scene": "hospital",
+              "name": "市人民医院",
+              "count": 45,
+              "unhandled": 0
+            },
+            {
+              "scene": "justice",
+              "name": "市执法办案管理中心",
+              "count": 14,
+              "unhandled": 0
+            }
+          ]
         },
         {
           "label": "10/13",
@@ -1423,7 +4269,50 @@
           "handled": 89,
           "unhandled": 2,
           "incidents": 3,
-          "false_positive": 5
+          "open_incidents": 2,
+          "false_positive": 5,
+          "levels": [
+            {
+              "level": 1,
+              "total": 10,
+              "unhandled": 1
+            },
+            {
+              "level": 2,
+              "total": 38,
+              "unhandled": 1
+            },
+            {
+              "level": 3,
+              "total": 46,
+              "unhandled": 0
+            },
+            {
+              "level": 4,
+              "total": 5,
+              "unhandled": 0
+            }
+          ],
+          "scenes": [
+            {
+              "scene": "campus",
+              "name": "示范第一中学",
+              "count": 56,
+              "unhandled": 2
+            },
+            {
+              "scene": "hospital",
+              "name": "市人民医院",
+              "count": 32,
+              "unhandled": 0
+            },
+            {
+              "scene": "justice",
+              "name": "市执法办案管理中心",
+              "count": 11,
+              "unhandled": 0
+            }
+          ]
         }
       ],
       "heatmap": {
@@ -2263,12 +5152,77 @@
         "tick_seconds": 5,
         "frames": [
           {
-            "trend_label": "10/11",
+            "trend_label": "10/20",
             "alarms": 50,
             "handled": 47,
             "unhandled": 0,
             "incidents": 1,
+            "open_incidents": 1,
             "false_positive": 2,
+            "added_levels": [
+              {
+                "level": 1,
+                "total": 7,
+                "unhandled": 0
+              },
+              {
+                "level": 2,
+                "total": 19,
+                "unhandled": 0
+              },
+              {
+                "level": 3,
+                "total": 17,
+                "unhandled": 0
+              },
+              {
+                "level": 4,
+                "total": 7,
+                "unhandled": 0
+              }
+            ],
+            "levels": [
+              {
+                "level": 1,
+                "total": 68,
+                "unhandled": 4
+              },
+              {
+                "level": 2,
+                "total": 173,
+                "unhandled": 16
+              },
+              {
+                "level": 3,
+                "total": 195,
+                "unhandled": 6
+              },
+              {
+                "level": 4,
+                "total": 47,
+                "unhandled": 2
+              }
+            ],
+            "scenes": [
+              {
+                "scene": "campus",
+                "name": "示范第一中学",
+                "count": 262,
+                "unhandled": 15
+              },
+              {
+                "scene": "hospital",
+                "name": "市人民医院",
+                "count": 166,
+                "unhandled": 7
+              },
+              {
+                "scene": "justice",
+                "name": "市执法办案管理中心",
+                "count": 55,
+                "unhandled": 6
+              }
+            ],
             "heat": {
               "row": 0,
               "hour": 12
@@ -2279,18 +5233,83 @@
               "unhandled": 28,
               "false_positive": 26,
               "incidents": 20,
-              "open_incidents": 36,
+              "open_incidents": 7,
               "handled_rate": 86.3,
               "false_positive_rate": 5.4
             }
           },
           {
-            "trend_label": "10/10",
+            "trend_label": "10/21",
             "alarms": 30,
             "handled": 28,
             "unhandled": 0,
             "incidents": 1,
+            "open_incidents": 1,
             "false_positive": 2,
+            "added_levels": [
+              {
+                "level": 1,
+                "total": 5,
+                "unhandled": 0
+              },
+              {
+                "level": 2,
+                "total": 7,
+                "unhandled": 0
+              },
+              {
+                "level": 3,
+                "total": 11,
+                "unhandled": 0
+              },
+              {
+                "level": 4,
+                "total": 7,
+                "unhandled": 0
+              }
+            ],
+            "levels": [
+              {
+                "level": 1,
+                "total": 57,
+                "unhandled": 4
+              },
+              {
+                "level": 2,
+                "total": 137,
+                "unhandled": 16
+              },
+              {
+                "level": 3,
+                "total": 158,
+                "unhandled": 6
+              },
+              {
+                "level": 4,
+                "total": 44,
+                "unhandled": 2
+              }
+            ],
+            "scenes": [
+              {
+                "scene": "campus",
+                "name": "示范第一中学",
+                "count": 222,
+                "unhandled": 15
+              },
+              {
+                "scene": "hospital",
+                "name": "市人民医院",
+                "count": 129,
+                "unhandled": 7
+              },
+              {
+                "scene": "justice",
+                "name": "市执法办案管理中心",
+                "count": 45,
+                "unhandled": 6
+              }
+            ],
             "heat": {
               "row": 0,
               "hour": 12
@@ -2301,18 +5320,83 @@
               "unhandled": 28,
               "false_positive": 23,
               "incidents": 20,
-              "open_incidents": 36,
+              "open_incidents": 8,
               "handled_rate": 85.1,
               "false_positive_rate": 5.8
             }
           },
           {
-            "trend_label": "10/9",
+            "trend_label": "10/22",
             "alarms": 59,
             "handled": 55,
             "unhandled": 0,
             "incidents": 0,
+            "open_incidents": 0,
             "false_positive": 9,
+            "added_levels": [
+              {
+                "level": 1,
+                "total": 9,
+                "unhandled": 0
+              },
+              {
+                "level": 2,
+                "total": 21,
+                "unhandled": 0
+              },
+              {
+                "level": 3,
+                "total": 22,
+                "unhandled": 0
+              },
+              {
+                "level": 4,
+                "total": 7,
+                "unhandled": 0
+              }
+            ],
+            "levels": [
+              {
+                "level": 1,
+                "total": 49,
+                "unhandled": 4
+              },
+              {
+                "level": 2,
+                "total": 120,
+                "unhandled": 14
+              },
+              {
+                "level": 3,
+                "total": 122,
+                "unhandled": 6
+              },
+              {
+                "level": 4,
+                "total": 37,
+                "unhandled": 2
+              }
+            ],
+            "scenes": [
+              {
+                "scene": "campus",
+                "name": "示范第一中学",
+                "count": 192,
+                "unhandled": 15
+              },
+              {
+                "scene": "hospital",
+                "name": "市人民医院",
+                "count": 91,
+                "unhandled": 6
+              },
+              {
+                "scene": "justice",
+                "name": "市执法办案管理中心",
+                "count": 45,
+                "unhandled": 5
+              }
+            ],
             "heat": {
               "row": 0,
               "hour": 12
@@ -2323,18 +5407,83 @@
               "unhandled": 26,
               "false_positive": 23,
               "incidents": 17,
-              "open_incidents": 36,
+              "open_incidents": 6,
               "handled_rate": 84.5,
               "false_positive_rate": 7
             }
           },
           {
-            "trend_label": "10/8",
+            "trend_label": "10/23",
             "alarms": 105,
             "handled": 99,
             "unhandled": 1,
             "incidents": 3,
+            "open_incidents": 3,
             "false_positive": 7,
+            "added_levels": [
+              {
+                "level": 1,
+                "total": 14,
+                "unhandled": 1
+              },
+              {
+                "level": 2,
+                "total": 51,
+                "unhandled": 0
+              },
+              {
+                "level": 3,
+                "total": 30,
+                "unhandled": 0
+              },
+              {
+                "level": 4,
+                "total": 10,
+                "unhandled": 0
+              }
+            ],
+            "levels": [
+              {
+                "level": 1,
+                "total": 55,
+                "unhandled": 5
+              },
+              {
+                "level": 2,
+                "total": 146,
+                "unhandled": 14
+              },
+              {
+                "level": 3,
+                "total": 123,
+                "unhandled": 6
+              },
+              {
+                "level": 4,
+                "total": 40,
+                "unhandled": 2
+              }
+            ],
+            "scenes": [
+              {
+                "scene": "campus",
+                "name": "示范第一中学",
+                "count": 213,
+                "unhandled": 16
+              },
+              {
+                "scene": "hospital",
+                "name": "市人民医院",
+                "count": 102,
+                "unhandled": 6
+              },
+              {
+                "scene": "justice",
+                "name": "市执法办案管理中心",
+                "count": 49,
+                "unhandled": 5
+              }
+            ],
             "heat": {
               "row": 0,
               "hour": 12
@@ -2345,7 +5494,7 @@
               "unhandled": 27,
               "false_positive": 21,
               "incidents": 19,
-              "open_incidents": 36,
+              "open_incidents": 9,
               "handled_rate": 85.7,
               "false_positive_rate": 5.8
             }
