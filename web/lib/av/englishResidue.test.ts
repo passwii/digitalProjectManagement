@@ -25,11 +25,24 @@ import { describe, it } from "node:test";
  *
  * ## 扫什么
  *
- *   1. `components/av` + `lib/av` 的 `.ts` / `.tsx`（测试文件除外）里的**字符串字面量**；
+ *   1. `components/av` + `lib/av` + `app/stream-monitor` 的 `.ts` / `.tsx`
+ *      （测试文件除外）里的**用户可见文本**：
+ *      · 字符串字面量（`'…'` / `"…"` / `` `…` `` 的静态部分，含 JSX 属性值）；
+ *      · `.tsx` 里的 **raw JSX 文本节点**（`>` 与 `<` 之间、不在标签属性里、不是
+ *        `{…}` 表达式的那一段）。
  *   2. `public/stream-monitor-data/*.json` 的字符串值（访客可以直接下载这些文件）。
  *
+ * 路由层（`app/stream-monitor`）必须扫：本 Stage 自己就改过 `app/stream-monitor/audio/page.tsx`
+ * 的空态 `hint`，而路由文件里的 `metadata.title` / 空态提示 / 页头文案都是直接上屏的。
+ * 这与 `siteCopyGuard.test.ts` 的 `SITE_DIRS` 同一口径（那边也是 `app/stream-monitor` 起手）。
+ *
+ * raw JSX 文本节点必须扫：这套 UI 的可见文案大量是 children 而不是属性值 ——
+ * `<th className={s.num}>处理器占用</th>`、`<span>中位</span>` 都在这一类里，
+ * 只抓引号字面量的话，本 Stage 改的表头 / 徽标 / 抽屉小标题回填成英文不会有任何信号。
+ *
  * 注释不扫 —— 注释是给维护者的知识（`maskComments` 也顺手保证了「字符串里的 `//`
- * 不会被当成注释开头」）。`__stress` 是内部校验页，按 Stage 7 的约定不在范围内。
+ * 不会被当成注释开头」）。`__stress` 是内部校验页，按 Stage 7 的约定不在范围内
+ * （组件 `StressView.tsx` 与路由页 `app/stream-monitor/%5F%5Fstress/page.tsx` 一并排除）。
  *
  * ## 判定口径
  *
@@ -123,9 +136,17 @@ function maskComments(text: string): string {
 }
 
 /** 扫描范围：站点目录里的源码（测试与内部校验页除外）。 */
-const SOURCE_DIRS = ["components/av", "lib/av"];
-/** 内部校验页：`__stress` 是「最坏情况长什么样」的内部页面，不在面向市场的文案范围内。 */
-const SKIPPED_FILES = ["components/av/pages/StressView.tsx"];
+const SOURCE_DIRS = ["components/av", "lib/av", "app/stream-monitor"];
+/**
+ * 内部校验页：`__stress` 是「最坏情况长什么样」的内部页面，不在面向市场的文案范围内。
+ *
+ * 目录名在磁盘上是 URL-encode 过的 `%5F%5Fstress`（Next 把下划线开头的目录当私有目录，
+ * 见该页文件头），所以路由页那一份要按磁盘路径排除，不能按 `/__stress` 写。
+ */
+const SKIPPED_FILES = [
+  "components/av/pages/StressView.tsx",
+  "app/stream-monitor/%5F%5Fstress/page.tsx",
+];
 
 /** 公开静态数据集：访客能直接下载，里面的字段值也会被看到。 */
 const PUBLIC_DATA_DIR = "public/stream-monitor-data";
@@ -195,7 +216,12 @@ const ALLOWED: AllowEntry[] = [
     // 只放行编号形状：`OTA 批量升级：…` 这类散文标题（曾漏进 /event 的 20 条）必须变红。
     context: /OTA-\d+-\d+/,
   },
-  { match: "PTZ", why: "型号 AV-CAM-PTZ 的组成部分（云台变焦机型），与出厂型号一一对应，拆开就不再是型号" },
+  {
+    match: "PTZ",
+    why: "型号 AV-CAM-PTZ 的组成部分（云台变焦机型），与出厂型号一一对应，拆开就不再是型号",
+    // 与 `OTA` 同一口径：型号组成部分也要带形状，散文里的 `PTZ` 不许借型号名蒙混过关。
+    context: /AV-CAM-PTZ/,
+  },
   { match: "SS", why: "站点编码（PT-SS-… 里的站点段），是点位编号的组成部分" },
   { match: "ST", why: "站点编码（PT-ST-… 里的站点段）" },
   { match: "GY", why: "站点编码（PT-GY-… 里的站点段）" },
@@ -304,12 +330,21 @@ function allowedIn(match: string, relative: string, text = ""): boolean {
   );
 }
 
+/** 一段用户可见文本：文本内容 + 它在源文件里的起始行号（1 起）。 */
+interface CopySegment {
+  text: string;
+  line: number;
+}
+
 /**
  * 从一行已遮蔽注释的源码里取「用户可见的字符串片段」。
  *
  * 只取静态部分：模板字面量里的 `${...}` 是代码，不是文案（`${DEVICE_STREAM_TICK_SECONDS}`
  * 这种常量名大写一抓一大把，扫进去只会制造噪音）。
  * 模块路径（`./AvUI.module.css`、`@/components/av/AvUI`）不是文案，直接跳过。
+ *
+ * 只管引号字面量（含 JSX 属性值）；raw JSX 文本节点由下面的 `jsxTextSegments` 负责 ——
+ * 两种写法在这套 UI 里同时大量存在，两层缺一不可。
  */
 function literalSegments(line: string): string[] {
   const withoutInterpolation = line.replace(/\$\{[^}]*\}/g, "");
@@ -325,6 +360,208 @@ function literalSegments(line: string): string[] {
     match = pattern.exec(withoutInterpolation);
   }
   return out;
+}
+
+// ———————————————————————— raw JSX 文本节点 ————————————————————————
+
+/**
+ * `>` 与 `<` 之间、不在标签属性里、也不是 `{…}` 表达式的文本节点。
+ *
+ * 为什么要专门一段状态机，而不是「拿正则扫 `<\w+>([^<]*)<`」：
+ *   · 标签属性里也有 `"` / `>`（`title="a > b"`、`onClick={() => go()}`），
+ *     正则会把属性当成文本抓进来；
+ *   · 文本节点里夹着 `{…}` 表达式（`<h3>{view.count} 记录</h3>`），
+ *     表达式里的大写常量名不是文案；
+ *   · 文本节点可以跨行、可以嵌在另一个元素里。
+ *
+ * 输入是**已遮蔽注释**的整份源码（`maskComments` 保留换行与字符串内容）：
+ * 换行位置与原文件一一对应，所以行号可以直接指回源文件。
+ *
+ * 帧栈：`code`（普通 TS）→ `jsx`（children）→ `expr`（children 里的 `{…}`，
+ * 表达式内部可以再起 JSX，也可以再有对象字面量的 `{}`，所以它单独成帧、自己数括号）。
+ * 开标签入 `jsx` 帧、自闭合不入、闭标签出栈，这样嵌套元素各算各的文本。
+ *
+ * 只在「`<` 看起来真的是 JSX」时才进栈：比较运算（`i < n`）、泛型（`Map<string, number>`）
+ * 的 `<` 前面是一个标识符，而 JSX 的 `<` 前面是 `(` / `return` / `=>` / `?` / `:` 这类
+ * 表达式起始符。不这么卡的话，一个 `if (a < b)` 会凭空产生一整段「文本」，守卫开始冤报。
+ */
+function jsxTextSegments(source: string): CopySegment[] {
+  const lineStarts = lineStartsOf(source);
+  const out: CopySegment[] = [];
+  const stack: Array<"code" | "jsx" | "expr"> = ["code"];
+  let index = 0;
+  while (index < source.length) {
+    const state = stack[stack.length - 1];
+    const char = source[index];
+
+    if (state === "jsx") {
+      if (char === "<") {
+        const tag = readJsxTag(source, index);
+        if (tag) {
+          if (tag.closing) {
+            if (stack.length > 1) stack.pop();
+          } else if (!tag.selfClosing) {
+            stack.push("jsx");
+          }
+          index = tag.end;
+          continue;
+        }
+        index += 1;
+        continue;
+      }
+      if (char === "{") {
+        stack.push("expr");
+        index += 1;
+        continue;
+      }
+      let end = index;
+      while (end < source.length && source[end] !== "<" && source[end] !== "{") end += 1;
+      const text = source.slice(index, end);
+      if (text.trim()) out.push({ text, line: lineAt(lineStarts, index) });
+      index = end;
+      continue;
+    }
+
+    // `code` / `expr`：跳过字符串；`expr` 还要自己数 `{}` 才知道何时回到 children
+    if (char === "'" || char === '"' || char === "`") {
+      index = skipStringLiteral(source, index);
+      continue;
+    }
+    if (state === "expr") {
+      if (char === "{") {
+        stack.push("expr");
+        index += 1;
+        continue;
+      }
+      if (char === "}") {
+        stack.pop();
+        index += 1;
+        continue;
+      }
+    }
+    if (char === "<" && looksLikeJsxStart(source, index)) {
+      const tag = readJsxTag(source, index);
+      if (tag) {
+        if (!tag.closing && !tag.selfClosing) stack.push("jsx");
+        index = tag.end;
+        continue;
+      }
+    }
+    index += 1;
+  }
+  return out;
+}
+
+/** 每一行的起始下标（供二分查行号）。 */
+function lineStartsOf(source: string): number[] {
+  const starts = [0];
+  for (let index = 0; index < source.length; index += 1) {
+    if (source[index] === "\n") starts.push(index + 1);
+  }
+  return starts;
+}
+
+/** 下标 → 行号（1 起）。 */
+function lineAt(starts: number[], offset: number): number {
+  let low = 0;
+  let high = starts.length - 1;
+  while (low < high) {
+    const mid = (low + high + 1) >> 1;
+    if (starts[mid] <= offset) low = mid;
+    else high = mid - 1;
+  }
+  return low + 1;
+}
+
+/** 跳过字符串字面量（`\` 转义照算），返回闭合引号之后的下标。 */
+function skipStringLiteral(source: string, start: number): number {
+  const quote = source[start];
+  let index = start + 1;
+  while (index < source.length) {
+    if (source[index] === "\\") {
+      index += 2;
+      continue;
+    }
+    if (source[index] === quote) return index + 1;
+    index += 1;
+  }
+  return source.length;
+}
+
+/** 读一个 JSX 标签（`<` 到配对的 `>`），跳过属性里的字符串与 `{…}`；读不到返回 null。 */
+function readJsxTag(
+  source: string,
+  start: number,
+): { end: number; closing: boolean; selfClosing: boolean } | null {
+  let index = start + 1;
+  const closing = source[index] === "/";
+  if (closing) index += 1;
+  while (index < source.length && /[A-Za-z0-9_.\-:$]/.test(source[index])) index += 1;
+  let lastSignificant = "";
+  while (index < source.length) {
+    const char = source[index];
+    if (char === "'" || char === '"') {
+      index = skipStringLiteral(source, index);
+      continue;
+    }
+    if (char === "{") {
+      index = skipBracedExpression(source, index);
+      continue;
+    }
+    if (char === ">") {
+      return { end: index + 1, closing, selfClosing: !closing && lastSignificant === "/" };
+    }
+    if (!/\s/.test(char)) lastSignificant = char;
+    index += 1;
+  }
+  return null;
+}
+
+/** 跳过一个 `{…}` 表达式（含嵌套括号与内部字符串），返回闭合 `}` 之后的下标。 */
+function skipBracedExpression(source: string, start: number): number {
+  let depth = 0;
+  let index = start;
+  while (index < source.length) {
+    const char = source[index];
+    if (char === "'" || char === '"' || char === "`") {
+      index = skipStringLiteral(source, index);
+      continue;
+    }
+    if (char === "{") depth += 1;
+    else if (char === "}") {
+      depth -= 1;
+      if (depth <= 0) return index + 1;
+    }
+    index += 1;
+  }
+  return source.length;
+}
+
+/** JSX 的 `<` 前面允许出现的记号（表达式起始符）。 */
+const JSX_LEAD_IN = "([{,=>&|?:;";
+/** 前面是关键字时，`<` 也是 JSX（`return <div>` / `cond ? <A/> : <B/>`）。 */
+const JSX_LEAD_IN_WORDS = ["return", "yield", "await", "case", "default", "else", "do", "in", "of"];
+
+/**
+ * 这个 `<` 是 JSX 的开标签，还是比较运算 / 泛型的尖括号？
+ *
+ * 只看前一个有效字符：`(` / `return` / `=>` / `?` 之后是 JSX；`i < n`、
+ * `Map<string, number>` 这种前面是标识符的不是。宁可漏判（那种写法本来就少）
+ * 也不要误判 —— 误判会让守卫在纯代码上冤报，守卫一旦吵就没人看了。
+ */
+function looksLikeJsxStart(source: string, index: number): boolean {
+  const next = source[index + 1] ?? "";
+  if (next === ">") return true;
+  if (!/[A-Za-z]/.test(next)) return false;
+  let back = index - 1;
+  while (back >= 0 && /\s/.test(source[back])) back -= 1;
+  if (back < 0) return true;
+  const previous = source[back];
+  if (JSX_LEAD_IN.includes(previous)) return true;
+  if (!/[A-Za-z_$]/.test(previous)) return false;
+  let wordStart = back;
+  while (wordStart >= 0 && /[A-Za-z0-9_$]/.test(source[wordStart])) wordStart -= 1;
+  return JSX_LEAD_IN_WORDS.includes(source.slice(wordStart + 1, back + 1));
 }
 
 /**
@@ -355,24 +592,39 @@ function matchesOf(text: string): string[] {
   return found;
 }
 
-function scanSource(file: string): Offender[] {
-  const relative = relativeOf(file);
-  const masked = maskComments(readFileSync(file, "utf8"));
-  const offenders: Offender[] = [];
+/**
+ * 扫一份源码文本（`relative` 只用于白名单匹配与报错定位）。
+ *
+ * 与 `scanSource` 拆开是为了让用例能直接喂一段字符串 —— 否则「`<th>CPU</th>` 必须红」
+ * 这类负向自测只能靠往真文件里注入，写完还得记得恢复。
+ */
+function scanSourceText(relative: string, raw: string): Offender[] {
+  const masked = maskComments(raw);
+  // 两层都要：字符串字面量（含 JSX 属性值，逐行取）与 raw JSX 文本节点（整份文件取，可以跨行）。
+  const segments: CopySegment[] = [];
   masked.split("\n").forEach((line, offset) => {
-    for (const text of literalSegments(line)) {
-      for (const value of matchesOf(text)) {
-        if (allowedIn(value, relative, text)) continue;
-        offenders.push({
-          file: relative,
-          line: offset + 1,
-          snippet: text.trim().slice(0, 100),
-          match: value,
-        });
-      }
-    }
+    for (const text of literalSegments(line)) segments.push({ text, line: offset + 1 });
   });
+  // JSX 文本节点只存在于 `.tsx`：`.ts` 里的 `a < b` 没必要过那套状态机。
+  if (relative.endsWith(".tsx")) segments.push(...jsxTextSegments(masked));
+
+  const offenders: Offender[] = [];
+  for (const segment of segments) {
+    for (const value of matchesOf(segment.text)) {
+      if (allowedIn(value, relative, segment.text)) continue;
+      offenders.push({
+        file: relative,
+        line: segment.line,
+        snippet: segment.text.trim().slice(0, 100),
+        match: value,
+      });
+    }
+  }
   return offenders;
+}
+
+function scanSource(file: string): Offender[] {
+  return scanSourceText(relativeOf(file), readFileSync(file, "utf8"));
 }
 
 /** 遍历 JSON 里的字符串值（键是 schema，不渲染，不扫）。 */
@@ -428,7 +680,20 @@ describe("界面英文残留（BLF-1431）", () => {
     const relatives = SOURCE_FILES.map(relativeOf);
     assert.ok(relatives.length > 20, `只扫到 ${relatives.length} 个源文件，范围不对`);
     assert.ok(relatives.includes("components/av/pages/MonitorView.tsx"), "漏扫了五页之一");
+    // 路由层的标题 / 空态提示也是直接上屏的文案：本 Stage 自己就改过这一页的 hint
+    assert.ok(
+      relatives.includes("app/stream-monitor/audio/page.tsx"),
+      "路由层 leak 了：`app/stream-monitor` 必须在扫描根里",
+    );
+    assert.ok(
+      relatives.some((file) => file.startsWith("app/stream-monitor/")),
+      "`app/stream-monitor` 一个文件都没扫到",
+    );
     assert.ok(!relatives.includes("components/av/pages/StressView.tsx"), "内部校验页不在范围内");
+    assert.ok(
+      !relatives.some((file) => file.includes("%5F%5Fstress")),
+      "`__stress` 路由页同样不在范围内",
+    );
     assert.ok(
       relatives.every((file) => !/\.test\.tsx?$/.test(file)),
       "测试文件不该参与用户可见文案扫描",
@@ -514,5 +779,90 @@ describe("界面英文残留（BLF-1431）", () => {
     // 只留下静态文本，插值部分（常量名）被抹掉
     assert.deepEqual(literalSegments(line), ["每  秒刷新"]);
     assert.equal(UPPER_RUN.test(literalSegments(line).join("")), false);
+  });
+
+  // —— raw JSX 文本节点（阻塞 4）————————————————————————————————————————
+
+  it("raw JSX 文本节点也是文案：`<th>CPU</th>` 必须变红", () => {
+    const file = "components/av/pages/DeviceView.tsx";
+    // 本 Stage 把表头从 `CPU` 改成了「处理器占用」；回填必须被拦住
+    const reverted = `export function Cols() {\n  return (\n    <tr>\n      <th className={s.num}>CPU</th>\n    </tr>\n  );\n}\n`;
+    assert.deepEqual(
+      scanSourceText(file, reverted).map((item) => `${item.line}: [${item.match}]`),
+      ["4: [CPU]"],
+    );
+
+    // 中文版本（当前仓库的真实写法）必须绿
+    const current = `export function Cols() {\n  return (\n    <tr>\n      <th className={s.num}>处理器占用</th>\n    </tr>\n  );\n}\n`;
+    assert.deepEqual(scanSourceText(file, current), []);
+  });
+
+  it("JSX 状态机只取文本节点：标签属性与 `{…}` 表达式不算文案", () => {
+    const source = [
+      "export function Panel() {",
+      "  return (",
+      '    <AvPanel title="固件升级" subtitle={view.windowLabel} icon="alarm">',
+      "      <h3>{VIEW_COUNT} 记录</h3>",
+      "      <span>中位</span>",
+      "      <br />",
+      "    </AvPanel>",
+      "  );",
+      "}",
+    ].join("\n");
+    const texts = jsxTextSegments(maskComments(source)).map((segment) => segment.text.trim());
+    // 属性（`title` / `subtitle` / `icon`）与表达式里的常量名（`VIEW_COUNT`）都不该进来
+    assert.deepEqual(texts, ["记录", "中位"]);
+    // 表达式里的常量名是代码，不产生 offender；属性值则由字符串字面量那一层负责
+    assert.deepEqual(scanSourceText("components/av/pages/DeviceView.tsx", source), []);
+  });
+
+  it("比较运算 / 泛型的尖括号不会被当成 JSX 文本", () => {
+    const source = [
+      "export function pick(rows: Row[], index: number) {",
+      "  const table = new Map<string, number>();",
+      "  const over = index < rows.length && rows.length > 0;",
+      "  if (index < rows.length) return rows[index];",
+      "  return over ? rows[0] : null;",
+      "}",
+    ].join("\n");
+    assert.deepEqual(jsxTextSegments(maskComments(source)), []);
+  });
+
+  it("路由层（`app/stream-monitor`）的文案也在射程内", () => {
+    const file = "app/stream-monitor/audio/page.tsx";
+    // 上报的注入点：路由文件里的空态 hint
+    const injected = `export default function P() {\n  return <AvEmpty title="没有可分析的音频" hint="LIVE 预览不可用" />;\n}\n`;
+    assert.deepEqual(
+      scanSourceText(file, injected).map((item) => `${item.line}: [${item.match}]`),
+      ["2: [LIVE]"],
+    );
+    // 当前仓库的真实写法（属性值也是文案，必须绿）
+    const current = `export default function P() {\n  return <AvEmpty title="没有可分析的音频" hint="当前没有带频谱的告警。" />;\n}\n`;
+    assert.deepEqual(scanSourceText(file, current), []);
+  });
+
+  it("raw JSX 文本节点扫得到东西（不是空跑）", () => {
+    const tsx = SOURCE_FILES.filter((file) => file.endsWith(".tsx"));
+    assert.ok(tsx.length > 10, `只扫到 ${tsx.length} 个 tsx，范围不对`);
+    const texts = tsx.flatMap((file) =>
+      jsxTextSegments(maskComments(readFileSync(file, "utf8"))).map((segment) => segment.text.trim()),
+    );
+    assert.ok(texts.length > 100, `只取到 ${texts.length} 段 JSX 文本，状态机大概率没进 children`);
+    // 本 Stage 改的典型位置（表头 / 台账列名）恰好都是 raw JSX children：
+    const labels = texts.filter((text) => /^[\u4e00-\u9fa5]{2,}$/.test(text));
+    assert.ok(labels.length > 40, `只取到 ${labels.length} 条纯中文标签，状态机大概率没进 children`);
+    assert.ok(labels.includes("处理器占用"), "DeviceView 的表头文案没被取到");
+    assert.ok(labels.includes("在线率"), "站点表的表头文案没被取到");
+  });
+
+  it("型号白名单也带形状：散文里的 `PTZ` 变红，`AV-CAM-PTZ` 放行", () => {
+    const prose = "PTZ 云台自动跟随";
+    assert.deepEqual(matchesOf(prose), ["PTZ"]);
+    assert.equal(
+      allowedIn("PTZ", "public/stream-monitor-data/devices.json", prose),
+      false,
+      "`PTZ` 只在 `AV-CAM-PTZ` 这种型号形状里放行",
+    );
+    assert.equal(allowedIn("PTZ", "public/stream-monitor-data/devices.json", "AV-CAM-PTZ"), true);
   });
 });

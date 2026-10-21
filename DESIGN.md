@@ -375,7 +375,15 @@ components:
 两条口径细节，都是被真实漏网案例逼出来的：
 
 - **同一个字符串里的每一处英文都要过白名单**（`englishResidue.test.ts` 的 `matchesOf` 遍历全部非重叠命中）。只看第一处的话，`AV-MIC-S6 · LIVE` 会因为 `AV` 已在白名单里而整串通过，`MIC` / `LIVE` 根本没被检查过 —— 白名单契约也就等于可以绕过。
-- **编号类白名单要带形状（`context`），不能只写前缀**。`OTA` 只在 `OTA-\d+-\d+` 这种记录编号里放行；`OTA 批量升级：…` 这种散文标题必须变红。`PTZ` 这类「型号组成部分」也单独列出（`AV-CAM-PTZ` 拆开就不再是型号）。
+- **编号类白名单要带形状（`context`），不能只写前缀**。`OTA` 只在 `OTA-\d+-\d+` 这种记录编号里放行；`OTA 批量升级：…` 这种散文标题必须变红。`PTZ` 这类「型号组成部分」同样带形状（`context: /AV-CAM-PTZ/`）——「拆开就不再是型号」这句话只有写成正则才是契约，裸的 `match: "PTZ"` 会把「PTZ 云台自动跟随」这类散文放过去。
+
+**扫什么地方（三条，缺一条就有盲区）**：
+
+- **组件与纯逻辑**（`components/av` / `lib/av`）的 `.ts` / `.tsx`，测试文件除外；
+- **路由层**（`app/stream-monitor`）的 `page.tsx` / `layout.tsx` —— `metadata.title`、空态 `hint`、页头文案都是直接上屏的，本 Stage 自己就改过 `app/stream-monitor/audio/page.tsx` 的空态；口径与 `siteCopyGuard.test.ts` 的 `SITE_DIRS` 一致。内部校验页 `__stress` 两处（组件 `StressView.tsx`、路由页 `app/stream-monitor/%5F%5Fstress/page.tsx`）显式排除。
+- **公开数据集**（`public/stream-monitor-data/*.json`）的字符串值 —— 访客能直接下载这些文件。
+
+源码里**两种写法都要取**：字符串字面量（含 JSX 属性值 `hint="…"`，含模板字面量的静态部分），以及 **raw JSX 文本节点**（`>` 与 `<` 之间、不在标签属性里、也不是 `{…}` 表达式）。第二类不是可选项：这套 UI 的可见文案大量是 children（`<th className={s.num}>处理器占用</th>`、`<span>中位</span>`），只抓引号字面量的话，本 Stage 改的表头 / 徽标 / 抽屉小标题回填成英文不会触发任何信号 —— 而验收标准里「守卫用例」那一证恰好指着这一类。
 
 **③ 编码值一律映射，不直接上屏。** locale code、场景代码、枚举值是**数据**，中文只发生在展示层，映射表统一放 `web/lib/av/labels.ts`，页面里不写第二张表（否则同一个编码会在五页里漂成五种说法）。数据集原值不动：`transcripts.json` 的 `language: "zh-CN"` 保留，界面上是「普通话」；`scenes.json` 的 `code: "CAMPUS"` 保留，能力页上显示「校园」。
 
@@ -383,7 +391,7 @@ components:
 
 **④ 删文案会改布局，等高关系要重新量。** 副标题占一行（11px / 1.5 行高 + 4px 上边距 ≈ 20.5px），删掉就改面板高度：`/alarm` 右栏删掉两条说明型副标题后三卡栈降了 41px，左面板（12 行 × 行高 + 面板 chrome）比它长出 49px —— 于是 `--av-alarm-row-h` 从 67px 收到 63px（`panel chrome 160px + 12 × 63px = 916px`，对照三卡栈 915px，底边差 1px），**而不是**用一条说明文把高度填回去。改文案后必须重跑 `scripts/av-alarm-row-calibration.mjs` 与 `scripts/av-layout-overflow.mjs`。
 
-**⑤ 四套守卫的分工**（别重复造，也别绕过）：品牌（`siteBrandCopy.test.ts`：英文 `Stream Monitor` / 中文名 / URL 前缀）、措辞（`siteCopyGuard.test.ts`：mock / 演示 / 工程术语 / 内部口径）、英文残留（`englishResidue.test.ts`：字母表口径 + 白名单）、副标题形状（`subtitleCopy.test.ts`：只写数据 + denylist）。
+**⑤ 四套守卫的分工**（别重复造，也别绕过）：品牌（`siteBrandCopy.test.ts`：英文 `Stream Monitor` / 中文名 / URL 前缀）、措辞（`siteCopyGuard.test.ts`：mock / 演示 / 工程术语 / 内部口径）、英文残留（`englishResidue.test.ts`：字母表口径 + 白名单，扫组件 / 路由层 / 公开数据集，字面量与 raw JSX 文本节点都取）、副标题形状（`subtitleCopy.test.ts`：只写数据 + denylist）。
 
 ### 演示站点的色彩体系与动效节奏
 
