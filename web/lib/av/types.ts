@@ -333,6 +333,123 @@ export interface Rankings {
   types: { type_code: string; type_name: string; category: string; count: number }[];
 }
 
+// ---------------------------------------------------------------------------
+// 总览页三档时间范围（overview-ranges.json / BLF-1424）
+// ---------------------------------------------------------------------------
+
+/** 总览页右上角的三个时间范围。 */
+export type OverviewRangeKey = "live" | "today" | "week";
+
+/**
+ * 一档范围的趋势桶。
+ *
+ * 小时档（live / today）与日档（week）字段相同，只是 `label` 不同：
+ * 「12:00」或「10/19」。**数组统一「新 → 旧」**，页面渲染前反向。
+ * `unhandled` 是给演示态推进算 totals 用的（与 kpi.json 的 new + dispatched 同口径），
+ * 图表不画它。
+ */
+export interface OverviewTrendPoint {
+  label: string;
+  alarms: number;
+  handled: number;
+  unhandled: number;
+  incidents: number;
+  false_positive: number;
+}
+
+export interface OverviewHeatCell {
+  /** 时钟小时 0..23（live 档是「该格对应的真实钟点」） */
+  hour: number;
+  count: number;
+}
+
+export interface OverviewHeatRow {
+  key: string;
+  label: string;
+  cells: OverviewHeatCell[];
+}
+
+/**
+ * 热力窗口：三档形状不同（live / today 是 1 行 × 24 格，week 是 7 行 × 24 格），
+ * `axis` 是 24 个刻度文案（未命中的位置是空串），由数据层直接给，页面不自己算。
+ */
+export interface OverviewHeatmap {
+  axis: string[];
+  rows: OverviewHeatRow[];
+  max: number;
+}
+
+/** KPI 卡的「槽位」定义：标签 / 单位 / 小数位来自数据，颜色与文案由 view.ts 拼。 */
+export interface OverviewKpiDef {
+  key: "alarms" | "handled" | "incidents" | "false-positive";
+  label: string;
+  unit: string;
+  decimals: 0 | 1;
+}
+
+/** 一档窗口的汇总数：KPI 四值全部从这里取，演示帧也给出滚动后的同一结构。 */
+export interface OverviewTotals {
+  alarms: number;
+  handled: number;
+  unhandled: number;
+  false_positive: number;
+  incidents: number;
+  open_incidents: number;
+  /** 已处置率 / 误报率：百分数（0–100），生成器算好，前端只格式化 */
+  handled_rate: number;
+  false_positive_rate: number;
+}
+
+/**
+ * 数据流推进的一帧：趋势图右端新增的一格 + 滚动后的 totals + 热力图脉冲位置。
+ *
+ * 键名用 `stream` 而不是 `demo`：公开数据集里的 demo 会被 siteCopyGuard 判成
+ * 「把自己写小」的措辞（这份 JSON 访客可以直接下载）。
+ */
+export interface OverviewStreamFrame {
+  trend_label: string;
+  alarms: number;
+  handled: number;
+  unhandled: number;
+  incidents: number;
+  false_positive: number;
+  heat: { row: number; hour: number };
+  totals: OverviewTotals;
+}
+
+export interface OverviewStream {
+  tick_seconds: number;
+  frames: OverviewStreamFrame[];
+}
+
+export interface OverviewRange {
+  key: OverviewRangeKey;
+  label: string;
+  window_label: string;
+  granularity: "hour" | "day";
+  kpi_defs: OverviewKpiDef[];
+  totals: OverviewTotals;
+  /** 趋势曲线的峰值（图上要标一个点） */
+  peak: { label: string; value: number };
+  levels: { level: AlarmLevel; total: number; unhandled: number }[];
+  scenes: { scene: Scene; name: string; count: number; unhandled: number }[];
+  trend: OverviewTrendPoint[];
+  heatmap: OverviewHeatmap;
+  points: Rankings["points"];
+  types: Rankings["types"];
+  stream: OverviewStream;
+}
+
+/** `overview-ranges.json` 的根结构。 */
+export interface OverviewRanges {
+  _meta: {
+    generated_at: string;
+    calc_note: string;
+    range_order: OverviewRangeKey[];
+  };
+  ranges: Record<OverviewRangeKey, OverviewRange>;
+}
+
 export interface SceneDef {
   id: Scene;
   name: string;

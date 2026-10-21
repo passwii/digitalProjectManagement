@@ -14,6 +14,7 @@ import {
   getAlarmsByIds,
   getCore,
   getExtremes,
+  getOverviewRanges,
   getSpectra,
   getSpectrumByAlarm,
   getTranscriptByAlarm,
@@ -22,20 +23,13 @@ import type { Alarm, DatasetCore, Device } from "./types";
 import {
   alarmCard,
   algorithmMatrix,
-  dailySeries,
   deviceStatusDistribution,
   gpuCards,
-  heatmapDays,
   incidentRows,
-  levelBreakdown,
   monitorChannels,
-  overviewKpis,
-  pointRanking,
+  overviewRangeModel,
   sceneCards,
-  sceneDistribution,
   siteHealth,
-  trendSeries,
-  typeRanking,
   waveformOf,
   type AlarmCardModel,
 } from "./view";
@@ -71,23 +65,27 @@ function siteSceneName(core: DatasetCore, siteId: string): string {
 // 总览
 // ---------------------------------------------------------------------------
 
+/**
+ * 总览页：三档时间范围全部在服务端投影好，一次性直出。
+ *
+ * `overview-ranges.json`（≈. 40KB）单独加载 —— 它只有这一页需要，不必让其它页面
+ * 背这份预算；`getCore()` 已经缓存，这里的 `Promise.all` 只是并行取第一次。
+ */
 export async function getOverviewData(): Promise<OverviewProps> {
-  const core = await getCore();
-  const firstPage = await getAlarmPage(null, 10);
+  const [core, firstPage, overview] = await Promise.all([
+    getCore(),
+    getAlarmPage(null, 10),
+    getOverviewRanges(),
+  ]);
+
+  const rangeOrder = overview._meta.range_order;
+  const ranges = Object.fromEntries(
+    rangeOrder.map((key) => [key, overviewRangeModel(overview.ranges[key])]),
+  ) as Record<(typeof rangeOrder)[number], ReturnType<typeof overviewRangeModel>>;
 
   return {
-    kpis: overviewKpis(core.kpi),
-    trend: trendSeries(core.trends),
-    // 「今日」= 锚点往前 720 分钟（自然日 00:00 起）
-    todayTrend: trendSeries({
-      ...core.trends,
-      hourly: core.trends.hourly.filter((bucket) => bucket.window_start_offset_minutes < 720),
-    }),
-    daily: dailySeries(core.trends),
-    heatmap: heatmapDays(core.trends),
-    levels: levelBreakdown(core.kpi),
-    todayAlarmsTotal: core.kpi.alarm_natural_day,
-    scenes: sceneDistribution(core.kpi),
+    initialRange: rangeOrder[0],
+    ranges,
     gpu: {
       meta: {
         model: core.kpi.gpu.model,
@@ -103,10 +101,7 @@ export async function getOverviewData(): Promise<OverviewProps> {
       unit: core.kpi.storage.unit,
     },
     firmware: core.kpi.firmware_distribution,
-    types: typeRanking(core, 6),
-    points: pointRanking(core, 6),
     recent: firstPage.alarms.slice(0, 10).map((alarm) => alarmCard(alarm, core)),
-    alarmUnhandled: core.kpi.alarm_unhandled,
   };
 }
 

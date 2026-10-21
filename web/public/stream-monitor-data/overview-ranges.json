@@ -1,0 +1,2357 @@
+{
+  "_meta": {
+    "generated_at": "2026-10-19T12:00:00+08:00",
+    "calc_note": "总览页三档口径（BLF-1424）：live = 偏移 [0,1440) 的滚动 24 小时；today = 今天自然日（锚点正午，00:00 → 12:00）；week = 最近 7 个自然日（dayDiff 0..6）。每档的 totals / levels / scenes / trend / heatmap / points / types 都只统计该窗口内的告警，所以逐项相加必须等于 totals.alarms。stream.frames 是页面数据流推进用的固定帧：窗口每 tick 向现在滚动一格（最旧一格掉出、最新一格补进来），帧里直接给出滚动后的 totals，前端不做业务运算。?static=1 与 prefers-reduced-motion 下只展示第 0 帧（不推进）。",
+    "range_order": [
+      "live",
+      "today",
+      "week"
+    ]
+  },
+  "ranges": {
+    "live": {
+      "key": "live",
+      "label": "近 24 小时",
+      "window_label": "近 24 小时",
+      "granularity": "hour",
+      "kpi_defs": [
+        {
+          "key": "alarms",
+          "label": "近 24 小时告警",
+          "unit": "条",
+          "decimals": 0
+        },
+        {
+          "key": "handled",
+          "label": "已处置",
+          "unit": "条",
+          "decimals": 0
+        },
+        {
+          "key": "incidents",
+          "label": "近 24 小时事件",
+          "unit": "起",
+          "decimals": 0
+        },
+        {
+          "key": "false-positive",
+          "label": "误报率",
+          "unit": "%",
+          "decimals": 1
+        }
+      ],
+      "totals": {
+        "alarms": 73,
+        "handled": 40,
+        "unhandled": 25,
+        "false_positive": 1,
+        "incidents": 12,
+        "open_incidents": 36,
+        "handled_rate": 54.8,
+        "false_positive_rate": 1.4
+      },
+      "peak": {
+        "label": "11:00",
+        "value": 11
+      },
+      "levels": [
+        {
+          "level": 1,
+          "total": 15,
+          "unhandled": 4
+        },
+        {
+          "level": 2,
+          "total": 30,
+          "unhandled": 13
+        },
+        {
+          "level": 3,
+          "total": 23,
+          "unhandled": 6
+        },
+        {
+          "level": 4,
+          "total": 5,
+          "unhandled": 2
+        }
+      ],
+      "scenes": [
+        {
+          "scene": "campus",
+          "name": "示范第一中学",
+          "count": 43,
+          "unhandled": 14
+        },
+        {
+          "scene": "hospital",
+          "name": "市人民医院",
+          "count": 20,
+          "unhandled": 6
+        },
+        {
+          "scene": "justice",
+          "name": "市执法办案管理中心",
+          "count": 10,
+          "unhandled": 5
+        }
+      ],
+      "trend": [
+        {
+          "label": "12:00",
+          "alarms": 5,
+          "handled": 2,
+          "unhandled": 2,
+          "incidents": 2,
+          "false_positive": 0
+        },
+        {
+          "label": "11:00",
+          "alarms": 11,
+          "handled": 3,
+          "unhandled": 7,
+          "incidents": 2,
+          "false_positive": 0
+        },
+        {
+          "label": "10:00",
+          "alarms": 9,
+          "handled": 7,
+          "unhandled": 0,
+          "incidents": 1,
+          "false_positive": 0
+        },
+        {
+          "label": "09:00",
+          "alarms": 3,
+          "handled": 1,
+          "unhandled": 2,
+          "incidents": 1,
+          "false_positive": 0
+        },
+        {
+          "label": "08:00",
+          "alarms": 11,
+          "handled": 0,
+          "unhandled": 10,
+          "incidents": 2,
+          "false_positive": 0
+        },
+        {
+          "label": "07:00",
+          "alarms": 0,
+          "handled": 0,
+          "unhandled": 0,
+          "incidents": 0,
+          "false_positive": 0
+        },
+        {
+          "label": "06:00",
+          "alarms": 2,
+          "handled": 0,
+          "unhandled": 1,
+          "incidents": 0,
+          "false_positive": 0
+        },
+        {
+          "label": "05:00",
+          "alarms": 3,
+          "handled": 3,
+          "unhandled": 0,
+          "incidents": 2,
+          "false_positive": 0
+        },
+        {
+          "label": "04:00",
+          "alarms": 0,
+          "handled": 0,
+          "unhandled": 0,
+          "incidents": 0,
+          "false_positive": 0
+        },
+        {
+          "label": "03:00",
+          "alarms": 0,
+          "handled": 0,
+          "unhandled": 0,
+          "incidents": 0,
+          "false_positive": 0
+        },
+        {
+          "label": "02:00",
+          "alarms": 3,
+          "handled": 0,
+          "unhandled": 2,
+          "incidents": 0,
+          "false_positive": 0
+        },
+        {
+          "label": "01:00",
+          "alarms": 3,
+          "handled": 2,
+          "unhandled": 1,
+          "incidents": 0,
+          "false_positive": 0
+        },
+        {
+          "label": "00:00",
+          "alarms": 0,
+          "handled": 0,
+          "unhandled": 0,
+          "incidents": 0,
+          "false_positive": 0
+        },
+        {
+          "label": "23:00",
+          "alarms": 0,
+          "handled": 0,
+          "unhandled": 0,
+          "incidents": 0,
+          "false_positive": 0
+        },
+        {
+          "label": "22:00",
+          "alarms": 0,
+          "handled": 0,
+          "unhandled": 0,
+          "incidents": 0,
+          "false_positive": 0
+        },
+        {
+          "label": "21:00",
+          "alarms": 2,
+          "handled": 2,
+          "unhandled": 0,
+          "incidents": 0,
+          "false_positive": 0
+        },
+        {
+          "label": "20:00",
+          "alarms": 1,
+          "handled": 0,
+          "unhandled": 0,
+          "incidents": 0,
+          "false_positive": 0
+        },
+        {
+          "label": "19:00",
+          "alarms": 1,
+          "handled": 1,
+          "unhandled": 0,
+          "incidents": 0,
+          "false_positive": 0
+        },
+        {
+          "label": "18:00",
+          "alarms": 7,
+          "handled": 7,
+          "unhandled": 0,
+          "incidents": 1,
+          "false_positive": 0
+        },
+        {
+          "label": "17:00",
+          "alarms": 2,
+          "handled": 2,
+          "unhandled": 0,
+          "incidents": 0,
+          "false_positive": 0
+        },
+        {
+          "label": "16:00",
+          "alarms": 2,
+          "handled": 2,
+          "unhandled": 0,
+          "incidents": 0,
+          "false_positive": 1
+        },
+        {
+          "label": "15:00",
+          "alarms": 2,
+          "handled": 2,
+          "unhandled": 0,
+          "incidents": 1,
+          "false_positive": 0
+        },
+        {
+          "label": "14:00",
+          "alarms": 1,
+          "handled": 1,
+          "unhandled": 0,
+          "incidents": 0,
+          "false_positive": 0
+        },
+        {
+          "label": "13:00",
+          "alarms": 5,
+          "handled": 5,
+          "unhandled": 0,
+          "incidents": 0,
+          "false_positive": 0
+        }
+      ],
+      "heatmap": {
+        "axis": [
+          "13",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "19",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "01",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "07",
+          "",
+          "",
+          "",
+          "",
+          ""
+        ],
+        "rows": [
+          {
+            "key": "rolling",
+            "label": "近 24 小时",
+            "cells": [
+              {
+                "hour": 13,
+                "count": 5
+              },
+              {
+                "hour": 14,
+                "count": 1
+              },
+              {
+                "hour": 15,
+                "count": 2
+              },
+              {
+                "hour": 16,
+                "count": 2
+              },
+              {
+                "hour": 17,
+                "count": 2
+              },
+              {
+                "hour": 18,
+                "count": 7
+              },
+              {
+                "hour": 19,
+                "count": 1
+              },
+              {
+                "hour": 20,
+                "count": 1
+              },
+              {
+                "hour": 21,
+                "count": 2
+              },
+              {
+                "hour": 22,
+                "count": 0
+              },
+              {
+                "hour": 23,
+                "count": 0
+              },
+              {
+                "hour": 0,
+                "count": 0
+              },
+              {
+                "hour": 1,
+                "count": 3
+              },
+              {
+                "hour": 2,
+                "count": 3
+              },
+              {
+                "hour": 3,
+                "count": 0
+              },
+              {
+                "hour": 4,
+                "count": 0
+              },
+              {
+                "hour": 5,
+                "count": 3
+              },
+              {
+                "hour": 6,
+                "count": 2
+              },
+              {
+                "hour": 7,
+                "count": 0
+              },
+              {
+                "hour": 8,
+                "count": 11
+              },
+              {
+                "hour": 9,
+                "count": 3
+              },
+              {
+                "hour": 10,
+                "count": 9
+              },
+              {
+                "hour": 11,
+                "count": 11
+              },
+              {
+                "hour": 12,
+                "count": 5
+              }
+            ]
+          }
+        ],
+        "max": 11
+      },
+      "points": [
+        {
+          "point_id": "PT-HM-1F04",
+          "point_room": "1楼急诊分诊台",
+          "total": 4,
+          "level1": 2,
+          "false_positive": 0,
+          "fp_rate": 0
+        },
+        {
+          "point_id": "PT-B1-2F02",
+          "point_room": "教学楼 A2楼202卫生间",
+          "total": 3,
+          "level1": 2,
+          "false_positive": 0,
+          "fp_rate": 0
+        },
+        {
+          "point_id": "PT-B2-1F08",
+          "point_room": "教学楼 B1楼108教室",
+          "total": 3,
+          "level1": 1,
+          "false_positive": 0,
+          "fp_rate": 0
+        },
+        {
+          "point_id": "PT-GA-1F03",
+          "point_room": "1楼讯问室 03",
+          "total": 3,
+          "level1": 1,
+          "false_positive": 0,
+          "fp_rate": 0
+        },
+        {
+          "point_id": "PT-B2-1F01",
+          "point_room": "教学楼 B1楼101教室",
+          "total": 2,
+          "level1": 0,
+          "false_positive": 0,
+          "fp_rate": 0
+        },
+        {
+          "point_id": "PT-B2-1F04",
+          "point_room": "教学楼 B1楼104走廊",
+          "total": 2,
+          "level1": 0,
+          "false_positive": 0,
+          "fp_rate": 0
+        }
+      ],
+      "types": [
+        {
+          "type_code": "decibel_exceed",
+          "type_name": "分贝超限",
+          "category": "声音检测",
+          "count": 14
+        },
+        {
+          "type_code": "device_offline",
+          "type_name": "设备离线",
+          "category": "设备",
+          "count": 10
+        },
+        {
+          "type_code": "abnormal_sound",
+          "type_name": "异常声音",
+          "category": "声音检测",
+          "count": 8
+        },
+        {
+          "type_code": "cry_scream",
+          "type_name": "哭声 / 呼救",
+          "category": "声音检测",
+          "count": 6
+        },
+        {
+          "type_code": "fight_conflict",
+          "type_name": "冲突争吵",
+          "category": "声音检测",
+          "count": 6
+        },
+        {
+          "type_code": "intrusion",
+          "type_name": "区域入侵",
+          "category": "行为检测",
+          "count": 6
+        }
+      ],
+      "stream": {
+        "tick_seconds": 5,
+        "frames": [
+          {
+            "trend_label": "13:00",
+            "alarms": 4,
+            "handled": 4,
+            "unhandled": 0,
+            "incidents": 0,
+            "false_positive": 0,
+            "heat": {
+              "row": 0,
+              "hour": 13
+            },
+            "totals": {
+              "alarms": 72,
+              "handled": 39,
+              "unhandled": 25,
+              "false_positive": 1,
+              "incidents": 12,
+              "open_incidents": 36,
+              "handled_rate": 54.2,
+              "false_positive_rate": 1.4
+            }
+          },
+          {
+            "trend_label": "14:00",
+            "alarms": 5,
+            "handled": 5,
+            "unhandled": 0,
+            "incidents": 1,
+            "false_positive": 1,
+            "heat": {
+              "row": 0,
+              "hour": 14
+            },
+            "totals": {
+              "alarms": 76,
+              "handled": 43,
+              "unhandled": 25,
+              "false_positive": 2,
+              "incidents": 13,
+              "open_incidents": 36,
+              "handled_rate": 56.6,
+              "false_positive_rate": 2.6
+            }
+          },
+          {
+            "trend_label": "15:00",
+            "alarms": 1,
+            "handled": 1,
+            "unhandled": 0,
+            "incidents": 0,
+            "false_positive": 0,
+            "heat": {
+              "row": 0,
+              "hour": 15
+            },
+            "totals": {
+              "alarms": 75,
+              "handled": 42,
+              "unhandled": 25,
+              "false_positive": 2,
+              "incidents": 12,
+              "open_incidents": 36,
+              "handled_rate": 56,
+              "false_positive_rate": 2.7
+            }
+          },
+          {
+            "trend_label": "16:00",
+            "alarms": 1,
+            "handled": 1,
+            "unhandled": 0,
+            "incidents": 0,
+            "false_positive": 0,
+            "heat": {
+              "row": 0,
+              "hour": 16
+            },
+            "totals": {
+              "alarms": 74,
+              "handled": 41,
+              "unhandled": 25,
+              "false_positive": 1,
+              "incidents": 12,
+              "open_incidents": 36,
+              "handled_rate": 55.4,
+              "false_positive_rate": 1.4
+            }
+          },
+          {
+            "trend_label": "17:00",
+            "alarms": 10,
+            "handled": 10,
+            "unhandled": 0,
+            "incidents": 1,
+            "false_positive": 1,
+            "heat": {
+              "row": 0,
+              "hour": 17
+            },
+            "totals": {
+              "alarms": 82,
+              "handled": 49,
+              "unhandled": 25,
+              "false_positive": 2,
+              "incidents": 13,
+              "open_incidents": 36,
+              "handled_rate": 59.8,
+              "false_positive_rate": 2.4
+            }
+          },
+          {
+            "trend_label": "18:00",
+            "alarms": 1,
+            "handled": 1,
+            "unhandled": 0,
+            "incidents": 0,
+            "false_positive": 0,
+            "heat": {
+              "row": 0,
+              "hour": 18
+            },
+            "totals": {
+              "alarms": 76,
+              "handled": 43,
+              "unhandled": 25,
+              "false_positive": 2,
+              "incidents": 12,
+              "open_incidents": 36,
+              "handled_rate": 56.6,
+              "false_positive_rate": 2.6
+            }
+          },
+          {
+            "trend_label": "19:00",
+            "alarms": 1,
+            "handled": 1,
+            "unhandled": 0,
+            "incidents": 0,
+            "false_positive": 1,
+            "heat": {
+              "row": 0,
+              "hour": 19
+            },
+            "totals": {
+              "alarms": 76,
+              "handled": 43,
+              "unhandled": 25,
+              "false_positive": 3,
+              "incidents": 12,
+              "open_incidents": 36,
+              "handled_rate": 56.6,
+              "false_positive_rate": 3.9
+            }
+          },
+          {
+            "trend_label": "20:00",
+            "alarms": 4,
+            "handled": 4,
+            "unhandled": 0,
+            "incidents": 0,
+            "false_positive": 1,
+            "heat": {
+              "row": 0,
+              "hour": 20
+            },
+            "totals": {
+              "alarms": 79,
+              "handled": 47,
+              "unhandled": 25,
+              "false_positive": 4,
+              "incidents": 12,
+              "open_incidents": 36,
+              "handled_rate": 59.5,
+              "false_positive_rate": 5.1
+            }
+          }
+        ]
+      }
+    },
+    "today": {
+      "key": "today",
+      "label": "今日",
+      "window_label": "今日",
+      "granularity": "hour",
+      "kpi_defs": [
+        {
+          "key": "alarms",
+          "label": "今日告警",
+          "unit": "条",
+          "decimals": 0
+        },
+        {
+          "key": "handled",
+          "label": "已处置",
+          "unit": "条",
+          "decimals": 0
+        },
+        {
+          "key": "incidents",
+          "label": "今日事件",
+          "unit": "起",
+          "decimals": 0
+        },
+        {
+          "key": "false-positive",
+          "label": "误报率",
+          "unit": "%",
+          "decimals": 1
+        }
+      ],
+      "totals": {
+        "alarms": 50,
+        "handled": 18,
+        "unhandled": 25,
+        "false_positive": 0,
+        "incidents": 10,
+        "open_incidents": 36,
+        "handled_rate": 36,
+        "false_positive_rate": 0
+      },
+      "peak": {
+        "label": "11:00",
+        "value": 11
+      },
+      "levels": [
+        {
+          "level": 1,
+          "total": 13,
+          "unhandled": 4
+        },
+        {
+          "level": 2,
+          "total": 22,
+          "unhandled": 13
+        },
+        {
+          "level": 3,
+          "total": 13,
+          "unhandled": 6
+        },
+        {
+          "level": 4,
+          "total": 2,
+          "unhandled": 2
+        }
+      ],
+      "scenes": [
+        {
+          "scene": "campus",
+          "name": "示范第一中学",
+          "count": 27,
+          "unhandled": 14
+        },
+        {
+          "scene": "hospital",
+          "name": "市人民医院",
+          "count": 15,
+          "unhandled": 6
+        },
+        {
+          "scene": "justice",
+          "name": "市执法办案管理中心",
+          "count": 8,
+          "unhandled": 5
+        }
+      ],
+      "trend": [
+        {
+          "label": "12:00",
+          "alarms": 5,
+          "handled": 2,
+          "unhandled": 2,
+          "incidents": 2,
+          "false_positive": 0
+        },
+        {
+          "label": "11:00",
+          "alarms": 11,
+          "handled": 3,
+          "unhandled": 7,
+          "incidents": 2,
+          "false_positive": 0
+        },
+        {
+          "label": "10:00",
+          "alarms": 9,
+          "handled": 7,
+          "unhandled": 0,
+          "incidents": 1,
+          "false_positive": 0
+        },
+        {
+          "label": "09:00",
+          "alarms": 3,
+          "handled": 1,
+          "unhandled": 2,
+          "incidents": 1,
+          "false_positive": 0
+        },
+        {
+          "label": "08:00",
+          "alarms": 11,
+          "handled": 0,
+          "unhandled": 10,
+          "incidents": 2,
+          "false_positive": 0
+        },
+        {
+          "label": "07:00",
+          "alarms": 0,
+          "handled": 0,
+          "unhandled": 0,
+          "incidents": 0,
+          "false_positive": 0
+        },
+        {
+          "label": "06:00",
+          "alarms": 2,
+          "handled": 0,
+          "unhandled": 1,
+          "incidents": 0,
+          "false_positive": 0
+        },
+        {
+          "label": "05:00",
+          "alarms": 3,
+          "handled": 3,
+          "unhandled": 0,
+          "incidents": 2,
+          "false_positive": 0
+        },
+        {
+          "label": "04:00",
+          "alarms": 0,
+          "handled": 0,
+          "unhandled": 0,
+          "incidents": 0,
+          "false_positive": 0
+        },
+        {
+          "label": "03:00",
+          "alarms": 0,
+          "handled": 0,
+          "unhandled": 0,
+          "incidents": 0,
+          "false_positive": 0
+        },
+        {
+          "label": "02:00",
+          "alarms": 3,
+          "handled": 0,
+          "unhandled": 2,
+          "incidents": 0,
+          "false_positive": 0
+        },
+        {
+          "label": "01:00",
+          "alarms": 3,
+          "handled": 2,
+          "unhandled": 1,
+          "incidents": 0,
+          "false_positive": 0
+        }
+      ],
+      "heatmap": {
+        "axis": [
+          "00",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "06",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "12",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "18",
+          "",
+          "",
+          "",
+          "",
+          ""
+        ],
+        "rows": [
+          {
+            "key": "today",
+            "label": "今天",
+            "cells": [
+              {
+                "hour": 0,
+                "count": 3
+              },
+              {
+                "hour": 1,
+                "count": 3
+              },
+              {
+                "hour": 2,
+                "count": 0
+              },
+              {
+                "hour": 3,
+                "count": 0
+              },
+              {
+                "hour": 4,
+                "count": 3
+              },
+              {
+                "hour": 5,
+                "count": 2
+              },
+              {
+                "hour": 6,
+                "count": 0
+              },
+              {
+                "hour": 7,
+                "count": 11
+              },
+              {
+                "hour": 8,
+                "count": 3
+              },
+              {
+                "hour": 9,
+                "count": 9
+              },
+              {
+                "hour": 10,
+                "count": 10
+              },
+              {
+                "hour": 11,
+                "count": 6
+              },
+              {
+                "hour": 12,
+                "count": 0
+              },
+              {
+                "hour": 13,
+                "count": 0
+              },
+              {
+                "hour": 14,
+                "count": 0
+              },
+              {
+                "hour": 15,
+                "count": 0
+              },
+              {
+                "hour": 16,
+                "count": 0
+              },
+              {
+                "hour": 17,
+                "count": 0
+              },
+              {
+                "hour": 18,
+                "count": 0
+              },
+              {
+                "hour": 19,
+                "count": 0
+              },
+              {
+                "hour": 20,
+                "count": 0
+              },
+              {
+                "hour": 21,
+                "count": 0
+              },
+              {
+                "hour": 22,
+                "count": 0
+              },
+              {
+                "hour": 23,
+                "count": 0
+              }
+            ]
+          }
+        ],
+        "max": 11
+      },
+      "points": [
+        {
+          "point_id": "PT-HM-1F04",
+          "point_room": "1楼急诊分诊台",
+          "total": 4,
+          "level1": 2,
+          "false_positive": 0,
+          "fp_rate": 0
+        },
+        {
+          "point_id": "PT-B1-2F02",
+          "point_room": "教学楼 A2楼202卫生间",
+          "total": 3,
+          "level1": 2,
+          "false_positive": 0,
+          "fp_rate": 0
+        },
+        {
+          "point_id": "PT-GA-1F03",
+          "point_room": "1楼讯问室 03",
+          "total": 3,
+          "level1": 1,
+          "false_positive": 0,
+          "fp_rate": 0
+        },
+        {
+          "point_id": "PT-B2-1F01",
+          "point_room": "教学楼 B1楼101教室",
+          "total": 2,
+          "level1": 0,
+          "false_positive": 0,
+          "fp_rate": 0
+        },
+        {
+          "point_id": "PT-B2-1F05",
+          "point_room": "教学楼 B1楼105走廊",
+          "total": 2,
+          "level1": 0,
+          "false_positive": 0,
+          "fp_rate": 0
+        },
+        {
+          "point_id": "PT-B2-1F08",
+          "point_room": "教学楼 B1楼108教室",
+          "total": 2,
+          "level1": 1,
+          "false_positive": 0,
+          "fp_rate": 0
+        }
+      ],
+      "types": [
+        {
+          "type_code": "device_offline",
+          "type_name": "设备离线",
+          "category": "设备",
+          "count": 9
+        },
+        {
+          "type_code": "abnormal_sound",
+          "type_name": "异常声音",
+          "category": "声音检测",
+          "count": 6
+        },
+        {
+          "type_code": "decibel_exceed",
+          "type_name": "分贝超限",
+          "category": "声音检测",
+          "count": 6
+        },
+        {
+          "type_code": "cry_scream",
+          "type_name": "哭声 / 呼救",
+          "category": "声音检测",
+          "count": 5
+        },
+        {
+          "type_code": "fight_conflict",
+          "type_name": "冲突争吵",
+          "category": "声音检测",
+          "count": 5
+        },
+        {
+          "type_code": "intrusion",
+          "type_name": "区域入侵",
+          "category": "行为检测",
+          "count": 4
+        }
+      ],
+      "stream": {
+        "tick_seconds": 5,
+        "frames": [
+          {
+            "trend_label": "13:00",
+            "alarms": 5,
+            "handled": 5,
+            "unhandled": 0,
+            "incidents": 0,
+            "false_positive": 0,
+            "heat": {
+              "row": 0,
+              "hour": 13
+            },
+            "totals": {
+              "alarms": 52,
+              "handled": 21,
+              "unhandled": 24,
+              "false_positive": 0,
+              "incidents": 10,
+              "open_incidents": 36,
+              "handled_rate": 40.4,
+              "false_positive_rate": 0
+            }
+          },
+          {
+            "trend_label": "14:00",
+            "alarms": 5,
+            "handled": 5,
+            "unhandled": 0,
+            "incidents": 1,
+            "false_positive": 1,
+            "heat": {
+              "row": 0,
+              "hour": 14
+            },
+            "totals": {
+              "alarms": 54,
+              "handled": 26,
+              "unhandled": 22,
+              "false_positive": 1,
+              "incidents": 11,
+              "open_incidents": 36,
+              "handled_rate": 48.1,
+              "false_positive_rate": 1.9
+            }
+          },
+          {
+            "trend_label": "15:00",
+            "alarms": 1,
+            "handled": 1,
+            "unhandled": 0,
+            "incidents": 0,
+            "false_positive": 0,
+            "heat": {
+              "row": 0,
+              "hour": 15
+            },
+            "totals": {
+              "alarms": 55,
+              "handled": 27,
+              "unhandled": 22,
+              "false_positive": 1,
+              "incidents": 11,
+              "open_incidents": 36,
+              "handled_rate": 49.1,
+              "false_positive_rate": 1.8
+            }
+          },
+          {
+            "trend_label": "16:00",
+            "alarms": 1,
+            "handled": 1,
+            "unhandled": 0,
+            "incidents": 0,
+            "false_positive": 0,
+            "heat": {
+              "row": 0,
+              "hour": 16
+            },
+            "totals": {
+              "alarms": 56,
+              "handled": 28,
+              "unhandled": 22,
+              "false_positive": 1,
+              "incidents": 11,
+              "open_incidents": 36,
+              "handled_rate": 50,
+              "false_positive_rate": 1.8
+            }
+          },
+          {
+            "trend_label": "17:00",
+            "alarms": 10,
+            "handled": 10,
+            "unhandled": 0,
+            "incidents": 1,
+            "false_positive": 1,
+            "heat": {
+              "row": 0,
+              "hour": 17
+            },
+            "totals": {
+              "alarms": 63,
+              "handled": 35,
+              "unhandled": 22,
+              "false_positive": 2,
+              "incidents": 10,
+              "open_incidents": 36,
+              "handled_rate": 55.6,
+              "false_positive_rate": 3.2
+            }
+          },
+          {
+            "trend_label": "18:00",
+            "alarms": 1,
+            "handled": 1,
+            "unhandled": 0,
+            "incidents": 0,
+            "false_positive": 0,
+            "heat": {
+              "row": 0,
+              "hour": 18
+            },
+            "totals": {
+              "alarms": 62,
+              "handled": 36,
+              "unhandled": 21,
+              "false_positive": 2,
+              "incidents": 10,
+              "open_incidents": 36,
+              "handled_rate": 58.1,
+              "false_positive_rate": 3.2
+            }
+          },
+          {
+            "trend_label": "19:00",
+            "alarms": 1,
+            "handled": 1,
+            "unhandled": 0,
+            "incidents": 0,
+            "false_positive": 1,
+            "heat": {
+              "row": 0,
+              "hour": 19
+            },
+            "totals": {
+              "alarms": 63,
+              "handled": 37,
+              "unhandled": 21,
+              "false_positive": 3,
+              "incidents": 10,
+              "open_incidents": 36,
+              "handled_rate": 58.7,
+              "false_positive_rate": 4.8
+            }
+          },
+          {
+            "trend_label": "20:00",
+            "alarms": 4,
+            "handled": 4,
+            "unhandled": 0,
+            "incidents": 0,
+            "false_positive": 1,
+            "heat": {
+              "row": 0,
+              "hour": 20
+            },
+            "totals": {
+              "alarms": 56,
+              "handled": 41,
+              "unhandled": 11,
+              "false_positive": 4,
+              "incidents": 8,
+              "open_incidents": 36,
+              "handled_rate": 73.2,
+              "false_positive_rate": 7.1
+            }
+          }
+        ]
+      }
+    },
+    "week": {
+      "key": "week",
+      "label": "近 7 日",
+      "window_label": "近 7 日",
+      "granularity": "day",
+      "kpi_defs": [
+        {
+          "key": "alarms",
+          "label": "近 7 日告警",
+          "unit": "条",
+          "decimals": 0
+        },
+        {
+          "key": "handled",
+          "label": "已处置",
+          "unit": "条",
+          "decimals": 0
+        },
+        {
+          "key": "incidents",
+          "label": "近 7 日事件",
+          "unit": "起",
+          "decimals": 0
+        },
+        {
+          "key": "false-positive",
+          "label": "误报率",
+          "unit": "%",
+          "decimals": 1
+        }
+      ],
+      "totals": {
+        "alarms": 532,
+        "handled": 459,
+        "unhandled": 30,
+        "false_positive": 29,
+        "incidents": 22,
+        "open_incidents": 36,
+        "handled_rate": 86.3,
+        "false_positive_rate": 5.5
+      },
+      "peak": {
+        "label": "10/15",
+        "value": 127
+      },
+      "levels": [
+        {
+          "level": 1,
+          "total": 71,
+          "unhandled": 5
+        },
+        {
+          "level": 2,
+          "total": 192,
+          "unhandled": 17
+        },
+        {
+          "level": 3,
+          "total": 224,
+          "unhandled": 6
+        },
+        {
+          "level": 4,
+          "total": 45,
+          "unhandled": 2
+        }
+      ],
+      "scenes": [
+        {
+          "scene": "campus",
+          "name": "示范第一中学",
+          "count": 287,
+          "unhandled": 17
+        },
+        {
+          "scene": "hospital",
+          "name": "市人民医院",
+          "count": 185,
+          "unhandled": 7
+        },
+        {
+          "scene": "justice",
+          "name": "市执法办案管理中心",
+          "count": 60,
+          "unhandled": 6
+        }
+      ],
+      "trend": [
+        {
+          "label": "10/19",
+          "alarms": 50,
+          "handled": 18,
+          "unhandled": 25,
+          "incidents": 10,
+          "false_positive": 0
+        },
+        {
+          "label": "10/18",
+          "alarms": 33,
+          "handled": 32,
+          "unhandled": 0,
+          "incidents": 2,
+          "false_positive": 1
+        },
+        {
+          "label": "10/17",
+          "alarms": 37,
+          "handled": 33,
+          "unhandled": 1,
+          "incidents": 2,
+          "false_positive": 0
+        },
+        {
+          "label": "10/16",
+          "alarms": 69,
+          "handled": 64,
+          "unhandled": 0,
+          "incidents": 1,
+          "false_positive": 9
+        },
+        {
+          "label": "10/15",
+          "alarms": 127,
+          "handled": 115,
+          "unhandled": 2,
+          "incidents": 3,
+          "false_positive": 9
+        },
+        {
+          "label": "10/14",
+          "alarms": 117,
+          "handled": 108,
+          "unhandled": 0,
+          "incidents": 1,
+          "false_positive": 5
+        },
+        {
+          "label": "10/13",
+          "alarms": 99,
+          "handled": 89,
+          "unhandled": 2,
+          "incidents": 3,
+          "false_positive": 5
+        }
+      ],
+      "heatmap": {
+        "axis": [
+          "00",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "06",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "12",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "18",
+          "",
+          "",
+          "",
+          "",
+          ""
+        ],
+        "rows": [
+          {
+            "key": "day-0",
+            "label": "今天",
+            "cells": [
+              {
+                "hour": 0,
+                "count": 3
+              },
+              {
+                "hour": 1,
+                "count": 3
+              },
+              {
+                "hour": 2,
+                "count": 0
+              },
+              {
+                "hour": 3,
+                "count": 0
+              },
+              {
+                "hour": 4,
+                "count": 3
+              },
+              {
+                "hour": 5,
+                "count": 2
+              },
+              {
+                "hour": 6,
+                "count": 0
+              },
+              {
+                "hour": 7,
+                "count": 11
+              },
+              {
+                "hour": 8,
+                "count": 3
+              },
+              {
+                "hour": 9,
+                "count": 9
+              },
+              {
+                "hour": 10,
+                "count": 10
+              },
+              {
+                "hour": 11,
+                "count": 6
+              },
+              {
+                "hour": 12,
+                "count": 0
+              },
+              {
+                "hour": 13,
+                "count": 0
+              },
+              {
+                "hour": 14,
+                "count": 0
+              },
+              {
+                "hour": 15,
+                "count": 0
+              },
+              {
+                "hour": 16,
+                "count": 0
+              },
+              {
+                "hour": 17,
+                "count": 0
+              },
+              {
+                "hour": 18,
+                "count": 0
+              },
+              {
+                "hour": 19,
+                "count": 0
+              },
+              {
+                "hour": 20,
+                "count": 0
+              },
+              {
+                "hour": 21,
+                "count": 0
+              },
+              {
+                "hour": 22,
+                "count": 0
+              },
+              {
+                "hour": 23,
+                "count": 0
+              }
+            ]
+          },
+          {
+            "key": "day-1",
+            "label": "昨天",
+            "cells": [
+              {
+                "hour": 0,
+                "count": 1
+              },
+              {
+                "hour": 1,
+                "count": 1
+              },
+              {
+                "hour": 2,
+                "count": 0
+              },
+              {
+                "hour": 3,
+                "count": 2
+              },
+              {
+                "hour": 4,
+                "count": 1
+              },
+              {
+                "hour": 5,
+                "count": 2
+              },
+              {
+                "hour": 6,
+                "count": 0
+              },
+              {
+                "hour": 7,
+                "count": 0
+              },
+              {
+                "hour": 8,
+                "count": 1
+              },
+              {
+                "hour": 9,
+                "count": 1
+              },
+              {
+                "hour": 10,
+                "count": 0
+              },
+              {
+                "hour": 11,
+                "count": 1
+              },
+              {
+                "hour": 12,
+                "count": 5
+              },
+              {
+                "hour": 13,
+                "count": 1
+              },
+              {
+                "hour": 14,
+                "count": 2
+              },
+              {
+                "hour": 15,
+                "count": 2
+              },
+              {
+                "hour": 16,
+                "count": 2
+              },
+              {
+                "hour": 17,
+                "count": 7
+              },
+              {
+                "hour": 18,
+                "count": 1
+              },
+              {
+                "hour": 19,
+                "count": 1
+              },
+              {
+                "hour": 20,
+                "count": 2
+              },
+              {
+                "hour": 21,
+                "count": 0
+              },
+              {
+                "hour": 22,
+                "count": 0
+              },
+              {
+                "hour": 23,
+                "count": 0
+              }
+            ]
+          },
+          {
+            "key": "day-2",
+            "label": "2 天前",
+            "cells": [
+              {
+                "hour": 0,
+                "count": 0
+              },
+              {
+                "hour": 1,
+                "count": 2
+              },
+              {
+                "hour": 2,
+                "count": 0
+              },
+              {
+                "hour": 3,
+                "count": 0
+              },
+              {
+                "hour": 4,
+                "count": 0
+              },
+              {
+                "hour": 5,
+                "count": 2
+              },
+              {
+                "hour": 6,
+                "count": 0
+              },
+              {
+                "hour": 7,
+                "count": 0
+              },
+              {
+                "hour": 8,
+                "count": 2
+              },
+              {
+                "hour": 9,
+                "count": 4
+              },
+              {
+                "hour": 10,
+                "count": 2
+              },
+              {
+                "hour": 11,
+                "count": 2
+              },
+              {
+                "hour": 12,
+                "count": 2
+              },
+              {
+                "hour": 13,
+                "count": 0
+              },
+              {
+                "hour": 14,
+                "count": 2
+              },
+              {
+                "hour": 15,
+                "count": 2
+              },
+              {
+                "hour": 16,
+                "count": 1
+              },
+              {
+                "hour": 17,
+                "count": 2
+              },
+              {
+                "hour": 18,
+                "count": 3
+              },
+              {
+                "hour": 19,
+                "count": 1
+              },
+              {
+                "hour": 20,
+                "count": 3
+              },
+              {
+                "hour": 21,
+                "count": 2
+              },
+              {
+                "hour": 22,
+                "count": 0
+              },
+              {
+                "hour": 23,
+                "count": 5
+              }
+            ]
+          },
+          {
+            "key": "day-3",
+            "label": "3 天前",
+            "cells": [
+              {
+                "hour": 0,
+                "count": 2
+              },
+              {
+                "hour": 1,
+                "count": 2
+              },
+              {
+                "hour": 2,
+                "count": 3
+              },
+              {
+                "hour": 3,
+                "count": 3
+              },
+              {
+                "hour": 4,
+                "count": 2
+              },
+              {
+                "hour": 5,
+                "count": 6
+              },
+              {
+                "hour": 6,
+                "count": 1
+              },
+              {
+                "hour": 7,
+                "count": 2
+              },
+              {
+                "hour": 8,
+                "count": 4
+              },
+              {
+                "hour": 9,
+                "count": 5
+              },
+              {
+                "hour": 10,
+                "count": 13
+              },
+              {
+                "hour": 11,
+                "count": 12
+              },
+              {
+                "hour": 12,
+                "count": 0
+              },
+              {
+                "hour": 13,
+                "count": 1
+              },
+              {
+                "hour": 14,
+                "count": 2
+              },
+              {
+                "hour": 15,
+                "count": 4
+              },
+              {
+                "hour": 16,
+                "count": 4
+              },
+              {
+                "hour": 17,
+                "count": 1
+              },
+              {
+                "hour": 18,
+                "count": 1
+              },
+              {
+                "hour": 19,
+                "count": 1
+              },
+              {
+                "hour": 20,
+                "count": 0
+              },
+              {
+                "hour": 21,
+                "count": 0
+              },
+              {
+                "hour": 22,
+                "count": 0
+              },
+              {
+                "hour": 23,
+                "count": 0
+              }
+            ]
+          },
+          {
+            "key": "day-4",
+            "label": "4 天前",
+            "cells": [
+              {
+                "hour": 0,
+                "count": 3
+              },
+              {
+                "hour": 1,
+                "count": 7
+              },
+              {
+                "hour": 2,
+                "count": 4
+              },
+              {
+                "hour": 3,
+                "count": 2
+              },
+              {
+                "hour": 4,
+                "count": 3
+              },
+              {
+                "hour": 5,
+                "count": 7
+              },
+              {
+                "hour": 6,
+                "count": 0
+              },
+              {
+                "hour": 7,
+                "count": 1
+              },
+              {
+                "hour": 8,
+                "count": 5
+              },
+              {
+                "hour": 9,
+                "count": 11
+              },
+              {
+                "hour": 10,
+                "count": 11
+              },
+              {
+                "hour": 11,
+                "count": 6
+              },
+              {
+                "hour": 12,
+                "count": 5
+              },
+              {
+                "hour": 13,
+                "count": 4
+              },
+              {
+                "hour": 14,
+                "count": 11
+              },
+              {
+                "hour": 15,
+                "count": 12
+              },
+              {
+                "hour": 16,
+                "count": 17
+              },
+              {
+                "hour": 17,
+                "count": 7
+              },
+              {
+                "hour": 18,
+                "count": 8
+              },
+              {
+                "hour": 19,
+                "count": 0
+              },
+              {
+                "hour": 20,
+                "count": 2
+              },
+              {
+                "hour": 21,
+                "count": 1
+              },
+              {
+                "hour": 22,
+                "count": 0
+              },
+              {
+                "hour": 23,
+                "count": 0
+              }
+            ]
+          },
+          {
+            "key": "day-5",
+            "label": "5 天前",
+            "cells": [
+              {
+                "hour": 0,
+                "count": 3
+              },
+              {
+                "hour": 1,
+                "count": 5
+              },
+              {
+                "hour": 2,
+                "count": 0
+              },
+              {
+                "hour": 3,
+                "count": 6
+              },
+              {
+                "hour": 4,
+                "count": 4
+              },
+              {
+                "hour": 5,
+                "count": 4
+              },
+              {
+                "hour": 6,
+                "count": 2
+              },
+              {
+                "hour": 7,
+                "count": 0
+              },
+              {
+                "hour": 8,
+                "count": 6
+              },
+              {
+                "hour": 9,
+                "count": 7
+              },
+              {
+                "hour": 10,
+                "count": 9
+              },
+              {
+                "hour": 11,
+                "count": 4
+              },
+              {
+                "hour": 12,
+                "count": 7
+              },
+              {
+                "hour": 13,
+                "count": 8
+              },
+              {
+                "hour": 14,
+                "count": 14
+              },
+              {
+                "hour": 15,
+                "count": 8
+              },
+              {
+                "hour": 16,
+                "count": 9
+              },
+              {
+                "hour": 17,
+                "count": 4
+              },
+              {
+                "hour": 18,
+                "count": 7
+              },
+              {
+                "hour": 19,
+                "count": 2
+              },
+              {
+                "hour": 20,
+                "count": 0
+              },
+              {
+                "hour": 21,
+                "count": 3
+              },
+              {
+                "hour": 22,
+                "count": 3
+              },
+              {
+                "hour": 23,
+                "count": 2
+              }
+            ]
+          },
+          {
+            "key": "day-6",
+            "label": "6 天前",
+            "cells": [
+              {
+                "hour": 0,
+                "count": 2
+              },
+              {
+                "hour": 1,
+                "count": 4
+              },
+              {
+                "hour": 2,
+                "count": 5
+              },
+              {
+                "hour": 3,
+                "count": 5
+              },
+              {
+                "hour": 4,
+                "count": 7
+              },
+              {
+                "hour": 5,
+                "count": 5
+              },
+              {
+                "hour": 6,
+                "count": 0
+              },
+              {
+                "hour": 7,
+                "count": 7
+              },
+              {
+                "hour": 8,
+                "count": 3
+              },
+              {
+                "hour": 9,
+                "count": 6
+              },
+              {
+                "hour": 10,
+                "count": 8
+              },
+              {
+                "hour": 11,
+                "count": 14
+              },
+              {
+                "hour": 12,
+                "count": 3
+              },
+              {
+                "hour": 13,
+                "count": 2
+              },
+              {
+                "hour": 14,
+                "count": 3
+              },
+              {
+                "hour": 15,
+                "count": 4
+              },
+              {
+                "hour": 16,
+                "count": 7
+              },
+              {
+                "hour": 17,
+                "count": 8
+              },
+              {
+                "hour": 18,
+                "count": 3
+              },
+              {
+                "hour": 19,
+                "count": 1
+              },
+              {
+                "hour": 20,
+                "count": 1
+              },
+              {
+                "hour": 21,
+                "count": 0
+              },
+              {
+                "hour": 22,
+                "count": 0
+              },
+              {
+                "hour": 23,
+                "count": 1
+              }
+            ]
+          }
+        ],
+        "max": 17
+      },
+      "points": [
+        {
+          "point_id": "PT-HM-4F01",
+          "point_room": "4楼住院部 A 区走廊",
+          "total": 10,
+          "level1": 0,
+          "false_positive": 0,
+          "fp_rate": 0
+        },
+        {
+          "point_id": "PT-HM-1F04",
+          "point_room": "1楼急诊分诊台",
+          "total": 9,
+          "level1": 3,
+          "false_positive": 0,
+          "fp_rate": 0
+        },
+        {
+          "point_id": "PT-HM-1F02",
+          "point_room": "1楼门诊大厅东侧闸机",
+          "total": 7,
+          "level1": 0,
+          "false_positive": 0,
+          "fp_rate": 0
+        },
+        {
+          "point_id": "PT-B3-4F02",
+          "point_room": "教学楼 C4楼402教室",
+          "total": 6,
+          "level1": 1,
+          "false_positive": 2,
+          "fp_rate": 33.3
+        },
+        {
+          "point_id": "PT-HM-1F06",
+          "point_room": "1楼输液室",
+          "total": 6,
+          "level1": 1,
+          "false_positive": 0,
+          "fp_rate": 0
+        },
+        {
+          "point_id": "PT-HM-3F07",
+          "point_room": "3楼骨科候诊区",
+          "total": 6,
+          "level1": 2,
+          "false_positive": 0,
+          "fp_rate": 0
+        }
+      ],
+      "types": [
+        {
+          "type_code": "decibel_exceed",
+          "type_name": "分贝超限",
+          "category": "声音检测",
+          "count": 122
+        },
+        {
+          "type_code": "abnormal_sound",
+          "type_name": "异常声音",
+          "category": "声音检测",
+          "count": 77
+        },
+        {
+          "type_code": "device_offline",
+          "type_name": "设备离线",
+          "category": "设备",
+          "count": 54
+        },
+        {
+          "type_code": "fight_conflict",
+          "type_name": "冲突争吵",
+          "category": "声音检测",
+          "count": 39
+        },
+        {
+          "type_code": "cry_scream",
+          "type_name": "哭声 / 呼救",
+          "category": "声音检测",
+          "count": 34
+        },
+        {
+          "type_code": "intrusion",
+          "type_name": "区域入侵",
+          "category": "行为检测",
+          "count": 34
+        }
+      ],
+      "stream": {
+        "tick_seconds": 5,
+        "frames": [
+          {
+            "trend_label": "10/11",
+            "alarms": 50,
+            "handled": 47,
+            "unhandled": 0,
+            "incidents": 1,
+            "false_positive": 2,
+            "heat": {
+              "row": 0,
+              "hour": 12
+            },
+            "totals": {
+              "alarms": 483,
+              "handled": 417,
+              "unhandled": 28,
+              "false_positive": 26,
+              "incidents": 20,
+              "open_incidents": 36,
+              "handled_rate": 86.3,
+              "false_positive_rate": 5.4
+            }
+          },
+          {
+            "trend_label": "10/10",
+            "alarms": 30,
+            "handled": 28,
+            "unhandled": 0,
+            "incidents": 1,
+            "false_positive": 2,
+            "heat": {
+              "row": 0,
+              "hour": 12
+            },
+            "totals": {
+              "alarms": 396,
+              "handled": 337,
+              "unhandled": 28,
+              "false_positive": 23,
+              "incidents": 20,
+              "open_incidents": 36,
+              "handled_rate": 85.1,
+              "false_positive_rate": 5.8
+            }
+          },
+          {
+            "trend_label": "10/9",
+            "alarms": 59,
+            "handled": 55,
+            "unhandled": 0,
+            "incidents": 0,
+            "false_positive": 9,
+            "heat": {
+              "row": 0,
+              "hour": 12
+            },
+            "totals": {
+              "alarms": 328,
+              "handled": 277,
+              "unhandled": 26,
+              "false_positive": 23,
+              "incidents": 17,
+              "open_incidents": 36,
+              "handled_rate": 84.5,
+              "false_positive_rate": 7
+            }
+          },
+          {
+            "trend_label": "10/8",
+            "alarms": 105,
+            "handled": 99,
+            "unhandled": 1,
+            "incidents": 3,
+            "false_positive": 7,
+            "heat": {
+              "row": 0,
+              "hour": 12
+            },
+            "totals": {
+              "alarms": 364,
+              "handled": 312,
+              "unhandled": 27,
+              "false_positive": 21,
+              "incidents": 19,
+              "open_incidents": 36,
+              "handled_rate": 85.7,
+              "false_positive_rate": 5.8
+            }
+          }
+        ]
+      }
+    }
+  }
+}

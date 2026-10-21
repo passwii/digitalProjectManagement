@@ -31,11 +31,31 @@ export default function AvCounter({ value, className }: { value: string; classNa
   const ref = useRef<HTMLSpanElement>(null);
   const [display, setDisplay] = useState(value);
   const started = useRef(false);
+  /**
+   * 当前显示到的数值（不是字符串）。演示态里 KPI 每 5 秒变一点点，
+   * 第二次起的滚动必须**从当前值接着走**，而不是回到 0 —— 否则数字每次都会
+   * 从零冲上来，读起来像刷新而不是「数据在流」。
+   */
+  const numeric = useRef<number | null>(null);
 
   useEffect(() => {
-    if (!enabled || !parsed || started.current) {
+    if (!enabled || !parsed) {
       setDisplay(value);
+      numeric.current = parsed ? parsed.value : null;
       return;
+    }
+    if (started.current) {
+      // 后续变化：quick 档（160ms），从当前显示值滚到新值
+      const from = numeric.current ?? parsed.value;
+      const controls = animate(from, parsed.value, {
+        duration: duration("quick"),
+        ease: "easeOut",
+        onUpdate: (next) => {
+          numeric.current = next;
+          setDisplay(formatCountValue(next, parsed));
+        },
+      });
+      return () => controls.stop();
     }
     const node = ref.current;
     if (!node) return;
@@ -46,7 +66,10 @@ export default function AvCounter({ value, className }: { value: string; classNa
       const controls = animate(0, parsed.value, {
         duration: duration("slow"),
         ease: "easeOut",
-        onUpdate: (next) => setDisplay(formatCountValue(next, parsed)),
+        onUpdate: (next) => {
+          numeric.current = next;
+          setDisplay(formatCountValue(next, parsed));
+        },
       });
       return controls;
     };
@@ -54,6 +77,7 @@ export default function AvCounter({ value, className }: { value: string; classNa
     // 没有 IntersectionObserver（老浏览器 / jsdom）时直接落到终值，不留在 0
     if (typeof IntersectionObserver === "undefined") {
       setDisplay(value);
+      numeric.current = parsed.value;
       return;
     }
     let controls: { stop: () => void } | undefined;

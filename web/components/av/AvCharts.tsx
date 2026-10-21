@@ -15,6 +15,7 @@ import {
   Cell,
   Pie,
   PieChart,
+  ReferenceDot,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -421,6 +422,159 @@ export function AvSignalChart({
             dot={false}
           />
         </AreaChart>
+      </ResponsiveContainer>
+    </ChartFrame>
+  );
+}
+
+/**
+ * 一条数据系列：`key` 是 `data` 里的字段名，`tone` 走 `series-1..8` 或语义色。
+ *
+ * BLF-1424：总览的「告警趋势」要从 2 条线扩到 4 条（告警 / 已处置 / 事件 / 误报），
+ * 所以把「多系列」抽成数据驱动的一份配置，而不是在 AvTrendChart 里再写两条 Area。
+ */
+export interface ChartSeriesSpec {
+  key: string;
+  label: string;
+  tone: AvColorTone;
+  /** 面积渐变强度：主系列给面积，对比系列只给描边，4 条都铺面积会糊成一片 */
+  fill?: "gradient" | "none";
+  dashed?: boolean;
+}
+
+interface ChartSeriesProps {
+  data: Record<string, string | number>[];
+  series: ChartSeriesSpec[];
+  height?: number;
+  label: string;
+  /** 峰值标注：画在主系列的最高点上（`key` 指定对哪条系列取点） */
+  peak?: { key: string; label: string; value: number; caption: string };
+}
+
+/**
+ * 多系列折线 / 面积（总览「告警趋势」）。
+ *
+ * 每个系列一条独立的渐变 `linearGradient`（id 带系列 key，避免互相覆盖）；
+ * 峰值用 `ReferenceDot` 标在最高点，配一条 `caption`（「峰值 11:00 · 11 条」）。
+ */
+export function AvMultiTrendChart({ data, series, height = AV_CHART_HEIGHT.lg, label, peak }: ChartSeriesProps) {
+  const palette = useAvPalette();
+  // 只调一次 hook：每个系列只是相位不同（begin 递增），不是各自一套动画参数。
+  // 在 map 里调 hook 会违反规则（series 长度可随范围变化），这里显式拆开。
+  const animation = useChartAnimation();
+  if (!palette) return <ChartFrame height={height} label={label} />;
+  const peakTone = peak ? series.find((item) => item.key === peak.key)?.tone ?? series[0].tone : series[0].tone;
+  return (
+    <ChartFrame height={height} label={label}>
+      <ResponsiveContainer width="100%" height="100%">
+        <AreaChart data={data} margin={{ top: 12, right: 8, bottom: 0, left: -18 }}>
+          <defs>
+            {series.map((item) =>
+              item.fill === "gradient" ? (
+                <linearGradient key={item.key} id={`av-series-fill-${item.key}`} x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor={toneColor(palette, item.tone)} stopOpacity={0.28} />
+                  <stop offset="100%" stopColor={toneColor(palette, item.tone)} stopOpacity={0.02} />
+                </linearGradient>
+              ) : null,
+            )}
+          </defs>
+          <CartesianGrid stroke={palette.grid} vertical={false} />
+          <XAxis
+            dataKey="label"
+            tick={{ fill: palette.inkSoft, fontSize: 10 }}
+            axisLine={{ stroke: palette.axis }}
+            tickLine={false}
+            interval="preserveStartEnd"
+            minTickGap={18}
+          />
+          <YAxis
+            tick={{ fill: palette.inkSoft, fontSize: 10 }}
+            axisLine={false}
+            tickLine={false}
+            width={44}
+            allowDecimals={false}
+          />
+          <Tooltip contentStyle={tooltipStyle(palette)} cursor={{ stroke: palette.axis }} />
+          {series.map((item, index) => (
+            <Area
+              key={item.key}
+              type="monotone"
+              dataKey={item.key}
+              name={item.label}
+              stroke={toneColor(palette, item.tone)}
+              strokeWidth={index === 0 ? 1.8 : 1.4}
+              strokeDasharray={item.dashed ? "4 4" : undefined}
+              fill={item.fill === "gradient" ? `url(#av-series-fill-${item.key})` : "transparent"}
+              {...animation}
+              animationBegin={animation.animationBegin + index * CHART_SERIES_OFFSET_MS}
+              dot={false}
+            />
+          ))}
+          {peak ? (
+            <ReferenceDot
+              x={peak.label}
+              y={peak.value}
+              r={3.5}
+              fill={toneColor(palette, peakTone)}
+              stroke={palette.surface}
+              strokeWidth={1.5}
+              ifOverflow="extendDomain"
+              label={{
+                value: peak.caption,
+                position: "top",
+                fill: palette.inkSoft,
+                fontSize: 10,
+              }}
+            />
+          ) : null}
+        </AreaChart>
+      </ResponsiveContainer>
+    </ChartFrame>
+  );
+}
+
+/**
+ * 多系列堆叠柱（总览 7 日档）。
+ *
+ * 4 条系列叠在一起看「每天各类处置/事件的构成」，比 4 根并排柱子更容易读出总量；
+ * `stackId` 相同即堆叠，图例仍由页面给。
+ */
+export function AvMultiBarChart({ data, series, height = AV_CHART_HEIGHT.lg, label }: ChartSeriesProps) {
+  const palette = useAvPalette();
+  const animation = useChartAnimation();
+  if (!palette) return <ChartFrame height={height} label={label} />;
+  return (
+    <ChartFrame height={height} label={label}>
+      <ResponsiveContainer width="100%" height="100%">
+        <BarChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: -18 }} barGap={1}>
+          <CartesianGrid stroke={palette.grid} vertical={false} />
+          <XAxis
+            dataKey="label"
+            tick={{ fill: palette.inkSoft, fontSize: 10 }}
+            axisLine={{ stroke: palette.axis }}
+            tickLine={false}
+          />
+          <YAxis
+            tick={{ fill: palette.inkSoft, fontSize: 10 }}
+            axisLine={false}
+            tickLine={false}
+            width={44}
+            allowDecimals={false}
+          />
+          <Tooltip contentStyle={tooltipStyle(palette)} cursor={{ fill: palette.grid }} />
+          {series.map((item, index) => (
+            <Bar
+              key={item.key}
+              dataKey={item.key}
+              name={item.label}
+              stackId="av-overview"
+              fill={toneColor(palette, item.tone)}
+              {...animation}
+              animationBegin={animation.animationBegin + index * CHART_SERIES_OFFSET_MS}
+              maxBarSize={26}
+            />
+          ))}
+        </BarChart>
       </ResponsiveContainer>
     </ChartFrame>
   );

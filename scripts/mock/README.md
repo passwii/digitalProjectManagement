@@ -18,7 +18,7 @@ scripts/mock/              生成器 + 校验 + 契约审计（零依赖，Node 
 # 重新生成（固定种子，产出逐字节一致）
 node scripts/mock/generate.mjs
 
-# 一致性校验：158 项（聚合对聚合 + 聚合对明细 + 语义对语义）
+# 一致性校验：166 项（聚合对聚合 + 聚合对明细 + 语义对语义）
 node scripts/mock/validate.mjs
 
 # 前端可消费性审计：P0 必须为 0，否则退出码 1
@@ -100,6 +100,30 @@ const spectra = await loadDataset(); // 或者 loadSpectrum("sp-001")
 - 排序方向全站统一「新 → 旧」：`alarms` / `incidents` / `audit-logs` / `trends.hourly` / `trends.daily`
   的数组都按偏移升序，`heatmap` 按 `(day asc, hour asc)` 排列。
 - `heatmap[].hour` 是**时钟小时 0..23**，不是「近 24 小时窗口序号」。
+
+### 总览页三档时间范围（`overview-ranges.json` · BLF-1424）
+
+`kpi.json` / `trends.json` 是**当日口径**的既有契约；总览页右上角要在
+「近 24 小时 / 今日 / 近 7 日」之间真的换数，所以另起一份 `overview-ranges.json`：
+
+| 档位 | 窗口 | 趋势桶 | 热力窗口 |
+|---|---|---|---|
+| `live` | 偏移 `[0,1440)` 的滚动 24 小时 | 24 个小时桶 | 1 行 × 24 格（轴上是从旧到新的真实钟点，所以刻度是 `13 / 19 / 01 / 07`） |
+| `today` | 今天自然日（锚点正午，00:00 → 12:00） | 12 个小时桶 | 1 行 × 24 格（钟点网格，未到来的小时为空） |
+| `week` | 最近 7 个自然日（`dayDiff` 0..6） | 7 个日桶 | 7 行 × 24 格 |
+
+每档都带 `totals`（KPI 四值的唯一来源）、`levels` / `scenes` / `points` / `types`，
+以及 `stream`（页面数据流推进用的固定帧）。三条硬约定：
+
+1. 每档的 `trend` / `levels` / `scenes` / `heatmap` **逐项相加 = `totals.alarms`**
+   （`validate.mjs` 检查项「三档的 totals 与明细窗口一致…」）；
+2. `stream.frames[i].totals` 是**滚动之后**的汇总，前端不做业务运算 ——
+   滚动语义是「最旧一格掉出、最新一格补进来」，帧里的新增格取自一两周前同时段的真实历史桶
+   （并跳过与被挤掉的旧桶完全相同的候选，否则那一帧推进后画面不动）；
+3. 追加文件、不动既有 JSON：重跑生成器后 `git diff` 里只会看到新文件 + `index.json` 的一行。
+
+> 键名是 `stream` 不是 `demo`：这个目录访客可以直接下载，`siteCopyGuard` 会把
+> `\bdemo\b` / 「演示」判成「把自己写小」的文案。
 
 ## 五、契约变更流程
 

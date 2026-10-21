@@ -10,31 +10,42 @@
  *
  * 这里只放**类型**，没有任何运行时导出。
  */
-import type { Algorithm, Alarm, AlarmsIndex, DeviceStatus, Incident, Rule, Scene, Spectrum, Transcript } from "./types";
+import type {
+  Algorithm,
+  Alarm,
+  AlarmsIndex,
+  DeviceStatus,
+  Incident,
+  OverviewRangeKey,
+  Rule,
+  Scene,
+  Spectrum,
+  Transcript,
+} from "./types";
 import type { AvTone } from "./labels";
-import type { KpiCard, MetricDatum } from "./view";
+import type { OverviewRangeModel } from "./view";
 
 // ---------------------------------------------------------------------------
 // 总览
 // ---------------------------------------------------------------------------
 
+/**
+ * 总览页 props。
+ *
+ * 三档时间范围（近 24 小时 / 今日 / 近 7 日）**一次性全部直出**：
+ * 切换范围时页面不再请求、也不出现 loading —— 数据在服务端就已经按档投影好了。
+ * 每档自带 KPI / 分级 / 场景 / 趋势 / 热力 / 点位 / 类型 + 演示帧，
+ * 所以「右上角切一下，大半个页面都换数」不需要任何客户端取数。
+ */
 export interface OverviewProps {
-  kpis: KpiCard[];
-  trend: { label: string; alarms: number; handled: number }[];
-  todayTrend: { label: string; alarms: number; handled: number }[];
-  daily: { label: string; alarms: number; incidents: number }[];
-  heatmap: { day: number; cells: { hour: number; count: number }[] }[];
-  levels: { level: number; label: string; total: number; unhandled: number; tone: AvTone }[];
-  todayAlarmsTotal: number;
-  scenes: (MetricDatum & { site: string; scene: Scene })[];
+  initialRange: OverviewRangeKey;
+  ranges: Record<OverviewRangeKey, OverviewRangeModel>;
   gpu: {
     meta: { model: string; vramTotalGb: number; utilization: number };
     cards: { index: number; utilization: number; vram: number; mode: string; temperature: number; tone: AvTone }[];
   };
   storage: { hotTotalTb: number; hotUsedTb: number; coldUsedTb: number; unit: string };
   firmware: { model: string; version: string; count: number }[];
-  types: { code: string; name: string; category: string; count: number }[];
-  points: { id: string; room: string; total: number; level1: number; fpRate: number }[];
   recent: {
     id: string;
     level: number;
@@ -54,7 +65,6 @@ export interface OverviewProps {
     hasAudio: boolean;
     hasVideo: boolean;
   }[];
-  alarmUnhandled: number;
 }
 
 // ---------------------------------------------------------------------------

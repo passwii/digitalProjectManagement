@@ -15,6 +15,10 @@ import type {
   Incident,
   Kpi,
   LevelCount,
+  OverviewKpiDef,
+  OverviewRange,
+  OverviewRangeKey,
+  OverviewTotals,
   Point,
   Scene,
   Trends,
@@ -24,10 +28,12 @@ import {
   AV_SCENE_ORDER,
   compactAge,
   formatCount,
+  formatPercent,
   levelMeta,
   sceneMeta,
   type AvTone,
 } from "./labels";
+import type { AvSeriesTone } from "./tone";
 
 export interface KpiCard {
   key: string;
@@ -479,3 +485,261 @@ export const CORE_FILES = [
   "transcripts.json",
 ] as const;
 
+
+// ---------------------------------------------------------------------------
+// 总览 · 三档时间范围（BLF-1424）
+// ---------------------------------------------------------------------------
+
+/**
+ * 趋势图上的一个点（recharts 的 dataKey 用驼峰，避免模板里出现下划线拼接）。
+ *
+ * 带索引签名是**故意的**：recharts 的 `data` 契约就是「按键取值的一行」，
+ * 系列配置（`TREND_SERIES[].key`）是数据驱动的，编译器无法把两者静态关联起来。
+ */
+export interface OverviewTrendDatum {
+  label: string;
+  alarms: number;
+  handled: number;
+  incidents: number;
+  falsePositive: number;
+  [key: string]: string | number;
+}
+
+/** 数据流里的一帧：结构上就是「右端新增的一格 + 滚动后的四张 KPI 卡」。 */
+export interface OverviewStreamFrameModel {
+  label: string;
+  point: OverviewTrendDatum;
+  kpis: KpiCard[];
+  totals: OverviewTotals;
+  pulse: { row: number; hour: number };
+}
+
+/**
+ * 一档时间范围在前端要用的全部东西。
+ *
+ * 这里只做**形状映射**：数字、比率、峰值全部来自 overview-ranges.json；
+ * 颜色与文案（tone / 「已处置」这类标签）在这一层拼，页面不参与。
+ */
+export interface OverviewRangeModel {
+  key: OverviewRangeKey;
+  label: string;
+  windowLabel: string;
+  granularity: OverviewRange["granularity"];
+  kpis: KpiCard[];
+  totals: OverviewTotals;
+  peak: { label: string; value: number };
+  levels: { level: number; label: string; total: number; unhandled: number; tone: AvTone }[];
+  scenes: (MetricDatum & { site: string; scene: Scene })[];
+  /** 已翻转成「旧 → 新」，直接喂给 recharts */
+  trend: OverviewTrendDatum[];
+  heatmap: {
+    axis: string[];
+    rows: { key: string; label: string; cells: { hour: number; count: number }[] }[];
+    max: number;
+    rowHeight: string;
+  };
+  points: { id: string; room: string; total: number; level1: number; fpRate: number }[];
+  types: { code: string; name: string; category: string; count: number }[];
+  stream: { tickSeconds: number; frames: OverviewStreamFrameModel[] };
+}
+
+/**
+ * 「告警趋势」的四条系列（BLF-1424）。
+ *
+ * 放在 view 层而不是页面里，是为了能被测试直接断言「至少 4 条、颜色互不相同」——
+ * 页面里写死的话只能靠截图肉眼看。颜色走 Stage 1 的数据系列色
+ * （`--av-series-1..4`：青 / 蓝 / 紫 / 品红），第四条用虚线表达「误报是噪声」。
+ */
+export interface OverviewTrendSeries {
+  key: "alarms" | "handled" | "incidents" | "falsePositive";
+  label: string;
+  tone: AvSeriesTone;
+  fill?: "gradient" | "none";
+  dashed?: boolean;
+}
+
+export const OVERVIEW_TREND_SERIES: OverviewTrendSeries[] = [
+  { key: "alarms", label: "告警", tone: "series-1", fill: "gradient" },
+  { key: "handled", label: "已处置", tone: "series-2" },
+  { key: "incidents", label: "事件", tone: "series-3" },
+  { key: "falsePositive", label: "误报", tone: "series-4", dashed: true },
+];
+
+/** KPI 四个槽位的语义色：同一个槽位在三档里保持同一个颜色，换数时不会「变色误导」。 */
+const OVERVIEW_KPI_TONE: Record<OverviewKpiDef["key"], AvTone> = {
+  alarms: "danger",
+  handled: "success",
+  incidents: "violet",
+  "false-positive": "warning",
+};
+
+/**
+ * KPI 四张卡：值 / 副标题全部由 totals 拼出来。
+ *
+ * 之所以不把整卡文案写进 JSON：JSON 只该有口径与数字，文案属于视图层；
+ * 而且演示帧要复用同一套文案，只换 totals（见 `overviewRangeAtTick`）。
+ */
+export function overviewKpisFrom(range: OverviewRange, totals: OverviewTotals): KpiCard[] {
+  return range.kpi_defs.map((def) => {
+    switch (def.key) {
+      case "alarms":
+        return {
+          key: def.key,
+          label: def.label,
+          value: formatCount(totals.alarms),
+          unit: def.unit,
+          detail: `已处置 ${formatCount(totals.handled)} 条`,
+          note: `未处置 ${formatCount(totals.unhandled)} 条`,
+          tone: OVERVIEW_KPI_TONE[def.key],
+        };
+      case "handled":
+        return {
+          key: def.key,
+          label: def.label,
+          value: formatCount(totals.handled),
+          unit: def.unit,
+          detail: `处置率 ${formatPercent(totals.handled_rate)}`,
+          note: `误报归档 ${formatCount(totals.false_positive)} 条`,
+          tone: OVERVIEW_KPI_TONE[def.key],
+        };
+      case "incidents":
+        return {
+          key: def.key,
+          label: def.label,
+          value: formatCount(totals.incidents),
+          unit: def.unit,
+          detail: `在办 ${formatCount(totals.open_incidents)} 起`,
+          note: "跨告警融合后的人工确认单元",
+          tone: OVERVIEW_KPI_TONE[def.key],
+        };
+      default:
+        return {
+          key: def.key,
+          label: def.label,
+          value: totals.false_positive_rate.toFixed(def.decimals),
+          unit: def.unit,
+          detail: `误报 ${formatCount(totals.false_positive)} 条 / 告警 ${formatCount(totals.alarms)} 条`,
+          note: "按该窗口内的告警口径计算",
+          tone: OVERVIEW_KPI_TONE[def.key],
+        };
+    }
+  });
+}
+
+/** `overview-ranges.json` 的一档 → 页面模型。 */
+export function overviewRangeModel(range: OverviewRange): OverviewRangeModel {
+  return {
+    key: range.key,
+    label: range.label,
+    windowLabel: range.window_label,
+    granularity: range.granularity,
+    kpis: overviewKpisFrom(range, range.totals),
+    totals: range.totals,
+    peak: range.peak,
+    levels: range.levels.map((row) => ({
+      level: row.level,
+      label: levelMeta(row.level).label,
+      total: row.total,
+      unhandled: row.unhandled,
+      tone: levelMeta(row.level).tone,
+    })),
+    // 场景分布：场景名做主标签、站点名做副标签（与既有 sceneDistribution 同一约定）
+    scenes: range.scenes.map((row) => ({
+      label: sceneMeta(row.scene).fallbackName,
+      value: row.count,
+      tone: sceneMeta(row.scene).tone,
+      site: row.name,
+      scene: row.scene,
+    })),
+    trend: [...range.trend].reverse().map((row) => ({
+      label: row.label,
+      alarms: row.alarms,
+      handled: row.handled,
+      incidents: row.incidents,
+      falsePositive: row.false_positive,
+    })),
+    heatmap: {
+      axis: range.heatmap.axis,
+      rows: range.heatmap.rows.map((row) => ({
+        key: row.key,
+        label: row.label,
+        cells: row.cells.map((cell) => ({ hour: cell.hour, count: cell.count })),
+      })),
+      max: range.heatmap.max,
+      // 行高跟着行数走：week 是 7 行，live / today 只有 1 行 —— 单行时把格子拉大，
+      // 否则整块热力图会缩成一条发丝，演示时看不出「这里是热力窗口」
+      rowHeight: range.heatmap.rows.length > 1 ? "narrow" : "wide",
+    },
+    points: range.points.map((row) => ({
+      id: row.point_id,
+      room: row.point_room,
+      total: row.total,
+      level1: row.level1,
+      fpRate: row.fp_rate,
+    })),
+    types: range.types.map((row) => ({
+      code: row.type_code,
+      name: row.type_name,
+      category: row.category,
+      count: row.count,
+    })),
+    stream: {
+      tickSeconds: range.stream.tick_seconds,
+      frames: range.stream.frames.map((frame) => ({
+        label: frame.trend_label,
+        point: {
+          label: frame.trend_label,
+          alarms: frame.alarms,
+          handled: frame.handled,
+          incidents: frame.incidents,
+          falsePositive: frame.false_positive,
+        },
+        kpis: overviewKpisFrom(range, frame.totals),
+        totals: frame.totals,
+        pulse: frame.heat,
+      })),
+    },
+  };
+}
+
+/**
+ * 数据流进度 → 当前要渲染的内容。
+ *
+ * 滚动语义与 generator 一致：右端补 tick 个新格，左端丢掉同样多的旧格
+ * （长度不变，横轴不会跳）。这里只做**切片与拼接**，不产生任何新数字。
+ */
+export function overviewRangeAtTick(
+  model: OverviewRangeModel,
+  tick: number,
+): {
+  kpis: KpiCard[];
+  trend: OverviewTrendDatum[];
+  totals: OverviewTotals;
+  peak: { label: string; value: number };
+  pulse: { row: number; hour: number } | null;
+} {
+  const frames = model.stream.frames;
+  const applied = Math.max(0, Math.min(tick, frames.length));
+  if (applied === 0) {
+    return { kpis: model.kpis, trend: model.trend, totals: model.totals, peak: model.peak, pulse: null };
+  }
+  const head = model.trend.slice(0, Math.max(0, model.trend.length - applied));
+  const tail = frames.slice(0, applied).map((frame) => frame.point);
+  const trend = [...head, ...tail];
+  return {
+    kpis: frames[applied - 1].kpis,
+    trend,
+    totals: frames[applied - 1].totals,
+    // 峰值跟着推进后的曲线重算：标注必须落在当前画出来的那条线上
+    peak: overviewPeak(trend),
+    pulse: frames[applied - 1].pulse,
+  };
+}
+
+/** 曲线峰值（主系列 = 告警数）。数据点是现成的，这里只挑最大的一个。 */
+export function overviewPeak(trend: OverviewTrendDatum[]): { label: string; value: number } {
+  return trend.reduce(
+    (best, row) => (row.alarms > best.value ? { label: row.label, value: row.alarms } : best),
+    { label: trend[0]?.label ?? "", value: trend[0]?.alarms ?? 0 },
+  );
+}

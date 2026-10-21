@@ -13,6 +13,7 @@ const ds = readDataset();
 const {
   index, alarmsIndex, alarms, org, sites, points, devices, deviceStats, users,
   incidents, kpi, trends, rankings, scenes, algorithms, rules, auditLogs, spectra, transcripts,
+  overviewRanges,
 } = ds;
 
 const T = makeTime(kpi._meta.generated_at);
@@ -942,6 +943,126 @@ check("rate 类字段统一为百分数（0–100）", () => {
   if (!(kpi.online_rate > 1 && kpi.online_rate <= 100)) bad.push(`online_rate=${kpi.online_rate}`);
   if (!(kpi.false_positive_rate > 0 && kpi.false_positive_rate <= 100)) bad.push(`fp_rate=${kpi.false_positive_rate}`);
   return bad.length === 0 || bad.join(",");
+});
+
+
+// ════════════════════════════════════════════════════════════
+// 十七、总览页三档时间范围（BLF-1424）
+// ════════════════════════════════════════════════════════════
+// 这一份数据是「同一页换时间范围」的唯一来源：三档必须真的不同，
+// 且每档内部的六块聚合（trend / levels / scenes / heatmap / points / types）
+// 必须都来自**同一个窗口**的告警 —— 否则切换后会出现「趋势是 7 日、分级是今日」。
+const RANGE_KEYS = ["live", "today", "week"];
+const RANGE_WINDOWS = {
+  live: (a) => a.ts_offset_minutes >= 0 && a.ts_offset_minutes < DAY,
+  today: (a) => T.dayDiff(a.ts_offset_minutes) === 0,
+  week: (a) => {
+    const d = T.dayDiff(a.ts_offset_minutes);
+    return d >= 0 && d <= 6;
+  },
+};
+const sumOf = (list, pick) => list.reduce((total, row) => total + pick(row), 0);
+
+check("overview-ranges：三档齐全，顺序与 _meta.range_order 一致", () => {
+  const order = overviewRanges._meta.range_order;
+  const same = order.length === RANGE_KEYS.length && order.every((key, i) => key === RANGE_KEYS[i]);
+  const built = RANGE_KEYS.every((key) => overviewRanges.ranges[key] && overviewRanges.ranges[key].kpi_defs.length === 4);
+  if (!same) return `range_order=${order.join(",")}`;
+  return built || "有档位缺 kpi_defs";
+});
+
+check("三档的 totals 与明细窗口一致，且六块聚合逐项相加 = totals.alarms", () => {
+  const problems = [];
+  for (const key of RANGE_KEYS) {
+    const range = overviewRanges.ranges[key];
+    const windowAlarms = alarms.filter(RANGE_WINDOWS[key]);
+    if (range.totals.alarms !== windowAlarms.length) {
+      problems.push(`${key}: totals.alarms=${range.totals.alarms} 明细=${windowAlarms.length}`);
+    }
+    if (sumOf(range.trend, (r) => r.alarms) !== range.totals.alarms) problems.push(`${key}: trend`);
+    if (sumOf(range.levels, (r) => r.total) !== range.totals.alarms) problems.push(`${key}: levels`);
+    if (sumOf(range.scenes, (r) => r.count) !== range.totals.alarms) problems.push(`${key}: scenes`);
+    const heat = sumOf(range.heatmap.rows, (row) => sumOf(row.cells, (c) => c.count));
+    if (heat !== range.totals.alarms) problems.push(`${key}: heatmap(${heat})`);
+    const handled = windowAlarms.filter((a) => a.status === "closed" || a.status === "false_positive").length;
+    if (range.totals.handled !== handled) problems.push(`${key}: handled=${range.totals.handled}/${handled}`);
+  }
+  return problems.length === 0 || problems.join("；");
+});
+
+check("三档的 KPI 四值 / 分级 / 场景 / 趋势 / 热力互不相同", () => {
+  const signature = (key) => {
+    const range = overviewRanges.ranges[key];
+    return JSON.stringify([
+      range.kpi_defs.map((def) => def.label),
+      range.totals,
+      range.levels.map((row) => row.total),
+      range.scenes.map((row) => row.count),
+      range.trend.map((row) => [row.label, row.alarms, row.handled, row.incidents, row.false_positive]),
+      range.heatmap.rows.map((row) => row.cells.map((cell) => cell.count)),
+    ]);
+  };
+  const unique = new Set(RANGE_KEYS.map(signature));
+  return unique.size === RANGE_KEYS.length || `只有 ${unique.size} 档不同`;
+});
+
+check("热力窗口三档三种形状（live / today 1 行 × 24 格，week 7 行 × 24 格）", () => {
+  const shapes = RANGE_KEYS.map((key) => {
+    const heat = overviewRanges.ranges[key].heatmap;
+    return `${heat.rows.length}x${heat.rows[0].cells.length}/axis=${heat.axis.length}`;
+  });
+  const ok = shapes[0] === "1x24/axis=24" && shapes[1] === "1x24/axis=24" && shapes[2] === "7x24/axis=24";
+  return ok || shapes.join(",");
+});
+
+check("每档趋势都有 4 条系列（alarms / handled / incidents / false_positive），且数值自洽", () => {
+  const problems = [];
+  for (const key of RANGE_KEYS) {
+    const range = overviewRanges.ranges[key];
+    const bad = range.trend.filter(
+      (row) =>
+        typeof row.alarms !== "number" ||
+        typeof row.handled !== "number" ||
+        typeof row.incidents !== "number" ||
+        typeof row.false_positive !== "number" ||
+        row.handled > row.alarms ||
+        row.false_positive > row.alarms ||
+        row.unhandled > row.alarms,
+    );
+    if (bad.length) problems.push(`${key}: ${bad.length} 个桶超出告警数`);
+    if (range.trend.length < 7) problems.push(`${key}: 只有 ${range.trend.length} 个桶`);
+  }
+  return problems.length === 0 || problems.join("；");
+});
+
+check("演示帧：趋势滚动长度不变、totals 与滚动后的桶一致、脉冲落在热力网格内", () => {
+  const problems = [];
+  for (const key of RANGE_KEYS) {
+    const range = overviewRanges.ranges[key];
+    const frames = range.stream.frames;
+    if (frames.length < 2) problems.push(`${key}: 帧太少`);
+    const added = [];
+    frames.forEach((frame, index) => {
+      added.unshift({
+        alarms: frame.alarms,
+        handled: frame.handled,
+        unhandled: frame.unhandled,
+        incidents: frame.incidents,
+        false_positive: frame.false_positive,
+      });
+      const rolling = [...added, ...range.trend.slice(0, range.trend.length - (index + 1))];
+      const expected = sumOf(rolling, (row) => row.alarms);
+      if (frame.totals.alarms !== expected) problems.push(`${key}#${index}: ${frame.totals.alarms} != ${expected}`);
+      const row = range.heatmap.rows[frame.heat.row];
+      if (!row || !row.cells.some((cell) => cell.hour === frame.heat.hour)) problems.push(`${key}#${index}: 脉冲越界`);
+    });
+    if (range.stream.tick_seconds < 4 || range.stream.tick_seconds > 6) problems.push(`${key}: tick=${range.stream.tick_seconds}s`);
+  }
+  return problems.length === 0 || problems.slice(0, 4).join("；");
+});
+
+check("index.json 的文件清单含 overview-ranges.json", () => {
+  return index.files.includes("overview-ranges.json") || "index.files 缺 overview-ranges.json";
 });
 
 console.log(checks.join("\n"));

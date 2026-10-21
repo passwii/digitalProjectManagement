@@ -2997,6 +2997,32 @@ textarea,
     transform: none;
   }
 }
+/*
+ * 时间范围切换（BLF-1424）：整块总览内容 12px 上浮 + 淡入。
+ * 时长由调用方给 var(--av-dur-quick)（160ms），`?static=1` / reduced 下归零。
+ */
+@keyframes avRangeSwap {
+  from {
+    opacity: 0.2;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+/* 演示态热力脉冲：被推进到的那一格放大一下，只动 transform，不动布局 */
+@keyframes avHeatPulse {
+  0% {
+    transform: scale(1);
+  }
+  45% {
+    transform: scale(1.45);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
 /* 一级告警色条呼吸：3s 一循环、透明度 1 ↔ 0.7，见 AV_BREATH_SECONDS */
 @keyframes avBreathe {
   from {
