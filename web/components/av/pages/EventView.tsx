@@ -162,7 +162,13 @@ export default function EventView({ rows, detail, initialId, counts, userNames }
       <AvPageHeader
         route="/stream-monitor/event"
         title="事件中心"
-        subtitle="多起告警按点位与时间窗融合成一起事件，全程可追溯"
+        /*
+          标题下的这一句是本 Stage 的事实说明，不是文案清理（中文化 / 删冗余描述是 Stage 7 的事）：
+          页面里已经同时有告警融合事件与巡检 / 上下线 / OTA 等普通事件，只写「多起告警融合成一起事件」
+          就在选择「普通事件」筛选时与列表自相矛盾（Codex review 第 4 轮）。按 Stage 7 的约定写成数据型，
+          两类计数直接来自 props，不写死。
+        */
+        subtitle={`告警融合 ${formatCount(counts.alarm)} 起 · 普通事件 ${formatCount(counts.routine)} 起，两类都可全程追溯`}
         aside={
           <div className={s.eventFilters}>
             <AvTabs items={kindTabs} value={kind} onChange={changeKind} ariaLabel="事件性质筛选" />
