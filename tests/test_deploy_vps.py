@@ -30,15 +30,31 @@ def installed_shells() -> list[str]:
     """
     return [shell for shell in ("bash", "zsh") if shutil.which(shell)]
 
+def _line_index(script: str, needle: str) -> int:
+    """子串**首次出现所在的行号**（0 起）。
+
+    为什么不用 str.index：远端脚本的注释里也会提到 `git pull --ff-only`，
+    `index()` 会命中注释里的那一处，断言「校验早于拉代码」就变成了
+    「校验早于一句注释」——恒真且毫无意义。这里只认**代码行**：
+    去掉行首空白后以 needle 开头。
+    """
+    for number, line in enumerate(script.splitlines()):
+        if line.strip().startswith(needle):
+            return number
+    raise AssertionError(f"脚本里找不到以 {needle!r} 开头的代码行")
+
+
 from scripts.deploy_vps import (  # noqa: E402
     DEFAULT_APP_DIR,
     DEFAULT_BRANCH,
     DEFAULT_COMPOSE_FILES,
     PRUNE_KEEP_SPARE,
+    REQUIRED_ENV_CHECKS,
     SSH_PROBE_TIMEOUT,
     VPS_HOST_V4,
     VPS_HOST_V6,
     VPS_HOSTS,
+    build_env_check_block,
     build_prune_block,
     build_remote_script,
     build_ssh_command,
@@ -128,6 +144,100 @@ class DeployVpsScriptTest(unittest.TestCase):
         self.assertEqual(
             DEFAULT_COMPOSE_FILES, ("docker-compose.yml", "docker-compose.prod.yml")
         )
+
+
+class DeployVpsHttpsPrereqTest(unittest.TestCase):
+    """HTTPS 前置校验（BLF-1400）。
+
+    背景：PWA 只能装在**安全上下文**里。实测（Chrome 140，非 localhost 的
+    HTTP 源）：isSecureContext=false、navigator.serviceWorker=undefined、
+    installability_errors=not-from-secure-origin。没有安全上下文就没有 SW，
+    Chrome 拿不到 WebAPK，只能降级成「快捷方式」安装 —— 主屏幕图标右下角
+    挂一个 Chrome 徽标，而且装出来的不是真应用。
+
+    这些配错的后果是**静默**的：部署成功、站点能访问、图标能显示，只有装机
+    方式不对。所以必须在部署前就拦。
+    """
+
+    def test_checks_the_three_https_prerequisites(self):
+        script = build_remote_script()
+
+        for name, _ in REQUIRED_ENV_CHECKS:
+            self.assertIn(f'check_env "{name}"', script)
+
+    def test_check_happens_before_touching_containers(self):
+        """校验必须在 `docker compose up` 之前 —— 顺序反了就失去意义。"""
+        script = build_remote_script()
+
+        self.assertLess(
+            _line_index(script, "check_env \"PM_DOMAIN\""),
+            _line_index(script, "docker compose -f docker-compose.yml"),
+            "HTTPS 前置校验必须早于容器操作",
+        )
+
+    def test_check_happens_before_pulling_code(self):
+        """缺配置就别急着拉代码、起容器。"""
+        script = build_remote_script()
+
+        self.assertLess(
+            _line_index(script, "check_env \"PM_DOMAIN\""),
+            _line_index(script, "git pull --ff-only origin main"),
+            "HTTPS 前置校验必须早于拉代码",
+        )
+
+    def test_missing_value_aborts_the_deploy(self):
+        block = build_env_check_block()
+
+        self.assertIn("exit 1", block)
+        self.assertIn("缺少", block)
+
+    def test_check_block_is_valid_bash_and_aborts_when_a_value_is_missing(self):
+        """真跑一遍：缺项必须以非零码退出（而不是只打印一句提示）。"""
+        with tempfile.TemporaryDirectory() as tmp:
+            env_path = os.path.join(tmp, ".env")
+            script_path = os.path.join(tmp, "check.sh")
+            with open(script_path, "w", encoding="utf-8") as handle:
+                handle.write(
+                    "#!/usr/bin/env bash\nset -euo pipefail\n" + build_env_check_block()
+                )
+            with open(env_path, "w", encoding="utf-8") as handle:
+                handle.write("PM_HOST_BIND=127.0.0.1\nAPI_PORT_BIND=127.0.0.1\n")
+
+            result = subprocess.run(
+                ["bash", script_path],
+                cwd=tmp,
+                capture_output=True,
+                text=True,
+            )
+
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("PM_DOMAIN", result.stderr)
+
+    def test_check_block_passes_when_all_values_are_present(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            env_path = os.path.join(tmp, ".env")
+            script_path = os.path.join(tmp, "check.sh")
+            with open(script_path, "w", encoding="utf-8") as handle:
+                handle.write(
+                    "#!/usr/bin/env bash\nset -euo pipefail\n" + build_env_check_block()
+                )
+            with open(env_path, "w", encoding="utf-8") as handle:
+                handle.write(
+                    "PM_DOMAIN=pm.example.com\n"
+                    "PM_HOST_BIND=127.0.0.1\n"
+                    "API_PORT_BIND=127.0.0.1\n"
+                    "NEXT_PUBLIC_API_BASE=https://pm.example.com/api/v1\n"
+                    "CORS_ORIGINS=https://pm.example.com\n"
+                )
+
+            result = subprocess.run(
+                ["bash", script_path],
+                cwd=tmp,
+                capture_output=True,
+                text=True,
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr)
 
 
 class DeployVpsImageReclaimTest(unittest.TestCase):

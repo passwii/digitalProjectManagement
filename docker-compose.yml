@@ -21,10 +21,12 @@ services:
     environment:
       TZ: Asia/Shanghai
       APP_SECRET: "${APP_SECRET:?APP_SECRET must be set}"
-      DATABASE_URL: "${DATABASE_URL:?DATABASE_URL must be set to a PostgreSQL URL}"
+      # 必须是 PostgreSQL 连接串（见 .env.docker.example）。
+      DATABASE_URL: "${DATABASE_URL:?DATABASE_URL must be set}"
       DB_POOL_SIZE: "${DB_POOL_SIZE:-5}"
       DB_MAX_OVERFLOW: "${DB_MAX_OVERFLOW:-10}"
-      CORS_ORIGINS: "${CORS_ORIGINS:-http://localhost:3001,http://127.0.0.1:3001}"
+      CORS_ORIGINS: >-
+        ${CORS_ORIGINS:-http://localhost:3001,http://127.0.0.1:3001}
       # 附件对象存储（BLF-1136）：R2 是正文唯一持久化口径。
       # r2（默认）/ auto 在 R2_* 不全时**启动即失败**；local 仅开发/测试，写临时暂存目录，
       # 且 APP_ENV=production 时被拒绝（生产环境不可能把正文落盘）。
@@ -43,9 +45,17 @@ services:
     volumes:
       - pm-data:/app/data
     ports:
-      - "8001:8001"
+      # 宿主机绑定地址（web 那边是 PM_HOST_BIND，这里是 API_PORT_BIND）。
+      # 同一个插值表达式 → 合并后去重 → 仍只有一条。理由见 web.ports 注释。
+      - "${API_PORT_BIND:-0.0.0.0}:8001:8001"
     healthcheck:
-      test: ["CMD", "python3", "-c", "import urllib.request;urllib.request.urlopen('http://127.0.0.1:8001/health')"]
+      test:
+        - CMD
+        - python3
+        - -c
+        - >-
+          import urllib.request as u;
+          u.urlopen('http://127.0.0.1:8001/health')
       interval: 15s
       timeout: 5s
       retries: 5
@@ -55,9 +65,19 @@ services:
       context: .
       dockerfile: docker/web.Dockerfile
       args:
-        NEXT_PUBLIC_API_BASE: "${NEXT_PUBLIC_API_BASE:-http://localhost:8001/api/v1}"
+        NEXT_PUBLIC_API_BASE: >-
+          ${NEXT_PUBLIC_API_BASE:-http://localhost:8001/api/v1}
     ports:
-      - "3001:3001"
+      # 宿主机绑定地址。**可被覆盖文件改写，但改写后不要在这里换表达式** ——
+      # compose 合并多个文件时 ports 是**去重合并**（不是替换）：两个文件写
+      # **同一条**插值表达式时，合并后仍只有一条（插值后才比较）。
+      # 一旦 prod 改写成另一个字面量，base 的这条会被**追加**在后面，
+      # 结果是 3001 同时绑 0.0.0.0 与 127.0.0.1 —— 全网可达，
+      # 明文 HTTP 依旧能直连，PWA 还是装不成真应用。
+      #
+      # 生产（docker-compose.prod.yml）靠 PM_HOST_BIND=127.0.0.1 收回本机，
+      # 公网只留 caddy 的 443。
+      - "${PM_HOST_BIND:-0.0.0.0}:3001:3001"
     depends_on:
       api:
         condition: service_healthy

@@ -1,5 +1,5 @@
 import { readFileSync, readdirSync } from "node:fs";
-import { resolve } from "node:path";
+import { resolve, sep } from "node:path";
 import { describe, expect, it } from "vitest";
 
 /**
@@ -31,7 +31,18 @@ function filesUnder(dir: string, extension: RegExp): string[] {
   return out;
 }
 
-const TSX_FILES = AV_SOURCES.flatMap((dir) => filesUnder(dir, /\.tsx?$/));
+const TSX_FILES = AV_SOURCES.flatMap((dir) => filesUnder(dir, /\.tsx?$/)).filter(
+  // 排除 PWA 清单的 route handler（BLF-1400）。
+  //
+  // 颜色守卫的意图是「组件里不许硬编码颜色，颜色只能来自令牌」。但
+  // Web App Manifest 规范要求 `theme_color` / `background_color` 就是
+  // **十六进制字面量**（浏览器拿不到 CSS 变量，manifest 不是 CSS）。
+  // 所以清单文件是这条规则的**例外**，不是违反。
+  //
+  // （站点的清单原本放在 public/ 下、是静态 JSON，压根不在这个扫描范围里；
+  //  BLF-1400 改成 route.ts 之后才落进 app/stream-monitor/。）
+  (file) => !file.includes(`${sep}manifest.webmanifest${sep}`),
+);
 const CSS_FILES = AV_SOURCES.flatMap((dir) => filesUnder(dir, /\.css$/));
 
 /**

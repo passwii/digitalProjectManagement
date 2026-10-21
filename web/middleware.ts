@@ -1,5 +1,9 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import {
+  SPARK_PWA_MANIFEST,
+  STREAM_MONITOR_PWA_MANIFEST,
+} from "@/lib/pwaManifest";
 
 const PUBLIC_PATHS = [
   "/login",
@@ -89,6 +93,31 @@ function legacyDataRedirect(pathname: string): string | null {
 export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
   const token = req.cookies.get("pm_access_token")?.value;
+
+  // PWA 清单必须在登录鉴权和 Next 页面路由之前直接返回（BLF-1400）。
+  //
+  // 两个站点都有动态页面 `app/<site>/[section]/page.tsx`。Next 14 的匹配顺序
+  // 是 page matcher 先于 route handler；同级的 `/[section]` 因此会抢走
+  // `/spark/manifest.webmanifest` 与 `/stream-monitor/manifest.webmanifest`
+  // 并返回 404。这里在 middleware 中直接返回 JSON，绕开 Next 的文件系统
+  // 路由匹配；公开 URL 与 `<link rel="manifest">` 都保持原样。
+  //
+  // 装机发生在未登录状态，所以必须在 token 检查前处理。否则清单会 307 到
+  // /login，Chrome 拿到 HTML 而不是 JSON，报 manifest-parsing-or-network-error。
+  let pwaManifest = null;
+  if (pathname === "/spark/manifest.webmanifest") {
+    pwaManifest = SPARK_PWA_MANIFEST;
+  } else if (pathname === "/stream-monitor/manifest.webmanifest") {
+    pwaManifest = STREAM_MONITOR_PWA_MANIFEST;
+  }
+  if (pwaManifest) {
+    return NextResponse.json(pwaManifest, {
+      headers: {
+        "Content-Type": "application/manifest+json",
+        "Cache-Control": "public, max-age=0, must-revalidate",
+      },
+    });
+  }
 
   if (pathname === "/") {
     const url = req.nextUrl.clone();

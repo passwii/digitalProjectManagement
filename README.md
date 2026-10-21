@@ -538,6 +538,53 @@ flowchart LR
 
 当前部署是单机 Docker Compose 形态：API 启动前执行 Alembic Migration 和幂等 Seed，Web 使用 Next.js standalone server，PostgreSQL 由外部主机、VPS 隧道或宿主机提供。
 
+#### 7.1.1 HTTPS 入口（PWA 装机的前提）
+
+**公网入口只有一个：宿主机 Caddy 的 443。** Web(3001) 与 API(8001) 只听 `127.0.0.1`，由现有 Caddy 反代。
+
+```mermaid
+flowchart LR
+    U["Browser"] -->|"HTTPS 443"| C["Host Caddy"]
+    C -->|"/"| W["Web :3001"]
+    C -->|"/api/*"| A["API :8001"]
+```
+
+原因不是「HSTS 更好看」，而是 **PWA 只能装在安全上下文里**：
+
+- Chrome 只在**安全上下文**（HTTPS 或 localhost）里给 `navigator.serviceWorker`。
+- 没有 service worker → Chrome 拿不到 WebAPK（装机时向 Google 的 minting 服务申请一个签名的 APK）。
+- 拿不到 WebAPK 就**降级成「快捷方式」安装** → 主屏幕图标右下角挂一个 **Chrome 徽标**，
+  而且装出来的不是真应用：没有应用抽屉入口、没有独立包名、站内链接被别的应用点开会落回浏览器。
+
+实测（Chrome 140，访问 `http://<裸 IP>:3001`）：
+
+```text
+isSecureContext        = false
+navigator.serviceWorker = undefined      ← Chrome 直接把 SW API 屏蔽
+installability_errors  = not-from-secure-origin
+```
+
+这类退化是**静默**的：站点能访问、图标能显示、Lighthouse 全绿，只有装机方式不对。
+所以 `scripts/deploy_vps.py` 会在部署前校验 `/opt/pm/.env` 中的域名、端口绑定、API 基址与 CORS 配置。
+
+生产服务器 `/opt/pm/.env` 必须包含以下配置。`PM_DOMAIN` 要与宿主机 Caddy 站点域名一致：
+
+```dotenv
+# 对外访问域名（Caddy 用它签发证书并监听）
+PM_DOMAIN=pm.example.com
+# 宿主机上 web 端口的绑定地址：收回回环，公网只能走 caddy 的 443
+PM_HOST_BIND=127.0.0.1
+# 宿主机上 api 端口的绑定地址：同上
+API_PORT_BIND=127.0.0.1
+# 前端构建期编进去的 API 基址：必须与宿主机 Caddy 域名同源
+NEXT_PUBLIC_API_BASE=https://pm.example.com/api/v1
+# 后端跨域白名单：写对外的源（浏览器发的 Origin 不长容器里的样子）
+CORS_ORIGINS=https://pm.example.com
+```
+
+> ⚠️ `.env` 的优先级**高于** compose 文件里的 `${VAR:-default}`。`.env` 里若留着
+> `NEXT_PUBLIC_API_BASE=http://127.0.0.1:8001/api/v1`，compose 的默认值根本不生效。
+
 ### 7.2 `[目标]`
 
 ```mermaid
