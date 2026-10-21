@@ -2833,17 +2833,31 @@ textarea,
    * 只定档、不改视觉：每一档对应一个**改之前就存在**的字号，
    * 令牌化不得让任何一处渲染像素发生变化（由 avFontSizes.vitest.test.ts
    * 的「字号档位覆盖站点实际用到的字号」+「渲染等价」守卫守着）。
+   *
+   * ⚠️ 数字三档（kpi / figure / stat）在 BLF-1423 跟进里被**刻意**调大调粗：
+   * 用户反馈「多色数字令牌这块，数字的大小和粗细需要加粗几次才更好看」。
+   * 所以那三处字号不再等于基线像素值 —— 基线在 avFontSizes.vitest.test.ts 里
+   * 逐条登记为「有意变更」，并由「数字醒目档不许回退」的用例守住新值。
    */
   --av-text-page: clamp(20px, 2.1vw, 26px); /* 页面标题 h1 */
   --av-text-title: 15px; /* 卡片 / 抽屉标题 */
   --av-text-emphasis: 14px; /* 卡片内的等宽数字 / 计数（比正文重一档） */
-  --av-text-panel: 13px; /* 面板标题 / 分级计数 */
+  --av-text-panel: 13px; /* 面板标题 / 非数字的分级标签 */
   --av-text-body: 12px; /* 正文 */
   --av-text-note: 11px; /* 辅助说明 */
   --av-text-micro: 10px; /* 等宽微标注 / 编号 / 时间戳 */
   --av-text-tiny: 9px; /* 超小标注（热力轴 / 通道角标） */
-  --av-text-figure: 22px; /* 状态格数值 / 环形图中心数字 */
-  --av-text-kpi: clamp(22px, 2.2vw, 29px); /* KPI 大数字 */
+  --av-text-stat: 16px; /* 中号数字：榜单 / 进度条计数 / 分级计数 / 场景 KPI */
+  --av-text-figure: 26px; /* 状态格数值 / 环形图中心数字 */
+  --av-text-kpi: clamp(26px, 2.4vw, 34px); /* KPI 大数字 */
+
+  /* ---------- 数字字重（BLF-1423 跟进）----------
+   * 等宽字体上 600 看着偏细（JetBrains Mono / Menlo 的 600 都落到 Regular 与
+   * Bold 之间），数字是要「一眼读出来」的内容，所以单独给两档字重令牌：
+   * 大数字 800、中号数字 700。字重也只走令牌，组件里不写裸数字。
+   */
+  --av-weight-figure: 800; /* 大数字字重：KPI / 状态格 / 环形中心 */
+  --av-weight-stat: 700; /* 中号数字字重：榜单 / 计数 / 图例数值 */
 }
 
 /* 告警 / 设备详情用原生 <dialog> 打开时锁住背景滚动（Esc 关闭后由组件移除该属性） */

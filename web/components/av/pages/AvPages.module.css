@@ -221,13 +221,17 @@
 .levelTotal {
   color: var(--av-ink);
   font-family: var(--font-mono);
-  font-size: var(--av-text-panel);
+  /* 分级数字走中号数字档（BLF-1423 跟进：13px/400 → 16px/700） */
+  font-size: var(--av-text-stat);
+  font-weight: var(--av-weight-stat);
   font-variant-numeric: tabular-nums;
 }
 
 .levelSub {
   color: var(--av-ink-3);
-  font-size: var(--av-text-micro);
+  /* 跟「今日 N」同一行，字号不能差得太离谱（10 → 12px，BLF-1423 跟进） */
+  font-size: var(--av-text-body);
+  font-weight: 600;
   white-space: nowrap;
 }
 
@@ -342,7 +346,9 @@
 .gpuValue {
   color: var(--av-ink);
   font-family: var(--font-mono);
-  font-size: var(--av-text-note);
+  /* 利用率是这一行的主读数，跟数字档走（11 → 14px，BLF-1423 跟进） */
+  font-size: var(--av-text-emphasis);
+  font-weight: var(--av-weight-stat);
   font-variant-numeric: tabular-nums;
   text-align: right;
 }
@@ -485,7 +491,9 @@
 .rankNum {
   color: var(--av-ink);
   font-family: var(--font-mono);
-  font-size: var(--av-text-body);
+  /* 榜单数字是这一屏里最需要「被比较」的数字，走中号字数字档（BLF-1423 跟进） */
+  font-size: var(--av-text-stat);
+  font-weight: var(--av-weight-stat);
   font-variant-numeric: tabular-nums;
   text-align: right;
 }
@@ -1435,13 +1443,14 @@
 
 .statusCell strong {
   /* 与 KPI 同一手法（BLF-1423）：数字取格子自带的 --metric-tone；
-     未给 tone 的格子回落到正文色，不影响其它页面。 */
+     未给 tone 的格子回落到正文色，不影响其它页面。
+     字号 / 字重同 KPI 一样走数字档（BLF-1423 跟进）。 */
   color: var(--metric-tone, var(--av-ink));
   font-family: var(--font-mono);
   font-size: var(--av-text-figure);
-  font-weight: 600;
+  font-weight: var(--av-weight-figure);
   font-variant-numeric: tabular-nums;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.03em;
 }
 
 .statusCell small {
@@ -1608,8 +1617,8 @@
 .sceneKpis strong {
   color: var(--av-ink);
   font-family: var(--font-mono);
-  font-size: var(--av-text-emphasis);
-  font-weight: 600;
+  font-size: var(--av-text-stat);
+  font-weight: var(--av-weight-stat);
   font-variant-numeric: tabular-nums;
 }
 

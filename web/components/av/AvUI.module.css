@@ -222,11 +222,14 @@
    * KPI 数字跟随色条同色（BLF-1422 / BLF-1423）：左边 2px 色条、图标、数字三者
    * 用同一个 --metric-tone，卡片底色保持中性 —— 「卡片克制、数字醒目」。
    * 单位（`.metricValue span`）仍是弱文字色，避免整串数字发胖。
+   *
+   * 字号 / 字重走数字档令牌（BLF-1423 跟进）：KPI 是整屏第一眼的数字，
+   * 26→34px、600→800 —— 「加粗几次」落到令牌上，而不是各处手写 font-weight。
    */
   color: var(--metric-tone);
   font-size: var(--av-text-kpi);
-  font-weight: 600;
-  letter-spacing: -0.03em;
+  font-weight: var(--av-weight-figure);
+  letter-spacing: -0.035em;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -242,7 +245,9 @@
 .metricValue span {
   color: var(--av-ink-3);
   font-family: var(--font-body);
-  font-size: var(--av-text-note);
+  /* 单位跟着数字上了一个档（11 → 14px）：34px 的数字旁边 11px 的「%」会浮得像脚注 */
+  font-size: var(--av-text-emphasis);
+  font-weight: 600;
   white-space: nowrap;
 }
 
@@ -379,7 +384,8 @@
 .tabCount {
   color: var(--av-ink-3);
   font-family: var(--font-mono);
-  font-size: var(--av-text-micro);
+  font-size: var(--av-text-note);
+  font-weight: var(--av-weight-stat);
   font-variant-numeric: tabular-nums;
 }
 
@@ -406,7 +412,9 @@
 .barHead strong {
   color: var(--av-ink);
   font-family: var(--font-mono);
-  font-size: var(--av-text-body);
+  /* 进度条右侧的读数也是主数据，跟中号数字档同一档（12 → 16px） */
+  font-size: var(--av-text-stat);
+  font-weight: var(--av-weight-stat);
   font-variant-numeric: tabular-nums;
 }
 
@@ -435,7 +443,8 @@
   flex-wrap: wrap;
   gap: var(--av-space-3);
   color: var(--av-ink-2);
-  font-size: var(--av-text-note);
+  /* 图例本身就是「一行数字」，跟着数字档走（11px → 14px，BLF-1423 跟进） */
+  font-size: var(--av-text-emphasis);
 }
 
 .legendItem {
@@ -456,7 +465,8 @@
   /* 图例数字与色点同色：图例也是这类「数字跟随色条」的一处（BLF-1423） */
   color: var(--tone, var(--av-ink));
   font-family: var(--font-mono);
-  font-size: var(--av-text-note);
+  font-size: var(--av-text-emphasis);
+  font-weight: var(--av-weight-stat);
   font-variant-numeric: tabular-nums;
 }
 
