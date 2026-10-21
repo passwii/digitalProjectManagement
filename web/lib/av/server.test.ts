@@ -11,7 +11,8 @@ import {
   getDatasetIndex,
   getExtremes,
 } from "./server";
-import { getAudioData, getDeviceData, getEventData, getOverviewData, getStressData } from "./pageData";
+import { getAudioData, getAlarmData, getDeviceData, getEventData, getOverviewData, getStressData } from "./pageData";
+import { ALARM_PAGE_SIZE } from "./alarmPaging";
 import { loadAlarmShard, type Fetcher } from "./load";
 import { readFileSync } from "node:fs";
 import { CORE_FILES } from "./view";
@@ -63,6 +64,18 @@ describe("智能音视频平台 服务端数据层", () => {
     const second = await getAlarmPage(first.next_cursor, 20);
     const overlap = second.alarms.filter((alarm) => first.alarms.some((item) => item.id === alarm.id));
     assert.equal(overlap.length, 0);
+  });
+
+  it("告警中心首屏条数与分页常量一致（BLF-1426）", async () => {
+    // 默认值必须就是 12：server / pageData / 客户端翻页共用 ALARM_PAGE_SIZE，
+    // 只改一处会出现「文案说每页 12 条、实渲 50 条」。
+    const page = await getAlarmPage();
+    assert.equal(page.alarms.length, ALARM_PAGE_SIZE);
+    assert.equal(ALARM_PAGE_SIZE, 12);
+
+    const data = await getAlarmData();
+    assert.equal(data.initialAlarms.length, ALARM_PAGE_SIZE);
+    assert.ok(data.initialCursor, "首屏之后还应能继续翻页");
   });
 
   it("总览 payload ≤ 1MB（AC10：用 loadCore 的聚合结果，而不是 13MB 全量）", async () => {

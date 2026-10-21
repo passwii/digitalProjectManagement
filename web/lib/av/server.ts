@@ -15,6 +15,7 @@ import { readFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { loadAlarmPage, loadAlarmShard, loadCore, loadOverviewRanges, type Fetcher } from "./load";
+import { ALARM_PAGE_SIZE } from "./alarmPaging";
 import { toDateString } from "./time";
 import type {
   Alarm,
@@ -95,8 +96,8 @@ export async function getAlarmsIndex(): Promise<AlarmsIndex> {
   return (await getCore()).alarmsIndex;
 }
 
-/** 服务端取一页告警（第一页给首屏用，`cursor = null`）。 */
-export async function getAlarmPage(cursor: string | null = null, pageSize = 50): Promise<AlarmPage> {
+/** 服务端取一页告警（第一页给首屏用，`cursor = null`）。默认条数与客户端共用同一个常量。 */
+export async function getAlarmPage(cursor: string | null = null, pageSize = ALARM_PAGE_SIZE): Promise<AlarmPage> {
   const core = await getCore();
   return loadAlarmPage(core.alarmsIndex, cursor, pageSize, "", fileFetcher);
 }

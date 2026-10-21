@@ -302,7 +302,7 @@ export interface AlarmFilterCounts {
 
 /**
  * 告警筛选条的计数。
- * 口径说明：这里统计的是**当前页**（首屏 50 条）的分布，不是全量 14,366 条 ——
+ * 口径说明：这里统计的是**当前页**（/alarm 首屏 ALARM_PAGE_SIZE = 12 条）的分布，不是全量 14,366 条 ——
  * 全量统计要扫 9 个分片，与「首屏 ≤ 1MB」的预算冲突。页面上会用「本页」标注。
  */
 export function alarmPageCounts(alarms: Alarm[]): AlarmFilterCounts {

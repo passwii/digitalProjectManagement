@@ -39,11 +39,10 @@ import { AvInsertedItem, AvSkeleton } from "@/components/av/motion/AvCounter";
 import { AV_CHART_HEIGHT } from "@/lib/av/chartHeights";
 import s from "./AvPages.module.css";
 import type { AlarmSite, AlarmViewProps } from "@/lib/av/contracts";
+import { ALARM_PAGE_SIZE } from "@/lib/av/alarmPaging";
 
 type LevelFilter = "all" | 1 | 2 | 3 | 4;
 type SceneFilter = "all" | Scene;
-
-const PAGE_SIZE = 50;
 
 /**
  * 「加载下一页」时占位的行数。
@@ -61,7 +60,7 @@ function statusTone(status: AlarmStatus): AvTone {
  * 只读 `?q=` 的极小客户端组件。
  *
  * 它必须单独待在 Suspense 里：`useSearchParams` 会让它所在的子树跳过静态渲染，
- * 如果把整页包进去，`/stream-monitor/alarm` 的 50 条首屏就只剩 RSC payload，HTML 里是空的
+ * 如果把整页包进去，`/stream-monitor/alarm` 的首屏告警就只剩 RSC payload，HTML 里是空的
  * —— 慢网下核心页要等整包 JS 才出现内容。
  */
 function QuerySync({ onQuery }: { onQuery: (value: string) => void }) {
@@ -76,7 +75,7 @@ function QuerySync({ onQuery }: { onQuery: (value: string) => void }) {
 /**
  * 告警中心。
  *
- * 分页：首屏 50 条由 Server Component 直接给（不占首屏独立请求），
+ * 分页：首屏 `ALARM_PAGE_SIZE` 条由 Server Component 直接给（不占首屏独立请求），
  * 「加载更多」走 Stage 1 的 `loadAlarmPage(index, cursor)`，浏览器按 cursor 取分片。
  * 筛选只作用于**已加载**的告警，并在工具条上明说「已加载 N / 共 M」——
  * 全量筛选要扫 9 个分片（≈10MB），与演示站的首屏预算冲突。
@@ -96,7 +95,7 @@ export default function AlarmView(props: AlarmViewProps) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   /**
    * 新插入的告警 id（「加载下一页」后新增的那一批）。
-   * 只有它们播「从顶部滑入」，已有条目靠 `layout` 让位 —— 否则每次翻页 50 条
+   * 只有它们播「从顶部滑入」，已有条目靠 `layout` 让位 —— 否则每次翻页整页
    * 一起重播入场，看起来像整页刷新。
    */
   const freshIds = useRef<Set<string>>(new Set());
@@ -105,7 +104,7 @@ export default function AlarmView(props: AlarmViewProps) {
    * 顶部全局搜索回车会带 `?q=` 过来。
    *
    * `useSearchParams` 是 client bailout：谁在它上面，谁就不进静态 HTML。所以这里
-   * **只把读取 ?q= 的一小块**放进了 Suspense，列表本身与首屏 50 条仍然随服务端
+   * **只把读取 ?q= 的一小块**放进了 Suspense，列表本身与首屏告警仍然随服务端
    * HTML 一起下发（整棵 AlarmView 包 Suspense 会让核心页退化成纯客户端渲染）。
    *
    * 回调必须用 useCallback 固定引用：它进 QuerySync 的 effect 依赖，每次渲染换新
@@ -174,7 +173,7 @@ export default function AlarmView(props: AlarmViewProps) {
     setLoading(true);
     setError("");
     try {
-      const page = await loadAlarmPage(props.index, cursor, PAGE_SIZE);
+      const page = await loadAlarmPage(props.index, cursor, ALARM_PAGE_SIZE);
       setAlarms((previous) => {
         const seen = new Set(previous.map((alarm) => alarm.id));
         const added = page.alarms.filter((alarm) => !seen.has(alarm.id));
@@ -238,7 +237,7 @@ export default function AlarmView(props: AlarmViewProps) {
       <div className={s.splitWide}>
         <AvPanel
           title="实时告警列表"
-          subtitle={`已加载 ${formatCount(alarms.length)} / 共 ${formatCount(props.total)} 条 · 每页 ${PAGE_SIZE} 条`}
+          subtitle={`已加载 ${formatCount(alarms.length)} / 共 ${formatCount(props.total)} 条 · 每页 ${ALARM_PAGE_SIZE} 条`}
           icon="alarm"
           meta={error ? "加载失败" : loading ? "加载中…" : "按需加载"}
           motionKey="alarm-list"

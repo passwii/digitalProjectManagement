@@ -2824,6 +2824,15 @@ textarea,
   --av-card-min-scene: 240px;
   --av-card-min-channel: 236px;
 
+  /* ---------- 告警行高（BLF-1426） ----------
+   * `/alarm` 首屏条数与右侧三卡栈是一对：面板 chrome 160px + 12 × 67px = 964px，
+   * 对照三卡栈内容高 956px（1440）/ 972.5px（1280、1180），差 ≤ 8.5px。
+   * 实测脚本：`scripts/av-alarm-row-calibration.mjs`；消费处是
+   * `AvPages.module.css` 的 `.page[data-av-page="alarm"] .alarmCard` 与骨架行。
+   * 改这里必须重跑脚本 —— 它量的就是「这条等式成不成立」。
+   */
+  --av-alarm-row-h: 67px;
+
   /* ---------- 圆角 ---------- */
   /* 卡片类一律直角（DESIGN.md 的 rounded.square = 0）；徽标类才走胶囊 */
   --av-radius-card: 0px;

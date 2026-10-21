@@ -798,7 +798,7 @@
   min-width: 0;
 }
 
-/* 加载下一页的占位：与一条告警卡同高（52px），避免数据到达时整页跳一下 */
+/* 加载下一页的占位：与一条告警卡同高（`--av-alarm-row-h`），避免数据到达时整页跳一下 */
 .alarmSkeleton {
   display: grid;
   gap: var(--av-space-2);
@@ -806,7 +806,7 @@
 }
 
 .alarmSkeletonRow {
-  height: 44px;
+  height: var(--av-alarm-row-h);
   border: 1px solid var(--av-divider-soft);
 }
 
@@ -883,6 +883,49 @@
   border-radius: var(--av-radius-pill);
   color: var(--av-ink-2);
   font-size: var(--av-text-tiny);
+}
+
+/*
+ * /alarm 行高标定（BLF-1426）：把一行从 84px 压到 `--av-alarm-row-h`（67px）。
+ *
+ * 只作用于本页 —— `/stream-monitor/__stress` 的极端值样本也复用 `.alarmCard`，
+ * 它要的恰好是「内容撑开」，不能被行高令牌钉死。
+ *
+ * 84px 的构成（实测）：边框 1 + 上下 padding 16 + aside 67（时间 / 类型 / 状态
+ * 竖排三行，行间 4px）。把 aside 改成**一行三格**后内容降到 36px，
+ * 行高由 `min-height` 接管为 67px —— 七个字段一个不少，只是换了排布。
+ */
+.page[data-av-page="alarm"] .alarmCard {
+  min-height: var(--av-alarm-row-h);
+}
+
+/* 时间 / 类型 / 状态并成一行：这是 84 → 67 省下的主要高度（67 → 23px）。 */
+.page[data-av-page="alarm"] .alarmAside {
+  grid-auto-flow: column;
+  align-items: center;
+  gap: var(--av-space-2);
+}
+
+/*
+ * 第二行 facts 压成单行 + 逐段省略号：67px 里只留一行，
+ * 「点位 / 设备 / 编号」都在，宽度不够时各自截断（不允许整体裁字）。
+ */
+.page[data-av-page="alarm"] .alarmFacts {
+  flex-wrap: nowrap;
+  overflow: hidden;
+}
+
+.page[data-av-page="alarm"] .alarmFacts > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 告警编号是这一行的主键，不参与压缩：窄屏先牺牲设备号与站点名，
+ * 也不让「AL-00037」变成「AL-000…」（编号被截断就无法与抽屉 / 搜索对上）。 */
+.page[data-av-page="alarm"] .alarmFacts > span:last-child {
+  flex: none;
 }
 
 .alarmFoot {
@@ -2125,6 +2168,17 @@
   }
   .spanTwo {
     grid-column: span 2;
+  }
+}
+
+/*
+ * /alarm 的验收宽度含 1180（BLF-1426）：共享断点在 ≤1180 会把两栏上下堆叠，
+ * 面板与右侧三卡栈就彻底无法「底边对齐」。这里只对本页在 901–1180 保留两栏，
+ * ≤900 仍按共享断点单栏（窄屏不做这个几何等式）。
+ */
+@media (min-width: 901px) and (max-width: 1180px) {
+  .page[data-av-page="alarm"] .splitWide {
+    grid-template-columns: minmax(0, 2.2fr) minmax(300px, 1fr);
   }
 }
 

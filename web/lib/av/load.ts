@@ -3,7 +3,7 @@
 // 用法（Next 页面 / 浏览器）：
 //   import { loadCore, loadAlarmPage } from "@/lib/av/load";
 //   const core = await loadCore();               // 首屏：约 890KB（不含告警明细与频谱）
-//   const page = await loadAlarmPage(core.alarmsIndex); // 告警按 cursor 懒加载（每页 50 条）
+//   const page = await loadAlarmPage(core.alarmsIndex); // 告警按 cursor 懒加载（条数由调用方传入；/alarm 用 ALARM_PAGE_SIZE = 12）
 //
 // 用法（Node 单测）：
 //   const core = await loadCore(dir, fileFetcher)  // 注入读文件的 fetcher

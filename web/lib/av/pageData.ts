@@ -19,6 +19,7 @@ import {
   getSpectrumByAlarm,
   getTranscriptByAlarm,
 } from "./server";
+import { ALARM_PAGE_SIZE } from "./alarmPaging";
 import type { Alarm, DatasetCore, Device } from "./types";
 import {
   alarmCard,
@@ -191,7 +192,8 @@ function sceneScene(device: Device, core: DatasetCore): string {
 
 export async function getAlarmData(initialAlarmId: string | null = null): Promise<AlarmViewProps> {
   const core = await getCore();
-  const firstPage = await getAlarmPage(null, 50);
+  // 首屏条数与客户端「加载下一页」共用 ALARM_PAGE_SIZE：只改一处会出现「文案说 12 条、实渲 50 条」。
+  const firstPage = await getAlarmPage(null, ALARM_PAGE_SIZE);
   const initialAlarm = initialAlarmId ? await getAlarmById(initialAlarmId) : null;
 
   const incidentOf: Record<string, string> = {};
