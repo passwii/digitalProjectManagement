@@ -111,7 +111,7 @@ export async function getOverviewData(): Promise<OverviewProps> {
 
 export async function getMonitorData(): Promise<MonitorProps> {
   const core = await getCore();
-  const channels = monitorChannels(core.devices, 6).map((device) => ({
+  const toChannel = (device: Device) => ({
     id: device.id,
     room: device.point_room,
     siteName: core.sites.find((site) => site.id === device.site_id)?.name ?? device.site_id,
@@ -126,7 +126,29 @@ export async function getMonitorData(): Promise<MonitorProps> {
     storage: device.storage_percent,
     heartbeatOffsetMinutes: device.last_heartbeat_offset_minutes,
     waveform: waveformOf(device, 26),
-  }));
+  });
+
+  /*
+   * 9 格 = 2 路视频 + 7 路音频（BLF-1425）。
+   *
+   * 为什么从 6 格加到 9 格：波形组件要做「同屏多张卡相位互不相同」的验收，
+   * 6 格里只有 4 路音频（2 视频 + 4 音频），比验收要求的 6 张少；3 列栅格下
+   * 9 格也正好是完整的 3 行，不会留半行。
+   */
+  const channels = monitorChannels(core.devices, 9).map(toChannel);
+
+  /*
+   * 再换进一路**离线**音频：演示时观众要能一眼看出「离线通道是静态灰态、
+   * 波形压平、LIVE 不呼吸」，而按信号分排序选出来的通道全是在线设备。
+   * 只替换最后一格，不额外加卡（保持 3 × 3 的整齐栅格）。
+   */
+  const offlineAudio = core.devices.find(
+    (device) => device.kind === "audio" && device.status === "offline",
+  );
+  if (offlineAudio) {
+    const lastAudio = channels.map((channel) => channel.kind).lastIndexOf("audio");
+    if (lastAudio >= 0) channels[lastAudio] = toChannel(offlineAudio);
+  }
 
   const gateways = core.devices
     .filter((device) => device.kind === "gateway")
@@ -139,7 +161,7 @@ export async function getMonitorData(): Promise<MonitorProps> {
 
   return {
     channels,
-    // 计数口径是「通道」而不是「全量设备」：这一页只渲染 6 路通道，
+    // 计数口径是「通道」而不是「全量设备」：这一页只渲染 9 路通道，
     // 标签上的数字必须和屏幕上的卡片数对得上，否则会被读成「有 268 路画面」。
     counts: {
       all: channels.length,

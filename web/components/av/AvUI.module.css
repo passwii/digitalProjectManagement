@@ -452,7 +452,9 @@
    * `transform-origin: left` 保证从左侧起长。降级由根节点的统一开关关掉。
    */
   transform-origin: left center;
-  animation: avGrowX var(--av-dur-base) var(--av-ease-enter) backwards;
+  animation: var(--av-kf-grow-x) var(--av-dur-base) var(--av-ease-enter) backwards;
+  /* 同组条形按 --av-i 错峰 45ms 生长（BLF-1425）；个别调用方不给序号时就是 0 */
+  animation-delay: calc(var(--av-stagger-list) * var(--av-i, 0));
 }
 
 /* ---------------- 图例 / 空态 / 键值 ---------------- */

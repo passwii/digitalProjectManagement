@@ -227,12 +227,16 @@ export function AvBar({
   max,
   tone,
   detail,
+  index = 0,
 }: {
   label: string;
   value: number;
   max: number;
   tone: AvColorTone;
-  detail?: string;
+  /** 读数：可以是字符串，也可以是 `<AvCounter>` 这类客户端组件（BLF-1425 的数字滚动）。 */
+  detail?: ReactNode;
+  /** 同组内的序号：让条形的生长按 45ms 错峰（`--av-i`），不是整排同时长出来。 */
+  index?: number;
 }) {
   const percent = max > 0 ? Math.min(100, Math.max(0, (value / max) * 100)) : 0;
   return (
@@ -250,7 +254,11 @@ export function AvBar({
         aria-label={label}
       >
         {/* 宽度是最终值（不参与动画）；入场由 `.barFill` 的 scaleX 关键帧完成 */}
-        <span className={s.barFill} style={{ width: `${percent}%` }} />
+        <span
+          className={s.barFill}
+          style={{ width: `${percent}%`, "--av-i": index } as CSSProperties}
+          data-motion-bar=""
+        />
       </div>
     </div>
   );

@@ -1,0 +1,230 @@
+{
+  "motion": {
+    "start": {
+      "phase": "idle",
+      "audioCards": "7",
+      "cards": 9,
+      "kinds": [
+        "video",
+        "video",
+        "audio",
+        "audio",
+        "audio",
+        "audio",
+        "audio",
+        "audio",
+        "audio"
+      ],
+      "waveCount": 7,
+      "waveSeeds": [
+        "1544310882",
+        "1492845192",
+        "3500238904",
+        "3533941237",
+        "262677383",
+        "296379716",
+        "1477053311"
+      ],
+      "waveSpeeds": [
+        "0.904",
+        "0.966",
+        "1.028",
+        "1.09",
+        "1.1520000000000001",
+        "1.214",
+        "1.276"
+      ],
+      "wavePhases": [
+        "0.274",
+        "0.41100000000000003",
+        "0.548",
+        "0.685",
+        "0.8220000000000001",
+        "0.9590000000000001",
+        "0.09600000000000009"
+      ],
+      "waveSignatures": [
+        "height:87%;--av-wave-delay:0.434|height:69%;--av-wave-delay:0.774|height:80%;--av-wave-delay:0.286|height:81%;--av-wave-delay:0.923|height:66%;--av-wave-delay:0.461|height:60%;--av-wave-delay:1.061|height:30%;--av-wave-delay:0.896|height:25%;--av-wave-delay:0.712|height:29%;--av-wave-delay:0.939|height:38%;--av-wave-delay:0.878|height:54%;--av-wave-delay:0.388|height:73%;--av-wave-delay:0.916|height:75%;--av-wave-delay:1.014|height:100%;--av-wave-delay:0.411|height:71%;--av-wave-delay:0.367|height:55%;--av-wave-delay:0.481|height:21%;--av-wave-delay:0.351|height:47%;--av-wave-delay:0.498|height:53%;--av-wave-delay:1.047|height:61%;--av-wave-delay:0.732|height:47%;--av-wave-delay:0.281|height:47%;--av-wave-delay:1.031|height:47%;--av-wave-delay:0.517|height:47%;--av-wave-delay:0.935|height:71%;--av-wave-delay:0.901|height:72%;--av-wave-delay:0.371",
+        "height:29%;--av-wave-delay:0.789|height:44%;--av-wave-delay:0.519|height:67%;--av-wave-delay:0.915|height:51%;--av-wave-delay:0.807|height:61%;--av-wave-delay:0.789|height:61%;--av-wave-delay:0.425|height:78%;--av-wave-delay:0.722|height:96%;--av-wave-delay:0.524|height:67%;--av-wave-delay:0.723|height:71%;--av-wave-delay:1.169|height:61%;--av-wave-delay:0.449|height:70%;--av-wave-delay:1.180|height:45%;--av-wave-delay:1.178|height:34%;--av-wave-delay:1.089|height:27%;--av-wave-delay:0.458|height:48%;--av-wave-delay:1.208|height:45%;--av-wave-delay:1.145|height:84%;--av-wave-delay:0.443|height:79%;--av-wave-delay:0.806|height:88%;--av-wave-delay:0.426|height:63%;--av-wave-delay:1.207|height:79%;--av-wave-delay:1.112|height:77%;--av-wave-delay:0.837|height:84%;--av-wave-delay:0.783|height:23%;--av-wave-delay:1.154|height:50%;--av-wave-delay:0.856",
+        "height:47%;--av-wave-delay:1.305|height:35%;--av-wave-delay:1.134|height:62%;--av-wave-delay:0.573|height:73%;--av-wave-delay:0.845|height:74%;--av-wave-delay:1.010|height:92%;--av-wave-delay:1.103|height:78%;--av-wave-delay:0.643|height:66%;--av-wave-delay:1.206|height:35%;--av-wave-delay:1.105|height:56%;--av-wave-delay:1.041|height:62%;--av-wave-delay:1.037|height:60%;--av-wave-delay:1.048|height:61%;--av-wave-delay:1.334|height:76%;--av-wave-delay:1.186|height:75%;--av-wave-delay:1.015|height:76%;--av-wave-delay:0.910|height:59%;--av-wave-delay:1.305|height:54%;--av-wave-delay:1.217|height:42%;--av-wave-delay:0.860|height:40%;--av-wave-delay:1.036|height:33%;--av-wave-delay:0.770|height:62%;--av-wave-delay:0.684|height:41%;--av-wave-delay:1.271|height:32%;--av-wave-delay:0.992|height:51%;--av-wave-delay:0.922|height:39%;--av-wave-delay:0.673",
+        "height:88%;--av-wave-delay:0.877|height:69%;--av-wave-delay:1.281|height:63%;--av-wave-delay:1.347|height:58%;--av-wave-delay:1.415|height:50%;--av-wave-delay:0.792|height:36%;--av-wave-delay:1.349|height:29%;--av-wave-delay:1.132|height:48%;--av-wave-delay:1.021|height:54%;--av-wave-delay:0.957|height:90%;--av-wave-delay:1.191|height:72%;--av-wave-delay:0.773|height:59%;--av-wave-delay:0.893|height:40%;--av-wave-delay:1.455|height:45%;--av-wave-delay:0.944|height:36%;--av-wave-delay:0.964|height:39%;--av-wave-delay:1.038|height:40%;--av-wave-delay:0.700|height:37%;--av-wave-delay:1.354|height:47%;--av-wave-delay:1.244|height:72%;--av-wave-delay:0.976|height:90%;--av-wave-delay:1.311|height:91%;--av-wave-delay:0.908|height:81%;--av-wave-delay:1.188|height:63%;--av-wave-delay:0.783|height:80%;--av-wave-delay:0.923|height:68%;--av-wave-delay:1.228",
+        "height:59%;--av-wave-delay:0.959|height:77%;--av-wave-delay:1.055|height:77%;--av-wave-delay:0.894|height:58%;--av-wave-delay:1.508|height:58%;--av-wave-delay:1.149|height:68%;--av-wave-delay:1.034|height:74%;--av-wave-delay:1.012|height:96%;--av-wave-delay:1.147|height:67%;--av-wave-delay:0.924|height:46%;--av-wave-delay:1.614|height:50%;--av-wave-delay:1.583|height:60%;--av-wave-delay:1.249|height:48%;--av-wave-delay:0.966|height:43%;--av-wave-delay:1.367|height:45%;--av-wave-delay:1.464|height:53%;--av-wave-delay:1.093|height:67%;--av-wave-delay:1.284|height:67%;--av-wave-delay:1.113|height:62%;--av-wave-delay:1.191|height:63%;--av-wave-delay:0.926|height:67%;--av-wave-delay:1.129|height:78%;--av-wave-delay:1.543|height:87%;--av-wave-delay:0.889|height:81%;--av-wave-delay:0.981|height:76%;--av-wave-delay:1.358|height:64%;--av-wave-delay:1.156",
+        "height:53%;--av-wave-delay:1.151|height:42%;--av-wave-delay:1.727|height:49%;--av-wave-delay:1.589|height:62%;--av-wave-delay:1.171|height:72%;--av-wave-delay:1.382|height:90%;--av-wave-delay:1.513|height:76%;--av-wave-delay:1.074|height:81%;--av-wave-delay:1.307|height:63%;--av-wave-delay:1.354|height:66%;--av-wave-delay:1.480|height:53%;--av-wave-delay:1.394|height:51%;--av-wave-delay:1.259|height:64%;--av-wave-delay:1.024|height:72%;--av-wave-delay:1.383|height:82%;--av-wave-delay:0.992|height:68%;--av-wave-delay:1.524|height:54%;--av-wave-delay:1.179|height:73%;--av-wave-delay:1.724|height:69%;--av-wave-delay:1.409|height:76%;--av-wave-delay:1.247|height:84%;--av-wave-delay:1.273|height:75%;--av-wave-delay:1.160|height:58%;--av-wave-delay:1.732|height:93%;--av-wave-delay:1.582|height:50%;--av-wave-delay:1.184|height:37%;--av-wave-delay:1.351",
+        "height:8%|height:8%|height:8%|height:8%|height:8%|height:8%|height:8%|height:8%|height:8%|height:8%|height:8%|height:8%|height:8%|height:8%|height:8%|height:8%|height:8%|height:8%|height:8%|height:8%|height:8%|height:8%|height:8%|height:8%|height:8%|height:8%"
+      ],
+      "offlineWaves": [
+        {
+          "bars": 26,
+          "withDelayVar": 0,
+          "animated": 0
+        }
+      ],
+      "offlineVideoScenes": [],
+      "liveTimecode": "00:43:04",
+      "liveDotAnimation": "avLivePulse",
+      "offlineDotAnimation": "none",
+      "liveBadge": "has-offline-badge",
+      "videoScene": "online",
+      "videoBoxes": 3,
+      "videoBoxAnimation": "avDetectBox",
+      "videoScanAnimation": "avScanDrop",
+      "videoNoiseAnimation": "avNoiseShift",
+      "motionAttr": "on",
+      "cardOpacity": "1"
+    },
+    "after2200": {
+      "liveTimecode": "00:43:06",
+      "phase": "idle"
+    },
+    "timecodeAdvanced": true,
+    "offlineWaveSelfTest": {
+      "ok": true,
+      "detected": true
+    },
+    "offlineSceneProbe": {
+      "ok": true,
+      "online": "avNoiseShift",
+      "offline": "none",
+      "restored": "avNoiseShift"
+    },
+    "switchSamples": [
+      {
+        "t": 0,
+        "phase": "idle",
+        "cards": 9,
+        "opacity": "1",
+        "animation": "avChannelIn",
+        "audioTransform": ""
+      },
+      {
+        "t": 80,
+        "phase": "exit",
+        "cards": 9,
+        "opacity": "0.760796",
+        "animation": "avChannelOut",
+        "audioTransform": ""
+      },
+      {
+        "t": 180,
+        "phase": "enter",
+        "cards": 7,
+        "opacity": "1",
+        "animation": "none",
+        "audioTransform": "translate3d(652.236px, -3.20221px, 0px)"
+      },
+      {
+        "t": 580,
+        "phase": "enter",
+        "cards": 7,
+        "opacity": "1",
+        "animation": "none",
+        "audioTransform": "none"
+      }
+    ],
+    "switch": {
+      "0ms": {
+        "phase": "exit",
+        "cards": 9,
+        "opacity": "1",
+        "shot": {
+          "file": "monitor-switch-000ms.png",
+          "md5": "8a7cbb012e54f3a427352f7b55a9d488"
+        }
+      },
+      "60ms": {
+        "phase": "enter",
+        "cards": 7,
+        "opacity": "1",
+        "shot": {
+          "file": "monitor-switch-060ms.png",
+          "md5": "653ec2399b23ed4bf5ceb81a36b5920a"
+        }
+      },
+      "180ms": {
+        "phase": "enter",
+        "cards": 7,
+        "opacity": "1",
+        "shot": {
+          "file": "monitor-switch-180ms.png",
+          "md5": "46d2912e1b071e721da96b1e8aa82a65"
+        }
+      },
+      "560ms": {
+        "phase": "idle",
+        "cards": 7,
+        "opacity": "1",
+        "shot": {
+          "file": "monitor-switch-560ms.png",
+          "md5": "9d935efb9f06bb4d4e31ff72463d39e6"
+        }
+      }
+    },
+    "shots": [
+      {
+        "file": "monitor-live.png",
+        "md5": "009ccce2b6ce7cc9da80f46a02889122"
+      },
+      {
+        "file": "monitor-video.png",
+        "md5": "73be5470339d44e06765893fcd4dd33a"
+      }
+    ]
+  },
+  "static": {
+    "attrs": "off",
+    "liveTimecodeStart": "00:43:01",
+    "liveTimecodeAfter": "00:43:01",
+    "timecodeFrozen": true,
+    "liveDotAnimation": "none",
+    "videoBoxAnimation": "none",
+    "videoScanAnimation": "none",
+    "videoNoiseAnimation": "none",
+    "md5": [
+      "411d2dcea76895c1f09e2d8064ae2dc2",
+      "411d2dcea76895c1f09e2d8064ae2dc2",
+      "411d2dcea76895c1f09e2d8064ae2dc2"
+    ],
+    "staticMd5Identical": true,
+    "shots": [
+      {
+        "file": "monitor-static-1.png",
+        "md5": "411d2dcea76895c1f09e2d8064ae2dc2"
+      },
+      {
+        "file": "monitor-static-2.png",
+        "md5": "411d2dcea76895c1f09e2d8064ae2dc2"
+      },
+      {
+        "file": "monitor-static-3.png",
+        "md5": "411d2dcea76895c1f09e2d8064ae2dc2"
+      }
+    ]
+  },
+  "reduced": {
+    "liveDotAnimation": "none",
+    "liveTimecodeStart": "00:43:01",
+    "liveTimecodeAfter": "00:43:01",
+    "timecodeFrozen": true
+  },
+  "checks": {
+    "9 张卡（2 视频 + 7 音频）": true,
+    "音频卡 ≥ 6": true,
+    "波形 seed / 周期 / 相位互不相同": true,
+    "每张卡的波形签名互不相同": true,
+    "在线 LIVE 点有呼吸动画": true,
+    "离线 LIVE 点没有动画": true,
+    "离线波形：每根柱没有 --av-wave-delay 且 animation-name 为 none": true,
+    "离线波形检查的负向自检（注入 --av-wave-delay 必须被检出）": true,
+    "（如有）离线视频场景：噪点 / 扫描线 / 检测框全静": true,
+    "视频卡有检测框 / 扫描线 / 噪点动画": true,
+    "离线视频画面是冻结帧（切到 offline 后噪点 animation-name=none，恢复后重新在动）": true,
+    "动效开启时时间码递增": true,
+    "切换有三段式（退场帧真的在播：9 张、opacity<1、animation=avChannelOut；之后 7 张进入 enter）": true,
+    "FLIP：重排阶段剩余卡片有 inline transform（不是瞬间跳位）": true,
+    "?static=1 时间码不递增": true,
+    "?static=1 动画全关": true,
+    "?static=1 连拍 3 次 MD5 一致": true,
+    "prefers-reduced-motion：LIVE 不呼吸、时间码不递增": true
+  },
+  "pass": true
+}
