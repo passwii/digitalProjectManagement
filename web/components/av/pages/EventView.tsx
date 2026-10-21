@@ -123,11 +123,24 @@ export default function EventView({ rows, detail, initialId, counts, userNames }
       setPendingId(id);
       startTransition(() => {
         router.push(`/stream-monitor/event/${id}`);
-        setPendingId(null);
       });
     },
     [router, selectedId, startTransition],
   );
+
+  /*
+    过渡态只在过渡**结束之后**才摘掉。
+
+    之前把 setPendingId(null) 写在 startTransition 回调里：那个回调是同步执行的，
+    于是 `setPendingId(id)` / `setPendingId(null)` 在同一次批处理里被合并成 null，
+    行高亮与右侧 rail 的 aria-busy 从头到尾拿不到这个状态 —— 注释里承诺的
+    「点下去立刻有反馈」实际上不存在。现在按 pending 落地时刻清，或者路由已经
+    切到目标事件（selectedId 追上 pendingId）时清，两种情况都不会提前清。
+  */
+  useEffect(() => {
+    if (pendingId === null) return;
+    if (!pending || selectedId === pendingId) setPendingId(null);
+  }, [pending, pendingId, selectedId]);
 
   /** 筛选把当前选中事件筛掉时，rail 与列表会互相矛盾，在 rail 上说明一句 */
   const selectedFilteredOut = Boolean(selected) && !visible.some((row) => row.id === selectedId);
@@ -249,7 +262,19 @@ export default function EventView({ rows, detail, initialId, counts, userNames }
                             onClick={() => select(row.id)}
                           >
                             <td className={s.mono}>
-                              <button type="button" className={s.tableButton} onClick={() => select(row.id)}>
+                              <button
+                                type="button"
+                                className={s.tableButton}
+                                /*
+                                  行本身也绑了 onClick。按钮不复用那次冒泡：点编号会触发
+                                  两次 select() → 两次 router.push()。这里 stopPropagation
+                                  由按钮自己走一遍，键盘/读屏路径与鼠标一致。
+                                */
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  select(row.id);
+                                }}
+                              >
                                 {row.id}
                               </button>
                             </td>

@@ -45,7 +45,7 @@
         "handled": 40,
         "unhandled": 25,
         "false_positive": 1,
-        "incidents": 12,
+        "incidents": 19,
         "open_incidents": 3,
         "handled_rate": 54.8,
         "false_positive_rate": 1.4
@@ -357,7 +357,7 @@
           "alarms": 0,
           "handled": 0,
           "unhandled": 0,
-          "incidents": 0,
+          "incidents": 2,
           "open_incidents": 0,
           "false_positive": 0,
           "levels": [
@@ -408,7 +408,7 @@
           "alarms": 2,
           "handled": 0,
           "unhandled": 1,
-          "incidents": 0,
+          "incidents": 1,
           "open_incidents": 0,
           "false_positive": 0,
           "levels": [
@@ -510,7 +510,7 @@
           "alarms": 0,
           "handled": 0,
           "unhandled": 0,
-          "incidents": 0,
+          "incidents": 1,
           "open_incidents": 0,
           "false_positive": 0,
           "levels": [
@@ -969,7 +969,7 @@
           "alarms": 1,
           "handled": 1,
           "unhandled": 0,
-          "incidents": 0,
+          "incidents": 1,
           "open_incidents": 0,
           "false_positive": 0,
           "levels": [
@@ -1122,7 +1122,7 @@
           "alarms": 2,
           "handled": 2,
           "unhandled": 0,
-          "incidents": 0,
+          "incidents": 2,
           "open_incidents": 0,
           "false_positive": 1,
           "levels": [
@@ -1627,7 +1627,7 @@
               "handled": 39,
               "unhandled": 25,
               "false_positive": 1,
-              "incidents": 12,
+              "incidents": 19,
               "open_incidents": 3,
               "handled_rate": 54.2,
               "false_positive_rate": 1.4
@@ -1638,8 +1638,8 @@
             "alarms": 5,
             "handled": 5,
             "unhandled": 0,
-            "incidents": 1,
-            "open_incidents": 1,
+            "incidents": 2,
+            "open_incidents": 2,
             "false_positive": 1,
             "added_levels": [
               {
@@ -1714,8 +1714,8 @@
               "handled": 43,
               "unhandled": 25,
               "false_positive": 2,
-              "incidents": 13,
-              "open_incidents": 4,
+              "incidents": 21,
+              "open_incidents": 5,
               "handled_rate": 56.6,
               "false_positive_rate": 2.6
             }
@@ -1801,8 +1801,8 @@
               "handled": 42,
               "unhandled": 25,
               "false_positive": 2,
-              "incidents": 12,
-              "open_incidents": 4,
+              "incidents": 20,
+              "open_incidents": 5,
               "handled_rate": 56,
               "false_positive_rate": 2.7
             }
@@ -1888,8 +1888,8 @@
               "handled": 41,
               "unhandled": 25,
               "false_positive": 1,
-              "incidents": 12,
-              "open_incidents": 4,
+              "incidents": 18,
+              "open_incidents": 5,
               "handled_rate": 55.4,
               "false_positive_rate": 1.4
             }
@@ -1975,8 +1975,8 @@
               "handled": 49,
               "unhandled": 25,
               "false_positive": 2,
-              "incidents": 13,
-              "open_incidents": 5,
+              "incidents": 19,
+              "open_incidents": 6,
               "handled_rate": 59.8,
               "false_positive_rate": 2.4
             }
@@ -1986,8 +1986,8 @@
             "alarms": 1,
             "handled": 1,
             "unhandled": 0,
-            "incidents": 0,
-            "open_incidents": 0,
+            "incidents": 1,
+            "open_incidents": 1,
             "false_positive": 0,
             "added_levels": [
               {
@@ -2062,8 +2062,8 @@
               "handled": 43,
               "unhandled": 25,
               "false_positive": 2,
-              "incidents": 12,
-              "open_incidents": 5,
+              "incidents": 19,
+              "open_incidents": 7,
               "handled_rate": 56.6,
               "false_positive_rate": 2.6
             }
@@ -2149,8 +2149,8 @@
               "handled": 43,
               "unhandled": 25,
               "false_positive": 3,
-              "incidents": 12,
-              "open_incidents": 5,
+              "incidents": 18,
+              "open_incidents": 7,
               "handled_rate": 56.6,
               "false_positive_rate": 3.9
             }
@@ -2236,8 +2236,8 @@
               "handled": 47,
               "unhandled": 25,
               "false_positive": 4,
-              "incidents": 12,
-              "open_incidents": 5,
+              "incidents": 18,
+              "open_incidents": 7,
               "handled_rate": 59.5,
               "false_positive_rate": 5.1
             }
@@ -2281,7 +2281,7 @@
         "handled": 18,
         "unhandled": 25,
         "false_positive": 0,
-        "incidents": 10,
+        "incidents": 14,
         "open_incidents": 3,
         "handled_rate": 36,
         "false_positive_rate": 0
@@ -2593,7 +2593,7 @@
           "alarms": 0,
           "handled": 0,
           "unhandled": 0,
-          "incidents": 0,
+          "incidents": 2,
           "open_incidents": 0,
           "false_positive": 0,
           "levels": [
@@ -2644,7 +2644,7 @@
           "alarms": 2,
           "handled": 0,
           "unhandled": 1,
-          "incidents": 0,
+          "incidents": 1,
           "open_incidents": 0,
           "false_positive": 0,
           "levels": [
@@ -2746,7 +2746,7 @@
           "alarms": 0,
           "handled": 0,
           "unhandled": 0,
-          "incidents": 0,
+          "incidents": 1,
           "open_incidents": 0,
           "false_positive": 0,
           "levels": [
@@ -3251,7 +3251,7 @@
               "handled": 21,
               "unhandled": 24,
               "false_positive": 0,
-              "incidents": 10,
+              "incidents": 14,
               "open_incidents": 3,
               "handled_rate": 40.4,
               "false_positive_rate": 0
@@ -3262,8 +3262,8 @@
             "alarms": 5,
             "handled": 5,
             "unhandled": 0,
-            "incidents": 1,
-            "open_incidents": 1,
+            "incidents": 2,
+            "open_incidents": 2,
             "false_positive": 1,
             "added_levels": [
               {
@@ -3338,8 +3338,8 @@
               "handled": 26,
               "unhandled": 22,
               "false_positive": 1,
-              "incidents": 11,
-              "open_incidents": 4,
+              "incidents": 16,
+              "open_incidents": 5,
               "handled_rate": 48.1,
               "false_positive_rate": 1.9
             }
@@ -3425,8 +3425,8 @@
               "handled": 27,
               "unhandled": 22,
               "false_positive": 1,
-              "incidents": 11,
-              "open_incidents": 4,
+              "incidents": 16,
+              "open_incidents": 5,
               "handled_rate": 49.1,
               "false_positive_rate": 1.8
             }
@@ -3512,8 +3512,8 @@
               "handled": 28,
               "unhandled": 22,
               "false_positive": 1,
-              "incidents": 11,
-              "open_incidents": 4,
+              "incidents": 15,
+              "open_incidents": 5,
               "handled_rate": 50,
               "false_positive_rate": 1.8
             }
@@ -3599,8 +3599,8 @@
               "handled": 35,
               "unhandled": 22,
               "false_positive": 2,
-              "incidents": 10,
-              "open_incidents": 5,
+              "incidents": 14,
+              "open_incidents": 6,
               "handled_rate": 55.6,
               "false_positive_rate": 3.2
             }
@@ -3610,8 +3610,8 @@
             "alarms": 1,
             "handled": 1,
             "unhandled": 0,
-            "incidents": 0,
-            "open_incidents": 0,
+            "incidents": 1,
+            "open_incidents": 1,
             "false_positive": 0,
             "added_levels": [
               {
@@ -3686,8 +3686,8 @@
               "handled": 36,
               "unhandled": 21,
               "false_positive": 2,
-              "incidents": 10,
-              "open_incidents": 5,
+              "incidents": 14,
+              "open_incidents": 7,
               "handled_rate": 58.1,
               "false_positive_rate": 3.2
             }
@@ -3773,8 +3773,8 @@
               "handled": 37,
               "unhandled": 21,
               "false_positive": 3,
-              "incidents": 10,
-              "open_incidents": 5,
+              "incidents": 12,
+              "open_incidents": 7,
               "handled_rate": 58.7,
               "false_positive_rate": 4.8
             }
@@ -3860,8 +3860,8 @@
               "handled": 41,
               "unhandled": 11,
               "false_positive": 4,
-              "incidents": 8,
-              "open_incidents": 3,
+              "incidents": 10,
+              "open_incidents": 5,
               "handled_rate": 73.2,
               "false_positive_rate": 7.1
             }
@@ -3905,8 +3905,8 @@
         "handled": 459,
         "unhandled": 30,
         "false_positive": 29,
-        "incidents": 22,
-        "open_incidents": 8,
+        "incidents": 60,
+        "open_incidents": 11,
         "handled_rate": 86.3,
         "false_positive_rate": 5.5
       },
@@ -3962,7 +3962,7 @@
           "alarms": 50,
           "handled": 18,
           "unhandled": 25,
-          "incidents": 10,
+          "incidents": 14,
           "open_incidents": 3,
           "false_positive": 0,
           "levels": [
@@ -4013,7 +4013,7 @@
           "alarms": 33,
           "handled": 32,
           "unhandled": 0,
-          "incidents": 2,
+          "incidents": 5,
           "open_incidents": 0,
           "false_positive": 1,
           "levels": [
@@ -4064,7 +4064,7 @@
           "alarms": 37,
           "handled": 33,
           "unhandled": 1,
-          "incidents": 2,
+          "incidents": 14,
           "open_incidents": 1,
           "false_positive": 0,
           "levels": [
@@ -4115,8 +4115,8 @@
           "alarms": 69,
           "handled": 64,
           "unhandled": 0,
-          "incidents": 1,
-          "open_incidents": 0,
+          "incidents": 7,
+          "open_incidents": 2,
           "false_positive": 9,
           "levels": [
             {
@@ -4166,7 +4166,7 @@
           "alarms": 127,
           "handled": 115,
           "unhandled": 2,
-          "incidents": 3,
+          "incidents": 10,
           "open_incidents": 2,
           "false_positive": 9,
           "levels": [
@@ -4217,8 +4217,8 @@
           "alarms": 117,
           "handled": 108,
           "unhandled": 0,
-          "incidents": 1,
-          "open_incidents": 0,
+          "incidents": 3,
+          "open_incidents": 1,
           "false_positive": 5,
           "levels": [
             {
@@ -4268,7 +4268,7 @@
           "alarms": 99,
           "handled": 89,
           "unhandled": 2,
-          "incidents": 3,
+          "incidents": 7,
           "open_incidents": 2,
           "false_positive": 5,
           "levels": [
@@ -5156,8 +5156,8 @@
             "alarms": 50,
             "handled": 47,
             "unhandled": 0,
-            "incidents": 1,
-            "open_incidents": 1,
+            "incidents": 5,
+            "open_incidents": 5,
             "false_positive": 2,
             "added_levels": [
               {
@@ -5232,8 +5232,8 @@
               "handled": 417,
               "unhandled": 28,
               "false_positive": 26,
-              "incidents": 20,
-              "open_incidents": 7,
+              "incidents": 58,
+              "open_incidents": 14,
               "handled_rate": 86.3,
               "false_positive_rate": 5.4
             }
@@ -5243,8 +5243,8 @@
             "alarms": 30,
             "handled": 28,
             "unhandled": 0,
-            "incidents": 1,
-            "open_incidents": 1,
+            "incidents": 6,
+            "open_incidents": 6,
             "false_positive": 2,
             "added_levels": [
               {
@@ -5319,8 +5319,8 @@
               "handled": 337,
               "unhandled": 28,
               "false_positive": 23,
-              "incidents": 20,
-              "open_incidents": 8,
+              "incidents": 61,
+              "open_incidents": 19,
               "handled_rate": 85.1,
               "false_positive_rate": 5.8
             }
@@ -5330,8 +5330,8 @@
             "alarms": 59,
             "handled": 55,
             "unhandled": 0,
-            "incidents": 0,
-            "open_incidents": 0,
+            "incidents": 6,
+            "open_incidents": 6,
             "false_positive": 9,
             "added_levels": [
               {
@@ -5406,8 +5406,8 @@
               "handled": 277,
               "unhandled": 26,
               "false_positive": 23,
-              "incidents": 17,
-              "open_incidents": 6,
+              "incidents": 57,
+              "open_incidents": 23,
               "handled_rate": 84.5,
               "false_positive_rate": 7
             }
@@ -5417,8 +5417,8 @@
             "alarms": 105,
             "handled": 99,
             "unhandled": 1,
-            "incidents": 3,
-            "open_incidents": 3,
+            "incidents": 9,
+            "open_incidents": 9,
             "false_positive": 7,
             "added_levels": [
               {
@@ -5493,8 +5493,8 @@
               "handled": 312,
               "unhandled": 27,
               "false_positive": 21,
-              "incidents": 19,
-              "open_incidents": 9,
+              "incidents": 59,
+              "open_incidents": 30,
               "handled_rate": 85.7,
               "false_positive_rate": 5.8
             }
