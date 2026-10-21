@@ -40,7 +40,13 @@ export function AvPageHeader({
   aside,
 }: {
   title: string;
-  subtitle: string;
+  /**
+   * 页头副标题（BLF-1431 起可选）。
+   *
+   * 只允许写**数据型**内容（含数字或 `${...}` 插值）：标题本身、图例、空态正文
+   * 已经表达过的信息不再重复写在标题下。判定由 `lib/av/subtitleCopy.test.ts` 守。
+   */
+  subtitle?: string;
   route: string;
   actions?: ReactNode;
   aside?: ReactNode;
@@ -53,7 +59,7 @@ export function AvPageHeader({
           {route}
         </div>
         <h1>{title}</h1>
-        <p>{subtitle}</p>
+        {subtitle && <p>{subtitle}</p>}
       </div>
       <div className={s.headerAside}>
         {aside}
@@ -75,6 +81,13 @@ export function AvPanel({
   className,
 }: {
   title: string;
+  /**
+   * 面板副标题（可选）。
+   *
+   * 只写**数据型**内容 —— 带数字的窗口 / 计数 / 筛选结果，或 `${...}` 插值。
+   * 复述标题、解释图怎么读、营销口号一律不写：标题、图例、空态正文已经说过了。
+   * 判定口径见 `lib/av/subtitleCopy.test.ts`（BLF-1431）。
+   */
   subtitle?: string;
   /**
    * 面板头右侧的读数。字符串仍是常规用法；需要按语义色强调某个数字时

@@ -122,7 +122,7 @@ export const TIMELINE_LABEL: Record<TimelineNodeType, string> = {
   inspect: "例行巡检",
   device_online: "设备上线",
   device_offline: "设备下线",
-  ota: "OTA 升级",
+  ota: "固件升级",
   config: "配置变更",
   manual: "人工补录",
 };
@@ -147,7 +147,7 @@ export const ROUTINE_EVENT_TYPE_LABEL: Record<RoutineEventType, string> = {
   inspection: "巡检发现",
   device_online: "设备上线",
   device_offline: "设备离线",
-  ota: "OTA 升级",
+  ota: "固件升级",
   config: "配置变更",
   false_positive_archive: "误报归档",
   manual: "人工补录",
@@ -238,6 +238,83 @@ export const ROOM_TYPE_LABEL: Record<RoomType, string> = {
 
 export function roomTypeLabel(type: string): string {
   return ROOM_TYPE_LABEL[type as RoomType] ?? type;
+}
+
+// ---------------------------------------------------------------------------
+// 界面文案映射（BLF-1431 / Stage 7）：机器可读值 → 中文
+//
+// 两条硬规则：
+//   1. **数据集原值不动**：`transcripts.json` 的 `language`、`scenes.json` 的 `code`
+//      这类值是数据（可下载、可对账），中文只发生在展示层；
+//   2. **映射表只放这一个文件**：页面 / 组件里不写第二张表，否则同一个编码
+//      在五页里会漂成五种说法。`englishResidue.test.ts` 扫用户可见英文残留，
+//      新增英文必须显式进它的白名单。
+//
+// 保留英文的只有：`H.265`（编码标准）、`4K`、`GB` / `TB` / `dBm` / `dBA` / `Hz` / `ms` / `%`
+// （单位）、`AV-*` 型号、固件版本号、告警 / 事件 / 设备 / 点位编号。
+// ---------------------------------------------------------------------------
+
+/** 通道录制状态：`LIVE` / `OFFLINE` → 实时 / 离线。 */
+export const LIVE_STATE_LABEL = { online: "实时", offline: "离线" } as const;
+
+/** 通道类型：`VIDEO` / `AUDIO` → 视频 / 音频。 */
+export const CHANNEL_KIND_LABEL = { video: "视频", audio: "音频" } as const;
+
+/**
+ * 信号强度分位：`P90` / `P50` / `P10` → 较高分位 / 中位 / 较低分位。
+ *
+ * 具体数值仍在读数与 tooltip 里 —— 这里只换措辞，不隐藏数据。
+ */
+export const SIGNAL_PERCENTILE_LABEL = {
+  average: "平均值",
+  high: "较高分位",
+  median: "中位",
+  low: "较低分位",
+} as const;
+
+/** 画面检测框类别（`PERSON` / `VEHICLE` → 人员 / 车辆）。 */
+export const VIDEO_DETECTION_LABEL = { person: "人员", vehicle: "车辆" } as const;
+
+export type AvDetectionClass = keyof typeof VIDEO_DETECTION_LABEL;
+
+/** 画面上的固定标签：分析区域（ROI）、无信号（离线态）。 */
+export const VIDEO_REGION_LABEL = "分析区域";
+export const VIDEO_NO_SIGNAL_LABEL = "无信号";
+
+/** 视频编码行：`H.265` 是编码标准（保留），帧率改中文单位。 */
+export const VIDEO_CODEC_LINE = "H.265 · 25 帧/秒";
+
+/**
+ * 转写语言：locale code（`zh-CN`）不上屏。
+ *
+ * 数据集里 `transcript.language` 的原值照旧保存 —— 这里是唯一的翻译点。
+ */
+const TRANSCRIPT_LANGUAGE_LABEL: Record<string, string> = {
+  "zh-CN": "普通话",
+  "zh-TW": "台湾地区国语",
+  "zh-HK": "粤语",
+  yue: "粤语",
+  en: "英语",
+};
+
+export function transcriptLanguageLabel(code: string | null | undefined): string {
+  const key = (code ?? "").trim();
+  return TRANSCRIPT_LANGUAGE_LABEL[key] ?? "其他语言";
+}
+
+/**
+ * 场景代码：数据集里的 `code` 是 `CAMPUS` / `HOSPITAL` / `JUSTICE`（机器可读原值），
+ * 能力页的场景卡上展示为「校园 / 医院 / 公安」。
+ */
+const SCENE_CODE_LABEL: Record<string, string> = {
+  CAMPUS: "校园",
+  HOSPITAL: "医院",
+  JUSTICE: "公安",
+};
+
+export function sceneCodeLabel(code: string | null | undefined): string {
+  const key = (code ?? "").trim();
+  return SCENE_CODE_LABEL[key] ?? key;
 }
 
 // ---------------------------------------------------------------------------

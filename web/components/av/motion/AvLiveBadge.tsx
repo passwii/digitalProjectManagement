@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useMotionNow } from "./AvMotion";
 import { formatTimecode } from "@/lib/av/timecode";
+import { LIVE_STATE_LABEL } from "@/lib/av/labels";
 
 /**
  * 通道卡的「录制中」标记（Stage 3 / BLF-1425）。
@@ -59,7 +60,7 @@ export default function AvLiveBadge({
   return (
     <span className={className} data-live={live ? "on" : "off"} data-frame={frame}>
       <i aria-hidden="true" />
-      <span data-live-label="">{live ? "LIVE" : "OFFLINE"}</span>
+      <span data-live-label="">{live ? LIVE_STATE_LABEL.online : LIVE_STATE_LABEL.offline}</span>
       {live && (
         <time data-live-clock="" dateTime={`PT${Math.max(0, Math.floor(frame))}S`}>
           {formatTimecode(frame)}

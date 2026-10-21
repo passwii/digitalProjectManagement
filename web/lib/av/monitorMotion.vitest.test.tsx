@@ -352,7 +352,7 @@ describe("AvVideoScene 离线态：冻结帧（review P2）", () => {
     expect(scene.querySelectorAll("[data-tone]")).toHaveLength(0);
     expect(scene.querySelector('[class*="videoScan"]')).toBeNull();
     expect(scene.querySelector('[class*="videoRoi"]')).toBeNull();
-    expect(scene.textContent).toContain("NO SIGNAL");
+    expect(scene.textContent).toContain("无信号");
     expect(scene.querySelector('[class*="videoClock"]')?.textContent).toBe("--:--:--");
   });
 

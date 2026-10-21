@@ -332,7 +332,7 @@ components:
 **对齐策略只有两种，且都是显式的**：
 
 - **同行等高**（peer row）—— 并排的卡片底边对齐。栅格走 `align-items: stretch` + 卡片 `height: 100%`，卡片边框被拉到该行最高的那张，整排底边落在同一条线上。
-- **竖向侧栏顶对齐**（rail column）—— 右侧一列是若干**互相独立**的面板（离线清单 / 型号构成 / OTA），它们之间没有「同行」关系，强行等高只会让内容少的面板空出一大片，所以走 `align-content: start`。
+- **竖向侧栏顶对齐**（rail column）—— 右侧一列是若干**互相独立**的面板（离线清单 / 型号构成 / 固件升级），它们之间没有「同行」关系，强行等高只会让内容少的面板空出一大片，所以走 `align-content: start`。
 
 **圆角**：卡片类一律直角（`--av-radius-card: 0px`）；徽标 / 芯片类才走胶囊（`--av-radius-pill`）—— 胶囊是识别信号的一部分，不能丢。
 
@@ -349,6 +349,34 @@ components:
 这套规格由 `web/lib/av/avLayoutTokens.vitest.test.ts`（间距刻度、卡片圆角、同类卡片等高、栅格对齐、图表高度档位）与 `web/lib/av/avFontSizes.vitest.test.ts`（字号档位齐全、无裸字面量、渲染等价）守着，实测由 `scripts/av-layout-shoot.mjs`（走查五个断点 × 深浅两主题）与 `scripts/av-layout-overflow.mjs`（等高策略会不会让内容溢出）完成。
 
 **卡片溢出的判定口径**（`scripts/av-layout-overflow.mjs` 用它，`web/lib/av/avOverflowRule.vitest.test.ts` 守它）：卡片的内容**超出自己的盒子**就算失败 —— 判据是任一轴的 `scrollHeight/Width` 与 `clientHeight/Width` 之差超过 1px 容差，**不看 `overflow` 计算值**。理由：那六个卡片族在受管 CSS 里一条 `overflow` 都没设（默认 `visible`），若把「是否溢出」挂在「`overflow` ∈ {hidden, clip, auto, scroll}」上，这一半判定**永远不会成立** —— 内容真的溢出盒子时工具反而报绿灯。内容是被裁、可滚动还是溢出到盒子外，只影响报告里的措辞，不影响「算不算失败」。判定逻辑放在 `scripts/lib/avOverflowRule.mjs`，脚本与守卫共用同一份，不会各自漂移。
+
+### 演示站点的文案规则
+
+界面面向国内市场，可见文案只有三种合法性：**中文**、**数据**、**白名单里的专有英文**。三条规则都由 CI 守着 —— 五个字母的 `RSSI`、两个字母的 `P90`、`zh-CN` 这种 locale code，人眼评审一眼就滑过去了，靠自觉守不住。
+
+**① 标题下只写数据。** 面板头（`AvPanel`）与页头（`AvPageHeader`）的 `subtitle` 是可选的，一旦写就必须是**数据型**：含数字、含 `${...}` 插值，或整个值就是一个数据变量（`subtitle={view.windowLabel}`）。判据一句话：**副标题回答「这屏数的是哪个窗口 / 多少条 / 筛出来几台」，不回答「这张图怎么读」「这个模块是干什么的」。** 因此这四类一律不写：
+
+- 复述标题（「网关与链路」下面写「网关与链路状态」）；
+- 解释图怎么读（「颜色越深代表该时段告警越多」）；
+- 营销口号（「实时检测 · 自动分级 · 闭环处置」「多模态融合感知 · 全场景智能安防」）；
+- 空态操作指引（「选择任意一起事件」）—— 指引写在空态正文（`AvEmpty` 的 `hint`）里。
+
+例外只有两种，且必须进白名单并写明理由：**范围标签**（如「离线 / 维护中」，计数在 `meta` 里）与**诚实的能力说明**（如「规则为只读展示，当前不可编辑」—— 删掉才是撒谎）。KPI 卡的脚注（`KpiCard.note`）同一口径：数据型保留（`离线 14 · 维护 4`），说明型删除（`按该窗口内的告警口径计算`）。由 `web/lib/av/subtitleCopy.test.ts` 守着，删掉的句子进 denylist 防回填。
+
+**② 英文只留专有名词。** 用户可见字符串里不许出现「两个以上连续大写拉丁字母」（`LIVE` / `RSSI` / `ROI`）、分位记号（`P90` / `P50` / `P10`）、`xx-XX` 形式的 locale code。能留的只有四类，逐条写在 `web/lib/av/englishResidue.test.ts` 的白名单里（每条一句理由）：
+
+- **型号**：`AV-MIC-S6` / `AV-CAM-PTZ` / `AV-GW-200`；
+- **编号**：`AL-00037` / `EV-20260145` / `PT-B1-1F01` / `OTA-1001-1`（编号是检索与对账的主键，中文化会让深链接失效）；
+- **单位**：`GB` / `TB` / `PB` / `dBm` / `dBA` / `Hz` / `ms` / `%`；
+- **标准号 / 行业通用缩写**：`H.265` / `HBM3` / `ICU` / `AI`。
+
+单位符号不翻译，其余一律中文：`LIVE`→实时、`OFFLINE`→离线、`VIDEO`/`AUDIO`→视频/音频、`CPU`→处理器占用、`GPU0`→显卡 0、`OTA`→固件升级、`RSSI`→信号强度、`ROI`→分析区域、`PERSON`/`VEHICLE`→人员/车辆、`P90/P50/P10`→较高分位/中位/较低分位（具体数值仍显示，只是不再出现记号）、`25FPS`→25 帧/秒、`Top N`→前 N。**新增英文必须显式加白并写理由**，这就是把这次的口径判断固化成契约。
+
+**③ 编码值一律映射，不直接上屏。** locale code、场景代码、枚举值是**数据**，中文只发生在展示层，映射表统一放 `web/lib/av/labels.ts`，页面里不写第二张表（否则同一个编码会在五页里漂成五种说法）。数据集原值不动：`transcripts.json` 的 `language: "zh-CN"` 保留，界面上是「普通话」；`scenes.json` 的 `code: "CAMPUS"` 保留，能力页上显示「校园」。
+
+**④ 删文案会改布局，等高关系要重新量。** 副标题占一行（11px / 1.5 行高 + 4px 上边距 ≈ 20.5px），删掉就改面板高度：`/alarm` 右栏删掉两条说明型副标题后三卡栈降了 41px，左面板（12 行 × 行高 + 面板 chrome）比它长出 49px —— 于是 `--av-alarm-row-h` 从 67px 收到 63px（`panel chrome 160px + 12 × 63px = 916px`，对照三卡栈 915px，底边差 1px），**而不是**用一条说明文把高度填回去。改文案后必须重跑 `scripts/av-alarm-row-calibration.mjs` 与 `scripts/av-layout-overflow.mjs`。
+
+**⑤ 四套守卫的分工**（别重复造，也别绕过）：品牌（`siteBrandCopy.test.ts`：英文 `Stream Monitor` / 中文名 / URL 前缀）、措辞（`siteCopyGuard.test.ts`：mock / 演示 / 工程术语 / 内部口径）、英文残留（`englishResidue.test.ts`：字母表口径 + 白名单）、副标题形状（`subtitleCopy.test.ts`：只写数据 + denylist）。
 
 ### 演示站点的色彩体系与动效节奏
 

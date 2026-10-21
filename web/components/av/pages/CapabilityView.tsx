@@ -30,7 +30,6 @@ export default function CapabilityView({ scenes, groups, rules, chain, totals }:
       <AvPageHeader
         route="/stream-monitor/capability"
         title="能力与场景"
-        subtitle="从拾音采集到多模态融合，再到分级处置的完整链路"
         aside={<span className={s.headerChip}>{formatCount(totals.algorithms)} 个算法 · {formatGb(totals.vram)} 显存</span>}
       />
 
@@ -156,7 +155,7 @@ export default function CapabilityView({ scenes, groups, rules, chain, totals }:
         </AvPanel>
 
         <div className={s.railStack}>
-          <AvPanel title="类别调用占比" subtitle="今日调用量" icon="overview" motionKey="capability-calls">
+          <AvPanel title="类别调用占比" icon="overview" motionKey="capability-calls">
             <div className={s.typeList}>
               {groups.map((group) => (
                 <AvBar
@@ -173,7 +172,7 @@ export default function CapabilityView({ scenes, groups, rules, chain, totals }:
 
           <AvPanel
             title="检测规则"
-            subtitle="阈值与动作；规则为只读展示，当前不可编辑"
+            subtitle="规则为只读展示，当前不可编辑"
             icon="alarm"
             meta={`${rules.filter((rule) => rule.enabled).length}/${rules.length} 启用`}
             motionKey="capability-rules"

@@ -9,6 +9,7 @@ import {
   formatCount,
   formatGb,
   formatPercent,
+  SIGNAL_PERCENTILE_LABEL,
   type AvTone,
 } from "@/lib/av/labels";
 import { toAbsolute, toRelative } from "@/lib/av/time";
@@ -43,6 +44,9 @@ import s from "./AvPages.module.css";
 import type { DeviceRow, DeviceViewProps } from "@/lib/av/contracts";
 
 const PAGE = 24;
+
+/** 固件升级（原「OTA」）：界面统一用中文，数据集里 `ota` 字段名不动。 */
+const OTA_LABEL = "固件升级";
 
 /**
  * 三档状态系列：颜色走语义 tone（在线=success / 离线=danger / 维护中=warning），
@@ -191,10 +195,9 @@ export default function DeviceView({ devices, summary }: DeviceViewProps) {
       <AvPageHeader
         route="/stream-monitor/device"
         title="设备管理"
-        subtitle="设备台账、在线率与离线清单"
         aside={
           <span className={s.headerChip}>
-            OTA {frame.ota.success}/{frame.ota.total} 成功
+            {OTA_LABEL} {frame.ota.success}/{frame.ota.total} 成功
           </span>
         }
       />
@@ -233,7 +236,7 @@ export default function DeviceView({ devices, summary }: DeviceViewProps) {
       <div className={s.gridTwo}>
         <AvPanel
           title="站点在线情况"
-          subtitle={`${frame.sites.length} 个站点 · 在线 / 离线 / 维护中构成，折线为在线率`}
+          subtitle={`${frame.sites.length} 个站点 · 在线 / 离线 / 维护中构成`}
           icon="overview"
           meta={`每 ${DEVICE_STREAM_TICK_SECONDS} 秒刷新`}
           motionKey="device-sites"
@@ -263,16 +266,15 @@ export default function DeviceView({ devices, summary }: DeviceViewProps) {
           </div>
           <div className={s.firmwareRow}>
             <span className={s.softNote}>信号健康</span>
-            <span className={s.tagChip}>平均 {summary.signalHealth.avg.toFixed(1)}</span>
-            <span className={s.tagChip}>P10 {summary.signalHealth.p10}</span>
-            <span className={s.tagChip}>P50 {summary.signalHealth.p50}</span>
-            <span className={s.tagChip}>P90 {summary.signalHealth.p90}</span>
+            <span className={s.tagChip}>{SIGNAL_PERCENTILE_LABEL.average} {summary.signalHealth.avg.toFixed(1)}</span>
+            <span className={s.tagChip}>{SIGNAL_PERCENTILE_LABEL.low} {summary.signalHealth.p10}</span>
+            <span className={s.tagChip}>{SIGNAL_PERCENTILE_LABEL.median} {summary.signalHealth.p50}</span>
+            <span className={s.tagChip}>{SIGNAL_PERCENTILE_LABEL.high} {summary.signalHealth.p90}</span>
           </div>
         </AvPanel>
 
         <AvPanel
           title="状态分布"
-          subtitle="全量设备当前状态"
           icon="device"
           meta={`${frame.byStatus.length} 种状态`}
           motionKey="device-status"
@@ -294,7 +296,9 @@ export default function DeviceView({ devices, summary }: DeviceViewProps) {
       <div className={s.gridTwo}>
         <AvPanel
           title="近 24 小时在线率趋势"
-          subtitle={`每 2 小时一个采样点 · 末端为当前值（每 ${DEVICE_STREAM_TICK_SECONDS} 秒刷新）`}
+          subtitle={`每 2 小时一个采样点 · 末端为当前值（${
+            motionEnabled ? `每 ${DEVICE_STREAM_TICK_SECONDS} 秒刷新` : "静态模式"
+          }）`}
           icon="event"
           meta={`${frame.sites.length} 个站点`}
           motionKey="device-trend"
@@ -322,7 +326,7 @@ export default function DeviceView({ devices, summary }: DeviceViewProps) {
 
         <AvPanel
           title="型号构成"
-          subtitle={`${summary.byModel.length} 种型号 · 按台数排序`}
+          subtitle={`${summary.byModel.length} 种型号`}
           icon="chip"
           meta={`${formatCount(summary.total)} 台`}
           motionKey="device-models"
@@ -394,7 +398,7 @@ export default function DeviceView({ devices, summary }: DeviceViewProps) {
                     <th>类型</th>
                     <th>状态</th>
                     <th className={s.num}>信号</th>
-                    <th className={s.num}>CPU</th>
+                    <th className={s.num}>处理器占用</th>
                     <th className={s.num}>存储</th>
                     <th className={s.num}>心跳</th>
                   </tr>
@@ -448,7 +452,7 @@ export default function DeviceView({ devices, summary }: DeviceViewProps) {
         <div className={s.railStack}>
           <AvPanel
             title="离线与维护清单"
-            subtitle="离线 / 维护中设备，按最近心跳倒序"
+            subtitle="离线 / 维护中"
             icon="alarm"
             meta={<span style={metricTone("danger")}>{`${attention.length} 台`}</span>}
             motionKey="device-attention"
@@ -477,7 +481,7 @@ export default function DeviceView({ devices, summary }: DeviceViewProps) {
           </AvPanel>
 
           <AvPanel
-            title="OTA 升级"
+            title={OTA_LABEL}
             subtitle={`近 180 天固件升级结果 · ${formatCount(frame.ota.total)} 次任务`}
             icon="capability"
             meta={<span style={metricTone("success")}>{formatPercent(frame.ota.rate)}</span>}
@@ -492,7 +496,7 @@ export default function DeviceView({ devices, summary }: DeviceViewProps) {
               centerLabel="成功率"
               centerTone="success"
               height={AV_CHART_HEIGHT.sm}
-              label="OTA 升级成功率环形图"
+              label="固件升级成功率环形图"
             />
             <div className={s.railRow} style={metricTone("signal")}>
               <span>升级任务</span>
@@ -568,7 +572,7 @@ function DeviceDetail({ device, onClose }: { device: DeviceRow; onClose: () => v
               { label: "最近心跳", value: `${toAbsolute(device.heartbeatOffsetMinutes)}（${toRelative(device.heartbeatOffsetMinutes)}）` },
               { label: "在线时长", value: `${formatCount(device.uptimeDays)} 天` },
               { label: "信号质量", value: offline ? "离线" : `${device.signal} / 100` },
-              { label: "CPU / 存储", value: `${device.cpu}% / ${device.storage}%` },
+              { label: "处理器占用 / 存储", value: `${device.cpu}% / ${device.storage}%` },
               { label: "麦克风灵敏度", value: device.micSensitivityDbm == null ? "—" : `${device.micSensitivityDbm} dBm` },
             ]}
           />
@@ -598,7 +602,7 @@ function DeviceDetail({ device, onClose }: { device: DeviceRow; onClose: () => v
         </div>
 
         <div className={s.dialogSection}>
-          <h3 className={s.dialogSectionTitle}>OTA 记录</h3>
+          <h3 className={s.dialogSectionTitle}>{OTA_LABEL}记录</h3>
           {device.otaRecords.length === 0 ? (
             <p className={s.softNote}>无升级记录。</p>
           ) : (

@@ -174,7 +174,7 @@ describe("智能音视频平台 服务端数据层", () => {
     // 表格「事件类型」列：告警融合事件统一一个标签，普通事件按分类码展开
     assert.ok(alarmRows.every((row) => row.eventType === "告警融合"));
     const routineTypes = new Set(routineRows.map((row) => row.eventType));
-    for (const label of ["巡检发现", "设备上线", "设备离线", "OTA 升级", "配置变更", "误报归档", "人工补录"]) {
+    for (const label of ["巡检发现", "设备上线", "设备离线", "固件升级", "配置变更", "误报归档", "人工补录"]) {
       assert.ok(routineTypes.has(label), `普通事件缺少「${label}」这类`);
     }
     // 普通事件不带告警：证据链面板会落到空态

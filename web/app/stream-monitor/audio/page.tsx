@@ -30,7 +30,6 @@ export default async function AudioPage({ searchParams }: { searchParams: { alar
         <AvPageHeader
           route="/stream-monitor/audio"
           title="音频分析"
-          subtitle="频谱与转写"
         />
         {requested ? (
           <AvEmpty
