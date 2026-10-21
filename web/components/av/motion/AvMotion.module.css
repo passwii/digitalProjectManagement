@@ -78,8 +78,22 @@
   animation: avSkeleton var(--av-dur-shimmer) linear infinite;
 }
 
-/* 骨架 → 真数据的交叉淡入（base） */
+/*
+ * 骨架 → 真数据的交叉淡入（base）。
+ *
+ * ⚠️ `width/height: 100%` 不是装饰（BLF-1423 P0）：这个 div 是图表与 `AvSkeletonSwap`
+ * 内容之间的一层**包裹节点**，而 recharts 的 `ResponsiveContainer` 以 `height: 100%`
+ * 向上寻我「有确定高度的父节点」。只写 `animation` 时它的高度是 auto，而子节点又是
+ * 百分比高度，解析结果是 0 —— 于是 `.frame` 有 248px、`.skeletonSwap` 测到 0，
+ * 量到 0×0 后什么都不画（`/overview` 告警趋势、7 日柱状、`/device` 抽屉信号曲线全部空白）。
+ * 高度只在这里给一次：`ChartFrame` 的 `.frame` 负责档位高度，包裹层负责传递 100%，
+ * 不要在两处同时打补丁。`?static=1` 下 `AvSkeletonSwap` 直接返回 children（没有这层 div），
+ * 那时高度由 `.frame` 的 inline height 提供，同样成立。
+ * 回归守卫：`lib/av/chartFrameHeight.vitest.test.ts`。
+ */
 .skeletonSwap {
+  width: 100%;
+  height: 100%;
   animation: avFadeIn var(--av-dur-base) var(--av-ease-standard) both;
 }
 

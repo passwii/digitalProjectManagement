@@ -97,7 +97,7 @@
 .panel {
   min-width: 0;
   border: 1px solid var(--av-divider);
-  background: var(--av-surface);
+  background: var(--av-surface-2);
 }
 
 .panelHeader {
@@ -181,7 +181,7 @@
   gap: var(--av-gap-card);
   padding: var(--av-pad-card);
   border: 1px solid var(--av-divider);
-  background: var(--av-surface);
+  background: var(--av-surface-2);
 }
 
 /* 左侧 2px 语义色条：卡片之间的「同一套语言」，不靠底色区分 */
@@ -218,6 +218,12 @@
 
 .metricValue strong {
   overflow: hidden;
+  /*
+   * KPI 数字跟随色条同色（BLF-1422 / BLF-1423）：左边 2px 色条、图标、数字三者
+   * 用同一个 --metric-tone，卡片底色保持中性 —— 「卡片克制、数字醒目」。
+   * 单位（`.metricValue span`）仍是弱文字色，避免整串数字发胖。
+   */
+  color: var(--metric-tone);
   font-size: var(--av-text-kpi);
   font-weight: 600;
   letter-spacing: -0.03em;
@@ -447,7 +453,8 @@
 }
 
 .legendItem strong {
-  color: var(--av-ink);
+  /* 图例数字与色点同色：图例也是这类「数字跟随色条」的一处（BLF-1423） */
+  color: var(--tone, var(--av-ink));
   font-family: var(--font-mono);
   font-size: var(--av-text-note);
   font-variant-numeric: tabular-nums;
@@ -632,7 +639,8 @@
 .table th {
   padding: var(--av-space-1) var(--av-space-2);
   border-bottom: 1px solid var(--av-divider);
-  background: var(--av-surface-soft);
+  /* 表头走第三档表面（抬升）：暗色里与卡片拉开一层，不再是同一块深蓝 */
+  background: var(--av-surface-3);
   color: var(--av-ink-3);
   font-size: var(--av-text-micro);
   font-weight: 600;

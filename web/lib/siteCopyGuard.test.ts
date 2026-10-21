@@ -265,7 +265,14 @@ const PUBLIC_DATA_DIR = "public/stream-monitor-data";
 
 const SITE_FILES = [
   ...SITE_DIRS.flatMap((dir) => filesUnder(dir, /\.tsx?$/)).filter(
-    (file) => !/\.test\.ts$/.test(file),
+    /*
+     * 测试文件不参与「用户可见文案」扫描 —— 它们不发布给访客，而且 RTL 用例里
+     * 必然出现 `vi.mock(...)` 这类代码。
+     * BLF-1423：原来的 `/\.test\.ts$/` 漏掉了 `.vitest.test.tsx`（jsdom 渲染用例的
+     * 命名），于是新建一个 `lib/av/*.vitest.test.tsx` 就会被这条守卫报成「文案违规」。
+     * 这里把 `.ts` / `.tsx` 两种测试后缀一起排除。
+     */
+    (file) => !/\.test\.tsx?$/.test(file),
   ),
   // 单文件：路径已经是相对 cwd 的，filesUnder 返回的是绝对路径，这里补齐。
   ...SITE_EXTRA_FILES.map((file) => resolve(process.cwd(), file)),

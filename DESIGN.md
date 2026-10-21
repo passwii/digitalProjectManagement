@@ -16,6 +16,19 @@ colors:
   dark-success: "#c6ff72"
   dark-neutral-state: "#9cb4c4"
   dark-data-violet: "#bda6ff"
+  dark-data-blue: "#7db4ff"
+  dark-data-magenta: "#ff8fc7"
+  dark-data-aqua: "#5ef0c8"
+  dark-data-lemon: "#c6ff72"
+  dark-surface-raised: "#13293c"
+  dark-series-cyan: "#6cf3ff"
+  dark-series-blue: "#7db4ff"
+  dark-series-violet: "#bda6ff"
+  dark-series-magenta: "#ff8fc7"
+  dark-series-coral: "#ff9a6a"
+  dark-series-amber: "#ffc46b"
+  dark-series-lemon: "#c6ff72"
+  dark-series-aqua: "#5ef0c8"
   light-canvas: "#f1f5f7"
   light-surface: "#ffffff"
   light-raised: "#e8eef2"
@@ -31,6 +44,19 @@ colors:
   light-success: "#356b4b"
   light-neutral-state: "#5e707d"
   light-data-violet: "#6d4cc2"
+  light-data-blue: "#2f5fbf"
+  light-data-magenta: "#a03b73"
+  light-data-aqua: "#17795f"
+  light-data-lemon: "#5f7a1f"
+  light-surface-raised: "#f3f7f9"
+  light-series-cyan: "#17617d"
+  light-series-blue: "#2f5fbf"
+  light-series-violet: "#6d4cc2"
+  light-series-magenta: "#a03b73"
+  light-series-coral: "#a23e39"
+  light-series-amber: "#805518"
+  light-series-lemon: "#5f7a1f"
+  light-series-aqua: "#17795f"
   light-control-border: "#82939e"
   light-action-border: "#adc95d"
   light-data-green: "#587839"
@@ -321,6 +347,57 @@ components:
 这套规格由 `web/lib/av/avLayoutTokens.vitest.test.ts`（间距刻度、卡片圆角、同类卡片等高、栅格对齐、图表高度档位）与 `web/lib/av/avFontSizes.vitest.test.ts`（字号档位齐全、无裸字面量、渲染等价）守着，实测由 `scripts/av-layout-shoot.mjs`（走查五个断点 × 深浅两主题）与 `scripts/av-layout-overflow.mjs`（等高策略会不会让内容溢出）完成。
 
 **卡片溢出的判定口径**（`scripts/av-layout-overflow.mjs` 用它，`web/lib/av/avOverflowRule.vitest.test.ts` 守它）：卡片的内容**超出自己的盒子**就算失败 —— 判据是任一轴的 `scrollHeight/Width` 与 `clientHeight/Width` 之差超过 1px 容差，**不看 `overflow` 计算值**。理由：那六个卡片族在受管 CSS 里一条 `overflow` 都没设（默认 `visible`），若把「是否溢出」挂在「`overflow` ∈ {hidden, clip, auto, scroll}」上，这一半判定**永远不会成立** —— 内容真的溢出盒子时工具反而报绿灯。内容是被裁、可滚动还是溢出到盒子外，只影响报告里的措辞，不影响「算不算失败」。判定逻辑放在 `scripts/lib/avOverflowRule.mjs`，脚本与守卫共用同一份，不会各自漂移。
+
+### 演示站点的色彩体系与动效节奏
+
+`/stream-monitor` 是对外演示用的产品界面，色彩要「丰富、可分」而不是「克制、少色」。但多色不等于多套色值：颜色仍然只有**一个真源** `web/app/globals.css`，组件里不出现任何 `#hex` / `rgb()`（由 `web/lib/avSourceGuard.vitest.test.ts` 守着）。这一节说明 AV 站点在既有语义色之外多出来的两组东西。
+
+**数据系列色（8 档）**。语义色（危险 / 警告 / 完成 / 信号 / 执行 / 数据紫 / 中性）只回答「这是什么状态」，多系列图表要的是「这条线是第几条」，所以另起一组 `--av-series-1..8`：
+
+| 令牌 | 色相 | 深色 | 浅色 | 典型用途 |
+| --- | --- | --- | --- | --- |
+| `--av-series-1` | 青 | `--brand` | `--brand` | 主系列（告警量 / 第一条线） |
+| `--av-series-2` | 蓝 | `--data-blue` | `--data-blue` | 对比系列 |
+| `--av-series-3` | 紫 | `--data-violet` | `--data-violet` | 事件 / 次维度 |
+| `--av-series-4` | 品红 | `--data-magenta` | `--data-magenta` | 第三、第四条线 |
+| `--av-series-5` | 珊瑚 | `--danger` | `--danger` | 下降 / 异常趋势 |
+| `--av-series-6` | 琥珀 | `--warn` | `--warn` | 接近阈值的系列 |
+| `--av-series-7` | 柠檬 | `--data-lemon` | `--data-lemon` | 增量 / 新系列 |
+| `--av-series-8` | 水绿 | `--data-aqua` | `--data-aqua` | 已处置 / 健康度 |
+
+两条规则：
+
+- **语义色不借给数据系列，系列色不借给状态**。告警级别、设备状态、算法状态永远用语义色；图表里「第 N 条系列」用系列色。这样「珊瑚」在页面上只有一种含义。
+- **系列色在两种主题下都必须对卡片底保持 ≥ 3:1 对比度**（图表线不是文字，3:1 是可见性下限）。所以柠檬没有复用 `--action`（浅色下它是按钮底色，`#c6df7b` 画在白底上几乎看不见），而是单独给了 `--data-lemon`。这条由 `web/lib/av/avColorTokens.vitest.test.ts` 逐档计算守着。
+
+组件入口统一在 `web/lib/av/tone.ts`：`toneVar(tone)` 产出 `var(--av-tone-*)`，`seriesVar(n)` 产出 `var(--av-series-n)`，`colorVar(tone | "series-n")` 是两者共用的入口 —— 页面不需要知道某个颜色属于哪一组。
+
+**KPI 数字与色条同色**。度量卡、状态格、图例里的数字跟随自己的颜色（`--metric-tone` / `--tone`），左边 2px 色条、图标、数字三者同色；**卡片底色保持中性**。这是「卡片克制、数字醒目」的具体做法：一屏四个 KPI，靠数字和色条区分类别，靠底色区分只会变成满屏色块。
+
+**分层表面与每页光晕**。改之前暗色只有 `#07131f`（底）与 `#0d1d2c`（卡）两个值，整屏一个深蓝平板。现在表面分三档，并且每个页面有一档自己的极淡光晕：
+
+| 令牌 | 深色 | 浅色 | 用途 |
+| --- | --- | --- | --- |
+| `--av-surface-1` | `#07131f` | `#f1f5f7` | 页面底（画布） |
+| `--av-surface-2` | `#0d1d2c` | `#ffffff` | 卡片 / 面板 / 状态格 |
+| `--av-surface-3` | `#13293c` | `#f3f7f9` | 抬升面：表头、面板头、hover |
+
+光晕（页面底色上的 `radial-gradient`，暗色是 8% 左右的洗色，浅色是同色系浅底）：`--av-tint-overview` 青 / `--av-tint-monitor` 紫 / `--av-tint-alarm` 珊瑚 / `--av-tint-event` 琥珀 / `--av-tint-device` 柠檬绿。它们全部是既有 soft 底色的别名，因此深浅主题自动跟随，不需要在浅色块里再抄一份值。
+
+**动效节奏（演示档）**。对外讲解时，观众要**看得见**动效在发生：240ms 的面板入场在投影上几乎一帧结束，看不出错峰与层次。所以主力档与慢档放慢，操作反馈档不动（变慢就是发黏）：
+
+| 令牌 | 值 | 用途 |
+| --- | --- | --- |
+| `--av-dur-instant` | 90ms | 按下 / 开关 / 焦点环 |
+| `--av-dur-quick` | 160ms | hover / 徽标变更 / 退场 |
+| `--av-dur-base` | 300ms | 抽屉、面板入场、Tab 切换 |
+| `--av-dur-slow` | 600ms | 页面级入场、图表入场、KPI 滚动 |
+| `--av-stagger-list` | 45ms | 列表错峰步长（前 10 项） |
+| `--av-stagger-timeline` | 90ms | 时间线节点错峰 |
+
+0.65s 是慢档的硬上限：再慢就会被读成卡顿。`?static=1`（截图 / 录屏）与 `prefers-reduced-motion: reduce` 下所有时长归零、动画包装不渲染，同一 URL 连拍三次必须逐字节一致；数值契约由 `web/lib/av/motion.vitest.test.ts` 钉死。
+
+**图表尺寸的隐藏契约**。recharts 的 `ResponsiveContainer` 以 `height: 100%` 向上找「有确定高度的父节点」，中间任何一层包裹节点只写 `animation` 而不写高度，整张图就会量到 0×0 后什么都不画（BLF-1423 的 P0：告警趋势、7 日柱状、设备抽屉的信号曲线全部空白，而自带 inline 高度的环形图仍然可见）。现在的口径是：**档位高度只由 `ChartFrame` 的 `.frame`（inline `height`）提供，包裹层 `.skeletonSwap` 负责传递 `100%`**，两处不重复打补丁。这条由 `web/lib/av/chartFrameHeight.vitest.test.tsx` 守着 —— 既有源码断言（`.skeletonSwap` 必须有 `height: 100%`），也有真实渲染后的祖先链断言（含 `?static=1` 那条不套包裹层的分支）。
 
 ## Do's and Don'ts
 

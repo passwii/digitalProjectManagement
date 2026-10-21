@@ -111,7 +111,8 @@ export default function OverviewView(props: OverviewProps) {
               data={props.daily}
               dataKeys={["alarms", "incidents"]}
               labels={["告警数", "事件数"]}
-              tones={["signal", "violet"]}
+              /* 数据系列色（BLF-1423）：青 / 紫 —— 同一张图里两条系列不再借用语义色 */
+              tones={["series-1", "series-3"]}
               height={AV_CHART_HEIGHT.lg}
               label="近 7 日告警与事件柱状图"
             />
@@ -120,7 +121,8 @@ export default function OverviewView(props: OverviewProps) {
               data={range === "today" ? props.todayTrend : props.trend}
               dataKeys={["alarms", "handled"]}
               labels={["告警数", "已处置"]}
-              tones={["signal", "success"]}
+              /* 青 / 水绿：两条线用系列色区分，而不是「signal / success」两套语义 */
+              tones={["series-1", "series-8"]}
               height={AV_CHART_HEIGHT.lg}
               label="告警趋势折线图"
             />
@@ -128,8 +130,8 @@ export default function OverviewView(props: OverviewProps) {
           <div className={s.chartFoot}>
             <AvLegend
               items={[
-                { label: "告警数", tone: "signal" },
-                { label: range === "week" ? "事件数" : "已处置", tone: range === "week" ? "violet" : "success" },
+                { label: "告警数", tone: "series-1" },
+                { label: range === "week" ? "事件数" : "已处置", tone: range === "week" ? "series-3" : "series-8" },
               ]}
             />
             <span className={s.softNote}>

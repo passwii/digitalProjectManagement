@@ -1,9 +1,8 @@
 import type { CSSProperties, ReactNode } from "react";
 import AvGlyph from "./AvGlyph";
 import type { AvIconName } from "@/lib/av/navigation";
-import type { AvTone } from "@/lib/av/labels";
 import { levelMeta } from "@/lib/av/labels";
-import { toneVar } from "@/lib/av/tone";
+import { colorVar, type AvColorTone } from "@/lib/av/tone";
 import s from "./AvUI.module.css";
 
 /**
@@ -29,8 +28,8 @@ import s from "./AvUI.module.css";
  * `components/av/AvTabs.tsx` 与 `components/av/motion/AvCounter.tsx` 里。
  */
 
-function toneStyle(tone: AvTone): CSSProperties {
-  return { "--tone": toneVar(tone) } as CSSProperties;
+function toneStyle(tone: AvColorTone): CSSProperties {
+  return { "--tone": colorVar(tone) } as CSSProperties;
 }
 
 export function AvPageHeader({
@@ -117,13 +116,14 @@ export function AvMetric({
   unit?: string;
   detail: string;
   note?: string;
-  tone: AvTone;
+  /** 语义色或数据系列色（BLF-1423）：两种都只产出 `var(--av-*)` 引用。 */
+  tone: AvColorTone;
   icon?: AvIconName;
 }) {
   return (
     <article
       className={s.metric}
-      style={{ "--metric-tone": toneVar(tone) } as CSSProperties}
+      style={{ "--metric-tone": colorVar(tone) } as CSSProperties}
       data-motion="metric"
       data-motion-key={label}
       data-tone={tone}
@@ -191,7 +191,7 @@ export function AvStatusBadge({
   children,
   swap = false,
 }: {
-  tone: AvTone;
+  tone: AvColorTone;
   children: ReactNode;
   /**
    * 是否为「状态变更」播一次弹入（quick，0.9 → 1）。
@@ -230,7 +230,7 @@ export function AvBar({
   label: string;
   value: number;
   max: number;
-  tone: AvTone;
+  tone: AvColorTone;
   detail?: string;
 }) {
   const percent = max > 0 ? Math.min(100, Math.max(0, (value / max) * 100)) : 0;
@@ -255,7 +255,7 @@ export function AvBar({
   );
 }
 
-export function AvLegend({ items }: { items: { label: string; value?: string; tone: AvTone }[] }) {
+export function AvLegend({ items }: { items: { label: string; value?: string; tone: AvColorTone }[] }) {
   return (
     <div className={s.legend}>
       {items.map((item) => (
