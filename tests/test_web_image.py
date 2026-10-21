@@ -49,12 +49,12 @@ class WebImageBuildTest(unittest.TestCase):
         self.assertIn('CMD ["node", "server.js"]', self.directives)
         self.assertNotIn("next start", self.directives)
 
-    def test_runner_listens_wildcard_and_uses_the_forwarded_host(self):
-        """监听保持全网卡，代理重定向使用请求 Host（BLF-1400）。"""
+    def test_runner_uses_relative_redirects_behind_the_host_proxy(self):
+        """监听保持全网卡；Next 14 的代理重定向不能泄漏容器 hostname。"""
         self.assertIn("ENV PORT=3001", self.directives)
         self.assertIn('ENV HOSTNAME=""', self.directives)
-        next_config = NEXT_CONFIG.read_text()
-        self.assertIn("trustHostHeader: true", next_config)
+        config = NEXT_CONFIG.read_text()
+        self.assertNotIn("trustHostHeader", config)
 
     def test_runner_does_not_need_root(self):
         self.assertIn("USER node", self.directives)
