@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { DeviceStatus } from "@/lib/av/types";
 import {
   compactAge,
@@ -12,13 +12,30 @@ import {
   type AvTone,
 } from "@/lib/av/labels";
 import { toAbsolute, toRelative } from "@/lib/av/time";
-import { AvBar, AvEmpty, AvKV, AvLegend, AvPageHeader, AvPanel, AvStatusBadge } from "@/components/av/AvUI";
-import { AvDonut, AvSignalChart } from "@/components/av/AvCharts";
+import { AvEmpty, AvKV, AvLegend, AvPageHeader, AvPanel, AvStatusBadge } from "@/components/av/AvUI";
+import {
+  AvDonut,
+  AvHorizontalBarChart,
+  AvMultiTrendChart,
+  AvSignalChart,
+  AvStackedBarChart,
+  seriesTone,
+  type ChartSeriesSpec,
+} from "@/components/av/AvCharts";
 import { attentionAgeText } from "@/lib/av/view";
 import { toneVar } from "@/lib/av/tone";
 import { AV_CHART_HEIGHT } from "@/lib/av/chartHeights";
+import {
+  DEVICE_STREAM_FRAMES,
+  DEVICE_STREAM_TICK_SECONDS,
+  deviceFrameAt,
+  deviceStreamBase,
+  rateAxisDomain,
+} from "@/lib/av/deviceStream";
+import { percentTicks } from "@/lib/av/chartAxis";
 import AvGlyph from "@/components/av/AvGlyph";
 import AvTabs from "@/components/av/AvTabs";
+import AvCounter from "@/components/av/motion/AvCounter";
 import { closeDialogWithMotion, openDialogWithMotion } from "@/components/av/motion/AvDialog";
 import { staggerProps } from "@/components/av/motion/AvMotion";
 import { useAvMotion } from "@/components/av/motion/AvMotionProvider";
@@ -26,6 +43,22 @@ import s from "./AvPages.module.css";
 import type { DeviceRow, DeviceViewProps } from "@/lib/av/contracts";
 
 const PAGE = 24;
+
+/**
+ * 三档状态系列：颜色走语义 tone（在线=success / 离线=danger / 维护中=warning），
+ * 与状态徽标、环形图同一套映射 —— 站点堆叠柱如果改用 `series-*`，
+ * 同一屏里「离线」会出现两种颜色。
+ */
+const SITE_STATUS_SERIES: ChartSeriesSpec[] = [
+  { key: "online", label: DEVICE_STATUS_LABEL.online, tone: DEVICE_STATUS_TONE.online },
+  { key: "offline", label: DEVICE_STATUS_LABEL.offline, tone: DEVICE_STATUS_TONE.offline },
+  { key: "maintenance", label: DEVICE_STATUS_LABEL.maintenance, tone: DEVICE_STATUS_TONE.maintenance },
+];
+
+/** 站点柱状图上的第二视觉：在线率折线。系列色与三条站点折线互不冲突。 */
+const SITE_RATE_SERIES = { key: "rate", label: "在线率", tone: seriesTone(1) } as const;
+
+const metricTone = (tone: AvTone) => ({ "--metric-tone": toneVar(tone) }) as React.CSSProperties;
 
 export default function DeviceView({ devices, summary }: DeviceViewProps) {
   const [statusFilter, setStatusFilter] = useState<"all" | DeviceStatus>("all");
@@ -35,6 +68,26 @@ export default function DeviceView({ devices, summary }: DeviceViewProps) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const dialogRef = useRef<HTMLDialogElement>(null);
   const { enabled: motionEnabled } = useAvMotion();
+
+  /**
+   * 演示帧：每 `DEVICE_STREAM_TICK_SECONDS` 秒推进一格（0 = 静态基准帧）。
+   *
+   * `enabled` 同时挡掉 `?static=1` 与 prefers-reduced-motion —— 两者都要求整页冻结，
+   * 否则连拍三张截图的数字会不一样（Stage 8 的 MD5 比对会红）。
+   * 冻结时 `tick` 恒为 0，也就是服务端口径的基准帧，不做任何抖动。
+   */
+  const [tick, setTick] = useState(0);
+  useEffect(() => {
+    if (!motionEnabled) return;
+    const timer = window.setInterval(() => {
+      setTick((value) => (value + 1) % (DEVICE_STREAM_FRAMES + 1));
+    }, DEVICE_STREAM_TICK_SECONDS * 1000);
+    return () => window.clearInterval(timer);
+  }, [motionEnabled]);
+
+  // 基准帧只在 props 变化时重算（扫一遍全量设备），之后每帧都是纯增量
+  const streamBase = useMemo(() => deviceStreamBase(devices, summary), [devices, summary]);
+  const frame = useMemo(() => deviceFrameAt(streamBase, tick), [streamBase, tick]);
 
   const filtered = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -70,84 +123,127 @@ export default function DeviceView({ devices, summary }: DeviceViewProps) {
     });
   };
 
+  /*
+   * 筛选 Tab 的计数读**当前帧**，与状态格 / 环形图同一份数字。
+   * 台账明细仍是服务端快照 —— 聚合层推进、明细层不动，与 /overview 的演示帧同一条口径。
+   */
   const statusTabs = [
-    { value: "all" as const, label: "全部", count: summary.total },
-    ...summary.byStatus.map((row) => ({
+    { value: "all" as const, label: "全部", count: frame.totals.total },
+    ...frame.byStatus.map((row) => ({
       value: row.status,
       label: DEVICE_STATUS_LABEL[row.status],
       count: row.count,
     })),
   ];
 
-  const donut = summary.byStatus.map((row) => ({
+  const donut = frame.byStatus.map((row) => ({
     status: row.status,
     label: DEVICE_STATUS_LABEL[row.status],
     value: row.count,
     tone: DEVICE_STATUS_TONE[row.status] as AvTone,
   }));
-  const modelTotal = Math.max(1, ...summary.byModel.map((model) => model.count));
+
+  /** 站点堆叠柱：台数三段 + 在线率（第二视觉）。悬停卡片补「在线 x/y」。 */
+  const siteRows = frame.sites.map((site) => ({
+    label: site.name,
+    online: site.online,
+    offline: site.offline,
+    maintenance: site.maintenance,
+    total: site.total,
+    rate: site.rate,
+  }));
+
+  /** 三条站点在线率曲线：颜色按序号取 `series-1..3`，互不相同。 */
+  const siteTrendSeries: ChartSeriesSpec[] = frame.sites.map((site, index) => ({
+    key: site.id,
+    label: site.name,
+    tone: seriesTone((index + 1) as 1 | 2 | 3),
+    // 三条都铺面积会糊成一片（一条线的填充会盖住下面两条），只留描边
+    fill: "none",
+  }));
+
+  const trendDomain = rateAxisDomain(frame);
+
   const attention = devices
     .filter((device) => device.status !== "online")
     .sort((a, b) => b.heartbeatOffsetMinutes - a.heartbeatOffsetMinutes);
 
+  const onlineRate = formatPercent((frame.totals.online / Math.max(1, frame.totals.total)) * 100);
+
   return (
-    <div className={s.page} data-av-page="device">
+    <div className={s.page} data-av-page="device" data-device-frame={frame.tick}>
       <AvPageHeader
         route="/stream-monitor/device"
         title="设备管理"
         subtitle="设备台账、在线率与离线清单"
-        aside={<span className={s.headerChip}>OTA {summary.ota.success}/{summary.ota.total} 成功</span>}
+        aside={
+          <span className={s.headerChip}>
+            OTA {frame.ota.success}/{frame.ota.total} 成功
+          </span>
+        }
       />
 
       <div className={s.statusGrid}>
-        <div className={s.statusCell} style={{ "--metric-tone": toneVar("signal") } as React.CSSProperties}>
+        <div className={s.statusCell} style={metricTone("signal")}>
           <span>设备总数</span>
-          <strong>{formatCount(summary.total)}</strong>
-          <small>覆盖 {summary.bySite.length} 个站点</small>
+          <strong>
+            <AvCounter value={formatCount(frame.totals.total)} />
+          </strong>
+          <small>覆盖 {frame.sites.length} 个站点</small>
         </div>
-        <div className={s.statusCell} style={{ "--metric-tone": toneVar("success") } as React.CSSProperties}>
+        <div className={s.statusCell} style={metricTone("success")}>
           <span>在线</span>
-          <strong>{formatCount(summary.online)}</strong>
-          <small>{formatPercent((summary.online / Math.max(1, summary.total)) * 100)} 在线率</small>
+          <strong>
+            <AvCounter value={formatCount(frame.totals.online)} />
+          </strong>
+          <small>{onlineRate} 在线率</small>
         </div>
-        <div className={s.statusCell} style={{ "--metric-tone": toneVar("danger") } as React.CSSProperties}>
+        <div className={s.statusCell} style={metricTone("danger")}>
           <span>离线</span>
-          <strong>{formatCount(summary.offline)}</strong>
+          <strong>
+            <AvCounter value={formatCount(frame.totals.offline)} />
+          </strong>
           <small>需现场核查</small>
         </div>
-        <div className={s.statusCell} style={{ "--metric-tone": toneVar("warning") } as React.CSSProperties}>
+        <div className={s.statusCell} style={metricTone("warning")}>
           <span>维护中</span>
-          <strong>{formatCount(summary.maintenance)}</strong>
+          <strong>
+            <AvCounter value={formatCount(frame.totals.maintenance)} />
+          </strong>
           <small>计划内停机</small>
         </div>
       </div>
 
       <div className={s.gridTwo}>
-        <AvPanel title="状态分布" subtitle="全量设备当前状态" icon="device" meta={`${summary.byStatus.length} 种状态`} motionKey="device-status">
-          <AvDonut
-            data={donut.map((row) => ({ label: row.label, value: row.value, tone: row.tone }))}
-            centerValue={formatCount(summary.total)}
-            centerLabel="设备总数"
-            height={AV_CHART_HEIGHT.md}
-            label="设备状态分布环形图"
+        <AvPanel
+          title="站点在线情况"
+          subtitle={`${frame.sites.length} 个站点 · 在线 / 离线 / 维护中构成，折线为在线率`}
+          icon="overview"
+          meta={`每 ${DEVICE_STREAM_TICK_SECONDS} 秒刷新`}
+          motionKey="device-sites"
+        >
+          <AvStackedBarChart
+            data={siteRows}
+            series={SITE_STATUS_SERIES}
+            rate={SITE_RATE_SERIES}
+            height={AV_CHART_HEIGHT.lg}
+            label="站点在线情况堆叠柱状图，折线为各站点在线率"
+            footnote={(row) => `在线 ${row.online}/${row.total} · ${row.rate}%`}
           />
-          <AvLegend
-            items={donut.map((row) => ({ label: row.label, value: formatCount(row.value), tone: row.tone }))}
-          />
-        </AvPanel>
-
-        <AvPanel title="站点在线情况" subtitle="按站点统计在线 / 离线" icon="overview" motionKey="device-sites">
-          <div className={s.typeList}>
-            {summary.bySite.map((site) => (
-              <AvBar
-                key={site.id}
-                label={site.name}
-                value={site.online}
-                max={site.total}
-                tone={site.rate >= 95 ? "success" : "warning"}
-                detail={`${site.online}/${site.total} · ${formatPercent(site.rate)}`}
-              />
-            ))}
+          <div className={s.chartFoot}>
+            <AvLegend
+              items={[
+                ...SITE_STATUS_SERIES.map((item) => ({ label: item.label, tone: item.tone })),
+                { label: SITE_RATE_SERIES.label, tone: SITE_RATE_SERIES.tone },
+              ]}
+            />
+            <span className={s.chartFootChips}>
+              {frame.sites.map((site) => (
+                <span key={site.id} className={s.tagChip} data-device-site={site.id}>
+                  {site.name} {site.online}/{site.total}
+                </span>
+              ))}
+            </span>
           </div>
           <div className={s.firmwareRow}>
             <span className={s.softNote}>信号健康</span>
@@ -155,6 +251,80 @@ export default function DeviceView({ devices, summary }: DeviceViewProps) {
             <span className={s.tagChip}>P10 {summary.signalHealth.p10}</span>
             <span className={s.tagChip}>P50 {summary.signalHealth.p50}</span>
             <span className={s.tagChip}>P90 {summary.signalHealth.p90}</span>
+          </div>
+        </AvPanel>
+
+        <AvPanel
+          title="状态分布"
+          subtitle="全量设备当前状态"
+          icon="device"
+          meta={`${frame.byStatus.length} 种状态`}
+          motionKey="device-status"
+        >
+          <AvDonut
+            data={donut.map((row) => ({ label: row.label, value: row.value, tone: row.tone }))}
+            centerValue={formatCount(frame.totals.total)}
+            centerLabel="设备总数"
+            centerTone={seriesTone(1)}
+            height={AV_CHART_HEIGHT.md}
+            label="设备状态分布环形图"
+          />
+          <AvLegend
+            items={donut.map((row) => ({ label: row.label, value: formatCount(row.value), tone: row.tone }))}
+          />
+        </AvPanel>
+      </div>
+
+      <div className={s.gridTwo}>
+        <AvPanel
+          title="近 24 小时在线率趋势"
+          subtitle={`每 2 小时一个采样点 · 末端为当前值（每 ${DEVICE_STREAM_TICK_SECONDS} 秒刷新）`}
+          icon="event"
+          meta={`${frame.sites.length} 个站点`}
+          motionKey="device-trend"
+        >
+          <AvMultiTrendChart
+            data={frame.trend}
+            series={siteTrendSeries}
+            height={AV_CHART_HEIGHT.lg}
+            label="近 24 小时各站点在线率趋势图"
+            unit="%"
+            domain={trendDomain}
+            ticks={percentTicks(trendDomain)}
+          />
+          <div className={s.chartFoot}>
+            <AvLegend
+              items={frame.sites.map((site, index) => ({
+                label: site.name,
+                value: formatPercent(site.rate),
+                tone: seriesTone((index + 1) as 1 | 2 | 3),
+              }))}
+            />
+            <span className={s.softNote}>按最近心跳回推，最新一点为当前在线率</span>
+          </div>
+        </AvPanel>
+
+        <AvPanel
+          title="型号构成"
+          subtitle={`${summary.byModel.length} 种型号 · 按台数排序`}
+          icon="chip"
+          meta={`${formatCount(summary.total)} 台`}
+          motionKey="device-models"
+        >
+          <AvHorizontalBarChart
+            data={summary.byModel.map((model) => ({
+              label: `${model.typeName} · ${model.model}`,
+              value: model.count,
+            }))}
+            valueLabel="台数"
+            height={AV_CHART_HEIGHT.lg}
+            label="设备型号构成横向柱状图"
+          />
+          <div className={s.chartFoot}>
+            <span className={s.softNote}>
+              合计 {formatCount(summary.byModel.reduce((sum, model) => sum + model.count, 0))} 台 · 覆盖{" "}
+              {summary.byModel.length} 种型号
+            </span>
           </div>
         </AvPanel>
       </div>
@@ -264,7 +434,7 @@ export default function DeviceView({ devices, summary }: DeviceViewProps) {
             title="离线与维护清单"
             subtitle="离线 / 维护中设备，按最近心跳倒序"
             icon="alarm"
-            meta={`${attention.length} 台`}
+            meta={<span style={metricTone("danger")}>{`${attention.length} 台`}</span>}
             motionKey="device-attention"
           >
             {attention.length === 0 ? (
@@ -290,37 +460,45 @@ export default function DeviceView({ devices, summary }: DeviceViewProps) {
             )}
           </AvPanel>
 
-          <AvPanel title="型号构成" subtitle="按型号统计台数" icon="chip" meta={`${summary.byModel.length} 种`} motionKey="device-models">
-            <div className={s.typeList}>
-              {summary.byModel.map((model) => (
-                <AvBar
-                  key={model.model}
-                  label={`${model.typeName} · ${model.model}`}
-                  value={model.count}
-                  max={modelTotal}
-                  tone="signal"
-                  detail={`${formatCount(model.count)} 台`}
-                />
-              ))}
-            </div>
-          </AvPanel>
-
-          <AvPanel title="OTA 升级" subtitle="近 180 天固件升级结果" icon="capability" motionKey="device-ota">
-            <div className={s.railRow}>
+          <AvPanel
+            title="OTA 升级"
+            subtitle={`近 180 天固件升级结果 · ${formatCount(frame.ota.total)} 次任务`}
+            icon="capability"
+            meta={<span style={metricTone("success")}>{formatPercent(frame.ota.rate)}</span>}
+            motionKey="device-ota"
+          >
+            <AvDonut
+              data={[
+                { label: "成功", value: frame.ota.success, tone: "success" },
+                { label: "失败", value: frame.ota.failed, tone: "danger" },
+              ]}
+              centerValue={formatPercent(frame.ota.rate)}
+              centerLabel="成功率"
+              centerTone="success"
+              height={AV_CHART_HEIGHT.sm}
+              label="OTA 升级成功率环形图"
+            />
+            <div className={s.railRow} style={metricTone("signal")}>
               <span>升级任务</span>
-              <strong>{formatCount(summary.ota.total)}</strong>
+              <strong>
+                <AvCounter value={formatCount(frame.ota.total)} />
+              </strong>
             </div>
-            <div className={s.railRow}>
+            <div className={s.railRow} style={metricTone("success")}>
               <span>成功</span>
-              <strong>{formatCount(summary.ota.success)}</strong>
+              <strong>
+                <AvCounter value={formatCount(frame.ota.success)} />
+              </strong>
             </div>
-            <div className={s.railRow}>
+            <div className={s.railRow} style={metricTone("danger")}>
               <span>失败</span>
-              <strong>{formatCount(summary.ota.failed)}</strong>
+              <strong>
+                <AvCounter value={formatCount(frame.ota.failed)} />
+              </strong>
             </div>
-            <div className={s.railRow}>
+            <div className={s.railRow} style={metricTone("success")}>
               <span>成功率</span>
-              <strong>{formatPercent((summary.ota.success / Math.max(1, summary.ota.total)) * 100)}</strong>
+              <strong>{formatPercent(frame.ota.rate)}</strong>
             </div>
           </AvPanel>
         </div>

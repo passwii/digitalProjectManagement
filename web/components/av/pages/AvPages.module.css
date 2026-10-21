@@ -196,6 +196,14 @@
   padding-top: var(--av-space-2);
 }
 
+/* 图表下方的逐站点读数（站点名 + 在线/总数）：随演示帧一起变，宽度不抳（tabular-nums） */
+.chartFootChips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--av-space-1);
+}
+
 /*
  * 时间范围切换（BLF-1424）：range 一变，整块内容重挂载并播一次「12px 上浮 + 淡入」。
  *
@@ -965,7 +973,9 @@
 }
 
 .railRow strong {
-  color: var(--av-ink);
+  /* 读数按调用方给的语义色强调（BLF-1428：OTA 任务数 / 成功 / 失败各有自己的色）；
+     没给 --metric-tone 的旧调用点回落到正文色。 */
+  color: var(--metric-tone, var(--av-ink));
   font-family: var(--font-mono);
   font-size: var(--av-text-body);
   font-variant-numeric: tabular-nums;
