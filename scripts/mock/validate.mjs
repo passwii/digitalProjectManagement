@@ -51,6 +51,15 @@ const isScript = (a) => a.narrative_tier === "script";
 const incidentKind = (i) => (i.kind === "routine" ? "routine" : "alarm");
 const alarmIncidents = incidents.filter((i) => incidentKind(i) === "alarm");
 const routineIncidents = incidents.filter((i) => incidentKind(i) === "routine");
+/**
+ * 总览的事件口径：**只数告警融合事件**。
+ *
+ * Stage 1 把总览的「事件」定成「跨告警融合后的人工确认单元」，而 BLF-1427 追加的
+ * 120 条普通事件（巡检 / 上下线 / OTA / 配置 / 误报归档 / 补录）不经告警融合，
+ * 算进去总览的 KPI 注释就与数字自相矛盾。边界：总览 / kpi / trends / overview-ranges
+ * 只看告警侧，/event 事件中心才看全部事件。
+ */
+const OVERVIEW_INCIDENT = (i) => incidentKind(i) === "alarm";
 const ROUTINE_EVENT_TYPES = new Set([
   "inspection", "device_online", "device_offline", "ota", "config", "false_positive_archive", "manual",
 ]);
@@ -416,9 +425,10 @@ check("点位排行 Top10 降序且长度 ≤ 10", () => {
   for (let i = 1; i < p.length; i++) if (p[i].total > p[i - 1].total) return "未按降序";
   return true;
 });
-check("事件总数对得上 incidents 长度", () => kpi.incident_total === incidents.length || `${kpi.incident_total} != ${incidents.length}`);
-check("在办事件数 = status ≠ closed 的事件数", () => {
-  const n = incidents.filter((i) => i.status !== "closed").length;
+check("事件总数对得上 incidents 里的告警融合事件数", () =>
+  kpi.incident_total === alarmIncidents.length || `${kpi.incident_total} != ${alarmIncidents.length}`);
+check("在办事件数 = 告警融合事件里 status ≠ closed 的数量", () => {
+  const n = alarmIncidents.filter((i) => i.status !== "closed").length;
   return kpi.incident_open === n || `${kpi.incident_open} != ${n}`;
 });
 check("incident.alarm_count = alarm_ids 长度", () =>
@@ -596,7 +606,9 @@ check("daily 覆盖 7 个连续自然日（含今天）", () => {
   return JSON.stringify(ds) === JSON.stringify([0, 1, 2, 3, 4, 5, 6]) || ds.join(",");
 });
 check("daily.incidents 与明细相等", () => {
-  const bad = trends.daily.filter((d) => incidents.filter((i) => T.dayDiff(i.started_offset_minutes) === d.date_offset_days).length !== d.incidents);
+  const bad = trends.daily.filter(
+    (d) => incidents.filter((i) => OVERVIEW_INCIDENT(i) && T.dayDiff(i.started_offset_minutes) === d.date_offset_days).length !== d.incidents,
+  );
   return bad.length === 0 || bad.map((d) => d.label).join(",");
 });
 
@@ -1075,6 +1087,14 @@ const RANGE_INCIDENT_WINDOWS = {
   },
 };
 const OPEN_INCIDENT = (i) => i.status !== "closed";
+/**
+ * 总览的事件口径：**只数告警融合事件**。
+ *
+ * Stage 1 把总览的「事件」定成「跨告警融合后的人工确认单元」，而 BLF-1427 追加的
+ * 120 条普通事件（巡检 / 上下线 / OTA / 配置 / 误报归档 / 补录）不经告警融合，
+ * 算进去总览的 KPI 注释就与数字自相矛盾。这里守住那条边界：总览只看告警侧，
+ * /event 事件中心才看全部事件。
+ */
 const sumOf = (list, pick) => list.reduce((total, row) => total + pick(row), 0);
 
 check("overview-ranges：三档齐全，顺序与 _meta.range_order 一致", () => {
@@ -1114,10 +1134,17 @@ check("三档的 totals 与明细窗口一致，且六块聚合逐项相加 = to
       const expected = range.scenes.find((x) => x.scene === scene).count;
       if (fromBuckets !== expected) problems.push(`${key}: trend.scenes[${scene}] ${fromBuckets} != ${expected}`);
     }
-    // 「在办事件」按窗口过滤：不能是全站一个数
-    const expectedOpen = incidents.filter((i) => RANGE_INCIDENT_WINDOWS[key](i) && OPEN_INCIDENT(i)).length;
+    // 「在办事件」按窗口过滤：不能是全站一个数；口径只含告警融合事件（见 OVERVIEW_INCIDENT）
+    const expectedOpen = incidents.filter(
+      (i) => OVERVIEW_INCIDENT(i) && RANGE_INCIDENT_WINDOWS[key](i) && OPEN_INCIDENT(i),
+    ).length;
     if (range.totals.open_incidents !== expectedOpen) {
       problems.push(`${key}: open_incidents=${range.totals.open_incidents} 明细=${expectedOpen}`);
+    }
+    // 总览的事件总数也只能数告警融合事件：普通事件只属于 /event
+    const expectedIncidents = incidents.filter((i) => OVERVIEW_INCIDENT(i) && RANGE_INCIDENT_WINDOWS[key](i)).length;
+    if (range.totals.incidents !== expectedIncidents) {
+      problems.push(`${key}: incidents=${range.totals.incidents} 明细=${expectedIncidents}`);
     }
     if (range.totals.open_incidents > range.totals.incidents) problems.push(`${key}: 在办数超过事件数`);
     if (sumOf(range.scenes, (r) => r.count) !== range.totals.alarms) problems.push(`${key}: scenes`);

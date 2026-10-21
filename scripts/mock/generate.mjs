@@ -1452,6 +1452,17 @@ function pickRoutineTemplate() {
   incidents.sort((a, b) => a.started_offset_minutes - b.started_offset_minutes || a.id.localeCompare(b.id));
 }
 
+/**
+ * 总览的事件口径：**只数告警融合事件**。
+ *
+ * Stage 1 把总览的「事件」定成「跨告警融合后的人工确认单元」（见 view.ts 的 KPI note），
+ * 而 BLF-1427 新增的 120 条普通事件（巡检 / 上下线 / OTA / 配置 / 误报归档 / 补录）
+ * 根本不经告警融合 —— 把它们算进 kpi / trends / overview-ranges，总览的 KPI 注释
+ * 就与数字自相矛盾（Codex review 第 3 轮）。这也是两个页面的职责边界：
+ * 总览看告警侧趋势，/event 事件中心才看全部事件。
+ */
+const overviewIncidents = incidents.filter((i) => i.kind !== "routine");
+
 // ============================================================
 // 10. 频谱（12 段）+ 波形桶（每段 2,000 桶 min/max）
 // ============================================================
@@ -1727,7 +1738,7 @@ const kpi = {
     name: SITES.find((x) => x.scene === s).name,
     count: unhandled.filter((a) => a.scene === s).length,
   })),
-  incident_open: incidents.filter((i) => i.status !== "closed").length,
+  incident_open: overviewIncidents.filter((i) => i.status !== "closed").length,
   level_breakdown_today: [1, 2, 3, 4].map((lv) => ({
     level: lv,
     label: LEVEL_NAME[lv],
@@ -1744,7 +1755,7 @@ const kpi = {
     count: last24h.filter((a) => a.level === lv).length,
   })),
   alarm_total: allAlarms.length,
-  incident_total: incidents.length,
+  incident_total: overviewIncidents.length,
   false_positive_rate: Number(((fpCount / allAlarms.length) * 100).toFixed(1)),
   avg_response_minutes: 4.2,
   response_p50_minutes: 3.1,
@@ -1810,7 +1821,7 @@ const dailyTrend = Array.from({ length: 7 }, (_, d) => {
     label: `${month}/${date}`,
     weekday,
     alarms: bucket.length,
-    incidents: incidents.filter((i) => dayDiff(i.started_offset_minutes) === d).length,
+    incidents: overviewIncidents.filter((i) => dayDiff(i.started_offset_minutes) === d).length,
   };
 });
 
@@ -1907,7 +1918,7 @@ const OVERVIEW_RANGE_DEFS = [
  * 滚动后的合计就是**逐桶相加**，不会出现「图里的总数对不上 KPI」。
  */
 function bucketOf({ label, list, incidentInBucket }) {
-  const windowIncidents = incidents.filter(incidentInBucket);
+  const windowIncidents = overviewIncidents.filter(incidentInBucket);
   return {
     label,
     alarms: list.length,

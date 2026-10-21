@@ -88,6 +88,28 @@ describe("智能音视频平台 服务端数据层", () => {
     assert.ok(data.recent.length <= 10);
   });
 
+  it("总览的「事件」只数告警融合事件（BLF-1427 普通事件不进总览）", async () => {
+    /*
+      Stage 1 把总览的事件 KPI 定成「跨告警融合后的人工确认单元」（view.ts 的 note）。
+      BLF-1427 追加的 120 条普通事件（巡检 / 上下线 / OTA / 配置 / 误报归档 / 补录）
+      不经告警融合 —— 若它们被算进 overview-ranges，KPI 的数字就会与自己的注释相反。
+      边界：总览只看告警侧，/event 事件中心才看全部事件。
+    */
+    const [overview, event] = await Promise.all([getOverviewData(), getEventData(null)]);
+    assert.ok(event.counts.routine > 0, "普通事件应已入库");
+    assert.ok(event.counts.total > event.counts.alarm, "/event 应同时包含两类事件");
+
+    for (const [key, range] of Object.entries(overview.ranges)) {
+      assert.ok(
+        range.totals.incidents <= event.counts.alarm,
+        `${key} 档事件 ${range.totals.incidents} 起 > 告警融合事件总数 ${event.counts.alarm} 起`,
+      );
+      const card = range.kpis.find((kpi) => kpi.key === "incidents");
+      assert.ok(card, `${key} 档缺事件 KPI`);
+      assert.match(card.note ?? "", /告警融合/, `${key} 档事件 KPI 的注释没交代口径`);
+    }
+  });
+
   it("极端值样本仍然存在（Stage 1 素材）", async () => {
     const extremes = await getExtremes();
     assert.equal(extremes.longestTitle.title.length, 58);

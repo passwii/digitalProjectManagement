@@ -55,7 +55,7 @@
       "count": 8
     }
   ],
-  "incident_open": 47,
+  "incident_open": 36,
   "level_breakdown_today": [
     {
       "level": 1,
@@ -118,7 +118,7 @@
     }
   ],
   "alarm_total": 14366,
-  "incident_total": 327,
+  "incident_total": 207,
   "false_positive_rate": 8.1,
   "avg_response_minutes": 4.2,
   "response_p50_minutes": 3.1,
