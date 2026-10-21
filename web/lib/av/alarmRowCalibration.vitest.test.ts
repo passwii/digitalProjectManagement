@@ -21,7 +21,7 @@ import { ALARM_PAGE_SIZE } from "./alarmPaging";
  * 让下面的等式重新成立即可（等式里的三卡栈高度是 2026-10 的真实量距）。
  *
  * jsdom 没有布局引擎，所以几何等式不能在这里量；真机量距在
- * `scripts/av-alarm-row-calibration.mjs`（CDP，1440/1280/1180 三档）。
+ * `scripts/av-alarm-row-calibration.mjs`（CDP，1440/1280/1180 + 两栏带下界 1160 与其下方 1159）。
  * 这里只做客单价：常量、令牌、消费点、媒体查询是否还连着。
  */
 
@@ -91,10 +91,44 @@ describe("/alarm 行高标定（BLF-1426）", () => {
     expect(cells).toMatch(/white-space:\s*nowrap;/);
   });
 
-  it("1180 仍是两栏：只对 /alarm 保留两栏，≤900 不强行两栏", () => {
-    expect(CSS).toMatch(
-      /@media\s*\(min-width:\s*901px\)\s*and\s*\(max-width:\s*1180px\)\s*\{[^}]*\.page\[data-av-page="alarm"\]\s+\.splitWide\s*\{/,
-    );
+  it("两栏带不再从 901 起：下界抬到面板装得下自己工具条与标题的宽度", () => {
+    // Codex P2 on PR #175：901 下界时内容区 901 − 220 − 40 = 641，减 gap 12 与右栏
+    // minmax(300px, 1fr) 的 300 后左面板只剩 329px —— 标题被压成省略号；
+    // 而 900 是单栏、标题近 580px，900 → 901 是一道断崖。
+    // 实测 1100 也不够：面板 528px 时装不下工具条（搜索 min 180 + 场景 Tabs），
+    // .alarmToolbar 38 → 76px，底边差 −8.5 → +29.5；临界在 1150/1151，故取 1160。
+    const match =
+      /@media\s*\(min-width:\s*(\d+)px\)\s*and\s*\(max-width:\s*1180px\)\s*\{[^}]*\.page\[data-av-page="alarm"\]\s+\.splitWide\s*\{/.exec(
+        CSS,
+      );
+    expect(match, "缺少 /alarm 在 1180 的两栏覆盖").not.toBeNull();
+    const minWidth = Number(match![1]);
+    expect(minWidth, "901 下界已废弃：那一档左面板只有 329px").toBeGreaterThan(901);
+    expect(minWidth, "1180 必须仍在两栏带内").toBeLessThanOrEqual(1180);
+
+    // 量距脚本的下界必须与这条媒体查询是同一个数，否则实测证明的不是上线的那一档。
+    const script = readFileSync(resolve(process.cwd(), "..", "scripts", "av-alarm-row-calibration.mjs"), "utf8");
+    const declared = /const TWO_COLUMN_MIN_WIDTH = (\d+);/.exec(script);
+    expect(declared, "脚本缺少 TWO_COLUMN_MIN_WIDTH").not.toBeNull();
+    expect(Number(declared![1])).toBe(minWidth);
+    expect(script).toMatch(/const REQUIRED_WIDTHS = \[1440, 1280, 1180, TWO_COLUMN_MIN_WIDTH\];/);
+    // 下界下方 1px 必须仍被量到，且必须是单栏 —— 档口两侧都要可用。
+    expect(script).toMatch(/const BAND_PROBE_WIDTHS = \[TWO_COLUMN_MIN_WIDTH - 1\];/);
+  });
+
+  it("量距脚本单独断言栏数、标题与告警编号没被压成省略号", () => {
+    const script = readFileSync(resolve(process.cwd(), "..", "scripts", "av-alarm-row-calibration.mjs"), "utf8");
+    // 标题带 ellipsis，被压窄时既不溢出也不裁字：clipped 抓不到，必须量 scrollWidth。
+    expect(script).toMatch(/truncatedTitles:\s*truncatedCount\(titleCells\)/);
+    expect(script).toMatch(/truncatedNumbers:\s*truncatedCount\(numberCells\)/);
+    expect(script).toMatch(/entry\.truncation\.truncatedTitles > 0/);
+    expect(script).toMatch(/entry\.truncation\.truncatedNumbers > 0/);
+    // 「没被省略」不够：标题列还得有可用宽度（样例标题很短，40px 也能恰好排下）。
+    expect(script).toMatch(/const MIN_TITLE_WIDTH_PX = 200;/);
+    expect(script).toMatch(/entry\.truncation\.titleMinWidth < MIN_TITLE_WIDTH_PX/);
+    // 栏数：下界及以上两栏、下界下方 1px 单栏。
+    expect(script).toMatch(/entry\.columnCount !== 2/);
+    expect(script).toMatch(/entry\.columnCount !== 1/);
   });
 
   it("量距脚本用面板自然底边算底边差（不能让 splitWide 的拉伸把判定变成恒真）", () => {
