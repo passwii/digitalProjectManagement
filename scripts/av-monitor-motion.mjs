@@ -3,9 +3,13 @@
 // 覆盖验收标准里靠肉眼守不住的部分：
 //   1. 9 张卡 = 2 视频 + 7 音频；7 张音频卡的波形 seed / 周期 / 相位互不相同；
 //   2. 在线 LIVE 点真的在呼吸（computed animation-name ≠ none），离线卡是 none；
-//   3. 视频卡有动态画面（检测框 / 扫描线 / ROI 的 animation-name 都在跑）；
-//   4. 动效开启时时间码每秒递增；`?static=1` 下不递增，连拍 3 次 MD5 一致；
-//   5. 类型 tab 切换存在可观察的三段式过渡（0ms / ~120ms / ~500ms 各取一帧）。
+//   3. 视频卡有动态画面（检测框 / 扫描线 / ROI 的 animation-name 都在跑），
+//      离线视频画面是冻结帧（噪点 / 扫描线都不动）；
+//   4. 离线音频波形真的静态：每根柱子的 inline style 里没有 `--av-wave-delay`、
+//      computed `animation-name` 为 none。这两条都带**负向自检**，防止选择器写错
+//      导致「恒真误报」（BLF-1425 review P2：旧版查的是一个组件从不写入的 data 属性，永远得到 0）；
+//   5. 动效开启时时间码每秒递增；`?static=1` 下不递增，连拍 3 次 MD5 一致；
+//   6. 类型 tab 切换存在可观察的三段式过渡（0ms / ~120ms / ~500ms 各取一帧）。
 //
 // 用法：node scripts/av-monitor-motion.mjs [baseUrl] [outDir]
 // 依赖本机 Chrome（可用 CHROME_PATH 覆盖），走 CDP，与 av-overview-ranges.mjs 同一套做法。
@@ -84,9 +88,28 @@ const READ_STATE = `(() => {
     waveSpeeds: waves.map((node) => node.getAttribute("data-wave-speed")),
     wavePhases: waves.map((node) => node.getAttribute("data-wave-phase")),
     waveSignatures: waves.map(signature),
-    offlineWaveBars: waves
+    /*
+     * 离线波形：按**每根柱子的 inline style** 判定，而不是查某个 data 属性。
+     * 旧版查的是一个组件从不写入的 data 属性，但 AvWaveform 把延迟写在 CSS 自定义属性
+     * --av-wave-delay 上、离线柱根本不设这个属性 —— 选择器永远命中 0 个，
+     * 与「离线真的静态」无关，任何回归都抓不到（review P2）。
+     */
+    offlineWaves: waves
       .filter((node) => node.getAttribute("data-state") === "offline")
-      .map((node) => node.querySelectorAll("[data-wave-delay]").length),
+      .map((node) => {
+        const bars = Array.from(node.querySelectorAll("[data-wave-bar]"));
+        return {
+          bars: bars.length,
+          withDelayVar: bars.filter((bar) => (bar.getAttribute("style") || "").includes("--av-wave-delay")).length,
+          animated: bars.filter((bar) => getComputedStyle(bar).animationName !== "none").length,
+        };
+      }),
+    // 真实页面没有离线视频通道时的兜底：如果以后数据里有了，也必须全静态
+    offlineVideoScenes: Array.from(page.querySelectorAll('[data-video-seed][data-scene="offline"]')).map((node) => ({
+      noise: probe(node.querySelector("[data-video-noise]")),
+      scan: node.querySelectorAll('[class*="videoScan"]').length,
+      boxes: node.querySelectorAll("[data-tone]").length,
+    })),
     liveTimecode: live ? live.textContent : "",
     liveDotAnimation: probe(liveDot),
     offlineDotAnimation: probe(offlineDot),
@@ -95,10 +118,44 @@ const READ_STATE = `(() => {
     videoBoxes: video ? video.querySelectorAll("[data-tone]").length : 0,
     videoBoxAnimation: probe(videoBox),
     videoScanAnimation: probe(videoScan),
+    videoNoiseAnimation: probe(video ? video.querySelector("[data-video-noise]") : null),
     motionAttr: document.documentElement.getAttribute("data-av-motion"),
     // 退场过程中的实际视觉状态：卡片数量 + 第一张卡的透明度
     cardOpacity: cards.length ? getComputedStyle(cards[0]).opacity : "",
   };
+})()`;
+
+const OFFLINE_WAVE_SELF_TEST = `(() => {
+  const bar = document.querySelector('[data-waveform][data-state="offline"] [data-wave-bar]');
+  if (!bar) return { ok: false, reason: "no-offline-bar" };
+  const before = bar.getAttribute("style") || "";
+  bar.style.setProperty("--av-wave-delay", "0.500");
+  const detected = (bar.getAttribute("style") || "").includes("--av-wave-delay");
+  bar.setAttribute("style", before);
+  return { ok: detected && (bar.getAttribute("style") || "") === before, detected };
+})()`;
+
+/**
+ * 离线视频画面 = 冻结帧：把在线场景临时切到 `data-scene="offline"`，噪点的
+ * computed `animation-name` 必须在**同一帧**变成 none，恢复后重新在动。
+ *
+ * 为什么不用页面上真实的离线视频卡：数据集里 18 路视频全是在线（只有音频有离线），
+ * 真实 DOM 里找不到离线视频节点 —— 查不到就报 fail，不做「没有就跳过」的恒真检查。
+ * 这条 probe 验证的是离线态的 CSS 契约，React 侧（离线不渲染扫描线 / 检测框、
+ * 噪点换 `videoNoiseIdle`）由 `lib/av/monitorMotion.vitest.test.tsx` 守。
+ */
+const OFFLINE_SCENE_PROBE = `(() => {
+  const scene = document.querySelector("[data-video-seed]");
+  if (!scene) return { ok: false, reason: "no-video-scene" };
+  if (scene.getAttribute("data-scene") !== "online") return { ok: false, reason: "scene-not-online" };
+  const noise = scene.querySelector("[data-video-noise]");
+  if (!noise) return { ok: false, reason: "no-noise" };
+  const online = getComputedStyle(noise).animationName;
+  scene.setAttribute("data-scene", "offline");
+  const offline = getComputedStyle(noise).animationName;
+  scene.setAttribute("data-scene", "online");
+  const restored = getComputedStyle(noise).animationName;
+  return { ok: online !== "none" && offline === "none" && restored === online, online, offline, restored };
 })()`;
 
 /** 点右上角的类型 tab（按可见文本找，不依赖 CSS module 的哈希类名）。 */
@@ -179,6 +236,15 @@ try {
   const liveShot = await screenshot("monitor-live.png");
   const videoShot = await screenshot("monitor-video.png");
 
+  /*
+   * 两条离线检查都是**非常真**的：
+   *   · 波形：先给一根离线柱注入 --av-wave-delay，检测器必须报「有」；
+   *   · 视频：把在线场景临时切到 offline，噪点必须立刻停。
+   * 截图已经拍完，这里改 DOM 再同步恢复，不影响后面的帧。
+   */
+  const offlineWaveSelfTest = await evaluate(OFFLINE_WAVE_SELF_TEST);
+  const offlineSceneProbe = await evaluate(OFFLINE_SCENE_PROBE);
+
   // 时间码：等 2.2s 后必须变；无动画的离线点必须没有 animation
   await sleep(2200);
   const motionAfter = await evaluate(READ_STATE);
@@ -202,6 +268,8 @@ try {
     start: motionStart,
     after2200: { liveTimecode: motionAfter.liveTimecode, phase: motionAfter.phase },
     timecodeAdvanced: motionStart.liveTimecode !== motionAfter.liveTimecode,
+    offlineWaveSelfTest,
+    offlineSceneProbe,
     switchSamples,
     switch: {
       "0ms": { phase: frame0.state.phase, cards: frame0.state.cards, opacity: frame0.state.cardOpacity, shot: frame0.shot },
@@ -231,6 +299,7 @@ try {
     liveDotAnimation: staticStart.liveDotAnimation,
     videoBoxAnimation: staticStart.videoBoxAnimation,
     videoScanAnimation: staticStart.videoScanAnimation,
+    videoNoiseAnimation: staticStart.videoNoiseAnimation,
     md5: shots.map((shot) => shot.md5),
     staticMd5Identical: new Set(shots.map((shot) => shot.md5)).size === 1,
     shots,
@@ -266,12 +335,26 @@ try {
     "每张卡的波形签名互不相同": unique(motionStart.waveSignatures),
     "在线 LIVE 点有呼吸动画": motionStart.liveDotAnimation !== "none",
     "离线 LIVE 点没有动画": motionStart.offlineDotAnimation === "none",
-    "离线波形没有动画变量": motionStart.offlineWaveBars.every((count) => count === 0),
-    "视频卡有检测框 / 扫描线动画":
+    "离线波形：每根柱没有 --av-wave-delay 且 animation-name 为 none": (() => {
+      const waves = motionStart.offlineWaves;
+      return (
+        waves.length > 0 &&
+        waves.every((wave) => wave.bars > 0 && wave.withDelayVar === 0 && wave.animated === 0)
+      );
+    })(),
+    "离线波形检查的负向自检（注入 --av-wave-delay 必须被检出）":
+      offlineWaveSelfTest.ok && offlineWaveSelfTest.detected === true,
+    "（如有）离线视频场景：噪点 / 扫描线 / 检测框全静": motionStart.offlineVideoScenes.every(
+      (scene) => scene.noise === "none" && scene.scan === 0 && scene.boxes === 0,
+    ),
+    "视频卡有检测框 / 扫描线 / 噪点动画":
       motionStart.videoScene === "online" &&
       motionStart.videoBoxes >= 2 &&
       motionStart.videoBoxAnimation !== "none" &&
-      motionStart.videoScanAnimation !== "none",
+      motionStart.videoScanAnimation !== "none" &&
+      motionStart.videoNoiseAnimation !== "none",
+    "离线视频画面是冻结帧（切到 offline 后噪点 animation-name=none，恢复后重新在动）":
+      offlineSceneProbe.ok && offlineSceneProbe.online !== "none" && offlineSceneProbe.offline === "none",
     "动效开启时时间码递增": report.motion.timecodeAdvanced,
     "切换有三段式（退场帧真的在播：9 张、opacity<1、animation=avChannelOut；之后 7 张进入 enter）": (() => {
       const exitFrame = switchSamples.find((sample) => sample.phase === "exit" && sample.cards === 9);
@@ -290,7 +373,8 @@ try {
     "?static=1 动画全关":
       staticStart.liveDotAnimation === "none" &&
       staticStart.videoBoxAnimation === "none" &&
-      staticStart.videoScanAnimation === "none",
+      staticStart.videoScanAnimation === "none" &&
+      staticStart.videoNoiseAnimation === "none",
     "?static=1 连拍 3 次 MD5 一致": report.static.staticMd5Identical,
     "prefers-reduced-motion：LIVE 不呼吸、时间码不递增":
       report.reduced.liveDotAnimation === "none" && report.reduced.timecodeFrozen,

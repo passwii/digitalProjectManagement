@@ -15,7 +15,9 @@ import { formatTimecode } from "@/lib/av/timecode";
  *   · 右下时间码：与 LIVE 块同源（父级只跑一个 1s 定时器，两处显示同一个帧号）。
  *
  * 颜色全部是 `--av-series-*` / `--av-*` 令牌；离线通道 `data-scene="offline"` 时
- * 所有动画被 CSS 显式关掉（不依赖全局开关，单卡离线也要静止）。
+ * 所有动画被 CSS 显式关掉（不依赖全局开关，单卡离线也要静止）：扫描线 / 检测框 /
+ * ROI 直接不渲染，噪点换成**没有 animation 的** `.videoNoiseIdle`。为什么离线还留
+ * 噪点：冻结帧的颗粒感是「这路信号还活着、只是没人动」的视觉线索，但它必须是静的。
  */
 
 export interface AvVideoBox {
@@ -83,10 +85,15 @@ export default function AvVideoScene({
       data-scene={offline ? "offline" : "online"}
       data-video-seed={seed}
       data-video-frame={frame}
+      data-video-motion={offline ? "off" : "on"}
       aria-hidden="true"
     >
       <span className={s.videoGrid} />
-      <span className={s.videoNoise} />
+      {/* 噪点：在线抖（avNoiseShift），离线是冻结帧 —— 换一个不带 animation 的类 */}
+      <span
+        className={offline ? s.videoNoiseIdle : s.videoNoise}
+        data-video-noise={offline ? "off" : "on"}
+      />
       {!offline && <span className={s.videoScan} />}
       {!offline && (
         <span

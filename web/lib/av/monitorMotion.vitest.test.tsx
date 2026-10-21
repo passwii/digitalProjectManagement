@@ -11,14 +11,16 @@ import type { ReactNode } from "react";
  * 这个文件守的是「演示站看起来在动，且每一张卡动得不一样」这件事 ——
  * 单看 JSX 只能证明「有动画 class」，证明不了：
  *   · 9 张卡里 7 张音频卡的波形参数（seed / 周期 / 相位）互不相同；
- *   · 离线通道是真的静态灰态（没有动画变量、LIVE 不呼吸）；
+ *   · 离线通道是真的静态灰态（没有动画变量、LIVE 不呼吸、视频画面是冻结帧）；
  *   · `?static=1` 下时间码不再递增（连拍 MD5 一致的前提）；
  *   · 筛选切换真的是「退场 → 重排 → 入场」，而不是瞬间替换。
  *
- * jsdom 没有布局引擎与 CSS 动画时间轴，所以断言分两层：
+ * jsdom 没有布局引擎与 CSS 动画时间轴，所以断言分三层：
  *   1. **DOM 层**：参数化出来的 `data-*` / CSS 自定义属性、阶段状态、时间码文本；
  *   2. **源码层**：`.channelLive i` 真的挂了 `--av-dur-breathe` 的动画、
- *      波形周期用 `calc(var(--av-dur-*))` 而不是写死毫秒（与 motion 守卫同源）。
+ *      波形周期用 `calc(var(--av-dur-*))` 而不是写死毫秒（与 motion 守卫同源）；
+ *   3. **验收脚本层**（BLF-1425 review P2）：`scripts/av-monitor-motion.mjs` 不许再
+ *      查永不存在的 `data-wave-delay`，离线波形/视频的检查必须能真的失败。
  */
 
 vi.mock("next/navigation", () => ({
@@ -34,6 +36,7 @@ vi.mock("next/link", () => ({
 import AvMotionProvider from "@/components/av/motion/AvMotionProvider";
 import MonitorView from "@/components/av/pages/MonitorView";
 import AvWaveform, { waveformSeed } from "@/components/av/motion/AvWaveform";
+import AvVideoScene from "@/components/av/motion/AvVideoScene";
 import { formatTimecode } from "@/lib/av/timecode";
 import { AV_MOTION_ATTRIBUTE, AV_MOTION, AV_STAGGER } from "@/lib/av/motion";
 import type { MonitorChannel, MonitorProps } from "@/lib/av/contracts";
@@ -88,10 +91,16 @@ function renderMonitor() {
 
 const css = (path: string) => readFileSync(resolve(process.cwd(), path), "utf8");
 
-/** 取一个选择器的声明块（注释里的同名写法不会命中：它后面不跟 `{`）。 */
-function ruleBody(source: string, selector: string): string {
+/** 取一个选择器的**所有**声明块（同一类名可能出现在合并选择器与单独规则里）。 */
+function ruleBodies(source: string, selector: string): string[] {
   const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  return new RegExp(`${escaped}\\s*\\{([^}]*)\\}`).exec(source)?.[1] ?? "";
+  const pattern = new RegExp(`${escaped}\\s*\\{([^}]*)\\}`, "g");
+  return Array.from(source.matchAll(pattern), (match) => match[1] ?? "");
+}
+
+/** 取一个选择器的首个声明块（注释里的同名写法不会命中：它后面不跟 `{`）。 */
+function ruleBody(source: string, selector: string): string {
+  return ruleBodies(source, selector)[0] ?? "";
 }
 
 beforeEach(() => {
@@ -309,5 +318,75 @@ describe("AvWaveform 组件本身", () => {
     for (const bar of Array.from(offline.container.querySelectorAll<HTMLElement>("[data-wave-bar]"))) {
       expect(bar.getAttribute("style") ?? "").not.toContain("--av-wave-delay");
     }
+  });
+});
+
+describe("AvVideoScene 离线态：冻结帧（review P2）", () => {
+  it("在线：噪点在动，检测框 / 扫描线 / ROI 都在，时间码在走", () => {
+    const { container } = render(<AvVideoScene seed={4242} frame={767} />);
+    const scene = container.querySelector("[data-video-seed]")!;
+    expect(scene.getAttribute("data-scene")).toBe("online");
+    expect(scene.getAttribute("data-video-motion")).toBe("on");
+
+    const noise = scene.querySelector("[data-video-noise]")!;
+    expect(noise.getAttribute("data-video-noise")).toBe("on");
+    expect(noise.getAttribute("class")).toContain("videoNoise");
+    expect(noise.getAttribute("class")).not.toContain("Idle");
+
+    expect(scene.querySelectorAll("[data-tone]")).toHaveLength(3);
+    expect(scene.querySelector('[class*="videoScan"]')).not.toBeNull();
+    expect(scene.querySelector('[class*="videoRoi"]')).not.toBeNull();
+    expect(scene.querySelector('[class*="videoClock"]')?.textContent).toBe(formatTimecode(767));
+  });
+
+  it("离线：不渲染扫描线 / 检测框 / ROI，噪点换成不带 animation 的 videoNoiseIdle，时间码冻结", () => {
+    const { container } = render(<AvVideoScene seed={4242} frame={767} state="offline" />);
+    const scene = container.querySelector("[data-video-seed]")!;
+    expect(scene.getAttribute("data-scene")).toBe("offline");
+    expect(scene.getAttribute("data-video-motion")).toBe("off");
+
+    const noise = scene.querySelector("[data-video-noise]")!;
+    expect(noise.getAttribute("data-video-noise")).toBe("off");
+    expect(noise.getAttribute("class")).toContain("videoNoiseIdle");
+
+    expect(scene.querySelectorAll("[data-tone]")).toHaveLength(0);
+    expect(scene.querySelector('[class*="videoScan"]')).toBeNull();
+    expect(scene.querySelector('[class*="videoRoi"]')).toBeNull();
+    expect(scene.textContent).toContain("NO SIGNAL");
+    expect(scene.querySelector('[class*="videoClock"]')?.textContent).toBe("--:--:--");
+  });
+
+  it("CSS：离线场景的噪点被显式关掉（不依赖全局动效开关）", () => {
+    const moduleCss = css("components/av/motion/AvMotion.module.css");
+    // .videoNoise / .videoNoiseIdle 共享「皮肤」块（合并选择器），动画写在各自的块里
+    expect(ruleBodies(moduleCss, ".videoNoise").some((body) => /animation:\s*var\(--av-kf-noise\)/.test(body))).toBe(true);
+    const idleRules = ruleBodies(moduleCss, ".videoNoiseIdle");
+    expect(idleRules.some((body) => /animation:\s*none/.test(body))).toBe(true);
+    // 兜底：离线场景里即使挂的是在线类，也必须静止
+    expect(ruleBody(moduleCss, '.videoScene[data-scene="offline"] .videoNoise')).toMatch(/animation:\s*none/);
+    // 模块 CSS 依然不出现毫秒字面量
+    expect(idleRules.join("\n")).not.toMatch(/\b\d+ms\b/);
+  });
+});
+
+describe("验收脚本自检：离线检查不能是恒真选择器（review P2）", () => {
+  const script = readFileSync(resolve(process.cwd(), "../scripts/av-monitor-motion.mjs"), "utf8");
+
+  it("不再查询从不存在的 data-wave-delay，改为检查每根柱的 --av-wave-delay inline style", () => {
+    // 旧版查 `[data-wave-delay]`：组件从来不写这个 data 属性，所以永远命中 0 个
+    //（任何回归都抓不到）。这里同时守选择器与新的 inline style 判定。
+    expect(script).not.toMatch(/\[data-wave-delay\]/);
+    expect(script).toContain('includes("--av-wave-delay")');
+    expect(script).toContain('getComputedStyle(bar).animationName !== "none"');
+  });
+
+  it("离线波形检查要求柱数 > 0（没有离线卡就当失败，而不是 every([]) === true）", () => {
+    expect(script).toMatch(/waves\.length\s*>\s*0/);
+  });
+
+  it("带负向自检：注入 --av-wave-delay 必须被检出；离线视频场景必须验证噪点停摆", () => {
+    expect(script).toContain("OFFLINE_WAVE_SELF_TEST");
+    expect(script).toContain("OFFLINE_SCENE_PROBE");
+    expect(script).toContain('scene.setAttribute("data-scene", "offline")');
   });
 });

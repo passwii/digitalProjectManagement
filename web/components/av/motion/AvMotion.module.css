@@ -242,8 +242,14 @@
 /*
  * 轻噪点：两层点阵叠在一起，整体平移（steps 让它是「跳」而不是「漂」，
  * 更像传感器噪点）。inset 负值是为了平移时边缘不露白。
+ *
+ * 皮肤与动画拆开：离线是「冻结帧」，颗粒感可以留着，但**不能动** ——
+ * 所以离线渲染 `.videoNoiseIdle`（同一套点阵、没有 animation），而不是给
+ * `.videoNoise` 留一条永远在跑的 `avNoiseShift`。组件层已经按 `data-scene`
+ * 换类，下面还有一条兜底规则，防止以后改类名又把动画带回离线画面。
  */
-.videoNoise {
+.videoNoise,
+.videoNoiseIdle {
   position: absolute;
   inset: -20%;
   background-image:
@@ -252,7 +258,20 @@
   background-size: 7px 9px, 11px 13px;
   background-position: 0 0, 3px 5px;
   opacity: 0.14;
+}
+
+.videoNoise {
   animation: var(--av-kf-noise) calc(var(--av-dur-slow) * 2) steps(5) infinite;
+}
+
+/* 离线冻结帧：点阵在，动画不在 */
+.videoNoiseIdle {
+  animation: none;
+}
+
+/* 兜底：离线场景里即使挂的是在线类，也必须静止（单卡离线不依赖全局开关） */
+.videoScene[data-scene="offline"] .videoNoise {
+  animation: none;
 }
 
 /* 竖向扫描线：40% 高的一条亮带自上而下扫 */

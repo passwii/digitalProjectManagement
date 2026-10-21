@@ -52,10 +52,15 @@
         "height:53%;--av-wave-delay:1.151|height:42%;--av-wave-delay:1.727|height:49%;--av-wave-delay:1.589|height:62%;--av-wave-delay:1.171|height:72%;--av-wave-delay:1.382|height:90%;--av-wave-delay:1.513|height:76%;--av-wave-delay:1.074|height:81%;--av-wave-delay:1.307|height:63%;--av-wave-delay:1.354|height:66%;--av-wave-delay:1.480|height:53%;--av-wave-delay:1.394|height:51%;--av-wave-delay:1.259|height:64%;--av-wave-delay:1.024|height:72%;--av-wave-delay:1.383|height:82%;--av-wave-delay:0.992|height:68%;--av-wave-delay:1.524|height:54%;--av-wave-delay:1.179|height:73%;--av-wave-delay:1.724|height:69%;--av-wave-delay:1.409|height:76%;--av-wave-delay:1.247|height:84%;--av-wave-delay:1.273|height:75%;--av-wave-delay:1.160|height:58%;--av-wave-delay:1.732|height:93%;--av-wave-delay:1.582|height:50%;--av-wave-delay:1.184|height:37%;--av-wave-delay:1.351",
         "height:8%|height:8%|height:8%|height:8%|height:8%|height:8%|height:8%|height:8%|height:8%|height:8%|height:8%|height:8%|height:8%|height:8%|height:8%|height:8%|height:8%|height:8%|height:8%|height:8%|height:8%|height:8%|height:8%|height:8%|height:8%|height:8%"
       ],
-      "offlineWaveBars": [
-        0
+      "offlineWaves": [
+        {
+          "bars": 26,
+          "withDelayVar": 0,
+          "animated": 0
+        }
       ],
-      "liveTimecode": "00:43:03",
+      "offlineVideoScenes": [],
+      "liveTimecode": "00:43:04",
       "liveDotAnimation": "avLivePulse",
       "offlineDotAnimation": "none",
       "liveBadge": "has-offline-badge",
@@ -63,6 +68,7 @@
       "videoBoxes": 3,
       "videoBoxAnimation": "avDetectBox",
       "videoScanAnimation": "avScanDrop",
+      "videoNoiseAnimation": "avNoiseShift",
       "motionAttr": "on",
       "cardOpacity": "1"
     },
@@ -71,6 +77,16 @@
       "phase": "idle"
     },
     "timecodeAdvanced": true,
+    "offlineWaveSelfTest": {
+      "ok": true,
+      "detected": true
+    },
+    "offlineSceneProbe": {
+      "ok": true,
+      "online": "avNoiseShift",
+      "offline": "none",
+      "restored": "avNoiseShift"
+    },
     "switchSamples": [
       {
         "t": 0,
@@ -84,7 +100,7 @@
         "t": 80,
         "phase": "exit",
         "cards": 9,
-        "opacity": "0.760881",
+        "opacity": "0.760796",
         "animation": "avChannelOut",
         "audioTransform": ""
       },
@@ -94,7 +110,7 @@
         "cards": 7,
         "opacity": "1",
         "animation": "none",
-        "audioTransform": "translate3d(651.87px, -2.65052px, 0px)"
+        "audioTransform": "translate3d(652.236px, -3.20221px, 0px)"
       },
       {
         "t": 580,
@@ -112,7 +128,7 @@
         "opacity": "1",
         "shot": {
           "file": "monitor-switch-000ms.png",
-          "md5": "f77028e2437323c25a995fec0280c783"
+          "md5": "8a7cbb012e54f3a427352f7b55a9d488"
         }
       },
       "60ms": {
@@ -121,7 +137,7 @@
         "opacity": "1",
         "shot": {
           "file": "monitor-switch-060ms.png",
-          "md5": "0c8a762b6fe188f771e2eaca557284bc"
+          "md5": "653ec2399b23ed4bf5ceb81a36b5920a"
         }
       },
       "180ms": {
@@ -130,7 +146,7 @@
         "opacity": "1",
         "shot": {
           "file": "monitor-switch-180ms.png",
-          "md5": "54652352ac53a3285c97e60be3f0d815"
+          "md5": "46d2912e1b071e721da96b1e8aa82a65"
         }
       },
       "560ms": {
@@ -139,18 +155,18 @@
         "opacity": "1",
         "shot": {
           "file": "monitor-switch-560ms.png",
-          "md5": "e54335a8de13c1dfbcbb639eb718ca19"
+          "md5": "9d935efb9f06bb4d4e31ff72463d39e6"
         }
       }
     },
     "shots": [
       {
         "file": "monitor-live.png",
-        "md5": "5f79d910b7335a4fcd6cb12a071d7027"
+        "md5": "009ccce2b6ce7cc9da80f46a02889122"
       },
       {
         "file": "monitor-video.png",
-        "md5": "9a51aad346b91238a5f19d21ddd17658"
+        "md5": "73be5470339d44e06765893fcd4dd33a"
       }
     ]
   },
@@ -162,24 +178,25 @@
     "liveDotAnimation": "none",
     "videoBoxAnimation": "none",
     "videoScanAnimation": "none",
+    "videoNoiseAnimation": "none",
     "md5": [
-      "602d3f8fb90a19d4640fce310a55ec70",
-      "602d3f8fb90a19d4640fce310a55ec70",
-      "602d3f8fb90a19d4640fce310a55ec70"
+      "411d2dcea76895c1f09e2d8064ae2dc2",
+      "411d2dcea76895c1f09e2d8064ae2dc2",
+      "411d2dcea76895c1f09e2d8064ae2dc2"
     ],
     "staticMd5Identical": true,
     "shots": [
       {
         "file": "monitor-static-1.png",
-        "md5": "602d3f8fb90a19d4640fce310a55ec70"
+        "md5": "411d2dcea76895c1f09e2d8064ae2dc2"
       },
       {
         "file": "monitor-static-2.png",
-        "md5": "602d3f8fb90a19d4640fce310a55ec70"
+        "md5": "411d2dcea76895c1f09e2d8064ae2dc2"
       },
       {
         "file": "monitor-static-3.png",
-        "md5": "602d3f8fb90a19d4640fce310a55ec70"
+        "md5": "411d2dcea76895c1f09e2d8064ae2dc2"
       }
     ]
   },
@@ -196,8 +213,11 @@
     "每张卡的波形签名互不相同": true,
     "在线 LIVE 点有呼吸动画": true,
     "离线 LIVE 点没有动画": true,
-    "离线波形没有动画变量": true,
-    "视频卡有检测框 / 扫描线动画": true,
+    "离线波形：每根柱没有 --av-wave-delay 且 animation-name 为 none": true,
+    "离线波形检查的负向自检（注入 --av-wave-delay 必须被检出）": true,
+    "（如有）离线视频场景：噪点 / 扫描线 / 检测框全静": true,
+    "视频卡有检测框 / 扫描线 / 噪点动画": true,
+    "离线视频画面是冻结帧（切到 offline 后噪点 animation-name=none，恢复后重新在动）": true,
     "动效开启时时间码递增": true,
     "切换有三段式（退场帧真的在播：9 张、opacity<1、animation=avChannelOut；之后 7 张进入 enter）": true,
     "FLIP：重排阶段剩余卡片有 inline transform（不是瞬间跳位）": true,
