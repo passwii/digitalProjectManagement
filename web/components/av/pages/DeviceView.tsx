@@ -22,8 +22,8 @@ import {
   seriesTone,
   type ChartSeriesSpec,
 } from "@/components/av/AvCharts";
+import { seriesToneFor, toneVar } from "@/lib/av/tone";
 import { attentionAgeText } from "@/lib/av/view";
-import { toneVar } from "@/lib/av/tone";
 import { AV_CHART_HEIGHT } from "@/lib/av/chartHeights";
 import {
   DEVICE_STREAM_FRAMES,
@@ -75,10 +75,18 @@ export default function DeviceView({ devices, summary }: DeviceViewProps) {
    * `enabled` 同时挡掉 `?static=1` 与 prefers-reduced-motion —— 两者都要求整页冻结，
    * 否则连拍三张截图的数字会不一样（Stage 8 的 MD5 比对会红）。
    * 冻结时 `tick` 恒为 0，也就是服务端口径的基准帧，不做任何抖动。
+   *
+   * 注意这里是**运行期**开关，不是初始化参数：`AvMotionProvider` 订阅了系统的
+   * `prefers-reduced-motion` change 事件，站内跳到 `?static=1` 也会经 `popstate` 把
+   * `frozen` 打开。所以冻结分支必须把 `tick` 拨回 0 —— 只清定时器的话页面会冻在
+   * 某一合成帧上（「在线 130」），Stage 8 先看动态页再客户端跳静态页截图就不是基准帧。
    */
   const [tick, setTick] = useState(0);
   useEffect(() => {
-    if (!motionEnabled) return;
+    if (!motionEnabled) {
+      setTick(0);
+      return;
+    }
     const timer = window.setInterval(() => {
       setTick((value) => (value + 1) % (DEVICE_STREAM_FRAMES + 1));
     }, DEVICE_STREAM_TICK_SECONDS * 1000);
@@ -124,12 +132,16 @@ export default function DeviceView({ devices, summary }: DeviceViewProps) {
   };
 
   /*
-   * 筛选 Tab 的计数读**当前帧**，与状态格 / 环形图同一份数字。
-   * 台账明细仍是服务端快照 —— 聚合层推进、明细层不动，与 /overview 的演示帧同一条口径。
+   * 筛选 Tab 的计数读**服务端快照**（`summary`），不跟演示帧走。
+   *
+   * 为什么这一块是个例外：Tab 是筛选控件，它给出的数字必须等于点下去筛出来的行数。
+   * 台账行读 `devices`（服务端快照），面板副标题「筛选出 N 台」也读快照 ——
+   * 计数若跟帧走，切到「在线」Tab 会出现「在线 130 / 筛选出 129 台 / 129 行」。
+   * 图表 / 状态格 / 环图才是演示层（聚合层推进、明细层不动）。
    */
   const statusTabs = [
-    { value: "all" as const, label: "全部", count: frame.totals.total },
-    ...frame.byStatus.map((row) => ({
+    { value: "all" as const, label: "全部", count: summary.total },
+    ...summary.byStatus.map((row) => ({
       value: row.status,
       label: DEVICE_STATUS_LABEL[row.status],
       count: row.count,
@@ -153,11 +165,15 @@ export default function DeviceView({ devices, summary }: DeviceViewProps) {
     rate: site.rate,
   }));
 
-  /** 三条站点在线率曲线：颜色按序号取 `series-1..3`，互不相同。 */
+  /**
+   * 三条站点在线率曲线：颜色按序号取 `series-1..3`，互不相同。
+   * 用 `seriesToneFor(index)` 而不是 `seriesTone((index + 1) as 1 | 2 | 3)`：
+   * 后者在站点数 > 3 时会骗过类型检查（断言说 1|2|3，实际能到 4），取模版本不会。
+   */
   const siteTrendSeries: ChartSeriesSpec[] = frame.sites.map((site, index) => ({
     key: site.id,
     label: site.name,
-    tone: seriesTone((index + 1) as 1 | 2 | 3),
+    tone: seriesToneFor(index),
     // 三条都铺面积会糊成一片（一条线的填充会盖住下面两条），只留描边
     fill: "none",
   }));
@@ -297,7 +313,7 @@ export default function DeviceView({ devices, summary }: DeviceViewProps) {
               items={frame.sites.map((site, index) => ({
                 label: site.name,
                 value: formatPercent(site.rate),
-                tone: seriesTone((index + 1) as 1 | 2 | 3),
+                tone: seriesToneFor(index),
               }))}
             />
             <span className={s.softNote}>按最近心跳回推，最新一点为当前在线率</span>

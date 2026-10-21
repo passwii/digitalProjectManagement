@@ -50,8 +50,14 @@ export const DEVICE_STREAM_FRAMES = ONLINE_DELTA_STEPS.length;
 const HISTORY_STEP_MINUTES = 120;
 const HISTORY_SPAN_MINUTES = 24 * 60;
 
-/** 历史点个数（不含末尾的「现在」）：每 2 小时一点，铺满 24 小时。 */
-const HISTORY_POINT_COUNT = HISTORY_SPAN_MINUTES / HISTORY_STEP_MINUTES - 1;
+/**
+ * 历史点个数（不含末尾的「现在」）：每 2 小时一个，铺满 24 小时。
+ *
+ * 12 个点 = 24 小时前 → 2 小时前；最早的左端就是 24 小时前（不是「22 小时前」），
+ * 最右一段 2 小时 → 现在由趋势末行的「现在」补齐。之前写 `- 1` 正好把左端
+ * 削掉了 2 小时：标签说「近 24 小时」，数据只有 22 小时。
+ */
+const HISTORY_POINT_COUNT = HISTORY_SPAN_MINUTES / HISTORY_STEP_MINUTES;
 
 /** 折线末端那一格的 X 轴标签：它是当前帧的实时值，不是历史采样。 */
 export const DEVICE_STREAM_LIVE_LABEL = "现在";
@@ -100,7 +106,7 @@ export interface DeviceFrame {
   byStatus: { status: DeviceStatus; count: number }[];
   totals: { total: number; online: number; offline: number; maintenance: number };
   ota: DeviceOtaFrame;
-  /** 趋势行：11 个历史点 + 末尾一帧「现在」（= 当前帧的站点在线率）。 */
+  /** 趋势行：12 个历史点（24 小时前 → 2 小时前）+ 末尾一帧「现在」（= 当前帧的站点在线率）。 */
   trend: DeviceTrendRow[];
 }
 
@@ -150,8 +156,8 @@ export function deviceStreamBase(
 
   const historyLabels: string[] = [];
   for (let index = 0; index < HISTORY_POINT_COUNT; index += 1) {
-    // 最早的一格在前：index 0 = 22 小时前，最后一格 = 2 小时前
-    const minutesAgo = HISTORY_SPAN_MINUTES - HISTORY_STEP_MINUTES * (index + 1);
+    // 最早的一格在前：index 0 = 24 小时前，最后一格 = 2 小时前
+    const minutesAgo = HISTORY_SPAN_MINUTES - HISTORY_STEP_MINUTES * index;
     historyLabels.push(toAbsolute(minutesAgo).slice(11));
   }
 
@@ -159,7 +165,7 @@ export function deviceStreamBase(
   for (const site of sites) {
     const rows = devices.filter((device) => device.siteId === site.id);
     history[site.id] = historyLabels.map((_, index) => {
-      const minutesAgo = HISTORY_SPAN_MINUTES - HISTORY_STEP_MINUTES * (index + 1);
+      const minutesAgo = HISTORY_SPAN_MINUTES - HISTORY_STEP_MINUTES * index;
       if (rows.length === 0) return 0;
       const reporting = rows.filter((device) => device.heartbeatOffsetMinutes <= minutesAgo).length;
       return rateOf(reporting, rows.length);

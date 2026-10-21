@@ -132,13 +132,16 @@ describe("/device 演示帧：基准帧 = 服务端口径", () => {
 });
 
 describe("/device 演示帧：近 24 小时在线率从最近心跳反推", () => {
-  it("11 个历史采样点，每 2 小时一个，旧 → 新", () => {
-    expect(BASE.historyLabels).toHaveLength(11);
+  it("12 个历史采样点铺满 24 小时：24 小时前 → 2 小时前，每 2 小时一个", () => {
+    // 锚点 12:00（lib/av/time.ts 的 ANCHOR）：最早一格是 24 小时前的同一钟点，
+    // 最后一格是 2 小时前 —— 加上末行「现在」，整条曲线覆盖的宽度正好是 24 小时。
+    // 写成 11 个点（旧口径）时最早一格会是 14:00，标签却说「近 24 小时」。
+    expect(BASE.historyLabels).toHaveLength(12);
     expect(BASE.historyLabels[0]).toMatch(/^\d{2}:\d{2}$/);
-    // 数据锚点 12:00：最早一格是 22 小时前（14:00），最后一格是 2 小时前（10:00）
-    expect(BASE.historyLabels[0]).toBe("14:00");
+    expect(BASE.historyLabels[0]).toBe("12:00");
     expect(BASE.historyLabels[BASE.historyLabels.length - 1]).toBe("10:00");
-    for (const labels of Object.values(BASE.history)) expect(labels).toHaveLength(11);
+    expect(new Set(BASE.historyLabels).size).toBe(12);
+    for (const labels of Object.values(BASE.history)) expect(labels).toHaveLength(12);
   });
 
   it("越靠近现在在线率越低（离线设备在掉线那一刻让曲线掉一格）", () => {
@@ -147,15 +150,19 @@ describe("/device 演示帧：近 24 小时在线率从最近心跳反推", () =
         expect(values[index], `${siteId} 第 ${index} 个点`).toBeLessThanOrEqual(values[index - 1]);
       }
     }
-    // site-01 有 1 台 6 小时前掉线的设备：22 小时前它还在回传（5/5），
+    // site-01 有 1 台 6 小时前掉线的设备：24 小时前它还在回传（5/5），
     // 从「4 小时前」那一格起就少了它（4/5）—— 曲线在那一格拉低一档，之后不再回升
     const site01 = BASE.history["site-01"];
     expect(site01[0]).toBe(100);
-    expect(site01[8]).toBe(100);
-    expect(site01[9]).toBe(80);
+    // index 9 = 1440 - 120 * 9 = 360 分钟前（6 小时）：心跳 360 刚好还在回传
+    expect(site01[9]).toBe(100);
+    // index 10 = 4 小时前：掉线了
+    expect(site01[10]).toBe(80);
     expect(site01[site01.length - 1]).toBe(80);
-    // site-02 的那台 24 小时前就没回传了：整段历史里它从不算在线
-    expect(BASE.history["site-02"][0]).toBe(66.7);
+    // site-02 那台设备的心跳正好卡在 24 小时边界（1440 分钟）：第 0 格还算在线，
+    // 第 1 格起就掉下来 —— 这也是「左端 = 24 小时前」而非 22 小时前的旁证
+    expect(BASE.history["site-02"][0]).toBe(100);
+    expect(BASE.history["site-02"][1]).toBe(66.7);
   });
 
   it("signal_series 不参与：它是一台设备恒定的 RSSI，按它统计会得到一条平线", () => {
@@ -211,7 +218,7 @@ describe("/device 演示帧：每帧自洽且只抖 ±1", () => {
     expect(signatures.size).toBe(DEVICE_STREAM_FRAMES);
   });
 
-  it("趋势图 11 个历史点 + 末行「现在」，末行就是当前帧的在线率", () => {
+  it("趋势图 12 个历史点 + 末行「现在」，末行就是当前帧的在线率", () => {
     const frame = deviceFrameAt(BASE, 2);
     expect(frame.trend).toHaveLength(BASE.historyLabels.length + 1);
     const live = frame.trend[frame.trend.length - 1];

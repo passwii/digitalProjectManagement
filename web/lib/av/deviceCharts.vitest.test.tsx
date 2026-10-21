@@ -258,6 +258,64 @@ describe("/device 演示帧推进", () => {
     expect(siteReadings(container)).toEqual(before);
   });
 
+  it("运行期关动效（站内跳到 ?static=1）时回到基准帧，不停在某一合成帧上", () => {
+    vi.useFakeTimers();
+    const { container } = renderDevice();
+    const baseline = siteReadings(container);
+    expect(frameOf(container)).toBe(0);
+
+    act(() => {
+      vi.advanceTimersByTime(DEVICE_STREAM_TICK_SECONDS * 1000 * 2);
+    });
+    expect(frameOf(container)).toBe(2);
+    expect(siteReadings(container)).not.toEqual(baseline);
+
+    /*
+     * 开关是**运行期**变的：AvMotionProvider 订阅 prefers-reduced-motion 的 change，
+     * 站内跳到 `?static=1` 也会经 popstate 把 frozen 打开。此时只停定时器会把画面
+     * 冰在「在线 130」这种合成帧上 —— Stage 8 先看动态页再客户端跳静态页截图就
+     * 不是基准帧了。所以冻结必须把 tick 拨回 0。
+     */
+    act(() => {
+      window.history.pushState({}, "", "/stream-monitor/device?static=1");
+      window.dispatchEvent(new PopStateEvent("popstate"));
+    });
+
+    expect(frameOf(container)).toBe(0);
+    expect(siteReadings(container)).toEqual(baseline);
+
+    // 冻结后时间继续走，也不许再离开基准帧
+    act(() => {
+      vi.advanceTimersByTime(DEVICE_STREAM_TICK_SECONDS * 1000 * 3);
+    });
+    expect(frameOf(container)).toBe(0);
+    expect(siteReadings(container)).toEqual(baseline);
+  });
+
+  it("筛选 Tab 的计数读服务端快照：推进帧后仍等于筛出来的行数", () => {
+    vi.useFakeTimers();
+    const { container } = renderDevice();
+
+    // tick 2 时聚合层把在线台数推到了 3（基准是 4）——Tab 计数不能跟着变成 3
+    act(() => {
+      vi.advanceTimersByTime(DEVICE_STREAM_TICK_SECONDS * 1000 * 2);
+    });
+    expect(frameOf(container)).toBe(2);
+
+    const tabs = Array.from(container.querySelectorAll<HTMLElement>('[aria-label="设备状态筛选"] button'));
+    expect(tabs).toHaveLength(4);
+    const counts = tabs.map((tab) => Number(tab.querySelector('[class*="tabCount"]')?.textContent));
+    // 服务端快照：6 台 = 4 在线 + 1 离线 + 1 维护中
+    expect(counts).toEqual([6, 4, 1, 1]);
+
+    for (const tab of tabs) {
+      const count = Number(tab.querySelector('[class*="tabCount"]')?.textContent);
+      fireEvent.click(tab);
+      const rows = container.querySelectorAll("tbody tr").length;
+      expect(rows, `「${tab.textContent}」的计数与台账行数不一致`).toBe(count);
+    }
+  });
+
   it("静态模式下两次渲染的 DOM 完全一致（三连拍 MD5 一致的前提）", () => {
     document.documentElement.setAttribute(AV_MOTION_ATTRIBUTE, "off");
     const first = renderDevice();

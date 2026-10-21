@@ -16,6 +16,7 @@ import { spawn } from "node:child_process";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
+import { captureFullPage } from "./lib/avFullPageShot.mjs";
 
 const baseUrl = process.argv[2] ?? "http://127.0.0.1:3001";
 const outDir = process.argv[3] ?? "artifacts/blf1428/charts";
@@ -99,9 +100,14 @@ async function evaluate(expression) {
   return result.result.value;
 }
 
+/**
+ * 整页截图（口径见 scripts/lib/avFullPageShot.mjs）。
+ *
+ * 不能直接 `captureBeyondViewport: true`：截图瞬间撑高视口会让 recharts 重排 +
+ * 重播入场动画，拍出来是空白的图表区 —— 留档截图要能证明「图真的画出来了」。
+ */
 async function shot(name) {
-  const result = await send("Page.captureScreenshot", { format: "png", captureBeyondViewport: true });
-  writeFileSync(`${outDir}/${name}.png`, Buffer.from(result.data, "base64"));
+  writeFileSync(`${outDir}/${name}.png`, await captureFullPage(send, { width: 1440, viewportHeight: 1400 }));
 }
 
 const failures = [];
@@ -227,10 +233,14 @@ try {
       };
     })()`);
     report.drawer = drawer;
-    if (drawer.open) {
-      if (!drawer.label?.includes("信号强度")) failures.push(`抽屉里没有信号强度曲线：${JSON.stringify(drawer.label)}`);
-      if (!drawer.height || drawer.height <= 0) failures.push(`抽屉信号曲线高度为 ${drawer.height}px`);
-    }
+    /*
+     * 抽屉没打开必须算失败：整段断言写在 `if (drawer.open)` 里的话，
+     * `{ open: false }` 会让它全跳过并且仍以 0 退出 —— 正好是「抽屉挂了」
+     * 这个 Stage 1 回归点最需要红的时候。
+     */
+    if (!drawer.open) failures.push(`设备抽屉没有打开：${JSON.stringify(drawer)}`);
+    if (!drawer.label?.includes("信号强度")) failures.push(`抽屉里没有信号强度曲线：${JSON.stringify(drawer.label)}`);
+    if (!drawer.height || drawer.height <= 0) failures.push(`抽屉信号曲线高度为 ${drawer.height}px`);
     await shot("device-drawer");
   } else {
     failures.push("设备台账里没有可点击的行，抽屉用例无法执行");
