@@ -49,10 +49,12 @@ class WebImageBuildTest(unittest.TestCase):
         self.assertIn('CMD ["node", "server.js"]', self.directives)
         self.assertNotIn("next start", self.directives)
 
-    def test_runner_declares_the_listen_address(self):
-        """standalone 的 server.js 只看环境变量；缺了就绑不到容器外。"""
+    def test_runner_listens_wildcard_and_uses_the_forwarded_host(self):
+        """监听保持全网卡，代理重定向使用请求 Host（BLF-1400）。"""
         self.assertIn("ENV PORT=3001", self.directives)
-        self.assertIn("ENV HOSTNAME=0.0.0.0", self.directives)
+        self.assertIn('ENV HOSTNAME=""', self.directives)
+        next_config = NEXT_CONFIG.read_text()
+        self.assertIn("trustHostHeader: true", next_config)
 
     def test_runner_does_not_need_root(self):
         self.assertIn("USER node", self.directives)

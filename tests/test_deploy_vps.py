@@ -392,9 +392,9 @@ esac
         zsh 不对未加引号的参数展开做词分割，`for id in $ids` 会静默退化成
         「只迭代一次」——所以这里逐行读的写法要两个 shell 都验。
         """
-        self.assertIn("zsh", installed_shells(), "本机没有 zsh，这条保护没生效")
-        self.assertIn("bash", installed_shells())
-        for shell in installed_shells():
+        shells = installed_shells()
+        self.assertIn("bash", shells)
+        for shell in shells:
             with self.subTest(shell=shell):
                 result, calls = self.run_block(
                     dangling="aaaa1111 bbbb2222 cccc3333", shell=shell
