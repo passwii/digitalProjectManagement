@@ -28,9 +28,15 @@ import { describe, it } from "node:test";
  *   1. `components/av` + `lib/av` + `app/stream-monitor` 的 `.ts` / `.tsx`
  *      （测试文件除外）里的**用户可见文本**：
  *      · 字符串字面量（`'…'` / `"…"` / `` `…` `` 的静态部分，含 JSX 属性值）；
- *      · `.tsx` 里的 **raw JSX 文本节点**（`>` 与 `<` 之间、不在标签属性里、不是
- *        `{…}` 表达式的那一段）。
+ *      · `.tsx` 里的 **raw JSX 文本节点**（`>` 与 `<` 之间、不是 `{…}` 表达式的那一段），
+ *        含**标签属性里**的 JSX children（`aside={<span>…</span>}`）。
  *   2. `public/stream-monitor-data/*.json` 的字符串值（访客可以直接下载这些文件）。
+ *
+ * **两层都是「整份源码一次词法遍历」，不能逐行**：一个跨行模板字面量的首行只有开引号、
+ * 中间行没有引号、末行只有闭引号，逐行扫的话三行都匹配不到 —— 而本 Stage 自己改的那条
+ * 副标题就是三行（`DeviceView.tsx` 的 `subtitle={`每 2 小时…（${…}）`}`，同类的还有
+ * `EventView.tsx` 两处）。行号靠「命中在段内的下标 + 整份源码的 `lineStarts`」算，
+ * 所以三行副标题里的 `LIVE` 报的是它真正所在的那一行，不是开引号那一行。
  *
  * 路由层（`app/stream-monitor`）必须扫：本 Stage 自己就改过 `app/stream-monitor/audio/page.tsx`
  * 的空态 `hint`，而路由文件里的 `metadata.title` / 空态提示 / 页头文案都是直接上屏的。
@@ -53,8 +59,12 @@ import { describe, it } from "node:test";
  *
  * **一个字符串里的每一处英文命中都要过白名单**（而不是只看第一处）：
  * 否则 `AV-MIC-S6 · LIVE` 里 `AV` 加过白，`MIC` / `LIVE` 就跟在型号后面蒙混过关了。
- * 编号类白名单因此要带 `context`（`OTA` 只在 `OTA-\d+-\d+` 这种编号形状里放行），
- * 散文里的同名英文照样变红 —— 白名单只该覆盖「这个串长这样时才是编号」。
+ *
+ * **整张白名单表必须二分**：要么带形状（`context` 规定编号 / 型号长什么样，`files` 限定
+ * 机器值只在哪几个文件里出现），要么进 `SHAPE_EXEMPT` 例外集合（单位符号 / 行业通用词 /
+ * 标准号 —— 它们本来就没有形状可言）。裸的 `match: "MIC"` 会把「MIC 通道信号质量」
+ * 这种散文放过去，白名单等于形同虚设 —— 这条契约由「白名单契约」那条用例守着，
+ * 表里新加一条不满足就会红，不靠人记。
  */
 
 /** 递归列出目录下所有源文件。 */
@@ -180,6 +190,11 @@ const PATTERNS: RegExp[] = [LOCALE_CODE, PERCENTILE_MARK, UPPER_RUN];
  *
  * 每条都要写清理由，否则后来的人只会往上加，白名单就烂了。
  * `files` 可选：给了就只在这些文件里放行（用于「机器可读值」这类不该在别处出现的东西）。
+ *
+ * **每一条必须二分**：要么带形状（`context` / `files` —— 命中的是编号、型号或机器值），
+ * 要么在下面的 `SHAPE_EXEMPT` 例外集合里（单位符号 / 行业通用词 / 标准号）。
+ * 裸的 `match: "MIC"` 会把「MIC 通道信号质量」这种散文放过去，等于白名单形同虚设 ——
+ * 这条契约由「白名单契约」那条用例守着，表里新加一条不满足就会红。
  */
 interface AllowEntry {
   match: string;
@@ -188,28 +203,76 @@ interface AllowEntry {
   /**
    * 命中串所在的整段字符串还必须匹配这条正则才放行。
    *
-   * 用于「只有长成编号形状时才是编号」的前缀：`OTA-1001-1` 放行，
+   * 用于「只有长成编号形状时才是编号」的前缀 / 型号：`OTA-1001-1` 放行，
    * `OTA 批量升级：…` 这种散文标题必须继续变红。
    */
   context?: RegExp;
 }
 
+/**
+ * 例外集合：这些命中**没有形状可言**（单位符号 / 行业通用词 / 标准号），
+ * 所以允许裸 `match`。不在这里、又没有 `context` / `files` 的条目会被用例拦下。
+ *
+ * `GB` / `TB` / `PB` 是存储单位（`formatStorage` 的档位字符串就是 `"GB"` 本身，写不出形状）；
+ * `ICU` / `AI` 是国内行业里比中文更短的通用叫法。
+ */
+const SHAPE_EXEMPT = new Set(["GB", "TB", "PB", "ICU", "AI"]);
+
+/**
+ * 楼栋 / 站点编码：既是点位编号 `PT-SS-1F01` 里的站点段，又是数据集里单独成值的字段
+ * （`sites[].code` / `points[].building`）。两种用法两种形状，所以每个编码两条。
+ */
+const SITE_CODES: Array<[code: string, label: string]> = [
+  ["SS", "宿舍楼"],
+  ["ST", "食堂"],
+  ["GY", "操场"],
+  ["HM", "门诊住院综合楼"],
+  ["GA", "执法办案楼"],
+  ["SY", "示范第一中学"],
+  ["TT", "天台"],
+];
+
+/** 站点 / 楼栋编码以原值出现的数据文件（展示层经 `buildingName` 映射成中文）。 */
+const SITE_CODE_FILES = [
+  "public/stream-monitor-data/sites.json",
+  "public/stream-monitor-data/points.json",
+];
+
 const ALLOWED: AllowEntry[] = [
-  // —— ① 专有型号 / 编号前缀（编号是主键，中文化会让对账与深链接失效）——
-  { match: "AV", why: "设备型号前缀 AV-MIC-S6 / AV-CAM-PTZ / AV-GW-200，型号是专有名词，保留原样" },
-  { match: "MIC", why: "型号 AV-MIC-S6/S8 的组成部分，与出厂型号一一对应" },
-  { match: "CAM", why: "型号 AV-CAM-360 / AV-CAM-PTZ 的组成部分" },
-  { match: "GW", why: "型号 AV-GW-200 的组成部分" },
-  { match: "PT", why: "点位编号前缀 PT-B1-1F01（点位是数据主键，界面按编号检索）" },
-  { match: "AL", why: "告警编号前缀 AL-00037：编号是搜索 / 深链接 / 抽屉对账的主键" },
-  { match: "EV", why: "事件编号前缀 EV-20260145" },
-  { match: "IP", why: "审讯辅助记录编号前缀 IP-00008" },
-  { match: "DO", why: "处置记录编号前缀 DO-0045" },
-  { match: "OT", why: "固件升级记录编号前缀 OT-0038" },
-  { match: "CF", why: "配置变更记录编号前缀 CF-0002" },
-  { match: "MR", why: "人工补录记录编号前缀 MR-0001" },
-  { match: "FP", why: "误报归档记录编号前缀 FP-0031" },
-  { match: "WO", why: "工单编号前缀 WO-20261019-011" },
+  // —— ① 专有型号 / 编号（编号是主键，中文化会让对账与深链接失效）——
+  //
+  // 这一组全部带 `context`：只有长成型号 / 编号才会放行。少一个 `context`，散文里的同名
+  // 英文（「MIC 通道信号质量」「PT 点位」「DO 一次整机复位」）就跟着蒙混过去了。
+  {
+    match: "AV",
+    why: "设备型号前缀 AV-MIC-S6 / AV-CAM-PTZ / AV-GW-200，型号是专有名词，保留原样",
+    context: /AV-(MIC|CAM|GW)/,
+  },
+  {
+    match: "MIC",
+    why: "型号 AV-MIC-S6 / AV-MIC-S8 的组成部分，与出厂型号一一对应",
+    context: /AV-MIC/,
+  },
+  {
+    match: "CAM",
+    why: "型号 AV-CAM-360 / AV-CAM-PTZ 的组成部分",
+    context: /AV-CAM/,
+  },
+  { match: "GW", why: "型号 AV-GW-200 的组成部分", context: /AV-GW/ },
+  {
+    match: "PT",
+    why: "点位编号前缀 PT-B1-1F01 / PT-HM-1F01（点位是数据主键，界面按编号检索）",
+    context: /PT-[A-Z0-9]+-\d+F\d+/,
+  },
+  { match: "AL", why: "告警编号前缀 AL-00037：编号是搜索 / 深链接 / 抽屉对账的主键", context: /AL-\d{5,}/ },
+  { match: "EV", why: "事件编号前缀 EV-20260145 / EV-R0045", context: /EV-(R\d{4}|\d{8})/ },
+  { match: "IP", why: "巡检计划编号前缀 IP-00008", context: /IP-\d{4,}/ },
+  { match: "DO", why: "处置记录编号前缀 DO-0045", context: /DO-\d{4,}/ },
+  { match: "OT", why: "固件升级记录编号前缀 OT-0038", context: /OT-\d{4,}/ },
+  { match: "CF", why: "配置变更记录编号前缀 CF-0002", context: /CF-\d{4,}/ },
+  { match: "MR", why: "人工补录记录编号前缀 MR-0001", context: /MR-\d{4,}/ },
+  { match: "FP", why: "误报归档记录编号前缀 FP-0031", context: /FP-\d{4,}/ },
+  { match: "WO", why: "工单编号前缀 WO-20261019-011", context: /WO-\d{8}-\d{3}/ },
   {
     match: "OTA",
     why: "固件升级记录编号 OTA-1001-1（`ota_records[].id`）：编号是抽屉对账的主键，界面措辞已改「固件升级」",
@@ -222,25 +285,33 @@ const ALLOWED: AllowEntry[] = [
     // 与 `OTA` 同一口径：型号组成部分也要带形状，散文里的 `PTZ` 不许借型号名蒙混过关。
     context: /AV-CAM-PTZ/,
   },
-  { match: "SS", why: "站点编码（PT-SS-… 里的站点段），是点位编号的组成部分" },
-  { match: "ST", why: "站点编码（PT-ST-… 里的站点段）" },
-  { match: "GY", why: "站点编码（PT-GY-… 里的站点段）" },
-  { match: "HM", why: "站点编码（PT-HM-… 里的站点段）" },
-  { match: "GA", why: "站点编码（PT-GA-… 里的站点段）" },
-  { match: "SY", why: "站点编码字段 `sites[].code`，机器可读，不渲染" },
-  { match: "TT", why: "站点编码（PT-TT-… 里的站点段）" },
+  // 楼栋 / 站点编码的两种形状（见 `SITE_CODES`）
+  ...SITE_CODES.flatMap(([code, label]): AllowEntry[] => [
+    {
+      match: code,
+      why: `点位编号 PT-${code}-1F01 里的站点段（界面显示「${label}」）`,
+      context: new RegExp(`PT-${code}-`),
+    },
+    {
+      match: code,
+      why: `站点 / 楼栋编码原值（sites[].code / points[].building），机器可读字段，展示层映射成「${label}」`,
+      files: SITE_CODE_FILES,
+    },
+  ]),
+
+  // —— ② 例外：单位符号 / 行业通用词（没有形状可言，见 `SHAPE_EXEMPT`）——
+  { match: "GB", why: "存储容量单位（GB / TB / PB）：`formatStorage` 的档位字符串就是 `GB` 本身，单位符号不翻译" },
+  { match: "TB", why: "存储容量单位（formatStorage 里 1000GB 以上那一档）" },
+  { match: "PB", why: "存储容量单位（formatStorage 里 >1000TB 的那一档）" },
   { match: "ICU", why: "重症监护室的行业通用缩写（医院场景的标准叫法），比「重症监护室」更短且不歧义" },
   { match: "AI", why: "「视觉 AI / AI 算法」是国内行业的通用名词，不属于可替换的说明性英文" },
 
-  // —— ② 计量单位 / 编码标准 ——
-  { match: "GB", why: "存储容量单位（GB / TB / PB），单位符号不翻译" },
-  { match: "TB", why: "存储容量单位（formatStorage 的 TB 档）" },
-  { match: "PB", why: "存储容量单位（formatStorage 里 >1000TB 的那一档）" },
-  { match: "BA", why: "「dBA」里的分贝单位（A 计权），是声学标准符号" },
-  { match: "HBM", why: "HBM3 是显存标准型号（与 H.265 同类的专有名词）" },
-  { match: "UTC", why: "UTC+8 是时区标识（数据集 `timezone` 字段值），不是可翻译的界面措辞" },
+  // —— ③ 带形状的标准号 / 机器值 ——
+  { match: "BA", why: "「dBA」里的分贝单位（A 计权），是声学标准符号，只在这个组合里出现", context: /dBA/ },
+  { match: "HBM", why: "HBM3 是显存标准型号（与 H.265 同类的专有名词）", context: /HBM\d/ },
+  { match: "UTC", why: "UTC+8 是时区标识（数据集 `timezone` 字段值），不是可翻译的界面措辞", context: /UTC\+\d/ },
 
-  // —— ③ 不渲染的机器可读值 / 运行时字符串 ——
+  // —— ④ 不渲染的机器可读值 / 运行时字符串 ——
   {
     match: "zh-CN",
     why: "语言代码：展示层经 `transcriptLanguageLabel` 映射成「普通话」，代码本身是机器可读值",
@@ -287,8 +358,8 @@ const ALLOWED: AllowEntry[] = [
     files: ["components/av/pages/AudioView.tsx"],
   },
   {
-    match: "PTS",
-    why: "`dateTime=\"PT{秒}S\"` 抹掉插值后剩下的 ISO-8601 时长片段，机器属性，不渲染",
+    match: "PT",
+    why: "`dateTime={`PT${秒}S`}` 里的 ISO-8601 时长前缀（抹掉插值后剩下的静态部分），机器属性，不渲染",
     files: ["components/av/motion/AvLiveBadge.tsx"],
   },
   {
@@ -330,34 +401,104 @@ function allowedIn(match: string, relative: string, text = ""): boolean {
   );
 }
 
-/** 一段用户可见文本：文本内容 + 它在源文件里的起始行号（1 起）。 */
+/**
+ * 一段用户可见文本：文本内容 + 它在**被扫源码**里的起始下标。
+ *
+ * 存下标而不是行号，是因为一段文本可以跳行（三行模板字面量、跨行 JSX 文本节点）：
+ * 行号要等命中真正落在第几个字符上才知道，所以由 `scanSourceText` 拿着整份源码的
+ * `lineStarts` 现算 —— `LIVE` 于第 6 行就报第 6 行，不报开引号那一行。
+ */
 interface CopySegment {
   text: string;
-  line: number;
+  offset: number;
 }
 
 /**
- * 从一行已遮蔽注释的源码里取「用户可见的字符串片段」。
+ * 从一份**已遮蔽注释的整份源码**里取「用户可见的字符串片段」，一次词法遍历。
+ *
+ * 必须整份源码一次过，不能逐行：一个跨行模板字面量在首行只有开引号、中间行没有引号、
+ * 末行只有闭引号 —— 逐行扫的话三行都匹配不到，整段静态文案等于不存在。这不是边角写法，
+ * 本 Stage 自己改的那条副标题就是三行（`DeviceView.tsx` 的 `subtitle={`每 2 小时…（${…}）`}`），
+ * 同类的还有 `EventView.tsx` 的「事件列表」「第 N–M 条 / 共 N 条」。
  *
  * 只取静态部分：模板字面量里的 `${...}` 是代码，不是文案（`${DEVICE_STREAM_TICK_SECONDS}`
- * 这种常量名大写一抓一大把，扫进去只会制造噪音）。
+ * 这种常量名大写一抓一大把，扫进去只会制造噪音）。但插值**里面**的字符串仍然是文案
+ * （`${ok ? `LIVE` : "静态"}`），所以插值内容递归回本函数，而不是整段跳过。
+ * 模板字面量按插值切成若干片，每片记自己的起始下标：三行副标题里的 `LIVE` 要指回它
+ * 真正所在的那一行，而不是开引号那一行。
+ *
  * 模块路径（`./AvUI.module.css`、`@/components/av/AvUI`）不是文案，直接跳过。
  *
  * 只管引号字面量（含 JSX 属性值）；raw JSX 文本节点由下面的 `jsxTextSegments` 负责 ——
  * 两种写法在这套 UI 里同时大量存在，两层缺一不可。
  */
-function literalSegments(line: string): string[] {
-  const withoutInterpolation = line.replace(/\$\{[^}]*\}/g, "");
-  const out: string[] = [];
-  // 用 exec 循环而不是 `matchAll`：`matchAll` 返回迭代器，根 tsconfig 没有显式 target 时
-  // 会被「downlevelIteration」挡下来（这里的测试由 tsconfig.test.json 编译，
-  // 但编辑器的类型检查走根配置，两边都得过）。
-  const pattern = /'([^'\\]*)'|"([^"\\]*)"|`([^`\\]*)`/g;
-  let match = pattern.exec(withoutInterpolation);
-  while (match) {
-    const text = match[1] ?? match[2] ?? match[3];
-    if (text && !/^(@\/|\.{1,2}\/)/.test(text)) out.push(text);
-    match = pattern.exec(withoutInterpolation);
+function literalSegments(source: string, baseOffset = 0): CopySegment[] {
+  const out: CopySegment[] = [];
+  const push = (text: string, start: number) => {
+    if (!text.trim()) return;
+    if (/^(@\/|\.{1,2}\/)/.test(text)) return;
+    out.push({ text, offset: baseOffset + start });
+  };
+
+  let index = 0;
+  while (index < source.length) {
+    const char = source[index];
+    if (char === "'" || char === '"') {
+      const start = index;
+      let text = "";
+      index += 1;
+      while (index < source.length) {
+        if (source[index] === "\\") {
+          text += source[index] + (source[index + 1] ?? "");
+          index += 2;
+          continue;
+        }
+        if (source[index] === char) break;
+        text += source[index];
+        index += 1;
+      }
+      index += 1; // 跳过闭合引号
+      push(text, start);
+      continue;
+    }
+    if (char === "`") {
+      index += 1;
+      let chunkStart = index;
+      let text = "";
+      while (index < source.length) {
+        if (source[index] === "\\") {
+          text += source[index] + (source[index + 1] ?? "");
+          index += 2;
+          continue;
+        }
+        if (source[index] === "`") break;
+        if (source[index] === "$" && source[index + 1] === "{") {
+          push(text, chunkStart);
+          // 插值里可以再起字符串、再起模板（`${ok ? `LIVE` : "静态"}`），递归取。
+          // 递归传的是「外层切片起点 + 本片起点」，所以偏移量始终是相对被扫源码的。
+          const end = skipBracedExpression(source, index + 1);
+          const innerStart = index + 2;
+          if (end - 1 > innerStart) {
+            out.push(
+              ...literalSegments(
+                source.slice(innerStart, end - 1),
+                baseOffset + innerStart,
+              ),
+            );
+          }
+          index = end;
+          chunkStart = index;
+          text = "";
+          continue;
+        }
+        text += source[index];
+        index += 1;
+      }
+      push(text, chunkStart);
+      index += 1; // 跳过闭合反引号
+      continue;
+    }
+    index += 1;
   }
   return out;
 }
@@ -384,11 +525,21 @@ function literalSegments(line: string): string[] {
  * 只在「`<` 看起来真的是 JSX」时才进栈：比较运算（`i < n`）、泛型（`Map<string, number>`）
  * 的 `<` 前面是一个标识符，而 JSX 的 `<` 前面是 `(` / `return` / `=>` / `?` / `:` 这类
  * 表达式起始符。不这么卡的话，一个 `if (a < b)` 会凭空产生一整段「文本」，守卫开始冤报。
+ *
+ * 标签**属性里的** `{…}` 不整段跳过：`aside={<span>PERSON</span>}` 这种写法在本仓库有
+ * 10+ 处（`CapabilityView.tsx` / `DeviceView.tsx` / `MonitorView.tsx`），属性里的 JSX
+ * children 同样是上屏文案。`readJsxTag` 把每段属性表达式的区间带回来，这里对每段递归 ——
+ * 属性里的**字符串**不靠这里（字面量那一层是全文扇出的平扫，本来就盖得到）。
  */
-function jsxTextSegments(source: string): CopySegment[] {
-  const lineStarts = lineStartsOf(source);
+function jsxTextSegments(source: string, baseOffset = 0): CopySegment[] {
   const out: CopySegment[] = [];
   const stack: Array<"code" | "jsx" | "expr"> = ["code"];
+  // 标签属性表达式里的 JSX children：递归扫描（区间是相对当前 `source` 的）
+  const scanAttributeExpressions = (tag: JsxTag) => {
+    for (const [start, end] of tag.attributeExprs) {
+      if (end > start) out.push(...jsxTextSegments(source.slice(start, end), baseOffset + start));
+    }
+  };
   let index = 0;
   while (index < source.length) {
     const state = stack[stack.length - 1];
@@ -398,6 +549,7 @@ function jsxTextSegments(source: string): CopySegment[] {
       if (char === "<") {
         const tag = readJsxTag(source, index);
         if (tag) {
+          scanAttributeExpressions(tag);
           if (tag.closing) {
             if (stack.length > 1) stack.pop();
           } else if (!tag.selfClosing) {
@@ -417,7 +569,7 @@ function jsxTextSegments(source: string): CopySegment[] {
       let end = index;
       while (end < source.length && source[end] !== "<" && source[end] !== "{") end += 1;
       const text = source.slice(index, end);
-      if (text.trim()) out.push({ text, line: lineAt(lineStarts, index) });
+      if (text.trim()) out.push({ text, offset: baseOffset + index });
       index = end;
       continue;
     }
@@ -442,6 +594,7 @@ function jsxTextSegments(source: string): CopySegment[] {
     if (char === "<" && looksLikeJsxStart(source, index)) {
       const tag = readJsxTag(source, index);
       if (tag) {
+        scanAttributeExpressions(tag);
         if (!tag.closing && !tag.selfClosing) stack.push("jsx");
         index = tag.end;
         continue;
@@ -489,15 +642,31 @@ function skipStringLiteral(source: string, start: number): number {
 }
 
 /** 读一个 JSX 标签（`<` 到配对的 `>`），跳过属性里的字符串与 `{…}`；读不到返回 null。 */
-function readJsxTag(
-  source: string,
-  start: number,
-): { end: number; closing: boolean; selfClosing: boolean } | null {
+/**
+ * 一个 JSX 标签读出来的信息。
+ *
+ * `attributeExprs` 是属性里每一段 `{…}` 的**内容**区间（不含大括号）：
+ * `aside={<span>人员</span>}` 带回来的是 `<span>人员</span>` 那一段。
+ */
+interface JsxTag {
+  end: number;
+  closing: boolean;
+  selfClosing: boolean;
+  attributeExprs: Array<[start: number, end: number]>;
+}
+
+/**
+ * 读一个 JSX 标签（`<` 到配对的 `>`），跳过属性里的字符串；读不到返回 null。
+ *
+ * 属性里的 `{…}` 不再**整段丢掉**，而是把区间记下来 —— 里面的 JSX children 也是文案。
+ */
+function readJsxTag(source: string, start: number): JsxTag | null {
   let index = start + 1;
   const closing = source[index] === "/";
   if (closing) index += 1;
   while (index < source.length && /[A-Za-z0-9_.\-:$]/.test(source[index])) index += 1;
   let lastSignificant = "";
+  const attributeExprs: Array<[number, number]> = [];
   while (index < source.length) {
     const char = source[index];
     if (char === "'" || char === '"') {
@@ -505,11 +674,18 @@ function readJsxTag(
       continue;
     }
     if (char === "{") {
-      index = skipBracedExpression(source, index);
+      const end = skipBracedExpression(source, index);
+      attributeExprs.push([index + 1, end - 1]);
+      index = end;
       continue;
     }
     if (char === ">") {
-      return { end: index + 1, closing, selfClosing: !closing && lastSignificant === "/" };
+      return {
+        end: index + 1,
+        closing,
+        selfClosing: !closing && lastSignificant === "/",
+        attributeExprs,
+      };
     }
     if (!/\s/.test(char)) lastSignificant = char;
     index += 1;
@@ -575,21 +751,31 @@ function looksLikeJsxStart(source: string, index: number): boolean {
  *
  * locale code 命中时不再报它内部的大写段（`zh-CN` 里的 `CN`）：
  * 同一个东西报两次只会让白名单越写越长。
+ *
+ * 带下标一起返回：一段文本可以跳行（三行模板字面量、跨行 JSX 文本节点），
+ * 行号得靠命中在段内的位置算出来，不能拿段首的行号充数。
  */
-function matchesOf(text: string): string[] {
-  const found: string[] = [];
+function matchesWithIndex(text: string): Array<{ value: string; index: number }> {
+  const found: Array<{ value: string; index: number }> = [];
   for (const pattern of PATTERNS) {
     const global = new RegExp(pattern.source, pattern.flags.includes("g") ? pattern.flags : `${pattern.flags}g`);
     let hit = global.exec(text);
     while (hit) {
       const value = hit[0];
-      if (value && !found.some((item) => item.includes(value))) found.push(value);
+      if (value && !found.some((item) => item.value.includes(value))) {
+        found.push({ value, index: hit.index });
+      }
       // 零宽命中（当前几条模式都不是，但别让守卫在有人加模式时死循环）
       if (hit.index === global.lastIndex) global.lastIndex += 1;
       hit = global.exec(text);
     }
   }
   return found;
+}
+
+/** 只关心「命中了什么」的地方用这个（自测里大量直接用）。 */
+function matchesOf(text: string): string[] {
+  return matchesWithIndex(text).map((item) => item.value);
 }
 
 /**
@@ -600,23 +786,23 @@ function matchesOf(text: string): string[] {
  */
 function scanSourceText(relative: string, raw: string): Offender[] {
   const masked = maskComments(raw);
-  // 两层都要：字符串字面量（含 JSX 属性值，逐行取）与 raw JSX 文本节点（整份文件取，可以跨行）。
-  const segments: CopySegment[] = [];
-  masked.split("\n").forEach((line, offset) => {
-    for (const text of literalSegments(line)) segments.push({ text, line: offset + 1 });
-  });
+  const lineStarts = lineStartsOf(masked);
+  // 两层都要：字符串字面量（含 JSX 属性值，**整份源码一次词法遍历**，可以跨行）
+  // 与 raw JSX 文本节点（同样整份文件取，可以跨行）。
+  const segments: CopySegment[] = literalSegments(masked);
   // JSX 文本节点只存在于 `.tsx`：`.ts` 里的 `a < b` 没必要过那套状态机。
   if (relative.endsWith(".tsx")) segments.push(...jsxTextSegments(masked));
 
   const offenders: Offender[] = [];
   for (const segment of segments) {
-    for (const value of matchesOf(segment.text)) {
-      if (allowedIn(value, relative, segment.text)) continue;
+    for (const hit of matchesWithIndex(segment.text)) {
+      if (allowedIn(hit.value, relative, segment.text)) continue;
       offenders.push({
         file: relative,
-        line: segment.line,
+        // 命中在段内的下标 → 段在文件里的起始下标 → 行号
+        line: lineAt(lineStarts, segment.offset + hit.index),
         snippet: segment.text.trim().slice(0, 100),
-        match: value,
+        match: hit.value,
       });
     }
   }
@@ -756,6 +942,80 @@ describe("界面英文残留（BLF-1431）", () => {
         assert.ok(existsSync(resolve(process.cwd(), file)), `白名单指向了不存在的文件：${file}`);
       }
     }
+    // 例外集合与白名单表必须一一对应：写在集合里但表里没条目 = 空承诺
+    // （用 `Array.from` 而不是 `for…of`：根 tsconfig 没有显式 target，`downlevelIteration` 会把
+    // Set 的迭代挡下来 —— 与文件头注释里 `matchAll` 那一条同一个原因。）
+    Array.from(SHAPE_EXEMPT).forEach((match) => {
+      assert.ok(
+        ALLOWED.some((entry) => entry.match === match),
+        `例外集合里的「${match}」在白名单表里没有条目`,
+      );
+    });
+  });
+
+  it("白名单契约：除显式例外集合外，每条都必须带形状（context / files）", () => {
+    const bare = ALLOWED.filter(
+      (entry) => !entry.context && !entry.files && !SHAPE_EXEMPT.has(entry.match),
+    ).map((entry) => entry.match);
+    assert.deepEqual(
+      bare,
+      [],
+      `这些白名单既没有 context/files，也不在 SHAPE_EXEMPT 里 —— 散文里的同名英文会借它蒙混过关：${bare.join(" / ")}`,
+    );
+  });
+
+  it("编号 / 型号前缀整表带形状：散文里的同名英文一律变红，编号形状放行", () => {
+    // 一句话：`MIC` 只有在 `AV-MIC-S6` 里才是型号，`MIC 通道信号质量` 是散文。
+    // 上一轮只收紧了 `OTA` / `PTZ`，剩下的前缀全是裸 `match`，两张注入实测都绿 ——
+    // 所以这里把整张表逐条跑一遍，免得下一轮再冒出一个漏网的前缀。
+    const cases: Array<[match: string, prose: string, shaped: string]> = [
+      ["AV", "AV 接口极性反接", "AV-MIC-S6"],
+      ["MIC", "MIC 通道信号质量", "AV-MIC-S8-1001"],
+      ["CAM", "CAM 通道离线", "AV-CAM-360"],
+      ["GW", "GW 出口带宽", "AV-GW-200-2004"],
+      ["PT", "PT 点位通道信号质量", "PT-B1-1F01"],
+      ["AL", "AL 阈值下调", "AL-00037"],
+      ["EV", "EV 事件归档", "EV-20260145"],
+      ["IP", "IP 地址冲突", "IP-00008"],
+      ["DO", "DO 一次整机复位", "DO-0045"],
+      ["OT", "OT 升级窗口", "OT-0038"],
+      ["CF", "CF 阈值回滚", "CF-0002"],
+      ["MR", "MR 现场补录", "MR-0001"],
+      ["FP", "FP 相似度复核", "FP-0031"],
+      ["WO", "WO 工单派发", "WO-20261019-011"],
+      ["OTA", "OTA 批量升级：1 楼讯问室", "OTA-1001-1"],
+      ["PTZ", "PTZ 云台自动跟随", "AV-CAM-PTZ"],
+    ];
+    const data = "public/stream-monitor-data/incidents.json";
+    const missed: string[] = [];
+    for (const [match, prose, shaped] of cases) {
+      assert.deepEqual(matchesOf(prose), [match], `样本没命中「${match}」`);
+      assert.equal(
+        allowedIn(match, data, prose),
+        false,
+        `「${match}」在散文「${prose}」里被放行了 —— 它的白名单没有形状`,
+      );
+      if (!allowedIn(match, data, shaped)) missed.push(`${match} ⇎ ${shaped}`);
+    }
+    assert.deepEqual(missed, [], "编号 / 型号形状被错拦了，白名单写得太紧");
+  });
+
+  it("楼栋编码两种形状都对：`PT-SS-1F01` 与 `sites[].code` 原值放行，散文里的 `SS` 变红", () => {
+    assert.equal(
+      allowedIn("SS", "public/stream-monitor-data/alarms/shard-000.json", "PT-SS-1F01 告警"),
+      true,
+      "点位编号里的站点段必须放行（数据集里 400 多处）",
+    );
+    assert.equal(
+      allowedIn("SS", "public/stream-monitor-data/sites.json", "SS"),
+      true,
+      "`sites[].code` 原值是机器可读字段",
+    );
+    assert.equal(
+      allowedIn("SS", "components/av/pages/MonitorView.tsx", "SS 站点在线率"),
+      false,
+      "界面文案里的 `SS` 不是在编号形状里，必须变红",
+    );
   });
 
   it("事件标题里的「OTA 批量升级」已按数据集中文化，没有借编号白名单漏上屏", () => {
@@ -775,10 +1035,71 @@ describe("界面英文残留（BLF-1431）", () => {
   });
 
   it("模板插值里的常量名不算文案（否则 ${DEVICE_STREAM_TICK_SECONDS} 会被误报）", () => {
-    const line = '  subtitle={`每 ${DEVICE_STREAM_TICK_SECONDS} 秒刷新`},';
-    // 只留下静态文本，插值部分（常量名）被抹掉
-    assert.deepEqual(literalSegments(line), ["每  秒刷新"]);
-    assert.equal(UPPER_RUN.test(literalSegments(line).join("")), false);
+    const source = '  subtitle={`每 ${DEVICE_STREAM_TICK_SECONDS} 秒刷新`},';
+    // 只留下静态文本，插值部分（常量名）被抹掉；插值两侧各成一片
+    assert.deepEqual(
+      literalSegments(source).map((segment) => segment.text),
+      ["每 ", " 秒刷新"],
+    );
+    assert.equal(UPPER_RUN.test(literalSegments(source).map((segment) => segment.text).join("")), false);
+  });
+
+  // —— 跨行字面量（阻塞 5）————————————————————————————————————————
+
+  it("跨行模板字面量的静态文本也是文案：三行副标题里回填 `LIVE` 必须变红", () => {
+    // 本 Stage 自己改过的副标题就是这个形状（`DeviceView.tsx` 的在线率趋势面板），
+    // 逐行扫的话首行只有开引号、中间行没有引号、末行只有闭引号 —— 三行都扫不到。
+    const reverted = [
+      "export function Panel() {",
+      "  return (",
+      "    <AvPanel",
+      '      title="近 24 小时在线率趋势"',
+      "      subtitle={`每 2 小时一个采样点 · 末端为当前值（${",
+      '        motionEnabled ? `LIVE 每 30 秒刷新` : "静态模式"',
+      "      }）`}",
+      "    />",
+      "  );",
+      "}",
+    ].join("\n");
+    assert.deepEqual(
+      scanSourceText("components/av/pages/DeviceView.tsx", reverted).map(
+        (item) => `${item.line}: [${item.match}]`,
+      ),
+      // 行号指向命中真正所在的那一行（第 6 行），不是开引号那一行
+      ["6: [LIVE]"],
+    );
+
+    // 当前仓库的真实写法（副标题三行、内部全是中文）必须绿
+    const current = reverted.replace("LIVE 每 30 秒刷新", "每 30 秒刷新");
+    assert.deepEqual(scanSourceText("components/av/pages/DeviceView.tsx", current), []);
+  });
+
+  it("逐行扫不到的三行字面量（无插值）现在也扫得到", () => {
+    // 最朴素的一条：模板里没有任何 `${}`，纯粹因为换行而逐行扫不到
+    const source = ['const note = `第一行', "RSSI 第二行", "第三行`;"].join("\n");
+    assert.deepEqual(
+      scanSourceText("lib/av/view.ts", source).map((item) => `${item.line}: [${item.match}]`),
+      ["2: [RSSI]"],
+    );
+    // 单引号 / 双引号里的转义不再让整串变得不可见（旧正则把带 `\\` 的串整段跳过了）
+    assert.deepEqual(
+      scanSourceText("lib/av/view.ts", 'const s = "罚单 LIVE\\n";').map(
+        (item) => `${item.match}`,
+      ),
+      ["LIVE"],
+    );
+  });
+
+  it("字面量扫得到东西（不是空跑）", () => {
+    const texts = SOURCE_FILES.flatMap((file) =>
+      literalSegments(maskComments(readFileSync(file, "utf8"))).map((segment) => segment.text),
+    );
+    assert.ok(texts.length > 500, `只取到 ${texts.length} 段字面量，词法遍历大概率没进字符串`);
+    // 本 Stage 改的三行副标题必须被取到（旧逐行实现拿不到这一段）
+    assert.ok(
+      texts.some((text) => text.includes("每 2 小时一个采样点")),
+      "跨行副标题的静态文本没被取到",
+    );
   });
 
   // —— raw JSX 文本节点（阻塞 4）————————————————————————————————————————
@@ -814,6 +1135,46 @@ describe("界面英文残留（BLF-1431）", () => {
     assert.deepEqual(texts, ["记录", "中位"]);
     // 表达式里的常量名是代码，不产生 offender；属性值则由字符串字面量那一层负责
     assert.deepEqual(scanSourceText("components/av/pages/DeviceView.tsx", source), []);
+  });
+
+  it("标签属性里的 JSX children 也扫：`aside={<span>PERSON</span>}` 不再是盲区", () => {
+    const source = [
+      "export function Panel() {",
+      "  return (",
+      "    <AvPageHeader",
+      '      title="能力与场景"',
+      "      aside={<span className={s.chip}>PERSON 算法</span>}",
+      "      meta={<span>{count} 个站点</span>}",
+      "    />",
+      "  );",
+      "}",
+    ].join("\n");
+    assert.deepEqual(
+      scanSourceText("components/av/pages/CapabilityView.tsx", source).map(
+        (item) => `${item.line}: [${item.match}]`,
+      ),
+      ["5: [PERSON]"],
+    );
+    // 属性里的文本节点真的被取到了（不是空扫）：本仓库的 `aside` / `meta` 写法就是这一种
+    const texts = jsxTextSegments(maskComments(source)).map((segment) => segment.text.trim());
+    assert.deepEqual(texts, ["PERSON 算法", "个站点"]);
+
+    // 仓库里的真实写法（`CapabilityView.tsx` 的 `aside={<span>… 个算法 · … 显存</span>}`）必须绿
+    const real = [
+      "export function Panel() {",
+      "  return (",
+      "    <AvPageHeader",
+      '      title="能力与场景"',
+      "      aside={<span className={s.chip}>{formatCount(totals.algorithms)} 个算法 · {formatGb(totals.vram)} 显存</span>}",
+      "    />",
+      "  );",
+      "}",
+    ].join("\n");
+    assert.deepEqual(
+      jsxTextSegments(maskComments(real)).map((segment) => segment.text.trim()),
+      ["个算法 ·", "显存"],
+    );
+    assert.deepEqual(scanSourceText("components/av/pages/CapabilityView.tsx", real), []);
   });
 
   it("比较运算 / 泛型的尖括号不会被当成 JSX 文本", () => {
