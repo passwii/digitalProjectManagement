@@ -2897,6 +2897,26 @@ textarea,
   /* 列表 / 时间线的错峰步长，用 calc(var(--av-stagger-*) * var(--av-i)) 取延迟。 */
   --av-stagger-list: 45ms;
   --av-stagger-timeline: 90ms;
+  /*
+   * keyframes 名以 CSS 变量转发（BLF-1425）：CSS Module 的 postcss 会把
+   * `animation: avXxx` 里的名字也做本地化（生成 AvMotion_avXxx__hash），
+   * 而 keyframes 定义在 globals.css 里是全局名 —— 本地化后的名字找不到
+   * @keyframes，动画会**静默不执行**（实测 animation-name 不是 none，但 opacity
+   * 永远停在首帧）。把名字存进自定义属性后，module 里写 `var(--av-kf-xxx)`，
+   * 变量替换发生在计算值阶段、不经过本地化，名字仍然是全局的那一个。
+   * 守卫见 lib/av/monitorMotion.vitest.test.tsx。
+   */
+  --av-kf-live-pulse: avLivePulse;
+  --av-kf-live-ring: avLiveRing;
+  --av-kf-scan-sweep: avScanSweep;
+  --av-kf-scan-drop: avScanDrop;
+  --av-kf-noise: avNoiseShift;
+  --av-kf-roi: avRoiPulse;
+  --av-kf-detect: avDetectBox;
+  --av-kf-wave: avWaveBar;
+  --av-kf-channel-in: avChannelIn;
+  --av-kf-channel-out: avChannelOut;
+  --av-kf-grow-x: avGrowX;
   --av-ease-standard: cubic-bezier(0.2, 0.72, 0.2, 1);
   --av-ease-enter: cubic-bezier(0.16, 1, 0.3, 1);
   --av-ease-exit: cubic-bezier(0.4, 0, 1, 1);
@@ -3113,5 +3133,124 @@ textarea,
   }
   to {
     transform: scaleX(1);
+  }
+}
+
+/*
+ * /monitor 通道卡（BLF-1425）：LIVE 呼吸点 / 扫描线 / 波形 / 合成画面 / 筛选切换。
+ *
+ * ⚠️ 全部只动 transform / opacity —— 这一段的 keyframes 会被
+ *    motion.vitest.test.ts 的「关键帧只动 transform / opacity」逐条扫描。
+ *    颜色 / 时长不在这里写死：颜色取 --av-*，时长取 --av-dur-*。
+ */
+@keyframes avLivePulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.45;
+    transform: scale(0.78);
+  }
+}
+@keyframes avLiveRing {
+  from {
+    opacity: 0.5;
+    transform: scale(0.8);
+  }
+  to {
+    opacity: 0;
+    transform: scale(2.4);
+  }
+}
+@keyframes avScanSweep {
+  from {
+    transform: translateX(-110%);
+  }
+  to {
+    transform: translateX(310%);
+  }
+}
+@keyframes avScanDrop {
+  from {
+    transform: translateY(0);
+  }
+  to {
+    transform: translateY(350%);
+  }
+}
+@keyframes avNoiseShift {
+  0% {
+    transform: translate3d(0, 0, 0);
+  }
+  25% {
+    transform: translate3d(-2%, 1%, 0);
+  }
+  50% {
+    transform: translate3d(1%, -2%, 0);
+  }
+  75% {
+    transform: translate3d(2%, 2%, 0);
+  }
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+}
+@keyframes avRoiPulse {
+  0%,
+  100% {
+    opacity: 0.4;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.72;
+    transform: scale(1.015);
+  }
+}
+@keyframes avDetectBox {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, 0, 0) scale(0.94);
+  }
+  14% {
+    opacity: 0.92;
+    transform: translate3d(1px, -1px, 0) scale(1);
+  }
+  68% {
+    opacity: 0.86;
+    transform: translate3d(3px, -2px, 0) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate3d(6px, -4px, 0) scale(1.01);
+  }
+}
+@keyframes avWaveBar {
+  from {
+    transform: scaleY(0.45);
+  }
+  to {
+    transform: scaleY(1);
+  }
+}
+@keyframes avChannelIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes avChannelOut {
+  from {
+    opacity: 1;
+    transform: none;
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.985);
   }
 }

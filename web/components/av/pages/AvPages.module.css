@@ -574,10 +574,15 @@
 }
 
 .channel {
-  /* hover 上浮 + 边框提亮：进入 quick、离开 instant */
-  transition:
-    transform var(--av-dur-instant) var(--av-ease-exit),
-    border-color var(--av-dur-instant) var(--av-ease-exit);
+  /*
+   * hover 上浮 + 边框提亮：进入 quick、离开 instant。
+   *
+   * ⚠️ 基础态**只过渡 border-color**（BLF-1425）：筛选切换时 framer 的 `layout`
+   * 会逐帧写 inline transform 做 FLIP，如果这里还挂一条 transform 过渡，每一帧
+   * 的位移都会被 CSS 再插值一次 —— 观感是卡片「拖着走」而不是干脆地重排。
+   * hover 的 transform 过渡写在 :hover 里，离开时仍然瞬切（这正是即时反馈）。
+   */
+  transition: border-color var(--av-dur-instant) var(--av-ease-exit);
   display: grid;
   min-width: 0;
   min-height: var(--av-card-min-channel);
@@ -593,8 +598,9 @@
 .channel:focus-within {
   transform: translateY(-1px);
   border-color: var(--av-signal);
-  transition-duration: var(--av-dur-quick);
-  transition-timing-function: var(--av-ease-standard);
+  transition:
+    transform var(--av-dur-quick) var(--av-ease-standard),
+    border-color var(--av-dur-quick) var(--av-ease-standard);
 }
 
 .channelStage {
@@ -638,11 +644,45 @@
   letter-spacing: 0.08em;
 }
 
+/*
+ * LIVE 呼吸点（BLF-1425）：点自己在 opacity / scale 上呼吸，外面再挂一圈
+ * 扩散光环（::after）。两层都用 --av-dur-breathe（3s），只动 transform / opacity。
+ * 离线态由 data-live="off" 一次性变成静态灰点，光环直接隐藏。
+ */
 .channelLive i {
+  position: relative;
   width: 5px;
   height: 5px;
   border-radius: 50%;
   background: var(--av-danger);
+  animation: var(--av-kf-live-pulse) var(--av-dur-breathe) var(--av-ease-standard) infinite;
+}
+.channelLive i::after {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: var(--av-danger);
+  content: "";
+  animation: var(--av-kf-live-ring) var(--av-dur-breathe) var(--av-ease-exit) infinite;
+}
+.channelLive[data-live="off"] {
+  border-color: var(--av-divider);
+  background: var(--av-surface-soft);
+  color: var(--av-ink-3);
+}
+.channelLive[data-live="off"] i {
+  background: var(--av-ink-3);
+  animation: none;
+}
+.channelLive[data-live="off"] i::after {
+  display: none;
+}
+
+/* 时间码：等宽数字（每秒跳变时宽度不抖）；离线态不渲染这一截 */
+.channelLive [data-live-clock] {
+  color: var(--av-ink-3);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.04em;
 }
 
 .channelKind {
@@ -656,29 +696,7 @@
   letter-spacing: 0.08em;
 }
 
-.wave {
-  display: flex;
-  height: 54px;
-  align-items: center;
-  gap: var(--av-space-1);
-  padding: 0 var(--av-space-4);
-}
-
-.waveBar {
-  width: 3px;
-  min-height: 2px;
-  background: var(--av-signal);
-  opacity: 0.85;
-}
-
-.waveBar[data-idle="true"] {
-  background: var(--av-ink-3);
-}
-
-.cameraIcon {
-  color: var(--av-ink-2);
-  opacity: 0.7;
-}
+/* 波形与合成监控画面的皮肤在 motion/AvMotion.module.css（AvWaveform / AvVideoScene） */
 
 .channelMeta {
   display: grid;

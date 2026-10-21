@@ -148,3 +148,216 @@
 .clockTick {
   animation: avFadeIn var(--av-dur-quick) var(--av-ease-standard) both;
 }
+
+/* ==========================================================================
+   /monitor 通道卡的「画面层」（Stage 3 / BLF-1425）
+   ==========================================================================
+   这一组类由 AvWaveform / AvVideoScene 消费，负责「通道卡里那块 132px 的画面」：
+   LIVE 扫描线、参数化波形、合成监控画面。结构定位（`.channelStage` / `.channelLive`
+   的胶囊外观）仍在 AvPages.module.css；这里只管画面内部的动效与皮肤。
+
+   三条约束与上面一致：
+     · 时长一律 calc(var(--av-dur-*) * 倍率)，不出现毫秒字面量；
+     · 只动 transform / opacity（keyframes 在 globals.css，守卫会扫）；
+     · 颜色只用 --av-* 令牌，离线态的灰来自 --av-ink-3 / --av-divider。
+   ========================================================================== */
+
+/* ---------- 阶段扫描线（音频卡与视频卡共用） ---------- */
+
+/*
+ * 一条很淡的竖向光带从左向右扫过。宽度 34%，用 transform 把它送出画面 ——
+ * 不动 left/width，所以不进 layout。相位由卡片的 seed 决定（`--av-scan-phase`）。
+ */
+.stageScan {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 34%;
+  background: linear-gradient(90deg, transparent, var(--av-tone-signal-soft), transparent);
+  opacity: 0.55;
+  pointer-events: none;
+  animation: var(--av-kf-scan-sweep) calc(var(--av-dur-slow) * 6) linear
+    calc(var(--av-scan-phase, 0) * var(--av-dur-slow) * -1) infinite;
+}
+
+/* ---------- 参数化波形 ---------- */
+
+.wave {
+  display: flex;
+  height: 54px;
+  align-items: center;
+  gap: var(--av-space-1);
+  padding: 0 var(--av-space-4);
+}
+
+/*
+ * 柱高是最终值（inline height），动画只做 scaleY 的呼吸。
+ * 周期 = 3s（--av-dur-breathe）× 卡片级倍率；相位来自每根柱子的 --av-wave-delay。
+ * `alternate` 让柱子上下往复而不是跳变。
+ */
+.waveBar {
+  width: 3px;
+  min-height: 2px;
+  flex: 0 0 3px;
+  background: var(--av-signal);
+  opacity: 0.85;
+  transform-origin: center;
+  animation: var(--av-kf-wave) calc(var(--av-dur-breathe) * var(--av-wave-speed, 1))
+    var(--av-ease-standard) calc(var(--av-dur-breathe) * var(--av-wave-delay, 0) * -1) infinite
+    alternate;
+}
+
+/* 离线：压平、变灰、完全不挂动画变量（DOM 里连 --av-wave-delay 都没有） */
+.waveBarIdle {
+  width: 3px;
+  min-height: 2px;
+  flex: 0 0 3px;
+  background: var(--av-ink-3);
+  opacity: 0.45;
+}
+
+/* ---------- 合成监控画面 ---------- */
+
+.videoScene {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  background:
+    radial-gradient(90% 70% at 30% 0%, var(--av-tone-signal-soft), transparent 65%),
+    var(--av-surface-soft);
+}
+
+/* 静态网格底：24 × 18px 的经纬线，给画面一个「取景器」的底 */
+.videoGrid {
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(var(--av-divider-soft) 1px, transparent 1px),
+    linear-gradient(90deg, var(--av-divider-soft) 1px, transparent 1px);
+  background-size: 24px 18px;
+  opacity: 0.4;
+}
+
+/*
+ * 轻噪点：两层点阵叠在一起，整体平移（steps 让它是「跳」而不是「漂」，
+ * 更像传感器噪点）。inset 负值是为了平移时边缘不露白。
+ */
+.videoNoise {
+  position: absolute;
+  inset: -20%;
+  background-image:
+    radial-gradient(var(--av-ink-3) 0.5px, transparent 0.6px),
+    radial-gradient(var(--av-ink-3) 0.5px, transparent 0.6px);
+  background-size: 7px 9px, 11px 13px;
+  background-position: 0 0, 3px 5px;
+  opacity: 0.14;
+  animation: var(--av-kf-noise) calc(var(--av-dur-slow) * 2) steps(5) infinite;
+}
+
+/* 竖向扫描线：40% 高的一条亮带自上而下扫 */
+.videoScan {
+  position: absolute;
+  top: -40%;
+  right: 0;
+  left: 0;
+  height: 40%;
+  background: linear-gradient(to bottom, transparent, var(--av-tone-signal-soft), transparent);
+  opacity: 0.6;
+  animation: var(--av-kf-scan-drop) calc(var(--av-dur-slow) * 4) linear infinite;
+}
+
+/* ROI：虚线框 + 呼吸（缩放幅度极小，避免像「弹窗」） */
+.videoRoi {
+  position: absolute;
+  top: 30%;
+  left: 6%;
+  width: 28%;
+  height: 48%;
+  padding: var(--av-space-1);
+  border: 1px dashed var(--av-signal);
+  color: var(--av-signal);
+  font-family: var(--font-mono);
+  font-size: var(--av-text-tiny);
+  letter-spacing: 0.08em;
+  opacity: 0.55;
+  animation: var(--av-kf-roi) calc(var(--av-dur-slow) * 3) var(--av-ease-standard)
+    calc(var(--av-dur-slow) * var(--av-roi-delay, 0) * -1) infinite;
+}
+
+/* 检测框：错峰出现 + 轻微漂移；颜色按 tone 取系列色 */
+.videoBox {
+  position: absolute;
+  border: 1px solid var(--box-tone, var(--av-series-1));
+  opacity: 0;
+  animation: var(--av-kf-detect) calc(var(--av-dur-slow) * 4) var(--av-ease-standard)
+    calc(var(--av-dur-slow) * var(--av-box-phase, 0) * -1) infinite;
+}
+.videoBox[data-tone="1"] {
+  --box-tone: var(--av-series-1);
+}
+.videoBox[data-tone="4"] {
+  --box-tone: var(--av-series-4);
+}
+.videoBox[data-tone="8"] {
+  --box-tone: var(--av-series-8);
+}
+
+.videoBoxLabel {
+  position: absolute;
+  top: calc(var(--av-space-3) * -1);
+  left: -1px;
+  padding: 0 var(--av-space-1);
+  border: 1px solid var(--box-tone, var(--av-series-1));
+  background: var(--av-surface);
+  color: var(--box-tone, var(--av-series-1));
+  font-family: var(--font-mono);
+  font-size: var(--av-text-tiny);
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+}
+
+.videoMeta {
+  position: absolute;
+  bottom: var(--av-space-2);
+  left: var(--av-space-2);
+  color: var(--av-ink-3);
+  font-family: var(--font-mono);
+  font-size: var(--av-text-tiny);
+  letter-spacing: 0.08em;
+}
+
+/* 右下时间码：与 LIVE 块同源，等宽数字避免每秒抖动 */
+.videoClock {
+  position: absolute;
+  right: var(--av-space-2);
+  bottom: var(--av-space-2);
+  padding: 0 var(--av-space-1);
+  border: 1px solid var(--av-divider);
+  background: var(--av-surface-soft);
+  color: var(--av-ink-2);
+  font-family: var(--font-mono);
+  font-size: var(--av-text-tiny);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.06em;
+}
+
+/* ---------- 筛选切换：退场 / 入场 ---------- */
+
+/*
+ * 三段式由 MonitorView 的状态机驱动：
+ *   1. `data-filter-phase="exit"` → 现有卡片走 `avChannelOut`（quick + exit）；
+ *   2. 退场结束才替换列表，剩下的卡片由 framer 的 `layout` 做 FLIP 重排；
+ *   3. 新出现的卡片挂 `.channelEnter`（base + enter，按 --av-i 错峰 45ms）。
+ * `backwards` 而不是 `both`：播完必须把 transform 还给 framer，否则 FLIP 失效
+ * （与 .pageIn / .itemIn 同一个坑）。
+ */
+.channelEnter {
+  animation: var(--av-kf-channel-in) var(--av-dur-base) var(--av-ease-enter) backwards;
+  animation-delay: calc(var(--av-stagger-list) * var(--av-i, 0));
+}
+
+.channelGridExit > [data-motion="channel"] {
+  pointer-events: none;
+  animation: var(--av-kf-channel-out) var(--av-dur-quick) var(--av-ease-exit) both;
+}
