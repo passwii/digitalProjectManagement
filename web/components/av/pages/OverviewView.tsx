@@ -24,8 +24,10 @@ const INITIAL_STREAM_COUNT = 4;
 /**
  * KPI 数字的样式类（来自 AvUI.module.css）。
  *
- * 必须显式传给 `AvCounter`：`.metricValue span` 那条规则是给**单位**用的
- * （11px + 弱色），计数器渲染的 span 若不带这个类会被它命中，数字变成小号灰字。
+ * 必须显式传给 `AvCounter`：`.metricValue .metricNumber` 把字号 / 颜色 / 字重
+ * 全部 `inherit` 自 `<strong>`（`--av-text-kpi` + `--av-weight-figure` 800），
+ * 只保留等宽数字；计数器渲染的 span 若不带这个类，就没有显式继承链路可依。
+ * 单位的样式是另一个类 `.metricUnit`，两者互不命中。
  */
 const metricNumberClass = ui.metricNumber;
 
@@ -111,7 +113,8 @@ export default function OverviewView(props: OverviewProps) {
               data={props.daily}
               dataKeys={["alarms", "incidents"]}
               labels={["告警数", "事件数"]}
-              tones={["signal", "violet"]}
+              /* 数据系列色（BLF-1423）：青 / 紫 —— 同一张图里两条系列不再借用语义色 */
+              tones={["series-1", "series-3"]}
               height={AV_CHART_HEIGHT.lg}
               label="近 7 日告警与事件柱状图"
             />
@@ -120,7 +123,8 @@ export default function OverviewView(props: OverviewProps) {
               data={range === "today" ? props.todayTrend : props.trend}
               dataKeys={["alarms", "handled"]}
               labels={["告警数", "已处置"]}
-              tones={["signal", "success"]}
+              /* 青 / 水绿：两条线用系列色区分，而不是「signal / success」两套语义 */
+              tones={["series-1", "series-8"]}
               height={AV_CHART_HEIGHT.lg}
               label="告警趋势折线图"
             />
@@ -128,8 +132,8 @@ export default function OverviewView(props: OverviewProps) {
           <div className={s.chartFoot}>
             <AvLegend
               items={[
-                { label: "告警数", tone: "signal" },
-                { label: range === "week" ? "事件数" : "已处置", tone: range === "week" ? "violet" : "success" },
+                { label: "告警数", tone: "series-1" },
+                { label: range === "week" ? "事件数" : "已处置", tone: range === "week" ? "series-3" : "series-8" },
               ]}
             />
             <span className={s.softNote}>

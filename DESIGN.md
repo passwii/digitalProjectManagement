@@ -16,6 +16,19 @@ colors:
   dark-success: "#c6ff72"
   dark-neutral-state: "#9cb4c4"
   dark-data-violet: "#bda6ff"
+  dark-data-blue: "#7db4ff"
+  dark-data-magenta: "#ff8fc7"
+  dark-data-aqua: "#5ef0c8"
+  dark-data-lemon: "#c6ff72"
+  dark-surface-raised: "#13293c"
+  dark-series-cyan: "#6cf3ff"
+  dark-series-blue: "#7db4ff"
+  dark-series-violet: "#bda6ff"
+  dark-series-magenta: "#ff8fc7"
+  dark-series-coral: "#ff9a6a"
+  dark-series-amber: "#ffc46b"
+  dark-series-lemon: "#c6ff72"
+  dark-series-aqua: "#5ef0c8"
   light-canvas: "#f1f5f7"
   light-surface: "#ffffff"
   light-raised: "#e8eef2"
@@ -31,6 +44,19 @@ colors:
   light-success: "#356b4b"
   light-neutral-state: "#5e707d"
   light-data-violet: "#6d4cc2"
+  light-data-blue: "#2f5fbf"
+  light-data-magenta: "#a03b73"
+  light-data-aqua: "#17795f"
+  light-data-lemon: "#5f7a1f"
+  light-surface-raised: "#f3f7f9"
+  light-series-cyan: "#17617d"
+  light-series-blue: "#2f5fbf"
+  light-series-violet: "#6d4cc2"
+  light-series-magenta: "#a03b73"
+  light-series-coral: "#a23e39"
+  light-series-amber: "#805518"
+  light-series-lemon: "#5f7a1f"
+  light-series-aqua: "#17795f"
   light-control-border: "#82939e"
   light-action-border: "#adc95d"
   light-data-green: "#587839"
@@ -310,9 +336,11 @@ components:
 
 **圆角**：卡片类一律直角（`--av-radius-card: 0px`）；徽标 / 芯片类才走胶囊（`--av-radius-pill`）—— 胶囊是识别信号的一部分，不能丢。
 
-**字号层级**（只定档，不改视觉）：`--av-text-page`（页面标题）/ `--av-text-title`（卡片与抽屉标题）/ `--av-text-emphasis`（卡片内的等宽数字与计数，比正文重一档）/ `--av-text-panel`（面板标题与分级计数）/ `--av-text-body`（正文）/ `--av-text-note`（辅助说明）/ `--av-text-micro`（等宽微标注）/ `--av-text-tiny`（超小标注）/ `--av-text-figure`（状态格与环形图中心数字）/ `--av-text-kpi`（KPI 大数字）。
+**字号层级**（只定档，不改视觉）：`--av-text-page`（页面标题）/ `--av-text-title`（卡片与抽屉标题）/ `--av-text-emphasis`（卡片内的等宽数字与计数，比正文重一档）/ `--av-text-panel`（面板标题与非数字的分级标签）/ `--av-text-body`（正文）/ `--av-text-note`（辅助说明）/ `--av-text-micro`（等宽微标注）/ `--av-text-tiny`（超小标注）/ `--av-text-stat`（中号数字：榜单 / 进度条读数 / 分级计数 / 场景 KPI）/ `--av-text-figure`（状态格与环形图中心数字）/ `--av-text-kpi`（KPI 大数字）。
 
-档位是**齐全**的：站点实际用到的每个字号（9 / 10 / 11 / 12 / 13 / 14 / 15 / 22px，外加两个 clamp 档）都有一档令牌。缺一档的后果很具体 —— 改之前是 14px 的数字若没有对应档位，令牌化时只能被就近归到 12px，数字的视觉权重就被抹平了，而版面上看不出来。所以「只定档、不改视觉」不是一句承诺，是有机器逐条比对的：令牌化前后的**渲染像素值**必须完全一致（由 `web/lib/av/avFontSizes.vitest.test.ts` 的渲染等价守卫守着）。
+档位是**齐全**的：站点实际用到的每个字号（9 / 10 / 11 / 12 / 13 / 14 / 15 / 16 / 26px，外加两个 clamp 档）都有一档令牌。缺一档的后果很具体 —— 改之前是 14px 的数字若没有对应档位，令牌化时只能被就近归到 12px，数字的视觉权重就被抹平了，而版面上看不出来。所以「只定档、不改视觉」不是一句承诺，是有机器逐条比对的：令牌化前后的**渲染像素值**必须完全一致（由 `web/lib/av/avFontSizes.vitest.test.ts` 的渲染等价守卫守着）。
+
+> **一处有意例外：数字档被抬过一档。** 用户反馈「多色数字这一块，数字的大小和粗细需要加粗几次才更好看」，于是 `--av-text-kpi`、`--av-text-figure`、`--av-text-stat` 这一组数字档和 `--av-weight-figure / --av-weight-stat` 这两个字重令牌是**刻意**比基线更大的。基线里这几条登记的是新值、旧值写在行内注释里，另有「数字醒目档」的用例守住它们不许回退。做法见下一节。
 
 **图表高度**是内容容器的量纲，独立于控件基线，只三档：248px（主图：趋势 / 柱状）/ 176px（次图：环形占比、信号曲线）/ 128px（小图：抽屉里的迷你图）。档位定义在 `web/lib/av/chartHeights.ts`（页面里只引用 `AV_CHART_HEIGHT.lg / md / sm`，不写裸数字），同一行内的图表卡用同一档。
 
@@ -321,6 +349,76 @@ components:
 这套规格由 `web/lib/av/avLayoutTokens.vitest.test.ts`（间距刻度、卡片圆角、同类卡片等高、栅格对齐、图表高度档位）与 `web/lib/av/avFontSizes.vitest.test.ts`（字号档位齐全、无裸字面量、渲染等价）守着，实测由 `scripts/av-layout-shoot.mjs`（走查五个断点 × 深浅两主题）与 `scripts/av-layout-overflow.mjs`（等高策略会不会让内容溢出）完成。
 
 **卡片溢出的判定口径**（`scripts/av-layout-overflow.mjs` 用它，`web/lib/av/avOverflowRule.vitest.test.ts` 守它）：卡片的内容**超出自己的盒子**就算失败 —— 判据是任一轴的 `scrollHeight/Width` 与 `clientHeight/Width` 之差超过 1px 容差，**不看 `overflow` 计算值**。理由：那六个卡片族在受管 CSS 里一条 `overflow` 都没设（默认 `visible`），若把「是否溢出」挂在「`overflow` ∈ {hidden, clip, auto, scroll}」上，这一半判定**永远不会成立** —— 内容真的溢出盒子时工具反而报绿灯。内容是被裁、可滚动还是溢出到盒子外，只影响报告里的措辞，不影响「算不算失败」。判定逻辑放在 `scripts/lib/avOverflowRule.mjs`，脚本与守卫共用同一份，不会各自漂移。
+
+### 演示站点的色彩体系与动效节奏
+
+`/stream-monitor` 是对外演示用的产品界面，色彩要「丰富、可分」而不是「克制、少色」。但多色不等于多套色值：颜色仍然只有**一个真源** `web/app/globals.css`，组件里不出现任何 `#hex` / `rgb()`（由 `web/lib/avSourceGuard.vitest.test.ts` 守着）。这一节说明 AV 站点在既有语义色之外多出来的两组东西。
+
+**数据系列色（8 档）**。语义色（危险 / 警告 / 完成 / 信号 / 执行 / 数据紫 / 中性）只回答「这是什么状态」，多系列图表要的是「这条线是第几条」，所以另起一组 `--av-series-1..8`：
+
+| 令牌 | 色相 | 深色 | 浅色 | 典型用途 |
+| --- | --- | --- | --- | --- |
+| `--av-series-1` | 青 | `--brand` | `--brand` | 主系列（告警量 / 第一条线） |
+| `--av-series-2` | 蓝 | `--data-blue` | `--data-blue` | 对比系列 |
+| `--av-series-3` | 紫 | `--data-violet` | `--data-violet` | 事件 / 次维度 |
+| `--av-series-4` | 品红 | `--data-magenta` | `--data-magenta` | 第三、第四条线 |
+| `--av-series-5` | 珊瑚 | `--danger` | `--danger` | 下降 / 异常趋势 |
+| `--av-series-6` | 琥珀 | `--warn` | `--warn` | 接近阈值的系列 |
+| `--av-series-7` | 柠檬 | `--data-lemon` | `--data-lemon` | 增量 / 新系列 |
+| `--av-series-8` | 水绿 | `--data-aqua` | `--data-aqua` | 已处置 / 健康度 |
+
+两条规则：
+
+- **语义色不借给数据系列，系列色不借给状态**。告警级别、设备状态、算法状态永远用语义色；图表里「第 N 条系列」用系列色。这样「珊瑚」在页面上只有一种含义。
+- **系列色在两种主题下都必须对卡片底保持 ≥ 3:1 对比度**（图表线不是文字，3:1 是可见性下限）。所以柠檬没有复用 `--action`（浅色下它是按钮底色，`#c6df7b` 画在白底上几乎看不见），而是单独给了 `--data-lemon`。这条由 `web/lib/av/avColorTokens.vitest.test.ts` 逐档计算守着。
+
+组件入口统一在 `web/lib/av/tone.ts`：`toneVar(tone)` 产出 `var(--av-tone-*)`，`seriesVar(n)` 产出 `var(--av-series-n)`，`colorVar(tone | "series-n")` 是两者共用的入口 —— 页面不需要知道某个颜色属于哪一组。
+
+**KPI 数字与色条同色**。度量卡、状态格、图例里的数字跟随自己的颜色（`--metric-tone` / `--tone`），左边 2px 色条、图标、数字三者同色；**卡片底色保持中性**。这是「卡片克制、数字醒目」的具体做法：一屏四个 KPI，靠数字和色条区分类别，靠底色区分只会变成满屏色块。
+
+**数字排版（数字醒目档）**。颜色之外，数字的**大小与字重**也要撑得起「一屏第一眼」：等宽字体上 600 的字重看着偏细（JetBrains Mono / Menlo 的 600 都落在 Regular 与 Bold 之间），所以数字单独成一套三级字号 + 三档字重：
+
+| 档位 | 字号 | 字重 | 用在哪 |
+| --- | --- | --- | --- |
+| KPI | `--av-text-kpi` = `clamp(26px, 2.4vw, 34px)` | `--av-weight-figure` = 800 | 度量卡大数字（93.3 / 50 / 36 / 4.2） |
+| 中号 | `--av-text-stat` = 16px | `--av-weight-stat` = 700 | 榜单读数、进度条读数、分级计数、场景 KPI、图例数值 |
+| 图心 | `--av-text-figure` = 26px | `--av-weight-figure` = 800 | 状态格数值、环形图中心数字 |
+| 注解 | 跟着数字走一档 | `--av-weight-emphasis` = 600 | KPI 单位（`%` / `条`）、分级行的「未处置 N」 |
+
+三条配套约定：
+
+- **字重也只走令牌**：组件里不写 `font-weight: 600` 这类裸数字，改档位只动 `globals.css` 一处 —— 这条对**注解**同样成立，没有例外条款；
+- **单位跟着数字走一档**（KPI 单位 11 → 14px、`未处置 N` 10 → 12px）：34px 的数字旁边挂 11px 的「%」会浮成脚注，数字再大也读不成一组；
+- **数字与单位各用各的类，不用裸后代选择器**：数字是 `.metricNumber`（`font-size` / `color` / `font-weight` 全部 `inherit` 自 `<strong>`），单位是 `.metricUnit`。
+
+  最后这条不是风格洁癖。单位曾经写成 `.metricValue span` —— 它照样会命中 `<strong>` 里计数器渲染的 `span.metricNumber`，而数字规则当时没写字重，于是单位的 600 成了唯一生效的声明，**首页 KPI 主数字实际上并没有加粗**，而「某条规则写了 800」这类断言照旧是绿的。现在这段由一份**按 CSS 级联推演**的守卫守着（`avFontSizes.vitest.test.ts` 的「数字字重级联」）：它收集所有能命中 `metricValue → strong → span.metricNumber` 的 `font-weight` 声明，按（特异性 → 源码顺序）选出胜出者、沿祖先链解析 `inherit`，最终断言浏览器里实际是 800；同时把两道防线分别撤掉，验证退化版会落回 600。
+
+这一组由 `web/lib/av/avFontSizes.vitest.test.ts` 的「数字醒目档」用例守着：令牌值、每个数字元素消费的字重令牌、中号数字档的消费方数量，任何一项被调回旧值都会变红。
+
+**分层表面与每页光晕**。改之前暗色只有 `#07131f`（底）与 `#0d1d2c`（卡）两个值，整屏一个深蓝平板。现在表面分三档，并且每个页面有一档自己的极淡光晕：
+
+| 令牌 | 深色 | 浅色 | 用途 |
+| --- | --- | --- | --- |
+| `--av-surface-1` | `#07131f` | `#f1f5f7` | 页面底（画布） |
+| `--av-surface-2` | `#0d1d2c` | `#ffffff` | 卡片 / 面板 / 状态格 |
+| `--av-surface-3` | `#13293c` | `#f3f7f9` | 抬升面：表头、面板头、hover |
+
+光晕（页面底色上的 `radial-gradient`，暗色是 8% 左右的洗色，浅色是同色系浅底）：`--av-tint-overview` 青 / `--av-tint-monitor` 紫 / `--av-tint-alarm` 珊瑚 / `--av-tint-event` 琥珀 / `--av-tint-device` 柠檬绿。它们全部是既有 soft 底色的别名，因此深浅主题自动跟随，不需要在浅色块里再抄一份值。
+
+**动效节奏（演示档）**。对外讲解时，观众要**看得见**动效在发生：240ms 的面板入场在投影上几乎一帧结束，看不出错峰与层次。所以主力档与慢档放慢，操作反馈档不动（变慢就是发黏）：
+
+| 令牌 | 值 | 用途 |
+| --- | --- | --- |
+| `--av-dur-instant` | 90ms | 按下 / 开关 / 焦点环 |
+| `--av-dur-quick` | 160ms | hover / 徽标变更 / 退场 |
+| `--av-dur-base` | 300ms | 抽屉、面板入场、Tab 切换 |
+| `--av-dur-slow` | 600ms | 页面级入场、图表入场、KPI 滚动 |
+| `--av-stagger-list` | 45ms | 列表错峰步长（前 10 项） |
+| `--av-stagger-timeline` | 90ms | 时间线节点错峰 |
+
+0.65s 是慢档的硬上限：再慢就会被读成卡顿。`?static=1`（截图 / 录屏）与 `prefers-reduced-motion: reduce` 下所有时长归零、动画包装不渲染，同一 URL 连拍三次必须逐字节一致；数值契约由 `web/lib/av/motion.vitest.test.ts` 钉死。
+
+**图表尺寸的隐藏契约**。recharts 的 `ResponsiveContainer` 以 `height: 100%` 向上找「有确定高度的父节点」，中间任何一层包裹节点只写 `animation` 而不写高度，整张图就会量到 0×0 后什么都不画（BLF-1423 的 P0：告警趋势、7 日柱状、设备抽屉的信号曲线全部空白，而自带 inline 高度的环形图仍然可见）。现在的口径是：**档位高度只由 `ChartFrame` 的 `.frame`（inline `height`）提供，包裹层 `.skeletonSwap` 负责传递 `100%`**，两处不重复打补丁。这条由 `web/lib/av/chartFrameHeight.vitest.test.tsx` 守着 —— 既有源码断言（`.skeletonSwap` 必须有 `height: 100%`），也有真实渲染后的祖先链断言（含 `?static=1` 那条不套包裹层的分支）。
 
 ## Do's and Don'ts
 

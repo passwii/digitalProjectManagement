@@ -46,8 +46,9 @@
 .donutCenter strong {
   color: var(--av-ink);
   font-family: var(--font-mono);
+  /* 环心数字是这张卡的「读数」，与 KPI / 状态格同一套数字档（BLF-1423 跟进） */
   font-size: var(--av-text-figure);
-  font-weight: 600;
+  font-weight: var(--av-weight-figure);
   font-variant-numeric: tabular-nums;
   letter-spacing: -0.03em;
 }

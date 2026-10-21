@@ -31,6 +31,37 @@
   gap: var(--av-gap-section);
   min-width: 0;
   max-width: 1760px;
+  /*
+   * 每页一档的极淡光晕（BLF-1423）：颜色取 --av-page-tint（下面对每个
+   * data-av-page 各映射一档），只画在页面底上，卡片底色不跟着变色。
+   * 暗色下它是 8% 左右的半透明洗色，浅色下是同色系浅底 —— 两边都自动跟随主题。
+   * 渐变本身不含色值（颜色全部来自 var），所以不违反「颜色只走令牌」。
+   */
+  background-image: radial-gradient(
+    120% 55% at 8% -12%,
+    var(--av-page-tint, transparent),
+    transparent 62%
+  );
+}
+
+.page[data-av-page="overview"] {
+  --av-page-tint: var(--av-tint-overview);
+}
+
+.page[data-av-page="monitor"] {
+  --av-page-tint: var(--av-tint-monitor);
+}
+
+.page[data-av-page="alarm"] {
+  --av-page-tint: var(--av-tint-alarm);
+}
+
+.page[data-av-page="event"] {
+  --av-page-tint: var(--av-tint-event);
+}
+
+.page[data-av-page="device"] {
+  --av-page-tint: var(--av-tint-device);
 }
 
 .gridTwo {
@@ -190,13 +221,18 @@
 .levelTotal {
   color: var(--av-ink);
   font-family: var(--font-mono);
-  font-size: var(--av-text-panel);
+  /* 分级数字走中号数字档（BLF-1423 跟进：13px/400 → 16px/700） */
+  font-size: var(--av-text-stat);
+  font-weight: var(--av-weight-stat);
   font-variant-numeric: tabular-nums;
 }
 
 .levelSub {
   color: var(--av-ink-3);
-  font-size: var(--av-text-micro);
+  /* 跟「今日 N」同一行，字号不能差得太离谱（10 → 12px，BLF-1423 跟进） */
+  font-size: var(--av-text-body);
+  /* 字重也走令牌（BLF-1423 复审）：它是数字旁的注解，比 .levelTotal 的 700 轻一档 */
+  font-weight: var(--av-weight-emphasis);
   white-space: nowrap;
 }
 
@@ -311,7 +347,9 @@
 .gpuValue {
   color: var(--av-ink);
   font-family: var(--font-mono);
-  font-size: var(--av-text-note);
+  /* 利用率是这一行的主读数，跟数字档走（11 → 14px，BLF-1423 跟进） */
+  font-size: var(--av-text-emphasis);
+  font-weight: var(--av-weight-stat);
   font-variant-numeric: tabular-nums;
   text-align: right;
 }
@@ -454,7 +492,9 @@
 .rankNum {
   color: var(--av-ink);
   font-family: var(--font-mono);
-  font-size: var(--av-text-body);
+  /* 榜单数字是这一屏里最需要「被比较」的数字，走中号字数字档（BLF-1423 跟进） */
+  font-size: var(--av-text-stat);
+  font-weight: var(--av-weight-stat);
   font-variant-numeric: tabular-nums;
   text-align: right;
 }
@@ -1394,7 +1434,7 @@
   min-height: var(--av-card-min-status);
   padding: var(--av-pad-card);
   border: 1px solid var(--av-divider);
-  background: var(--av-surface);
+  background: var(--av-surface-2);
 }
 
 .statusCell span {
@@ -1403,12 +1443,15 @@
 }
 
 .statusCell strong {
-  color: var(--av-ink);
+  /* 与 KPI 同一手法（BLF-1423）：数字取格子自带的 --metric-tone；
+     未给 tone 的格子回落到正文色，不影响其它页面。
+     字号 / 字重同 KPI 一样走数字档（BLF-1423 跟进）。 */
+  color: var(--metric-tone, var(--av-ink));
   font-family: var(--font-mono);
   font-size: var(--av-text-figure);
-  font-weight: 600;
+  font-weight: var(--av-weight-figure);
   font-variant-numeric: tabular-nums;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.03em;
 }
 
 .statusCell small {
@@ -1575,8 +1618,8 @@
 .sceneKpis strong {
   color: var(--av-ink);
   font-family: var(--font-mono);
-  font-size: var(--av-text-emphasis);
-  font-weight: 600;
+  font-size: var(--av-text-stat);
+  font-weight: var(--av-weight-stat);
   font-variant-numeric: tabular-nums;
 }
 

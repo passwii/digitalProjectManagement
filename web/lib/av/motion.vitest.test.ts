@@ -39,12 +39,18 @@ function globalsCss(): string {
 }
 
 describe("动效令牌：四档时长 + 三条曲线", () => {
-  it("四档时长严格递增，且最长不超过 0.5s", () => {
+  it("四档时长严格递增，最长不超过演示档的 0.65s", () => {
     expect(AV_MOTION.instant).toBeLessThan(AV_MOTION.quick);
     expect(AV_MOTION.quick).toBeLessThan(AV_MOTION.base);
     expect(AV_MOTION.base).toBeLessThan(AV_MOTION.slow);
-    // §五 反面清单：超过 0.5s 的入场动画会被等得不耐烦
-    expect(AV_MOTION.slow).toBeLessThanOrEqual(0.5);
+    /*
+     * BLF-1422 / BLF-1423：这个站点是对外演示，节奏从「商务克制」改成「看得见」，
+     * slow 从 0.42 放到 0.60，上限从 0.5 提到 0.65。仍然是硬上限（不是「越慢越好」）：
+     * 700ms 以上的入场会被读成卡顿，而 600ms 刚好能让观众看清错峰与描边。
+     */
+    expect(AV_MOTION.slow).toBeLessThanOrEqual(0.65);
+    // 演示档的具体取值锁定，避免以后又悄悄退回商务档
+    expect(AV_MOTION).toMatchObject({ instant: 0.09, quick: 0.16, base: 0.3, slow: 0.6 });
   });
 
   it("三条曲线都是合法的 cubic-bezier（x 在 0..1，共 4 个数）", () => {
@@ -61,6 +67,9 @@ describe("动效令牌：四档时长 + 三条曲线", () => {
   });
 
   it("错峰：前 10 项递增，第 11 项起不再延迟，长列表整段关闭", () => {
+    // 演示档步长 45ms（BLF-1423）：前 10 条走完 0.45s，正好落在 base（0.30）之后、slow 之内
+    expect(AV_STAGGER.list).toBe(0.045);
+    expect(AV_STAGGER.timeline).toBe(0.09);
     expect(avStaggerSeconds(0, 50)).toBe(0);
     expect(avStaggerSeconds(1, 50)).toBeCloseTo(AV_STAGGER.list, 6);
     expect(avStaggerSeconds(9, 50)).toBeCloseTo(AV_STAGGER.list * 9, 6);

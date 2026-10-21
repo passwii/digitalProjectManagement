@@ -15,6 +15,7 @@ import { toAbsolute, toRelative } from "@/lib/av/time";
 import { AvBar, AvEmpty, AvKV, AvLegend, AvPageHeader, AvPanel, AvStatusBadge } from "@/components/av/AvUI";
 import { AvDonut, AvSignalChart } from "@/components/av/AvCharts";
 import { attentionAgeText } from "@/lib/av/view";
+import { toneVar } from "@/lib/av/tone";
 import { AV_CHART_HEIGHT } from "@/lib/av/chartHeights";
 import AvGlyph from "@/components/av/AvGlyph";
 import AvTabs from "@/components/av/AvTabs";
@@ -99,22 +100,22 @@ export default function DeviceView({ devices, summary }: DeviceViewProps) {
       />
 
       <div className={s.statusGrid}>
-        <div className={s.statusCell}>
+        <div className={s.statusCell} style={{ "--metric-tone": toneVar("signal") } as React.CSSProperties}>
           <span>设备总数</span>
           <strong>{formatCount(summary.total)}</strong>
           <small>覆盖 {summary.bySite.length} 个站点</small>
         </div>
-        <div className={s.statusCell}>
+        <div className={s.statusCell} style={{ "--metric-tone": toneVar("success") } as React.CSSProperties}>
           <span>在线</span>
           <strong>{formatCount(summary.online)}</strong>
           <small>{formatPercent((summary.online / Math.max(1, summary.total)) * 100)} 在线率</small>
         </div>
-        <div className={s.statusCell}>
+        <div className={s.statusCell} style={{ "--metric-tone": toneVar("danger") } as React.CSSProperties}>
           <span>离线</span>
           <strong>{formatCount(summary.offline)}</strong>
           <small>需现场核查</small>
         </div>
-        <div className={s.statusCell}>
+        <div className={s.statusCell} style={{ "--metric-tone": toneVar("warning") } as React.CSSProperties}>
           <span>维护中</span>
           <strong>{formatCount(summary.maintenance)}</strong>
           <small>计划内停机</small>

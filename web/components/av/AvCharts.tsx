@@ -21,7 +21,8 @@ import {
   YAxis,
 } from "recharts";
 import { useTheme } from "@/components/theme/ThemeProvider";
-import type { AvTone } from "@/lib/av/labels";
+import type { AvColorTone, AvSeriesIndex } from "@/lib/av/tone";
+import { AV_SERIES_INDEXES, isSeriesTone, seriesIndexOf } from "@/lib/av/tone";
 import { AV_CHART_HEIGHT } from "@/lib/av/chartHeights";
 import s from "./AvCharts.module.css";
 
@@ -40,6 +41,10 @@ import s from "./AvCharts.module.css";
  *     `isAnimationActive` 直接为 false —— 截图必须稳定，同一页连拍 3 次 MD5 一致；
  *   · `animationBegin` 按系列错峰一点点（第二系列晚 80ms 起步），两条线不会
  *     像同一个动画复制的；饼图整体一次扫过。
+ *
+ * 多色（BLF-1423）：`tones` 接受 `AvTone | AvSeriesTone`（见 lib/av/tone.ts）——
+ *   语义色用于「这条线就是某级告警 / 某个状态」，多系列对比用 `series-1..8`，
+ *   于是图表不再把 8 条数据挤进 7 个语义色循环。
  */
 
 interface Palette {
@@ -55,9 +60,11 @@ interface Palette {
   surface: string;
   ink: string;
   inkSoft: string;
+  /** `series[i]` 对应 `--av-series-${i + 1}`，运行时从令牌读到的真实色值。 */
+  series: string[];
 }
 
-const TOKEN_MAP: Record<keyof Palette, string> = {
+const TOKEN_MAP: Record<Exclude<keyof Palette, "series">, string> = {
   signal: "--av-signal",
   danger: "--av-danger",
   warning: "--av-warning",
@@ -88,9 +95,13 @@ export function useAvPalette(): Palette | null {
     const read = () => {
       const styles = getComputedStyle(document.documentElement);
       const next = {} as Palette;
-      for (const key of Object.keys(TOKEN_MAP) as (keyof Palette)[]) {
+      for (const key of Object.keys(TOKEN_MAP) as Exclude<keyof Palette, "series">[]) {
         next[key] = styles.getPropertyValue(TOKEN_MAP[key]).trim();
       }
+      // 系列色单独读：8 条同构令牌没必要在 TOKEN_MAP 里手写 8 行
+      next.series = AV_SERIES_INDEXES.map((index) =>
+        styles.getPropertyValue(`--av-series-${index}`).trim(),
+      );
       setPalette(next);
     };
     read();
@@ -100,16 +111,18 @@ export function useAvPalette(): Palette | null {
   return palette;
 }
 
-function toneColor(palette: Palette, tone: AvTone): string {
-  return {
-    signal: palette.signal,
-    danger: palette.danger,
-    warning: palette.warning,
-    violet: palette.violet,
-    neutral: palette.neutral,
-    success: palette.success,
-    action: palette.action,
-  }[tone];
+function toneColor(palette: Palette, tone: AvColorTone): string {
+  if (isSeriesTone(tone)) {
+    const index = seriesIndexOf(tone);
+    // 令牌缺失时退回信号青，而不是给出空字符串（SVG 会变成黑色、深浅主题都看不清）
+    return palette.series[index - 1] || palette.signal;
+  }
+  return palette[tone];
+}
+
+/** 图表系列色（供页面 / 测试引用）：`series-1` … `series-8`。 */
+export function seriesTone(index: AvSeriesIndex): AvColorTone {
+  return `series-${index}` as const;
 }
 
 /**
@@ -187,7 +200,7 @@ export function AvTrendChart({
   data: Record<string, string | number>[];
   dataKeys: [string, string];
   labels: [string, string];
-  tones: [AvTone, AvTone];
+  tones: [AvColorTone, AvColorTone];
   height?: number;
   label: string;
 }) {
@@ -261,7 +274,7 @@ export function AvBarChart({
   data: Record<string, string | number>[];
   dataKeys: [string, string];
   labels: [string, string];
-  tones: [AvTone, AvTone];
+  tones: [AvColorTone, AvColorTone];
   height?: number;
   label: string;
 }) {
@@ -311,7 +324,7 @@ export function AvBarChart({
 export interface DonutDatum {
   label: string;
   value: number;
-  tone: AvTone;
+  tone: AvColorTone;
 }
 
 /** 环形占比：场景分布 / 告警分级 / 设备状态。中心文案由调用方给。 */

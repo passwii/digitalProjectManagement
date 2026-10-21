@@ -30,6 +30,17 @@
  --danger: #ff9a6a;
  --danger-bg: rgba(255, 154, 106, 0.09);
  --data-violet: #bda6ff;
+ /*
+   * AV 站点数据系列色的补色（BLF-1423）：既有语义色只覆盖品牌青 / 柠檬 / 琥珀 /
+   * 珊瑚 / 数据紫，多系列图表还需要蓝、品红、水绿三档。与 --data-violet 同一性质
+   * （数据系列色，不是状态色），所以在主令牌层定义一次、由 --av-series-* 别名消费。
+   */
+ --data-blue: #7db4ff;
+ --data-magenta: #ff8fc7;
+ --data-aqua: #5ef0c8;
+ /* 柠檬是唯一不能直接复用 --action 的系列色：--action 在浅色主题下是按钮底色
+    （#c6df7b），拿它画白底上的折线几乎看不见，所以单独给一档可读的柠檬。 */
+ --data-lemon: #c6ff72;
  --done: #c6ff72;
  --done-bg: rgba(198, 255, 114, 0.09);
  --paused: #9cb4c4;
@@ -50,6 +61,9 @@
  --on-brand: #07131f;
  --on-danger: #07131f;
  --th-bg: rgba(13, 29, 44, 0.72);
+ /* 抬升表面（BLF-1423）：暗色原本只有 --bg / --card 两档，第三档给表头与面板头用，
+    让「底 → 卡 → 抬升」有层次，而不是整屏同一个深蓝。 */
+ --card-lift: #13293c;
  --row-hover: rgba(108, 243, 255, 0.05);
  --line-blue: rgba(108, 243, 255, 0.34);
  --line-warn: rgba(255, 196, 107, 0.42);
@@ -155,6 +169,10 @@
  --danger: #a23e39;
  --danger-bg: #f7eae8;
  --data-violet: #6d4cc2;
+ --data-blue: #2f5fbf;
+ --data-magenta: #a03b73;
+ --data-aqua: #17795f;
+ --data-lemon: #5f7a1f;
  --done: var(--success-ink);
  --done-bg: #e9f2eb;
  --paused: #5e707d;
@@ -163,6 +181,7 @@
  --on-brand: #f4f8fa;
  --on-danger: #ffffff;
  --th-bg: #e8eef2;
+ --card-lift: #f3f7f9;
  --row-hover: #edf2f5;
  --line-blue: rgba(23, 97, 125, .34);
  --line-warn: rgba(128, 85, 24, .42);
@@ -2676,6 +2695,42 @@ textarea,
   --av-tone-neutral-soft: var(--todo-bg);
   --av-tone-success: var(--av-success);
   --av-tone-success-soft: var(--done-bg);
+
+  /*
+   * 数据系列色（BLF-1423）：图表 / 分布条从这里循环取色，不再只挤在 7 个语义
+   * tone 上 —— 语义色（danger / warning / success）留给状态，多系列数据用这一组。
+   *   1 青 / 2 蓝 / 3 紫 / 4 品红 / 5 珊瑚 / 6 琥珀 / 7 柠檬 / 8 水绿
+   * 全部是别名：深浅主题由主工作台令牌各自映射（--brand / --data-* / --danger …），
+   * AV 分层不出现色值，` :root[data-theme="light"] ` 不需要再抄一份。
+   */
+  --av-series-1: var(--brand);
+  --av-series-2: var(--data-blue);
+  --av-series-3: var(--data-violet);
+  --av-series-4: var(--data-magenta);
+  --av-series-5: var(--danger);
+  --av-series-6: var(--warn);
+  --av-series-7: var(--data-lemon);
+  --av-series-8: var(--data-aqua);
+
+  /*
+   * 分层表面（BLF-1423）：底 → 卡 → 抬升。
+   * 暗色曾经只有 #07131f（底）与 #0d1d2c（卡）两个值，整屏一个深蓝平板；
+   * 这里定三档，表头 / 面板头 / hover 走第三档，层级才看得出来。
+   */
+  --av-surface-1: var(--bg);
+  --av-surface-2: var(--card);
+  --av-surface-3: var(--card-lift);
+
+  /*
+   * 每页一档的极淡光晕（页底色，不是卡片底色）。
+   * 复用既有 soft 底色：暗色是 8% 左右的半透明洗色，浅色是同色系浅底，
+   * 所以深浅主题自动跟着走，页面之间靠色相区分而不改卡片底色。
+   */
+  --av-tint-overview: var(--brand-soft);
+  --av-tint-monitor: var(--violet-soft);
+  --av-tint-alarm: var(--danger-bg);
+  --av-tint-event: var(--warn-bg);
+  --av-tint-device: var(--done-bg);
 }
 
 /* ==========================================================================
@@ -2778,17 +2833,37 @@ textarea,
    * 只定档、不改视觉：每一档对应一个**改之前就存在**的字号，
    * 令牌化不得让任何一处渲染像素发生变化（由 avFontSizes.vitest.test.ts
    * 的「字号档位覆盖站点实际用到的字号」+「渲染等价」守卫守着）。
+   *
+   * ⚠️ 数字三档（kpi / figure / stat）在 BLF-1423 跟进里被**刻意**调大调粗：
+   * 用户反馈「多色数字令牌这块，数字的大小和粗细需要加粗几次才更好看」。
+   * 所以那三处字号不再等于基线像素值 —— 基线在 avFontSizes.vitest.test.ts 里
+   * 逐条登记为「有意变更」，并由「数字醒目档不许回退」的用例守住新值。
    */
   --av-text-page: clamp(20px, 2.1vw, 26px); /* 页面标题 h1 */
   --av-text-title: 15px; /* 卡片 / 抽屉标题 */
   --av-text-emphasis: 14px; /* 卡片内的等宽数字 / 计数（比正文重一档） */
-  --av-text-panel: 13px; /* 面板标题 / 分级计数 */
+  --av-text-panel: 13px; /* 面板标题 / 非数字的分级标签 */
   --av-text-body: 12px; /* 正文 */
   --av-text-note: 11px; /* 辅助说明 */
   --av-text-micro: 10px; /* 等宽微标注 / 编号 / 时间戳 */
   --av-text-tiny: 9px; /* 超小标注（热力轴 / 通道角标） */
-  --av-text-figure: 22px; /* 状态格数值 / 环形图中心数字 */
-  --av-text-kpi: clamp(22px, 2.2vw, 29px); /* KPI 大数字 */
+  --av-text-stat: 16px; /* 中号数字：榜单 / 进度条计数 / 分级计数 / 场景 KPI */
+  --av-text-figure: 26px; /* 状态格数值 / 环形图中心数字 */
+  --av-text-kpi: clamp(26px, 2.4vw, 34px); /* KPI 大数字 */
+
+  /* ---------- 数字字重（BLF-1423 跟进）----------
+   * 等宽字体上 600 看着偏细（JetBrains Mono / Menlo 的 600 都落到 Regular 与
+   * Bold 之间），数字是要「一眼读出来」的内容，所以单独给字重令牌：
+   * 大数字 800、中号数字 700、数字旁的注解 600。字重也只走令牌，组件里不写裸数字。
+   *
+   * 第三档 `--av-weight-emphasis`(600) 给**跟数字一起出现、但比数字轻**的读数：
+   * KPI 单位（「%」「条」）与分级行里的「未处置 N」。它们跟数字同一行、字号只差
+   * 一档，字重若与数字同级会把注解喊成主读；写成令牌则「字重只走令牌」
+   * 这条约定对它们同样成立，没有例外条款。
+   */
+  --av-weight-figure: 800; /* 大数字字重：KPI / 状态格 / 环形中心 */
+  --av-weight-stat: 700; /* 中号数字字重：榜单 / 计数 / 图例数值 */
+  --av-weight-emphasis: 600; /* 数字旁的注解字重：KPI 单位 / 「未处置 N」 */
 }
 
 /* 告警 / 设备详情用原生 <dialog> 打开时锁住背景滚动（Esc 关闭后由组件移除该属性） */
@@ -2813,15 +2888,15 @@ textarea,
 :root {
   --av-dur-instant: 90ms;
   --av-dur-quick: 160ms;
-  --av-dur-base: 240ms;
-  --av-dur-slow: 420ms;
+  --av-dur-base: 300ms;
+  --av-dur-slow: 600ms;
   /* 一级告警色条呼吸：全站唯一的持续循环（3s）。 */
   --av-dur-breathe: 3000ms;
   /* 骨架屏高光扫过的周期（不是入场动画，独立一档）。 */
   --av-dur-shimmer: 1200ms;
   /* 列表 / 时间线的错峰步长，用 calc(var(--av-stagger-*) * var(--av-i)) 取延迟。 */
-  --av-stagger-list: 30ms;
-  --av-stagger-timeline: 60ms;
+  --av-stagger-list: 45ms;
+  --av-stagger-timeline: 90ms;
   --av-ease-standard: cubic-bezier(0.2, 0.72, 0.2, 1);
   --av-ease-enter: cubic-bezier(0.16, 1, 0.3, 1);
   --av-ease-exit: cubic-bezier(0.4, 0, 1, 1);

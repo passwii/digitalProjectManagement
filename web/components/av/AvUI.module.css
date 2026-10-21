@@ -97,7 +97,7 @@
 .panel {
   min-width: 0;
   border: 1px solid var(--av-divider);
-  background: var(--av-surface);
+  background: var(--av-surface-2);
 }
 
 .panelHeader {
@@ -181,7 +181,7 @@
   gap: var(--av-gap-card);
   padding: var(--av-pad-card);
   border: 1px solid var(--av-divider);
-  background: var(--av-surface);
+  background: var(--av-surface-2);
 }
 
 /* 左侧 2px 语义色条：卡片之间的「同一套语言」，不靠底色区分 */
@@ -218,25 +218,55 @@
 
 .metricValue strong {
   overflow: hidden;
+  /*
+   * KPI 数字跟随色条同色（BLF-1422 / BLF-1423）：左边 2px 色条、图标、数字三者
+   * 用同一个 --metric-tone，卡片底色保持中性 —— 「卡片克制、数字醒目」。
+   * 单位（`.metricUnit`）仍是弱文字色，避免整串数字发胖。
+   *
+   * 字号 / 字重走数字档令牌（BLF-1423 跟进）：KPI 是整屏第一眼的数字，
+   * 26→34px、600→800 —— 「加粗几次」落到令牌上，而不是各处手写 font-weight。
+   */
+  color: var(--metric-tone);
   font-size: var(--av-text-kpi);
-  font-weight: 600;
-  letter-spacing: -0.03em;
+  font-weight: var(--av-weight-figure);
+  letter-spacing: -0.035em;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-/* KPI 数字（计数器渲染的 span）：继承 strong 的字号与颜色，只保留等宽数字 */
+/*
+ * KPI 数字（计数器渲染的 span）：继承 strong 的字号、颜色与字重，只保留等宽数字。
+ *
+ * `font-weight: inherit` 是**必须写**的：它把「数字的字重来自 `.metricValue strong`
+ * 的 `--av-weight-figure`(800)」这条链路显式钉住 —— 单位规则再怎么改，
+ * 数字都不会被顺带压细。BLF-1423 复审的 P2 正是这里漏了字重：
+ * 数字规则当时只写了 color / font-family / font-size，唯独没写 font-weight，
+ * 而单位那条是裸后代选择器 `.metricValue span`，同样命中 `<strong>` 里
+ * `AvCounter` 渲染的 `span.metricNumber`，于是 600 成了唯一匹配的声明，
+ * 首页 KPI 主数字实际上并没有加粗。
+ */
 .metricValue .metricNumber {
   color: inherit;
   font-family: inherit;
   font-size: inherit;
+  font-weight: inherit;
   font-variant-numeric: tabular-nums;
 }
 
-.metricValue span {
+/*
+ * 单位：**必须是自己的类**，绝不能写成 `.metricValue span`。
+ * 后者除了命中这里的单位，也会命中 `<strong>` 里 `AvCounter` 渲染的
+ * `span.metricNumber`（同为后代 span），数字的字重就被这条规则吃掉了。
+ * 由 `avFontSizes.vitest.test.ts` 的「数字字重级联」用例守着（按选择器特异性
+ * 真实推演胜出声明，而不是只断言某条规则写了什么）。
+ */
+.metricValue .metricUnit {
   color: var(--av-ink-3);
   font-family: var(--font-body);
-  font-size: var(--av-text-note);
+  /* 单位跟着数字上了一个档（11 → 14px）：34px 的数字旁边 11px 的「%」会浮得像脚注 */
+  font-size: var(--av-text-emphasis);
+  /* 单位比数字轻一档（800 → 600）：它是注解，不是读数 */
+  font-weight: var(--av-weight-emphasis);
   white-space: nowrap;
 }
 
@@ -373,7 +403,8 @@
 .tabCount {
   color: var(--av-ink-3);
   font-family: var(--font-mono);
-  font-size: var(--av-text-micro);
+  font-size: var(--av-text-note);
+  font-weight: var(--av-weight-stat);
   font-variant-numeric: tabular-nums;
 }
 
@@ -400,7 +431,9 @@
 .barHead strong {
   color: var(--av-ink);
   font-family: var(--font-mono);
-  font-size: var(--av-text-body);
+  /* 进度条右侧的读数也是主数据，跟中号数字档同一档（12 → 16px） */
+  font-size: var(--av-text-stat);
+  font-weight: var(--av-weight-stat);
   font-variant-numeric: tabular-nums;
 }
 
@@ -429,7 +462,8 @@
   flex-wrap: wrap;
   gap: var(--av-space-3);
   color: var(--av-ink-2);
-  font-size: var(--av-text-note);
+  /* 图例本身就是「一行数字」，跟着数字档走（11px → 14px，BLF-1423 跟进） */
+  font-size: var(--av-text-emphasis);
 }
 
 .legendItem {
@@ -447,9 +481,11 @@
 }
 
 .legendItem strong {
-  color: var(--av-ink);
+  /* 图例数字与色点同色：图例也是这类「数字跟随色条」的一处（BLF-1423） */
+  color: var(--tone, var(--av-ink));
   font-family: var(--font-mono);
-  font-size: var(--av-text-note);
+  font-size: var(--av-text-emphasis);
+  font-weight: var(--av-weight-stat);
   font-variant-numeric: tabular-nums;
 }
 
@@ -632,7 +668,8 @@
 .table th {
   padding: var(--av-space-1) var(--av-space-2);
   border-bottom: 1px solid var(--av-divider);
-  background: var(--av-surface-soft);
+  /* 表头走第三档表面（抬升）：暗色里与卡片拉开一层，不再是同一块深蓝 */
+  background: var(--av-surface-3);
   color: var(--av-ink-3);
   font-size: var(--av-text-micro);
   font-weight: 600;
