@@ -1291,10 +1291,39 @@ const ROUTINE_TEMPLATES = [
     weight: 18,
     level: 4,
     openRate: 0.12,
-    title: (pt, n) => `OTA 批量升级：${pt.room} 等 ${rintR(6, 24)} 台终端升至 ${pickR(["v3.9.1", "v3.9.2", "v3.10.0"])}`,
-    steps: (pt, _me, n) => [
-      { type: "ota", actor: null, text: `升级任务 OT-${n} 下发：${pt.room} 所在分组静默升级，避开上下课时段` },
-      { type: "ota", actor: null, text: `升级完成，成功 ${rintR(6, 23)} 台 / 失败 0 台，版本校验通过`, gap: rintR(12, 48) },
+    /*
+      批量台数与版本只抽**一次**：标题与回执节点必须说同一个数。
+
+      之前两边各自 rintR 一次，同一条事件经常自相矛盾（标题「等 13 台」、
+      回执「成功 19 台 / 失败 0 台」，20 条 OTA 里有 19 条对不上）。
+      在办的批次还要把「已完成 / 剩余」算好，保证两者相加等于批量台数。
+    */
+    facts: (_pt, open) => {
+      const batch = rintR(6, 24);
+      const done = Math.max(1, Math.floor(batch * (0.4 + rrng() * 0.4)));
+      return { batch, version: pickR(["v3.9.1", "v3.9.2", "v3.10.0"]), open, done };
+    },
+    title: (pt, n, f) => `OTA 批量升级：${pt.room} 等 ${f.batch} 台终端升至 ${f.version}`,
+    steps: (pt, _me, n, f) => [
+      {
+        type: "ota",
+        actor: null,
+        text: `升级任务 OT-${n} 下发：${pt.room} 所在分组静默升级（${f.batch} 台），避开上下课时段`,
+      },
+      // 在办的批次不能出现「升级完成」：否则同一条事件既已完成又在办
+      f.open
+        ? {
+            type: "ota",
+            actor: null,
+            text: `灰度批次回执：已完成 ${f.done} 台 / 剩余 ${f.batch - f.done} 台等待回执，版本校验中`,
+            gap: rintR(12, 48),
+          }
+        : {
+            type: "ota",
+            actor: null,
+            text: `升级完成，成功 ${f.batch} 台 / 失败 0 台，版本校验通过`,
+            gap: rintR(12, 48),
+          },
     ],
     // 收尾节点分开写：在办的 OTA 不能带 archive（闭环与在办是互斥的两种状态）
     tailClosed: (pt, me) => ({
@@ -1303,10 +1332,10 @@ const ROUTINE_TEMPLATES = [
       text: "固件台账已回写，升级窗口内无告警抖动",
       gap: rintR(3, 12),
     }),
-    tailOpen: (_pt, me) => ({
+    tailOpen: (_pt, me, f) => ({
       type: "pending",
       actor: me.id,
-      text: "灰度批次仍在升级（已下发改写，等待回执）",
+      text: `灰度批次仍在升级：剩余 ${f.batch - f.done} 台等待回执`,
       gap: rintR(10, 40),
     }),
   },
@@ -1370,9 +1399,12 @@ function pickRoutineTemplate() {
     const open = chanceR(tpl.openRate);
     const started = ROUTINE_START_OFFSET + rintR(0, ROUTINE_SPAN);
 
-    const steps = tpl.steps(pt, me, String(n).padStart(4, "0"));
-    if (open && tpl.tailOpen) steps.push(tpl.tailOpen(pt, me));
-    else if (!open && tpl.tailClosed) steps.push(tpl.tailClosed(pt, me));
+    // 同一个事件的事实（批量台数等）只算一次，标题 / 节点 / 收尾共用一份
+    const facts = tpl.facts ? tpl.facts(pt, open) : {};
+    const serial = String(n).padStart(4, "0");
+    const steps = tpl.steps(pt, me, serial, facts);
+    if (open && tpl.tailOpen) steps.push(tpl.tailOpen(pt, me, facts));
+    else if (!open && tpl.tailClosed) steps.push(tpl.tailClosed(pt, me, facts));
 
     // 节点从 started 往后推（偏移递减 = 时间递增），首节点即事件开始
     let cursor = started;
@@ -1393,7 +1425,7 @@ function pickRoutineTemplate() {
       event_type: tpl.eventType,
       site_id: site.id,
       scene: site.scene,
-      title: tpl.title(pt, String(n).padStart(4, "0")),
+      title: tpl.title(pt, serial, facts),
       level: tpl.level,
       level_label: LEVEL_NAME[tpl.level],
       point_id: pt.id,

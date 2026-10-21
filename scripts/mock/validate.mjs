@@ -803,6 +803,38 @@ check("普通事件时间线：首节点即事件开端，在办停在 pending",
   }
   return bad.length === 0 || `${bad.length} 个普通事件时间线不对：${bad.slice(0, 3).join("，")}`;
 });
+check("OTA 事件的批量台数全文一致（标题 = 回执，在办不得出现「升级完成」）", () => {
+  /*
+    回归守卫：OTA 模板里的台数曾经在标题与完成节点各抽一次随机数，
+    同一条事件「等 13 台」却「成功 19 台」（20 条里 19 条对不上）；
+    在办的批次还会先写「升级完成」再说「仍在升级」。两条都是自相矛盾的数据。
+    口径：闭环 = 完成台数等于标题台数；在办 = 无完成字样，且已完成 + 剩余 = 标题台数。
+  */
+  const bad = [];
+  for (const i of routineIncidents) {
+    if (i.event_type !== "ota") continue;
+    const batch = Number((i.title.match(/等 (\d+) 台终端/) || [])[1]);
+    const texts = (i.timeline || []).map((n) => n.text);
+    if (!batch) {
+      bad.push(`${i.id} 标题台数不可解析`);
+      continue;
+    }
+    const completed = texts.filter((t) => /升级完成|成功 \d+ 台/.test(t));
+    if (i.status === "closed") {
+      const done = completed.map((t) => Number((t.match(/成功 (\d+) 台/) || [])[1])).filter(Boolean);
+      if (done.length !== 1) bad.push(`${i.id} 完成节点 ${done.length} 个`);
+      else if (done[0] !== batch) bad.push(`${i.id} 成功 ${done[0]} 台 ≠ 标题 ${batch} 台`);
+    } else {
+      if (completed.length > 0) bad.push(`${i.id} 在办却已完成`);
+      const progress = texts.map((t) => t.match(/已完成 (\d+) 台 \/ 剩余 (\d+) 台/)).find(Boolean);
+      if (!progress) bad.push(`${i.id} 在办缺灰度进度`);
+      else if (Number(progress[1]) + Number(progress[2]) !== batch) {
+        bad.push(`${i.id} 已完成 ${progress[1]} + 剩余 ${progress[2]} ≠ 标题 ${batch} 台`);
+      }
+    }
+  }
+  return bad.length === 0 || `${bad.length} 条 OTA 自相矛盾：${bad.slice(0, 3).join("，")}`;
+});
 check("普通事件覆盖六类运营动作", () => {
   const seen = new Set(routineIncidents.map((i) => i.event_type));
   const missing = [...ROUTINE_EVENT_TYPES].filter((t) => !seen.has(t));
