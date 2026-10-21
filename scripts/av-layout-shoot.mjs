@@ -9,6 +9,7 @@ import { spawn } from "node:child_process";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
+import { captureFullPage } from "./lib/avFullPageShot.mjs";
 
 const baseUrl = process.argv[2] ?? "http://127.0.0.1:3111";
 const outDir = process.argv[3] ?? "/tmp/av-layout-shoot";
@@ -168,9 +169,14 @@ try {
         await sleep(3200);
 
         const metrics = await send("Runtime.evaluate", { expression: METRICS, returnByValue: true });
-        const shot = await send("Page.captureScreenshot", { format: "png", captureBeyondViewport: true });
+        /*
+         * 整页截图走 `captureFullPage`：直接 `captureBeyondViewport: true` 会在截图
+         * 瞬间撑高视口，recharts 重排 + 重播入场动画，拍出来图表区是空的。
+         * 口径与踩坑记录见 scripts/lib/avFullPageShot.mjs。
+         */
+        const shot = await captureFullPage(send, { width, viewportHeight: 1400 });
         const file = `${outDir}/${page}-${width}-${theme}.png`;
-        writeFileSync(file, Buffer.from(shot.data, "base64"));
+        writeFileSync(file, shot);
         results.push({ page, width, theme, file, metrics: metrics.result.value });
         process.stdout.write(`${page} ${width} ${theme} ok\n`);
       }

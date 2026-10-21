@@ -76,7 +76,11 @@ export function AvPanel({
 }: {
   title: string;
   subtitle?: string;
-  meta?: string;
+  /**
+   * 面板头右侧的读数。字符串仍是常规用法；需要按语义色强调某个数字时
+   * 传 `<span style={{ ...tone }}>12 台</span>`（BLF-1428 的离线数 / OTA 成功率）。
+   */
+  meta?: ReactNode;
   icon?: AvIconName;
   action?: ReactNode;
   children: ReactNode;
