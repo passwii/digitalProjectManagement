@@ -835,6 +835,16 @@ check("OTA 事件的批量台数全文一致（标题 = 回执，在办不得出
   }
   return bad.length === 0 || `${bad.length} 条 OTA 自相矛盾：${bad.slice(0, 3).join("，")}`;
 });
+check("普通事件的标题不与该事件状态相反（设备离线：在办才写「待现场处理」）", () => {
+  /* 回归守卫：设备离线的标题曾写死「待现场处理」，闭环事件的标题就与
+     状态徽标、收尾节点（「现场更换电源模块后恢复」）相反。 */
+  const bad = routineIncidents.filter(
+    (i) =>
+      i.event_type === "device_offline" &&
+      Boolean(i.title.includes("待现场处理")) !== (i.status !== "closed"),
+  );
+  return bad.length === 0 || `${bad.length} 条标题与状态相反：${bad.slice(0, 3).map((i) => i.id).join("，")}`;
+});
 check("普通事件覆盖六类运营动作", () => {
   const seen = new Set(routineIncidents.map((i) => i.event_type));
   const missing = [...ROUTINE_EVENT_TYPES].filter((t) => !seen.has(t));

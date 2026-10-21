@@ -142,8 +142,14 @@ export default function EventView({ rows, detail, initialId, counts, userNames }
     if (!pending || selectedId === pendingId) setPendingId(null);
   }, [pending, pendingId, selectedId]);
 
-  /** 筛选把当前选中事件筛掉时，rail 与列表会互相矛盾，在 rail 上说明一句 */
-  const selectedFilteredOut = Boolean(selected) && !visible.some((row) => row.id === selectedId);
+  /**
+   * 选中事件不在**当前这一页**的列表里时，rail 与列表会互相矛盾，在 rail 上说明一句。
+   *
+   * 判定必须拿 `pageData.items`（这一页真正渲染的行）而不是 `visible`（筛选后的全集）：
+   * 选中事件落在第 5 页、用户翻到第 1 页时，它仍在 `visible` 里，用 `visible` 判定的话
+   * 这句说明永远不会出现 —— rail 显示了页面上根本没有的事件，还把用户晾在那里。
+   */
+  const selectedFilteredOut = Boolean(selected) && !pageData.items.some((row) => row.id === selectedId);
 
   const kindTabs = [
     { value: "all" as const, label: "全部", count: counts.total },
@@ -391,7 +397,7 @@ export default function EventView({ rows, detail, initialId, counts, userNames }
                 />
                 {selectedFilteredOut && (
                   <p className={s.softNote} style={{ marginTop: 10 }}>
-                    当前选中事件不在本页筛选结果内 —— 点击列表任意一行可切到那一页的事件。
+                    当前选中事件不在本页列表里 —— 翻页或筛选都可能把它挪出本页，点列表中任意一行即可切到该事件。
                   </p>
                 )}
                 <ol className={s.timeline} style={{ marginTop: 14 }}>

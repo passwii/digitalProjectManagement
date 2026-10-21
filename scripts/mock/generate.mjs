@@ -1268,18 +1268,23 @@ const ROUTINE_TEMPLATES = [
     weight: 16,
     level: 3,
     openRate: 0.45,
-    title: (pt, n) => `设备离线：${pt.room} 心跳中断待现场处理（#DO-${n}）`,
-    steps: (pt, me, n) => [
+    // 在办与闭环两种结局要写在标题上：闭环事件还挂着「待现场处理」，列表标题就与
+    // 状态徽标、时间线收尾节点自相矛盾（曾出现 7 条闭环事件标题写「待现场处理」）。
+    title: (pt, n, f) =>
+      f.open
+        ? `设备离线：${pt.room} 心跳中断待现场处理（#DO-${n}）`
+        : `设备离线：${pt.room} 心跳中断已恢复（#DO-${n}）`,
+    steps: (pt, _me, n) => [
       { type: "device_offline", actor: null, text: `${pt.room} 心跳中断超过 ${rintR(10, 25)} 分钟，升级为确认离线 #DO-${n}` },
       { type: "diagnose", actor: "u-008", text: `远程诊断：最后上报 PoE 供电 ${rintR(41, 48)}V，低于阈值`, gap: rintR(5, 22) },
     ],
-    tailClosed: (pt, me) => ({
+    tailClosed: (_pt, me) => ({
       type: "archive",
       actor: me.id,
       text: "现场更换电源模块后恢复，离线工单归档",
       gap: rintR(30, 90),
     }),
-    tailOpen: (pt, me) => ({
+    tailOpen: (_pt, me) => ({
       type: "pending",
       actor: me.id,
       text: "等待现场处理：已申请进入受限区域，尚未回单",
@@ -1298,12 +1303,12 @@ const ROUTINE_TEMPLATES = [
       回执「成功 19 台 / 失败 0 台」，20 条 OTA 里有 19 条对不上）。
       在办的批次还要把「已完成 / 剩余」算好，保证两者相加等于批量台数。
     */
-    facts: (_pt, open) => {
+    facts: (_pt, _open) => {
       const batch = rintR(6, 24);
       const done = Math.max(1, Math.floor(batch * (0.4 + rrng() * 0.4)));
-      return { batch, version: pickR(["v3.9.1", "v3.9.2", "v3.10.0"]), open, done };
+      return { batch, version: pickR(["v3.9.1", "v3.9.2", "v3.10.0"]), done };
     },
-    title: (pt, n, f) => `OTA 批量升级：${pt.room} 等 ${f.batch} 台终端升至 ${f.version}`,
+    title: (pt, _n, f) => `OTA 批量升级：${pt.room} 等 ${f.batch} 台终端升至 ${f.version}`,
     steps: (pt, _me, n, f) => [
       {
         type: "ota",
@@ -1326,7 +1331,7 @@ const ROUTINE_TEMPLATES = [
           },
     ],
     // 收尾节点分开写：在办的 OTA 不能带 archive（闭环与在办是互斥的两种状态）
-    tailClosed: (pt, me) => ({
+    tailClosed: (_pt, me) => ({
       type: "archive",
       actor: me.id,
       text: "固件台账已回写，升级窗口内无告警抖动",
@@ -1399,8 +1404,8 @@ function pickRoutineTemplate() {
     const open = chanceR(tpl.openRate);
     const started = ROUTINE_START_OFFSET + rintR(0, ROUTINE_SPAN);
 
-    // 同一个事件的事实（批量台数等）只算一次，标题 / 节点 / 收尾共用一份
-    const facts = tpl.facts ? tpl.facts(pt, open) : {};
+    // 同一个事件的事实只算一次，标题 / 节点 / 收尾共用一份；`open` 由外层注入
+    const facts = { ...(tpl.facts ? tpl.facts(pt, open) : {}), open };
     const serial = String(n).padStart(4, "0");
     const steps = tpl.steps(pt, me, serial, facts);
     if (open && tpl.tailOpen) steps.push(tpl.tailOpen(pt, me, facts));
