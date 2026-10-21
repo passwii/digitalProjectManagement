@@ -78,6 +78,88 @@ SITES = {
 }
 
 results: list[dict] = []
+skipped: list[dict] = []
+
+# ---------------- 接口替身（§3 的「我的」面板需要登录态）----------------
+#
+# §3 要验的是**前端有没有把两个站点入口放进「我的」面板** ——
+# 面板是客户端组件，入口卡、href、target 全在浏览器里的真实 DOM 里。
+# 服务端只决定「返回什么权限」，把它就地 fulfill 掉，面板照样是真渲染出来的。
+# 与 scripts/acceptance_blf1141_user_menu.py 同一套做法。
+#
+# ⚠️ 只在**没有 PM_ACCESS_TOKEN** 时才用替身：给了真令牌就连真后端。
+ME_FIXTURE = {
+    "id": 7,
+    "username": "13900000001",
+    "real_name": "验收账号",
+    "status": "active",
+    "dept_id": None,
+    "roles": [{"code": "admin", "name": "系统管理员"}],
+    "must_change_pwd": False,
+}
+MENUS_FIXTURE = {
+    "roles": ["admin"],
+    "is_admin": True,
+    "can_approve": True,
+    "menus": [
+        {"key": "projects", "label": "项目台账", "href": "/projects"},
+        {"key": "progress", "label": "进度跟踪", "href": "/progress"},
+        {"key": "costs", "label": "支出记录", "href": "/costs"},
+        {"key": "reports", "label": "支出报表", "href": "/reports"},
+        {"key": "contacts", "label": "通讯录", "href": "/contacts"},
+        {"key": "approvals", "label": "审批中心", "href": "/approvals"},
+    ],
+    "readonly": False,
+    "demo_on": False,
+    "can_toggle_demo": False,
+}
+# 工作台首页要的数据（/dashboard/summary）。字段要与 api.ts 的
+# DashboardSummary 对得上 —— 缺字段会让页面的 .map() 拿到 undefined
+# 而在控制台报错（不影响 §3 的断言，但会污染「首屏无 JS 错误」这一眼）。
+DASHBOARD_SUMMARY_FIXTURE = {
+    "kpi": {
+        "active_projects": 0,
+        "total_budget": 0,
+        "total_spent": 0,
+        "overdue_tasks": 0,
+        "stagnant_projects": 0,
+    },
+    "trend": [],
+    "by_subject": [],
+    "health": [],
+}
+
+
+def fulfill_api(route) -> None:
+    """把主工作台要用的几个接口就地 fulfill 掉（§3 的离线走法）。"""
+    url = route.request.url
+    if "/auth/me" in url:
+        body = ME_FIXTURE
+    elif "/meta/me/menus" in url:
+        body = MENUS_FIXTURE
+    elif "/dashboard/summary" in url:
+        body = DASHBOARD_SUMMARY_FIXTURE
+    elif "/dashboard/my-weekly" in url:
+        body = {
+            "range": {"from": "", "to": ""},
+            "project_id": None,
+            "progress_logs": [],
+            "log_count": 0,
+            "overdue": [],
+            "due_soon": [],
+            "projects": [],
+        }
+    elif "notifications/count" in url:
+        body = {"unread": 0}
+    elif "/notifications" in url:
+        body = {"items": [], "unread": 0, "total": 0}
+    elif "/approvals" in url:
+        body = {"items": [], "total": 0, "page": 1, "size": 20}
+    elif "/meta/" in url:
+        body = []
+    else:
+        body = {}
+    route.fulfill(status=200, content_type="application/json", body=json.dumps(body))
 
 
 def prepare_shot_dir() -> str:
@@ -103,13 +185,28 @@ def record(name: str, ok: bool, detail: str = "") -> None:
     )
 
 
+def skip(name: str, detail: str = "") -> None:
+    """跳过**单独记账**（不混进 PASS）。
+
+    「跳过」与「通过」是两件事：把跳过记成 PASS，会让「这条其实没验」的
+    数字看起来像验过了。所以分开计数，最后分开报。
+    """
+    skipped.append({"name": name, "detail": detail})
+    print(f"SKIP  {name}{' — ' + detail if detail else ''}", flush=True)
+
+
 def write_results() -> None:
     """写 results.json（诊断产物）。写不进去只提示，不改判定——
     退出码由内存里的 PASS/FAIL 决定，不被一个落盘失败翻掉。"""
     path = os.path.join(SHOT, "results.json")
     try:
         with open(path, "w", encoding="utf-8") as f:
-            json.dump(results, f, ensure_ascii=False, indent=2)
+            json.dump(
+                {"results": results, "skipped": skipped},
+                f,
+                ensure_ascii=False,
+                indent=2,
+            )
     except OSError as e:
         print(f"⚠ 无法写入 {path}（{e}）；以终端输出为准", flush=True)
 
@@ -441,32 +538,44 @@ def check_mobile_entries(page, key: str, site: dict) -> None:
     ⚠️ 这一条需要**登录态**：主工作台（/dashboard）是受保护路由，
     匿名访问会被 middleware 307 到 /login。
 
-    所以本脚本整体是「免登录」的（两个站点是 public 路由），
-    只有这一条需要登录 —— 用 `PM_ACCESS_TOKEN` 环境变量传入一个
-    可用的访问令牌（cookie 名 `pm_access_token`）。没有令牌时
-    这一条**跳过**（不是失败）：本脚本的主价值在站点的免登录形态上。
+    两种走法：
+      · **给了 PM_ACCESS_TOKEN** —— 用真令牌进主工作台（需要后端在跑）。
+      · **没给** —— 走**接口替身**（`page.route` 就地 fulfill `/auth/me` 与
+        `/meta/me/menus`）+ 一个本地伪造的 `pm_access_token` cookie。
+        这不是「跳过」：面板是**真渲染**出来的，入口卡、href、target
+        全是浏览器里的真实 DOM。替身只顶掉「服务端返回什么权限」这一件事，
+        而 §3 要验的是**前端有没有把两个站点入口放进「我的」面板**。
+        （与 scripts/acceptance_blf1141_user_menu.py 同一套做法。）
+
+    所以 §3 永远是**实跑**；只有在两种走法都拿不到面板时才跳过。
     """
     token = os.environ.get("PM_ACCESS_TOKEN", "").strip()
-    if not token:
-        record(
-            "§3 手机端：「我的」面板的站点入口（需登录态，已跳过）",
-            True,
-            "未提供 PM_ACCESS_TOKEN —— 主工作台是受保护路由，匿名访问会被 307 到 /login",
+    if token:
+        page.context.add_cookies(
+            [{"name": "pm_access_token", "value": token, "url": BASE}]
         )
-        return
+    else:
+        # 替身：主工作台是受保护路由，middleware 只看 cookie 在不在。
+        # cookie 给一个占位值，真实权限由下面的接口替身提供。
+        page.context.add_cookies(
+            [{"name": "pm_access_token", "value": "blf1389-offline", "url": BASE}]
+        )
+        page.context.add_init_script(
+            "localStorage.setItem('pm_access_token', 'blf1389-offline');"
+        )
+        page.route("**/api/v1/**", fulfill_api)
+        page.route("**://localhost:8001/**", fulfill_api)
+        page.route("**://127.0.0.1:8001/**", fulfill_api)
 
-    page.context.add_cookies(
-        [{"name": "pm_access_token", "value": token, "url": BASE}]
-    )
     page.goto(f"{BASE}/dashboard", wait_until="networkidle")
     if "/login" in page.url:
         record(
-            "§3 手机端：进入主工作台（令牌有效）",
+            "§3 手机端：进入主工作台",
             False,
             f"url={page.url} —— PM_ACCESS_TOKEN 可能已过期",
         )
         return
-    record("§3 手机端：进入主工作台（令牌有效）", True, f"url={page.url}")
+    record("§3 手机端：进入主工作台", True, f"url={page.url}")
 
     # 手机形态：点开「我的」位（底部 Dock 的第 5 位）。
     dock_mine = page.locator('[data-shell="dock"] [data-dock="mine"]')
@@ -566,7 +675,12 @@ def main() -> int:
 
     failures = [r for r in results if not r["ok"]]
     write_results()
-    print(f"\n合计 {len(results)} 条，失败 {len(failures)} 条")
+    passed = len(results) - len(failures)
+    # 跳过与通过**分开报**：跳过不是「验过了」。
+    print(
+        f"\n合计 {len(results)} 条：通过 {passed} 条，失败 {len(failures)} 条，"
+        f"跳过 {len(skipped)} 条"
+    )
     return 1 if failures else 0
 
 

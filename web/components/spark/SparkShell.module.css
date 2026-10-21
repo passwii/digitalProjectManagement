@@ -13,6 +13,19 @@
   --spark-green: #34d399;
   --spark-amber: #fbbf24;
   --spark-rose: #fb7185;
+  /*
+   * 安全区（BLF-1389）。
+   *
+   * 为什么收成四个变量：横屏时**左右**的安全区才非零（刘海 / 圆角在两侧），
+   * 而横屏手机报的 CSS 视口宽度是**长边**（812 / 852 / 932…），全部 > 767px ——
+   * 只写在 `@media (max-width: 767px)` 里的规则在横屏**一条都命中不了**
+   * （唯一落进 767 的横屏机型是 iPhone SE 一类 667px，它们的左右 inset 恒为 0）。
+   * 所以左右两处必须写在**基线规则**里，各处按需消费 —— 与 AvShell 同一套做法。
+   */
+  --spark-safe-t: env(safe-area-inset-top, 0px);
+  --spark-safe-b: env(safe-area-inset-bottom, 0px);
+  --spark-safe-l: env(safe-area-inset-left, 0px);
+  --spark-safe-r: env(safe-area-inset-right, 0px);
   display: flex;
   min-height: 100vh;
   min-height: 100dvh;
@@ -51,6 +64,15 @@
   border-right: 1px solid rgba(194, 211, 239, .08);
   background: rgba(10, 15, 28, .96);
   transition: width 190ms ease, flex-basis 190ms ease, transform 190ms ease;
+  /*
+   * 侧栏吃左右安全区（BLF-1389）。
+   *
+   * 侧栏贴在视口**左边缘**（窄屏时是从左边滑出的抽屉），横屏时刘海 / 圆角
+   * 就在那一侧 —— 左侧不挖掉一块，抽屉里的导航项会被切掉。右侧一并留出，
+   * 免得窄屏抽屉盖住整屏时右缘的圆角压住内容。
+   */
+  padding-left: var(--spark-safe-l);
+  padding-right: var(--spark-safe-r);
 }
 
 .brand {
@@ -180,7 +202,11 @@
   align-items: center;
   justify-content: space-between;
   gap: 18px;
-  padding: 0 23px;
+  /*
+   * 顶栏吃右侧安全区（BLF-1389）：顶栏的右缘就是视口右缘，
+   * 横屏时圆角 / 刘海就在那儿，不留出这一格，「返回主系统」会被切掉。
+   */
+  padding: 0 calc(23px + var(--spark-safe-r)) 0 23px;
   border-bottom: 1px solid var(--spark-line);
   background: rgba(7, 10, 18, .89);
   backdrop-filter: blur(16px);
@@ -238,7 +264,15 @@
 .notification i { position: absolute; top: 3px; right: 1px; width: 5px; height: 5px; border-radius: 50%; background: #fb7185; }
 .returnLink { display: inline-flex; min-height: 34px; align-items: center; gap: 7px; padding: 0 9px; border-left: 1px solid var(--spark-line); color: #8c9ab0 !important; font-size: 10px; white-space: nowrap; }
 .returnLink:hover { color: var(--spark-cyan) !important; }
-.content { width: 100%; max-width: 1720px; flex: 1; margin: 0 auto; padding: 24px 25px 36px; outline: none; }
+.content {
+  width: 100%;
+  max-width: 1720px;
+  flex: 1;
+  margin: 0 auto;
+  /* 内容区的右缘同样是视口右缘 → 吃右侧安全区（BLF-1389）。 */
+  padding: 24px calc(25px + var(--spark-safe-r)) 36px 25px;
+  outline: none;
+}
 .mobileMenuButton { display: none; }
 .backdrop { display: none; }
 
@@ -258,9 +292,9 @@
 @media (max-width: 900px) {
   .searchBox { width: min(300px, 32vw); min-width: 180px; }
   .regionStatus { gap: 5px; padding-right: 7px; padding-left: 7px; }
-  .topbar { gap: 10px; padding-right: 15px; padding-left: 15px; }
+  .topbar { gap: 10px; padding-right: calc(15px + var(--spark-safe-r)); padding-left: 15px; }
   .topbarRight { gap: 10px; }
-  .content { padding-right: 17px; padding-left: 17px; }
+  .content { padding-right: calc(17px + var(--spark-safe-r)); padding-left: 17px; }
 }
 
 @media (max-width: 767px) {
@@ -287,17 +321,21 @@
   .collapsed .navLink { justify-content: flex-start; padding: 0 11px; }
   .collapsed .collapseButton { min-height: 33px; }
   .collapsed .collapseButton svg { transform: none; }
-  .brand { padding-top: env(safe-area-inset-top, 0px); }
+  .brand { padding-top: var(--spark-safe-t); }
   .navLink,
   .collapseButton { min-height: 44px; }
-  .sidebarFoot { padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px)); }
+  .sidebarFoot { padding-bottom: calc(10px + var(--spark-safe-b)); }
   /*
    * 左右安全区（BLF-1389）。
    *
    * Spark 之前只处理了顶部与底部，横屏时圆角屏的**两侧**安全区没人管：
    * 左侧的刘海 / 圆角会切掉抽屉里的导航项，右侧会切掉顶栏的「返回主系统」。
+   *
+   * ⚠️ 抽屉是从**左边**滑出来的，它贴在视口左缘 —— 受威胁的是**左** inset，
+   * 之前这里只写了 `padding-right`（右边），方向是反的。基线 `.sidebar` 已经
+   * 吃了两侧，这里不用再重复声明。
    */
-  .sidebar { padding-right: env(safe-area-inset-right, 0px); }
+  .topbar { min-height: calc(54px + var(--spark-safe-t)); gap: 10px; padding: var(--spark-safe-t) calc(13px + var(--spark-safe-r)) 0 calc(13px + var(--spark-safe-l)); }
   .backdrop {
     position: fixed;
     inset: 0;
@@ -307,7 +345,6 @@
     background: rgba(1, 4, 10, .65);
     backdrop-filter: blur(2px);
   }
-  .topbar { min-height: calc(54px + env(safe-area-inset-top, 0px)); gap: 10px; padding: env(safe-area-inset-top, 0px) calc(13px + env(safe-area-inset-right, 0px)) 0 calc(13px + env(safe-area-inset-left, 0px)); }
   .mobileMenuButton {
     display: grid;
     width: 44px;
@@ -332,7 +369,7 @@
   .regionStatus strong { font-size: 9px; }
   .locationPin { font-size: 13px; }
   .returnLink { width: 44px; min-height: 44px; justify-content: center; padding: 0; border-left: 0; }
-  .content { padding: 16px calc(13px + env(safe-area-inset-right, 0px)) calc(24px + env(safe-area-inset-bottom, 0px)) calc(13px + env(safe-area-inset-left, 0px)); }
+  .content { padding: 16px calc(13px + var(--spark-safe-r)) calc(24px + var(--spark-safe-b)) calc(13px + var(--spark-safe-l)); }
 }
 
 @media (prefers-reduced-motion: reduce) {

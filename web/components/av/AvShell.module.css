@@ -101,7 +101,14 @@
    * （`safe-area-inset-left`）会压住抽屉内容 —— 刘海那侧挖掉一块，
    * 导航项贴过去就会被切掉。左右各让一格安全区，抽屉内容不被压。
    * 底部同理：Home 指示条会盖住侧栏底部的「收起侧栏」按钮。
+   *
+   * 顶部（BLF-1389 复核 ③）：侧栏是 `inset: 0 auto 0 0`，**顶边就是视口
+   * 顶边** —— 竖屏 standalone 下状态栏压着侧栏的第一行（品牌行），
+   * 而顶栏（`.topbar`）已经留了顶部安全区、侧栏没留，两边就会错开。
+   * 给侧栏也留一格顶部安全区：状态栏那条带显示的是侧栏自己的底色
+   * （不是内容被压），品牌行整行落在状态栏下方。
    */
+  padding-top: var(--av-safe-t);
   padding-left: var(--av-safe-l);
   padding-right: var(--av-safe-r);
   padding-bottom: var(--av-safe-b);

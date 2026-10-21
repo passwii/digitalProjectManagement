@@ -132,11 +132,55 @@ describe("云电竞管理平台壳层：安全区（BLF-1389）", () => {
     }
   });
 
-  it("左右安全区进了顶栏与内容区（横屏圆角）", () => {
+  it("安全区收成四个变量（横屏左右 inset 才有值）", () => {
+    const masked = maskComments(sparkShell);
+    const root = /^\.root\s*\{([\s\S]*?)\n\}/m.exec(masked)?.[1] ?? "";
+    for (const [token, direction] of [
+      ["t", "top"],
+      ["b", "bottom"],
+      ["l", "left"],
+      ["r", "right"],
+    ] as const) {
+      expect(
+        root,
+        `.root 缺少 --spark-safe-${token}（env(safe-area-inset-${direction})）`,
+      ).toMatch(
+        new RegExp(`--spark-safe-${token}:\\s*env\\(safe-area-inset-${direction},\\s*0px\\)`),
+      );
+    }
+  });
+
+  it("左右安全区在**基线规则**里就生效（横屏 812/852/932 走不到 ≤767 段）", () => {
+    // 横屏手机报的 CSS 视口宽度是**长边**（812 / 852 / 932…），全部 > 767px；
+    // 只写在 `@media (max-width: 767px)` 里的规则在横屏一条都命中不了
+    // （唯一落进 767 的横屏机型是 iPhone SE 一类 667px，左右 inset 恒为 0）。
+    // 所以左右两侧必须写在基线规则里。
+    const masked = maskComments(sparkShell);
+    const rule = (pattern: RegExp, label: string) => {
+      const body = pattern.exec(masked)?.[1] ?? "";
+      expect(body, label).not.toBe("");
+      return body;
+    };
+
+    // 侧栏贴在视口左缘（窄屏是从左边滑出的抽屉）→ 左右都要让。
+    const sidebar = rule(/^\.sidebar\s*\{([\s\S]*?)\n\}/m, "找不到基线 .sidebar 规则");
+    expect(sidebar, "基线 .sidebar 没有吃左边安全区").toContain("--spark-safe-l");
+    expect(sidebar, "基线 .sidebar 没有吃右边安全区").toContain("--spark-safe-r");
+
+    // 顶栏与内容区的右缘就是视口右缘 → 右边要让。
+    const topbar = rule(/^\.topbar\s*\{([\s\S]*?)\n\}/m, "找不到基线 .topbar 规则");
+    expect(topbar, "基线 .topbar 没有吃右边安全区").toContain("--spark-safe-r");
+    const content = rule(/^\.content\s*\{([\s\S]*?)\n\}/m, "找不到基线 .content 规则");
+    expect(content, "基线 .content 没有吃右边安全区").toContain("--spark-safe-r");
+  });
+
+  it("窄屏段里的顶栏与内容区仍然吃左右安全区（变量口径一致）", () => {
     const masked = maskComments(sparkShell);
     const phone = /@media \(max-width: 767px\)\s*\{([\s\S]*?)\n\}/.exec(masked)?.[1] ?? "";
-    expect(phone, "找不到 ≤767px 段").toMatch(/safe-area-inset-left/);
-    expect(phone, "找不到 ≤767px 段").toMatch(/safe-area-inset-right/);
+    expect(phone, "≤767px 段里的 .topbar 没有吃左右安全区").toMatch(/--spark-safe-l/);
+    expect(phone, "≤767px 段里的 .topbar 没有吃左右安全区").toMatch(/--spark-safe-r/);
+    expect(phone, "≤767px 段里的 .content 没有吃左右安全区").toMatch(/--spark-safe-l/);
+    expect(phone, "≤767px 段里的 .content 没有吃左右安全区").toMatch(/--spark-safe-r/);
   });
 
   it("视口高度已经是 100dvh（先 100vh 降级）", () => {
