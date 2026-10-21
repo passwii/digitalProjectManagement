@@ -1,0 +1,222 @@
+[
+  {
+    "page": "device",
+    "width": 1440,
+    "theme": "dark",
+    "file": "artifacts/blf1428/after/device-1440-dark.png",
+    "metrics": {
+      "cardBottomSpread": 0,
+      "cardBottomSpreadWhere": "",
+      "panelPadDelta": 0,
+      "panelPadX": 16,
+      "panelPadTop": 12,
+      "panelPadBottom": 12,
+      "leftEdges": {
+        "topbar": 272,
+        "heading": 272,
+        "panel": 272
+      },
+      "scrollX": 0,
+      "theme": "dark",
+      "pageHeight": 2313
+    }
+  },
+  {
+    "page": "device",
+    "width": 1920,
+    "theme": "dark",
+    "file": "artifacts/blf1428/after/device-1920-dark.png",
+    "metrics": {
+      "cardBottomSpread": 0,
+      "cardBottomSpreadWhere": "",
+      "panelPadDelta": 0,
+      "panelPadX": 16,
+      "panelPadTop": 12,
+      "panelPadBottom": 12,
+      "leftEdges": {
+        "topbar": 272,
+        "heading": 272,
+        "panel": 272
+      },
+      "scrollX": 0,
+      "theme": "dark",
+      "pageHeight": 2258
+    }
+  },
+  {
+    "page": "device",
+    "width": 1180,
+    "theme": "dark",
+    "file": "artifacts/blf1428/after/device-1180-dark.png",
+    "metrics": {
+      "cardBottomSpread": 0,
+      "cardBottomSpreadWhere": "",
+      "panelPadDelta": 0,
+      "panelPadX": 16,
+      "panelPadTop": 12,
+      "panelPadBottom": 12,
+      "leftEdges": {
+        "topbar": 272,
+        "heading": 272,
+        "panel": 272
+      },
+      "scrollX": 0,
+      "theme": "dark",
+      "pageHeight": 3463
+    }
+  },
+  {
+    "page": "device",
+    "width": 900,
+    "theme": "dark",
+    "file": "artifacts/blf1428/after/device-900-dark.png",
+    "metrics": {
+      "cardBottomSpread": 0,
+      "cardBottomSpreadWhere": "",
+      "panelPadDelta": 0,
+      "panelPadX": 16,
+      "panelPadTop": 12,
+      "panelPadBottom": 12,
+      "leftEdges": {
+        "topbar": 14,
+        "heading": 14,
+        "panel": 14
+      },
+      "scrollX": 0,
+      "theme": "dark",
+      "pageHeight": 4006
+    }
+  },
+  {
+    "page": "device",
+    "width": 720,
+    "theme": "dark",
+    "file": "artifacts/blf1428/after/device-720-dark.png",
+    "metrics": {
+      "cardBottomSpread": 0,
+      "cardBottomSpreadWhere": "",
+      "panelPadDelta": 0,
+      "panelPadX": 12,
+      "panelPadTop": 8,
+      "panelPadBottom": 12,
+      "leftEdges": {
+        "topbar": 12,
+        "heading": 12,
+        "panel": 12
+      },
+      "scrollX": 0,
+      "theme": "dark",
+      "pageHeight": 4030
+    }
+  },
+  {
+    "page": "device",
+    "width": 1440,
+    "theme": "light",
+    "file": "artifacts/blf1428/after/device-1440-light.png",
+    "metrics": {
+      "cardBottomSpread": 0,
+      "cardBottomSpreadWhere": "",
+      "panelPadDelta": 0,
+      "panelPadX": 16,
+      "panelPadTop": 12,
+      "panelPadBottom": 12,
+      "leftEdges": {
+        "topbar": 272,
+        "heading": 272,
+        "panel": 272
+      },
+      "scrollX": 0,
+      "theme": "light",
+      "pageHeight": 2313
+    }
+  },
+  {
+    "page": "device",
+    "width": 1920,
+    "theme": "light",
+    "file": "artifacts/blf1428/after/device-1920-light.png",
+    "metrics": {
+      "cardBottomSpread": 0,
+      "cardBottomSpreadWhere": "",
+      "panelPadDelta": 0,
+      "panelPadX": 16,
+      "panelPadTop": 12,
+      "panelPadBottom": 12,
+      "leftEdges": {
+        "topbar": 272,
+        "heading": 272,
+        "panel": 272
+      },
+      "scrollX": 0,
+      "theme": "light",
+      "pageHeight": 2258
+    }
+  },
+  {
+    "page": "device",
+    "width": 1180,
+    "theme": "light",
+    "file": "artifacts/blf1428/after/device-1180-light.png",
+    "metrics": {
+      "cardBottomSpread": 0,
+      "cardBottomSpreadWhere": "",
+      "panelPadDelta": 0,
+      "panelPadX": 16,
+      "panelPadTop": 12,
+      "panelPadBottom": 12,
+      "leftEdges": {
+        "topbar": 272,
+        "heading": 272,
+        "panel": 272
+      },
+      "scrollX": 0,
+      "theme": "light",
+      "pageHeight": 3463
+    }
+  },
+  {
+    "page": "device",
+    "width": 900,
+    "theme": "light",
+    "file": "artifacts/blf1428/after/device-900-light.png",
+    "metrics": {
+      "cardBottomSpread": 0,
+      "cardBottomSpreadWhere": "",
+      "panelPadDelta": 0,
+      "panelPadX": 16,
+      "panelPadTop": 12,
+      "panelPadBottom": 12,
+      "leftEdges": {
+        "topbar": 14,
+        "heading": 14,
+        "panel": 14
+      },
+      "scrollX": 0,
+      "theme": "light",
+      "pageHeight": 4006
+    }
+  },
+  {
+    "page": "device",
+    "width": 720,
+    "theme": "light",
+    "file": "artifacts/blf1428/after/device-720-light.png",
+    "metrics": {
+      "cardBottomSpread": 0,
+      "cardBottomSpreadWhere": "",
+      "panelPadDelta": 0,
+      "panelPadX": 12,
+      "panelPadTop": 8,
+      "panelPadBottom": 12,
+      "leftEdges": {
+        "topbar": 12,
+        "heading": 12,
+        "panel": 12
+      },
+      "scrollX": 0,
+      "theme": "light",
+      "pageHeight": 4030
+    }
+  }
+]

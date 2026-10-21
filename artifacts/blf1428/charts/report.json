@@ -1,0 +1,105 @@
+{
+  "charts": [
+    {
+      "label": "站点在线情况堆叠柱状图，折线为各站点在线率",
+      "height": 248,
+      "width": 534,
+      "top": 379,
+      "visibleInFirstScreen": true,
+      "insideViewportWidth": true
+    },
+    {
+      "label": "设备状态分布环形图",
+      "height": 176,
+      "width": 534,
+      "top": 379,
+      "visibleInFirstScreen": true,
+      "insideViewportWidth": true
+    },
+    {
+      "label": "近 24 小时各站点在线率趋势图",
+      "height": 248,
+      "width": 534,
+      "top": 823,
+      "visibleInFirstScreen": true,
+      "insideViewportWidth": true
+    },
+    {
+      "label": "设备型号构成横向柱状图",
+      "height": 248,
+      "width": 534,
+      "top": 823,
+      "visibleInFirstScreen": true,
+      "insideViewportWidth": true
+    },
+    {
+      "label": "OTA 升级成功率环形图",
+      "height": 128,
+      "width": 321,
+      "top": 1885,
+      "visibleInFirstScreen": false,
+      "insideViewportWidth": true
+    }
+  ],
+  "series": {
+    "bars": [
+      "#c6ff72",
+      "#c6ff72",
+      "#c6ff72",
+      "#ff9a6a",
+      "#ff9a6a",
+      "#ff9a6a",
+      "#ffc46b",
+      "#ffc46b",
+      "#ffc46b"
+    ],
+    "line": [
+      "#6cf3ff"
+    ],
+    "legend": [
+      "rgb(198, 255, 114)",
+      "rgb(255, 154, 106)",
+      "rgb(255, 196, 107)",
+      "rgb(108, 243, 255)"
+    ],
+    "bar": {
+      "x": 403,
+      "y": 517
+    },
+    "uniqueBars": 3,
+    "uniqueLegend": 4
+  },
+  "tooltip": "示范第一中学在线129离线11维护中2在线率90.8在线 129/142 · 90.8%",
+  "staticReadings": {
+    "before": [
+      "示范第一中学 129/142",
+      "市人民医院 70/73",
+      "市执法办案管理中心 51/53"
+    ],
+    "after": [
+      "示范第一中学 129/142",
+      "市人民医院 70/73",
+      "市执法办案管理中心 51/53"
+    ]
+  },
+  "live": {
+    "before": [
+      "示范第一中学 129/142",
+      "市人民医院 70/73",
+      "市执法办案管理中心 51/53"
+    ],
+    "after": [
+      "示范第一中学 130/142",
+      "市人民医院 70/73",
+      "市执法办案管理中心 50/53"
+    ],
+    "frameBefore": "0",
+    "frameAfter": "1"
+  },
+  "drawer": {
+    "open": true,
+    "label": "AV-MIC-S6-1001 信号强度曲线",
+    "height": 128,
+    "title": "教学楼 A1楼101卫生间"
+  }
+}
