@@ -201,7 +201,7 @@
       "label": "10/19",
       "weekday": "周一",
       "alarms": 50,
-      "incidents": 10
+      "incidents": 14
     },
     {
       "day_offset_minutes": 1440,
@@ -210,7 +210,7 @@
       "label": "10/18",
       "weekday": "周日",
       "alarms": 33,
-      "incidents": 2
+      "incidents": 5
     },
     {
       "day_offset_minutes": 2880,
@@ -219,7 +219,7 @@
       "label": "10/17",
       "weekday": "周六",
       "alarms": 37,
-      "incidents": 2
+      "incidents": 14
     },
     {
       "day_offset_minutes": 4320,
@@ -228,7 +228,7 @@
       "label": "10/16",
       "weekday": "周五",
       "alarms": 69,
-      "incidents": 1
+      "incidents": 7
     },
     {
       "day_offset_minutes": 5760,
@@ -237,7 +237,7 @@
       "label": "10/15",
       "weekday": "周四",
       "alarms": 127,
-      "incidents": 3
+      "incidents": 10
     },
     {
       "day_offset_minutes": 7200,
@@ -246,7 +246,7 @@
       "label": "10/14",
       "weekday": "周三",
       "alarms": 117,
-      "incidents": 1
+      "incidents": 3
     },
     {
       "day_offset_minutes": 8640,
@@ -255,7 +255,7 @@
       "label": "10/13",
       "weekday": "周二",
       "alarms": 99,
-      "incidents": 3
+      "incidents": 7
     }
   ],
   "heatmap": [

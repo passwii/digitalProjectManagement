@@ -46,6 +46,17 @@ const spectrumIds = new Set(spectra.map((s) => s.id));
 const inIncident = new Set(incidents.flatMap((i) => i.alarm_ids));
 const isScript = (a) => a.narrative_tier === "script";
 
+// —— 事件性质（BLF-1427）：告警融合事件 vs 普通事件 ——
+// 历史数据没有 kind 字段，缺省即告警融合；普通事件显式写 kind="routine"。
+const incidentKind = (i) => (i.kind === "routine" ? "routine" : "alarm");
+const alarmIncidents = incidents.filter((i) => incidentKind(i) === "alarm");
+const routineIncidents = incidents.filter((i) => incidentKind(i) === "routine");
+const ROUTINE_EVENT_TYPES = new Set([
+  "inspection", "device_online", "device_offline", "ota", "config", "false_positive_archive", "manual",
+]);
+// 普通事件的节点类型：巡检 / 上下线 / OTA / 配置 / 人工，刻意不含 fusion / action
+const ROUTINE_NODE_TYPES = new Set(["inspect", "device_online", "device_offline", "ota", "config", "manual", "notify", "review", "diagnose", "pending", "archive"]);
+
 // ════════════════════════════════════════════════════════════
 // 一、品牌与引用完整性（原 36 项的主体）
 // ════════════════════════════════════════════════════════════
@@ -134,6 +145,8 @@ const LIFECYCLE_RANK = {
 check("timeline 生命周期语义顺序（触发 → 接警 → 处置 → 复核 → 归档）", () => {
   const bad = [];
   for (const i of incidents) {
+    // 普通事件没有告警生命周期可比，走下面的「普通事件节点类型」专项检查
+    if (incidentKind(i) === "routine") continue;
     // alarm_triggered 可以在任意时刻重复（处置中又有新告警到达），
     // 其余节点必须按生命周期单调推进；「归档」之后再出现接警 / 处置就是乱序。
     const seq = (i.timeline || []).filter((n) => n.type !== "alarm_triggered");
@@ -147,7 +160,7 @@ check("timeline 生命周期语义顺序（触发 → 接警 → 处置 → 复�
   return bad.length === 0 || `${bad.length} 个事件生命周期乱序：${bad.slice(0, 3).join("，")}`;
 });
 check("事件首节点是 alarm_triggered", () => {
-  const bad = incidents.filter((i) => (i.timeline || [])[0]?.type !== "alarm_triggered");
+  const bad = alarmIncidents.filter((i) => (i.timeline || [])[0]?.type !== "alarm_triggered");
   return bad.length === 0 || `${bad.length} 个事件不是从“触发”开始：${bad.slice(0, 3).map((i) => i.id).join(",")}`;
 });
 check("已结案事件的末节点是 archive", () => {
@@ -197,7 +210,7 @@ check("事件时间线末节点不早于事件内最新一条告警（在办事�
   return bad.length === 0 || `${bad.length} 个事件的末节点早于自己的最新告警`;
 });
 check("背景事件时间线首节点 = 最早告警（偏移最大）", () => {
-  const bad = incidents.filter((i) => {
+  const bad = alarmIncidents.filter((i) => {
     if (i.script_id) return false; // 剧本时间线是手写的叙事线（如 H 的首节点指向 B 的第 7 次误报）
     const first = (i.timeline || [])[0];
     if (!first) return true;
@@ -743,9 +756,58 @@ check("narrative_tier 取值只有 script / related / noise", () => {
   const bad = new Set(alarms.map((a) => a.narrative_tier).filter((t) => !["script", "related", "noise"].includes(t)));
   return bad.size === 0 || [...bad].join(",");
 });
-check("每个事件至少关联 1 条告警", () => incidents.every((i) => i.alarm_ids.length >= 1) || "有空事件");
+check("每个事件至少关联 1 条告警", () =>
+  alarmIncidents.every((i) => i.alarm_ids.length >= 1) || "有空事件");
 check("每个事件至少 3 个时间线节点", () =>
   incidents.every((i) => (i.timeline || []).length >= 3) || `最少 ${Math.min(...incidents.map((i) => (i.timeline || []).length))} 个`);
+
+// —— 普通事件专项（BLF-1427）：事件中心 ≠ 告警中心 ——
+check("事件性质分布：告警融合与普通事件同时存在", () =>
+  (alarmIncidents.length > 0 && routineIncidents.length >= 100) ||
+  `告警融合 ${alarmIncidents.length} / 普通事件 ${routineIncidents.length}（普通事件需 ≥ 100）`);
+check("普通事件用 EV-R 新号段（不占用既有 EV-2026xxxx）", () =>
+  routineIncidents.every((i) => /^EV-R\d{4}$/.test(i.id)) ||
+  `${routineIncidents.filter((i) => !/^EV-R\d{4}$/.test(i.id)).length} 个普通事件不在新号段`);
+check("普通事件的性质 / 类型字段齐全", () => {
+  const bad = routineIncidents.filter(
+    (i) => i.kind !== "routine" || !ROUTINE_EVENT_TYPES.has(i.event_type),
+  );
+  return bad.length === 0 || `${bad.length} 个普通事件缺 kind / event_type`;
+});
+check("普通事件不带告警（alarm_ids 为空且 alarm_count=0）", () => {
+  const bad = routineIncidents.filter((i) => i.alarm_ids.length !== 0 || i.alarm_count !== 0);
+  return bad.length === 0 || `${bad.length} 个普通事件挂了告警`;
+});
+check("告警融合事件不声明 event_type", () =>
+  alarmIncidents.every((i) => i.event_type === undefined) || "告警融合事件带了 event_type");
+check("普通事件节点类型不串到告警语义（无 fusion / action / alarm_triggered）", () => {
+  const bad = [];
+  for (const i of routineIncidents) {
+    for (const n of i.timeline || []) {
+      if (!ROUTINE_NODE_TYPES.has(n.type)) {
+        bad.push(`${i.id}:${n.type}`);
+        break;
+      }
+    }
+  }
+  return bad.length === 0 || `${bad.length} 个普通事件出现告警节点：${bad.slice(0, 3).join("，")}`;
+});
+check("普通事件时间线：首节点即事件开端，在办停在 pending", () => {
+  const bad = [];
+  for (const i of routineIncidents) {
+    const first = (i.timeline || [])[0];
+    const last = (i.timeline || []).at(-1);
+    if (!first || first.at_offset_minutes !== i.started_offset_minutes) bad.push(`${i.id} 首节点≠started`);
+    else if (i.status === "closed" && last?.type !== "archive") bad.push(`${i.id} closed 未归档`);
+    else if (i.status !== "closed" && last?.type !== "pending") bad.push(`${i.id} 在办未停在 pending`);
+  }
+  return bad.length === 0 || `${bad.length} 个普通事件时间线不对：${bad.slice(0, 3).join("，")}`;
+});
+check("普通事件覆盖六类运营动作", () => {
+  const seen = new Set(routineIncidents.map((i) => i.event_type));
+  const missing = [...ROUTINE_EVENT_TYPES].filter((t) => !seen.has(t));
+  return missing.length === 0 || `缺 ${missing.join(",")}`;
+});
 
 // ════════════════════════════════════════════════════════════
 // 十二、告警状态与语义
