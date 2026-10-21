@@ -37,6 +37,11 @@ import { describe, it } from "node:test";
  *   ① 专有型号 / 编号前缀（`AV-` / `AL-` / `PT-` …）；
  *   ② 计量单位（`GB` / `dBm` / `ms` …）与编码标准（`H.265`）；
  *   ③ 不渲染的机器可读值（locale code、场景代码、base64 字母表、内联脚本）。
+ *
+ * **一个字符串里的每一处英文命中都要过白名单**（而不是只看第一处）：
+ * 否则 `AV-MIC-S6 · LIVE` 里 `AV` 加过白，`MIC` / `LIVE` 就跟在型号后面蒙混过关了。
+ * 编号类白名单因此要带 `context`（`OTA` 只在 `OTA-\d+-\d+` 这种编号形状里放行），
+ * 散文里的同名英文照样变红 —— 白名单只该覆盖「这个串长这样时才是编号」。
  */
 
 /** 递归列出目录下所有源文件。 */
@@ -159,6 +164,13 @@ interface AllowEntry {
   match: string;
   why: string;
   files?: string[];
+  /**
+   * 命中串所在的整段字符串还必须匹配这条正则才放行。
+   *
+   * 用于「只有长成编号形状时才是编号」的前缀：`OTA-1001-1` 放行，
+   * `OTA 批量升级：…` 这种散文标题必须继续变红。
+   */
+  context?: RegExp;
 }
 
 const ALLOWED: AllowEntry[] = [
@@ -177,7 +189,13 @@ const ALLOWED: AllowEntry[] = [
   { match: "MR", why: "人工补录记录编号前缀 MR-0001" },
   { match: "FP", why: "误报归档记录编号前缀 FP-0031" },
   { match: "WO", why: "工单编号前缀 WO-20261019-011" },
-  { match: "OTA", why: "固件升级记录编号前缀 OTA-1001-1（界面上「OTA 升级」已改「固件升级」，编号不动）" },
+  {
+    match: "OTA",
+    why: "固件升级记录编号 OTA-1001-1（`ota_records[].id`）：编号是抽屉对账的主键，界面措辞已改「固件升级」",
+    // 只放行编号形状：`OTA 批量升级：…` 这类散文标题（曾漏进 /event 的 20 条）必须变红。
+    context: /OTA-\d+-\d+/,
+  },
+  { match: "PTZ", why: "型号 AV-CAM-PTZ 的组成部分（云台变焦机型），与出厂型号一一对应，拆开就不再是型号" },
   { match: "SS", why: "站点编码（PT-SS-… 里的站点段），是点位编号的组成部分" },
   { match: "ST", why: "站点编码（PT-ST-… 里的站点段）" },
   { match: "GY", why: "站点编码（PT-GY-… 里的站点段）" },
@@ -277,9 +295,12 @@ function relativeOf(file: string): string {
   return file.slice(resolve(process.cwd()).length + 1);
 }
 
-function allowedIn(match: string, relative: string): boolean {
+function allowedIn(match: string, relative: string, text = ""): boolean {
   return ALLOWED.some(
-    (entry) => entry.match === match && (!entry.files || entry.files.includes(relative)),
+    (entry) =>
+      entry.match === match &&
+      (!entry.files || entry.files.includes(relative)) &&
+      (!entry.context || entry.context.test(text)),
   );
 }
 
@@ -307,7 +328,13 @@ function literalSegments(line: string): string[] {
 }
 
 /**
- * 取一个字符串里的全部英文命中。
+ * 取一个字符串里的**全部**英文命中。
+ *
+ * 每种模式都要遍历完所有非重叠命中 —— 只取第一处的话，`AV-MIC-S6 · LIVE` 会因为
+ * `AV` 加过白而整串通过，`MIC` / `LIVE` 根本没被检查过，白名单契约等于可以绕过。
+ *
+ * 模式常量本身不带 `g`（上面几条断言直接用 `test()`），这里按次派生带 `g` 的副本，
+ * 避免共享 `lastIndex` 造成跨调用的状态泄漏。
  *
  * locale code 命中时不再报它内部的大写段（`zh-CN` 里的 `CN`）：
  * 同一个东西报两次只会让白名单越写越长。
@@ -315,11 +342,15 @@ function literalSegments(line: string): string[] {
 function matchesOf(text: string): string[] {
   const found: string[] = [];
   for (const pattern of PATTERNS) {
-    const hit = pattern.exec(text);
-    if (!hit) continue;
-    const value = hit[0];
-    if (found.some((item) => item.includes(value))) continue;
-    found.push(value);
+    const global = new RegExp(pattern.source, pattern.flags.includes("g") ? pattern.flags : `${pattern.flags}g`);
+    let hit = global.exec(text);
+    while (hit) {
+      const value = hit[0];
+      if (value && !found.some((item) => item.includes(value))) found.push(value);
+      // 零宽命中（当前几条模式都不是，但别让守卫在有人加模式时死循环）
+      if (hit.index === global.lastIndex) global.lastIndex += 1;
+      hit = global.exec(text);
+    }
   }
   return found;
 }
@@ -331,7 +362,7 @@ function scanSource(file: string): Offender[] {
   masked.split("\n").forEach((line, offset) => {
     for (const text of literalSegments(line)) {
       for (const value of matchesOf(text)) {
-        if (allowedIn(value, relative)) continue;
+        if (allowedIn(value, relative, text)) continue;
         offenders.push({
           file: relative,
           line: offset + 1,
@@ -368,7 +399,7 @@ function scanData(file: string): Offender[] {
   const offenders: Offender[] = [];
   for (const text of values) {
     for (const value of matchesOf(text)) {
-      if (allowedIn(value, relative)) continue;
+      if (allowedIn(value, relative, text)) continue;
       offenders.push({ file: relative, line: 0, snippet: text.trim().slice(0, 100), match: value });
     }
   }
@@ -420,6 +451,39 @@ describe("界面英文残留（BLF-1431）", () => {
     assert.equal(allowedIn("zh-CN", "components/av/pages/AudioView.tsx"), false);
   });
 
+  it("同一字符串里的每一处英文命中都要检查，不能只查第一处", () => {
+    // 型号后面跟英文状态：`AV` 加过白，`MIC` / `LIVE` 也必须被抓到
+    assert.deepEqual(matchesOf("AV-MIC-S6 · LIVE"), ["AV", "MIC", "LIVE"]);
+    assert.deepEqual(matchesOf("AV-CAM-PTZ · OFFLINE"), ["AV", "CAM", "PTZ", "OFFLINE"]);
+    // 多个互不相同的命中都要出现（不是只取第一个就跳下一个模式）
+    assert.deepEqual(matchesOf("RSSI 与 CPU 同屏"), ["RSSI", "CPU"]);
+    // 同一模式的多处命中也要全部出现
+    assert.deepEqual(matchesOf("LIVE / OFFLINE"), ["LIVE", "OFFLINE"]);
+    assert.deepEqual(matchesOf("P90 与 P50"), ["P90", "P50"]);
+
+    // 白名单不能把「型号 + 英文」整串放过：逐串判定
+    const line = "AV-MIC-S6 · LIVE";
+    const leaked = matchesOf(line).filter(
+      (value) => !allowedIn(value, "components/av/pages/MonitorView.tsx", line),
+    );
+    assert.deepEqual(leaked, ["LIVE"], "`LIVE` 必须透过白名单漏出来才会变红");
+  });
+
+  it("编号类白名单只覆盖编号形状，散文里的同名英文仍然变红", () => {
+    const idText = "OTA-1001-1";
+    assert.deepEqual(matchesOf(idText), ["OTA"]);
+    assert.equal(allowedIn("OTA", "public/stream-monitor-data/devices.json", idText), true);
+
+    // /event 的 incident.title 原样上屏：这类散文标题不许借编号前缀蒙混过关
+    const prose = "OTA 批量升级：1楼讯问室 08 等 22 台终端升至 v3.9.2";
+    assert.deepEqual(matchesOf(prose), ["OTA"]);
+    assert.equal(
+      allowedIn("OTA", "public/stream-monitor-data/incidents.json", prose),
+      false,
+      "`OTA` 出现在散文标题里必须变红（白名单只放行 OTA-\\d+-\\d+）",
+    );
+  });
+
   it("白名单每条都写了理由，且文件范围真实存在", () => {
     for (const entry of ALLOWED) {
       assert.ok(entry.why.length >= 6, `白名单「${entry.match}」缺少像样的理由`);
@@ -427,6 +491,22 @@ describe("界面英文残留（BLF-1431）", () => {
         assert.ok(existsSync(resolve(process.cwd(), file)), `白名单指向了不存在的文件：${file}`);
       }
     }
+  });
+
+  it("事件标题里的「OTA 批量升级」已按数据集中文化，没有借编号白名单漏上屏", () => {
+    // 这条数据的 title 会原样渲染在 /event 的列表、表格与详情「标题」行（三处），
+    // 所以中文化必须落在数据集上，而不是靠白名单放行。
+    const incidents = JSON.parse(
+      readFileSync(resolve(process.cwd(), PUBLIC_DATA_DIR, "incidents.json"), "utf8"),
+    ) as Array<{ title?: string }>;
+    const prose = incidents
+      .map((item) => item.title ?? "")
+      .filter((title) => /(^|[^A-Za-z])OTA(?![A-Za-z])/.test(title));
+    assert.deepEqual(prose, [], "事件标题里还有「OTA」，/event 会把英文带上屏");
+    assert.ok(
+      incidents.some((item) => (item.title ?? "").includes("固件批量升级")),
+      "固件升级类事件的标题应该已经写成中文",
+    );
   });
 
   it("模板插值里的常量名不算文案（否则 ${DEVICE_STREAM_TICK_SECONDS} 会被误报）", () => {

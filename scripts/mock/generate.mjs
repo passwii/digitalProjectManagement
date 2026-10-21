@@ -1308,7 +1308,9 @@ const ROUTINE_TEMPLATES = [
       const done = Math.max(1, Math.floor(batch * (0.4 + rrng() * 0.4)));
       return { batch, version: pickR(["v3.9.1", "v3.9.2", "v3.10.0"]), done };
     },
-    title: (pt, _n, f) => `OTA 批量升级：${pt.room} 等 ${f.batch} 台终端升至 ${f.version}`,
+    // BLF-1431：标题会原样渲染在 /event，面向国内市场的可见文案统一用「固件升级」——
+    // 数据集里的 `ota` 字段名与 OTA-####-# 记录编号不动，只改这句上屏的标题。
+    title: (pt, _n, f) => `固件批量升级：${pt.room} 等 ${f.batch} 台终端升至 ${f.version}`,
     steps: (pt, _me, n, f) => [
       {
         type: "ota",

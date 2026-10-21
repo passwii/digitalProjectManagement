@@ -6,6 +6,7 @@ import {
   compactAge,
   DEVICE_STATUS_LABEL,
   DEVICE_STATUS_TONE,
+  FIRMWARE_UPGRADE_LABEL,
   formatCount,
   formatGb,
   formatPercent,
@@ -44,9 +45,6 @@ import s from "./AvPages.module.css";
 import type { DeviceRow, DeviceViewProps } from "@/lib/av/contracts";
 
 const PAGE = 24;
-
-/** 固件升级（原「OTA」）：界面统一用中文，数据集里 `ota` 字段名不动。 */
-const OTA_LABEL = "固件升级";
 
 /**
  * 三档状态系列：颜色走语义 tone（在线=success / 离线=danger / 维护中=warning），
@@ -197,7 +195,7 @@ export default function DeviceView({ devices, summary }: DeviceViewProps) {
         title="设备管理"
         aside={
           <span className={s.headerChip}>
-            {OTA_LABEL} {frame.ota.success}/{frame.ota.total} 成功
+            {FIRMWARE_UPGRADE_LABEL} {frame.ota.success}/{frame.ota.total} 成功
           </span>
         }
       />
@@ -481,7 +479,7 @@ export default function DeviceView({ devices, summary }: DeviceViewProps) {
           </AvPanel>
 
           <AvPanel
-            title={OTA_LABEL}
+            title={FIRMWARE_UPGRADE_LABEL}
             subtitle={`近 180 天固件升级结果 · ${formatCount(frame.ota.total)} 次任务`}
             icon="capability"
             meta={<span style={metricTone("success")}>{formatPercent(frame.ota.rate)}</span>}
@@ -602,7 +600,7 @@ function DeviceDetail({ device, onClose }: { device: DeviceRow; onClose: () => v
         </div>
 
         <div className={s.dialogSection}>
-          <h3 className={s.dialogSectionTitle}>{OTA_LABEL}记录</h3>
+          <h3 className={s.dialogSectionTitle}>{FIRMWARE_UPGRADE_LABEL}记录</h3>
           {device.otaRecords.length === 0 ? (
             <p className={s.softNote}>无升级记录。</p>
           ) : (

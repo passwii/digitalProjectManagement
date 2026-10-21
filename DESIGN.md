@@ -372,7 +372,14 @@ components:
 
 单位符号不翻译，其余一律中文：`LIVE`→实时、`OFFLINE`→离线、`VIDEO`/`AUDIO`→视频/音频、`CPU`→处理器占用、`GPU0`→显卡 0、`OTA`→固件升级、`RSSI`→信号强度、`ROI`→分析区域、`PERSON`/`VEHICLE`→人员/车辆、`P90/P50/P10`→较高分位/中位/较低分位（具体数值仍显示，只是不再出现记号）、`25FPS`→25 帧/秒、`Top N`→前 N。**新增英文必须显式加白并写理由**，这就是把这次的口径判断固化成契约。
 
+两条口径细节，都是被真实漏网案例逼出来的：
+
+- **同一个字符串里的每一处英文都要过白名单**（`englishResidue.test.ts` 的 `matchesOf` 遍历全部非重叠命中）。只看第一处的话，`AV-MIC-S6 · LIVE` 会因为 `AV` 已在白名单里而整串通过，`MIC` / `LIVE` 根本没被检查过 —— 白名单契约也就等于可以绕过。
+- **编号类白名单要带形状（`context`），不能只写前缀**。`OTA` 只在 `OTA-\d+-\d+` 这种记录编号里放行；`OTA 批量升级：…` 这种散文标题必须变红。`PTZ` 这类「型号组成部分」也单独列出（`AV-CAM-PTZ` 拆开就不再是型号）。
+
 **③ 编码值一律映射，不直接上屏。** locale code、场景代码、枚举值是**数据**，中文只发生在展示层，映射表统一放 `web/lib/av/labels.ts`，页面里不写第二张表（否则同一个编码会在五页里漂成五种说法）。数据集原值不动：`transcripts.json` 的 `language: "zh-CN"` 保留，界面上是「普通话」；`scenes.json` 的 `code: "CAMPUS"` 保留，能力页上显示「校园」。
+
+**数据集中「会原样上屏的标题」也是文案，不是编码。** `incidents.json` 的 `title` 直接渲染在 `/event` 的列表、表格与详情「标题」行三处，所以这类散文标题要直接写成中文（固件升级类事件现为「固件批量升级：…」），**不能靠白名单放行英文** —— 数据集里的字符串同样被 `englishResidue.test.ts` 扫。数据由 `scripts/mock/generate.mjs` 生成，改文案时模板要一起改，否则下次 `npm run mock:generate` 会把它写回去。
 
 **④ 删文案会改布局，等高关系要重新量。** 副标题占一行（11px / 1.5 行高 + 4px 上边距 ≈ 20.5px），删掉就改面板高度：`/alarm` 右栏删掉两条说明型副标题后三卡栈降了 41px，左面板（12 行 × 行高 + 面板 chrome）比它长出 49px —— 于是 `--av-alarm-row-h` 从 67px 收到 63px（`panel chrome 160px + 12 × 63px = 916px`，对照三卡栈 915px，底边差 1px），**而不是**用一条说明文把高度填回去。改文案后必须重跑 `scripts/av-alarm-row-calibration.mjs` 与 `scripts/av-layout-overflow.mjs`。
 

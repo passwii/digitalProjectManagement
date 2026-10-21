@@ -153,6 +153,15 @@ export const ROUTINE_EVENT_TYPE_LABEL: Record<RoutineEventType, string> = {
   manual: "人工补录",
 };
 
+/**
+ * 术语固定写法：固件升级（原「OTA」）。
+ *
+ * 数据集里 `ota` 字段名与 `OTA-####-#` 记录编号不动（编号是抽屉对账的主键），
+ * 只有上屏的中文措辞集中在这里 —— 页面里不再写第二遍（同一个术语在五页里漂成
+ * 五种说法正是本 Stage 要消灭的东西）。
+ */
+export const FIRMWARE_UPGRADE_LABEL = "固件升级";
+
 /** 历史数据没有 `kind` 字段：缺省即告警融合事件 */
 export function incidentKind(incident: { kind?: IncidentKind }): IncidentKind {
   return incident.kind === "routine" ? "routine" : "alarm";
