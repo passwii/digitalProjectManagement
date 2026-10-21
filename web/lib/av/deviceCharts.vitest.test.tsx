@@ -80,12 +80,12 @@ function device(
  * 而不是离线设备的空态。
  */
 const DEVICES: DeviceRow[] = [
-  device({ id: "AV-MIC-S8-2001", siteId: "site-01", status: "online", room: "教学楼 A1 走廊", model: "AV-MIC-S8", typeName: "阵列拾音器", kind: "audio" }),
-  device({ id: "AV-CAM-PTZ-2002", siteId: "site-01", status: "online", room: "教学楼 A2 大门", model: "AV-CAM-PTZ", typeName: "球机", kind: "video" }),
-  device({ id: "AV-MIC-S6-2003", siteId: "site-01", status: "offline", room: "教学楼 B1 教室", model: "AV-MIC-S6", typeName: "拾音终端", kind: "audio", heartbeatOffsetMinutes: 420 }),
-  device({ id: "AV-GW-200-2004", siteId: "site-02", status: "maintenance", room: "住院部弱电井", model: "AV-GW-200", typeName: "网关", kind: "gateway", heartbeatOffsetMinutes: 30 }),
-  device({ id: "AV-MIC-S8-2005", siteId: "site-02", status: "online", room: "住院部 3 楼护士站", model: "AV-MIC-S8", typeName: "阵列拾音器", kind: "audio" }),
-  device({ id: "AV-CAM-360-2006", siteId: "site-03", status: "online", room: "办案区讯问室", model: "AV-CAM-360", typeName: "全景摄像头", kind: "video" }),
+  device({ id: "MIC-S8-2001", siteId: "site-01", status: "online", room: "教学楼 A1 走廊", model: "MIC-S8", typeName: "阵列拾音器", kind: "audio" }),
+  device({ id: "CAM-PTZ-2002", siteId: "site-01", status: "online", room: "教学楼 A2 大门", model: "CAM-PTZ", typeName: "球机", kind: "video" }),
+  device({ id: "MIC-S6-2003", siteId: "site-01", status: "offline", room: "教学楼 B1 教室", model: "MIC-S6", typeName: "拾音终端", kind: "audio", heartbeatOffsetMinutes: 420 }),
+  device({ id: "GW-200-2004", siteId: "site-02", status: "maintenance", room: "住院部弱电井", model: "GW-200", typeName: "网关", kind: "gateway", heartbeatOffsetMinutes: 30 }),
+  device({ id: "MIC-S8-2005", siteId: "site-02", status: "online", room: "住院部 3 楼护士站", model: "MIC-S8", typeName: "阵列拾音器", kind: "audio" }),
+  device({ id: "CAM-360-2006", siteId: "site-03", status: "online", room: "办案区讯问室", model: "CAM-360", typeName: "全景摄像头", kind: "video" }),
 ];
 
 const PROPS: DeviceViewProps = {
@@ -106,11 +106,11 @@ const PROPS: DeviceViewProps = {
       { id: "site-03", name: "市执法办案管理中心", total: 1, online: 1, offline: 0, rate: 100 },
     ],
     byModel: [
-      { model: "AV-MIC-S8", typeName: "阵列拾音器", count: 2 },
-      { model: "AV-CAM-PTZ", typeName: "球机", count: 1 },
-      { model: "AV-MIC-S6", typeName: "拾音终端", count: 1 },
-      { model: "AV-GW-200", typeName: "网关", count: 1 },
-      { model: "AV-CAM-360", typeName: "全景摄像头", count: 1 },
+      { model: "MIC-S8", typeName: "阵列拾音器", count: 2 },
+      { model: "CAM-PTZ", typeName: "球机", count: 1 },
+      { model: "MIC-S6", typeName: "拾音终端", count: 1 },
+      { model: "GW-200", typeName: "网关", count: 1 },
+      { model: "CAM-360", typeName: "全景摄像头", count: 1 },
     ],
     ota: { total: 20, success: 18, failed: 2 },
     signalHealth: { avg: 74.8, p10: 56, p50: 75, p90: 93 },

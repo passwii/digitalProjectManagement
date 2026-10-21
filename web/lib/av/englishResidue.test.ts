@@ -53,12 +53,27 @@ import { describe, it } from "node:test";
  * ## 判定口径
  *
  * 命中即失败，除非命中串在白名单里（每条必须写 `why`）。白名单只收三类：
- *   ① 专有型号 / 编号前缀（`AV-` / `AL-` / `PT-` …）；
+ *   ① 专有型号 / 编号前缀（`MIC-` / `CAM-` / `GW-` / `AL-` / `PT-` …）；
  *   ② 计量单位（`GB` / `dBm` / `ms` …）与编码标准（`H.265`）；
  *   ③ 不渲染的机器可读值（locale code、场景代码、base64 字母表、内联脚本）。
  *
  * **一个字符串里的每一处英文命中都要过白名单**（而不是只看第一处）：
- * 否则 `AV-MIC-S6 · LIVE` 里 `AV` 加过白，`MIC` / `LIVE` 就跟在型号后面蒙混过关了。
+ * 否则 `MIC-S6 · LIVE` 里 `MIC` 加过白，`LIVE` 就跟在型号后面蒙混过关了。
+ *
+ * ## 敏感词 `AV`：不许出现在任何一处
+ *
+ * `AV` 在中文语境里是敏感词。型号前缀已从 `AV-MIC-S6` / `AV-CAM-PTZ` / `AV-GW-200`
+ * 改成 `MIC-S6` / `CAM-PTZ` / `GW-200`（公开数据集与 `scripts/mock/generate.mjs`
+ * 的生成模板一起改，否则下次 `npm run mock:generate` 会写回英文）。
+ * 白名单里**没有**、也不该再有 `AV` 这一条：两个字母的大写串本来就落进 `UPPER_RUN`，
+ * 不给它白名单就等于它在任何一处都会变红。「`AV` 不进白名单」由「AV 是敏感词」那条用例守着。
+ *
+ * ## 形状按命中自己的区间判，不按整段字符串
+ *
+ * `context` 只对命中所在的**复合记号**（`tokenAround`：`OTA-1001-1`、`MIC-S6-1192`
+ * 这种由字母数字与 `-_.+` 连成的整体）生效。按整段字符串判的话，
+ * `OTA-1001-1 · OTA 批量升级` 里后面那条散文会借前面编号的形状整串通过 ——
+ * 形状判定从来没有和「这一处命中」绑定，白名单契约就等于没有落地。
  *
  * **整张白名单表必须二分**：要么带形状（`context` 规定编号 / 型号长什么样，`files` 限定
  * 机器值只在哪几个文件里出现），要么进 `SHAPE_EXEMPT` 例外集合（单位符号 / 行业通用词 /
@@ -243,22 +258,20 @@ const ALLOWED: AllowEntry[] = [
   //
   // 这一组全部带 `context`：只有长成型号 / 编号才会放行。少一个 `context`，散文里的同名
   // 英文（「MIC 通道信号质量」「PT 点位」「DO 一次整机复位」）就跟着蒙混过去了。
-  {
-    match: "AV",
-    why: "设备型号前缀 AV-MIC-S6 / AV-CAM-PTZ / AV-GW-200，型号是专有名词，保留原样",
-    context: /AV-(MIC|CAM|GW)/,
-  },
+  //
+  // 注意：**没有 `AV` 这一条**。`AV` 是敏感词，型号前缀已经整体去掉（`MIC-S6` / `CAM-PTZ` /
+  // `GW-200`），任何一处再出现 `AV` 都必须变红 —— 别为了让它变绿把这条加回来。
   {
     match: "MIC",
-    why: "型号 AV-MIC-S6 / AV-MIC-S8 的组成部分，与出厂型号一一对应",
-    context: /AV-MIC/,
+    why: "型号 MIC-S6 / MIC-S8 的组成部分，与出厂型号一一对应",
+    context: /MIC-S[68](-\d+)?/,
   },
   {
     match: "CAM",
-    why: "型号 AV-CAM-360 / AV-CAM-PTZ 的组成部分",
-    context: /AV-CAM/,
+    why: "型号 CAM-360 / CAM-PTZ 的组成部分",
+    context: /CAM-(360|PTZ)(-\d+)?/,
   },
-  { match: "GW", why: "型号 AV-GW-200 的组成部分", context: /AV-GW/ },
+  { match: "GW", why: "型号 GW-200 的组成部分", context: /GW-200(-\d+)?/ },
   {
     match: "PT",
     why: "点位编号前缀 PT-B1-1F01 / PT-HM-1F01（点位是数据主键，界面按编号检索）",
@@ -281,9 +294,9 @@ const ALLOWED: AllowEntry[] = [
   },
   {
     match: "PTZ",
-    why: "型号 AV-CAM-PTZ 的组成部分（云台变焦机型），与出厂型号一一对应，拆开就不再是型号",
+    why: "型号 CAM-PTZ 的组成部分（云台变焦机型），与出厂型号一一对应，拆开就不再是型号",
     // 与 `OTA` 同一口径：型号组成部分也要带形状，散文里的 `PTZ` 不许借型号名蒙混过关。
-    context: /AV-CAM-PTZ/,
+    context: /CAM-PTZ(-\d+)?/,
   },
   // 楼栋 / 站点编码的两种形状（见 `SITE_CODES`）
   ...SITE_CODES.flatMap(([code, label]): AllowEntry[] => [
@@ -392,13 +405,49 @@ function relativeOf(file: string): string {
   return file.slice(resolve(process.cwd()).length + 1);
 }
 
-function allowedIn(match: string, relative: string, text = ""): boolean {
+/** 复合记号里算「同一个词」的字符：`MIC-S6-1192`、`OTA-1001-1`、`UTC+8`、`v3.9.2`。 */
+const TOKEN_CHAR = /[A-Za-z0-9._+-]/;
+
+/**
+ * 命中所在的复合记号（`MIC-S6-1192` 这种前后被空白 / 中文 / 标点隔开的整体）。
+ *
+ * `context` 只对这个区间生效 —— 形状必须和「这一处命中」绑定。
+ */
+function tokenAround(text: string, index: number, length: number): string {
+  let start = index;
+  let end = index + length;
+  while (start > 0 && TOKEN_CHAR.test(text[start - 1])) start -= 1;
+  while (end < text.length && TOKEN_CHAR.test(text[end])) end += 1;
+  return text.slice(start, end);
+}
+
+/**
+ * 这一处命中在白名单里吗？
+ *
+ * `index` 是命中在 `text` 里的起始下标：`context` 只对 `tokenAround(...)` 判，
+ * **不拿整段 text 去跑**。整段判的后果是「串里任何一处长成编号形状，同前缀的散文
+ * 就跟着整串通过」（`OTA-1001-1 · OTA 批量升级` 实测绿），所以形状必须按命中区间判。
+ */
+function allowedIn(match: string, relative: string, text: string, index: number): boolean {
+  const token = tokenAround(text, index, match.length);
   return ALLOWED.some(
     (entry) =>
       entry.match === match &&
       (!entry.files || entry.files.includes(relative)) &&
-      (!entry.context || entry.context.test(text)),
+      (!entry.context || entry.context.test(token)),
   );
+}
+
+/**
+ * 测试用：文本里某一处命中（取**第一处**）在给定文件里是否放行。
+ *
+ * 生产路径（`scanSourceText` / `scanData`）逐个命中带下标调用 `allowedIn`；
+ * 用例里用这个包一层，省掉每处手算下标。
+ */
+function allowedOnce(match: string, relative: string, text: string): boolean {
+  const hit = matchesWithIndex(text).find((item) => item.value === match);
+  assert.ok(hit, `样本里没有命中「${match}」：${text}`);
+  return allowedIn(match, relative, text, hit.index);
 }
 
 /**
@@ -743,17 +792,20 @@ function looksLikeJsxStart(source: string, index: number): boolean {
 /**
  * 取一个字符串里的**全部**英文命中。
  *
- * 每种模式都要遍历完所有非重叠命中 —— 只取第一处的话，`AV-MIC-S6 · LIVE` 会因为
- * `AV` 加过白而整串通过，`MIC` / `LIVE` 根本没被检查过，白名单契约等于可以绕过。
+ * 每种模式都要遍历完所有非重叠命中 —— 只取第一处的话，`MIC-S6 · LIVE` 会因为
+ * `MIC` 加过白而整串通过，`LIVE` 根本没被检查过，白名单契约等于可以绕过。
  *
  * 模式常量本身不带 `g`（上面几条断言直接用 `test()`），这里按次派生带 `g` 的副本，
  * 避免共享 `lastIndex` 造成跨调用的状态泄漏。
  *
- * locale code 命中时不再报它内部的大写段（`zh-CN` 里的 `CN`）：
- * 同一个东西报两次只会让白名单越写越长。
+ * 去重按**区间**而不是按值：只吞掉被已有命中**完整包住**的那一处（locale code 命中时
+ * 不再报它内部的大写段 —— `zh-CN` 里的 `CN`）。按值去重会顺手吃掉同名的第二处：
+ * `LIVE 与 LIVE` 只报一处，`OTA-1001-1 · OTA 批量升级` 的第二条散文永不判定 ——
+ * 那正是形状判定能被绕过的基础。
  *
  * 带下标一起返回：一段文本可以跳行（三行模板字面量、跨行 JSX 文本节点），
- * 行号得靠命中在段内的位置算出来，不能拿段首的行号充数。
+ * 行号得靠命中在段内的位置算出来，不能拿段首的行号充数；白名单的 `context`
+ * 也拿这个下标去判形状（见 `allowedIn`）。
  */
 function matchesWithIndex(text: string): Array<{ value: string; index: number }> {
   const found: Array<{ value: string; index: number }> = [];
@@ -762,9 +814,12 @@ function matchesWithIndex(text: string): Array<{ value: string; index: number }>
     let hit = global.exec(text);
     while (hit) {
       const value = hit[0];
-      if (value && !found.some((item) => item.value.includes(value))) {
-        found.push({ value, index: hit.index });
-      }
+      const start = hit.index;
+      const end = start + value.length;
+      const swallowed = found.some(
+        (item) => item.index <= start && item.index + item.value.length >= end,
+      );
+      if (value && !swallowed) found.push({ value, index: start });
       // 零宽命中（当前几条模式都不是，但别让守卫在有人加模式时死循环）
       if (hit.index === global.lastIndex) global.lastIndex += 1;
       hit = global.exec(text);
@@ -796,7 +851,8 @@ function scanSourceText(relative: string, raw: string): Offender[] {
   const offenders: Offender[] = [];
   for (const segment of segments) {
     for (const hit of matchesWithIndex(segment.text)) {
-      if (allowedIn(hit.value, relative, segment.text)) continue;
+      // 形状按这一处命中所在的记号判（`hit.index`），不是拿整段文本跑 context
+      if (allowedIn(hit.value, relative, segment.text, hit.index)) continue;
       offenders.push({
         file: relative,
         // 命中在段内的下标 → 段在文件里的起始下标 → 行号
@@ -836,9 +892,14 @@ function scanData(file: string): Offender[] {
   jsonStrings(JSON.parse(readFileSync(file, "utf8")), values);
   const offenders: Offender[] = [];
   for (const text of values) {
-    for (const value of matchesOf(text)) {
-      if (allowedIn(value, relative, text)) continue;
-      offenders.push({ file: relative, line: 0, snippet: text.trim().slice(0, 100), match: value });
+    for (const hit of matchesWithIndex(text)) {
+      if (allowedIn(hit.value, relative, text, hit.index)) continue;
+      offenders.push({
+        file: relative,
+        line: 0,
+        snippet: text.trim().slice(0, 100),
+        match: hit.value,
+      });
     }
   }
   return offenders;
@@ -897,39 +958,39 @@ describe("界面英文残留（BLF-1431）", () => {
     assert.deepEqual(matchesOf("Hello"), []);
     assert.deepEqual(matchesOf("规格 4K · 显存 24GB"), ["GB"]);
     // 命中后没有白名单 → 一定是 offender
-    assert.equal(allowedIn("LIVE", "components/av/pages/MonitorView.tsx"), false);
-    assert.equal(allowedIn("RSSI", "components/av/pages/MonitorView.tsx"), false);
-    assert.equal(allowedIn("zh-CN", "components/av/pages/AudioView.tsx"), false);
+    assert.equal(allowedOnce("LIVE", "components/av/pages/MonitorView.tsx", "LIVE"), false);
+    assert.equal(allowedOnce("RSSI", "components/av/pages/MonitorView.tsx", "RSSI 弱"), false);
+    assert.equal(allowedOnce("zh-CN", "components/av/pages/AudioView.tsx", "zh-CN"), false);
   });
 
   it("同一字符串里的每一处英文命中都要检查，不能只查第一处", () => {
-    // 型号后面跟英文状态：`AV` 加过白，`MIC` / `LIVE` 也必须被抓到
-    assert.deepEqual(matchesOf("AV-MIC-S6 · LIVE"), ["AV", "MIC", "LIVE"]);
-    assert.deepEqual(matchesOf("AV-CAM-PTZ · OFFLINE"), ["AV", "CAM", "PTZ", "OFFLINE"]);
+    // 型号后面跟英文状态：`MIC` 加过白，`LIVE` 也必须被抓到
+    assert.deepEqual(matchesOf("MIC-S6 · LIVE"), ["MIC", "LIVE"]);
+    assert.deepEqual(matchesOf("CAM-PTZ · OFFLINE"), ["CAM", "PTZ", "OFFLINE"]);
     // 多个互不相同的命中都要出现（不是只取第一个就跳下一个模式）
     assert.deepEqual(matchesOf("RSSI 与 CPU 同屏"), ["RSSI", "CPU"]);
     // 同一模式的多处命中也要全部出现
     assert.deepEqual(matchesOf("LIVE / OFFLINE"), ["LIVE", "OFFLINE"]);
     assert.deepEqual(matchesOf("P90 与 P50"), ["P90", "P50"]);
 
-    // 白名单不能把「型号 + 英文」整串放过：逐串判定
-    const line = "AV-MIC-S6 · LIVE";
-    const leaked = matchesOf(line).filter(
-      (value) => !allowedIn(value, "components/av/pages/MonitorView.tsx", line),
-    );
+    // 白名单不能把「型号 + 英文」整串放过：逐处命中判定
+    const line = "MIC-S6 · LIVE";
+    const leaked = matchesWithIndex(line)
+      .filter((hit) => !allowedIn(hit.value, "components/av/pages/MonitorView.tsx", line, hit.index))
+      .map((hit) => hit.value);
     assert.deepEqual(leaked, ["LIVE"], "`LIVE` 必须透过白名单漏出来才会变红");
   });
 
   it("编号类白名单只覆盖编号形状，散文里的同名英文仍然变红", () => {
     const idText = "OTA-1001-1";
     assert.deepEqual(matchesOf(idText), ["OTA"]);
-    assert.equal(allowedIn("OTA", "public/stream-monitor-data/devices.json", idText), true);
+    assert.equal(allowedOnce("OTA", "public/stream-monitor-data/devices.json", idText), true);
 
     // /event 的 incident.title 原样上屏：这类散文标题不许借编号前缀蒙混过关
     const prose = "OTA 批量升级：1楼讯问室 08 等 22 台终端升至 v3.9.2";
     assert.deepEqual(matchesOf(prose), ["OTA"]);
     assert.equal(
-      allowedIn("OTA", "public/stream-monitor-data/incidents.json", prose),
+      allowedOnce("OTA", "public/stream-monitor-data/incidents.json", prose),
       false,
       "`OTA` 出现在散文标题里必须变红（白名单只放行 OTA-\\d+-\\d+）",
     );
@@ -965,14 +1026,13 @@ describe("界面英文残留（BLF-1431）", () => {
   });
 
   it("编号 / 型号前缀整表带形状：散文里的同名英文一律变红，编号形状放行", () => {
-    // 一句话：`MIC` 只有在 `AV-MIC-S6` 里才是型号，`MIC 通道信号质量` 是散文。
+    // 一句话：`MIC` 只有在 `MIC-S6-1001` 里才是型号，`MIC 通道信号质量` 是散文。
     // 上一轮只收紧了 `OTA` / `PTZ`，剩下的前缀全是裸 `match`，两张注入实测都绿 ——
     // 所以这里把整张表逐条跑一遍，免得下一轮再冒出一个漏网的前缀。
     const cases: Array<[match: string, prose: string, shaped: string]> = [
-      ["AV", "AV 接口极性反接", "AV-MIC-S6"],
-      ["MIC", "MIC 通道信号质量", "AV-MIC-S8-1001"],
-      ["CAM", "CAM 通道离线", "AV-CAM-360"],
-      ["GW", "GW 出口带宽", "AV-GW-200-2004"],
+      ["MIC", "MIC 通道信号质量", "MIC-S8-1001"],
+      ["CAM", "CAM 通道离线", "CAM-360"],
+      ["GW", "GW 出口带宽", "GW-200-2004"],
       ["PT", "PT 点位通道信号质量", "PT-B1-1F01"],
       ["AL", "AL 阈值下调", "AL-00037"],
       ["EV", "EV 事件归档", "EV-20260145"],
@@ -984,35 +1044,35 @@ describe("界面英文残留（BLF-1431）", () => {
       ["FP", "FP 相似度复核", "FP-0031"],
       ["WO", "WO 工单派发", "WO-20261019-011"],
       ["OTA", "OTA 批量升级：1 楼讯问室", "OTA-1001-1"],
-      ["PTZ", "PTZ 云台自动跟随", "AV-CAM-PTZ"],
+      ["PTZ", "PTZ 云台自动跟随", "CAM-PTZ"],
     ];
     const data = "public/stream-monitor-data/incidents.json";
     const missed: string[] = [];
     for (const [match, prose, shaped] of cases) {
       assert.deepEqual(matchesOf(prose), [match], `样本没命中「${match}」`);
       assert.equal(
-        allowedIn(match, data, prose),
+        allowedOnce(match, data, prose),
         false,
         `「${match}」在散文「${prose}」里被放行了 —— 它的白名单没有形状`,
       );
-      if (!allowedIn(match, data, shaped)) missed.push(`${match} ⇎ ${shaped}`);
+      if (!allowedOnce(match, data, shaped)) missed.push(`${match} ⇎ ${shaped}`);
     }
     assert.deepEqual(missed, [], "编号 / 型号形状被错拦了，白名单写得太紧");
   });
 
   it("楼栋编码两种形状都对：`PT-SS-1F01` 与 `sites[].code` 原值放行，散文里的 `SS` 变红", () => {
     assert.equal(
-      allowedIn("SS", "public/stream-monitor-data/alarms/shard-000.json", "PT-SS-1F01 告警"),
+      allowedOnce("SS", "public/stream-monitor-data/alarms/shard-000.json", "PT-SS-1F01 告警"),
       true,
       "点位编号里的站点段必须放行（数据集里 400 多处）",
     );
     assert.equal(
-      allowedIn("SS", "public/stream-monitor-data/sites.json", "SS"),
+      allowedOnce("SS", "public/stream-monitor-data/sites.json", "SS"),
       true,
       "`sites[].code` 原值是机器可读字段",
     );
     assert.equal(
-      allowedIn("SS", "components/av/pages/MonitorView.tsx", "SS 站点在线率"),
+      allowedOnce("SS", "components/av/pages/MonitorView.tsx", "SS 站点在线率"),
       false,
       "界面文案里的 `SS` 不是在编号形状里，必须变红",
     );
@@ -1216,14 +1276,107 @@ describe("界面英文残留（BLF-1431）", () => {
     assert.ok(labels.includes("在线率"), "站点表的表头文案没被取到");
   });
 
-  it("型号白名单也带形状：散文里的 `PTZ` 变红，`AV-CAM-PTZ` 放行", () => {
+  it("型号白名单也带形状：散文里的 `PTZ` 变红，`CAM-PTZ` 放行", () => {
     const prose = "PTZ 云台自动跟随";
     assert.deepEqual(matchesOf(prose), ["PTZ"]);
     assert.equal(
-      allowedIn("PTZ", "public/stream-monitor-data/devices.json", prose),
+      allowedOnce("PTZ", "public/stream-monitor-data/devices.json", prose),
       false,
-      "`PTZ` 只在 `AV-CAM-PTZ` 这种型号形状里放行",
+      "`PTZ` 只在 `CAM-PTZ` 这种型号形状里放行",
     );
-    assert.equal(allowedIn("PTZ", "public/stream-monitor-data/devices.json", "AV-CAM-PTZ"), true);
+    assert.equal(allowedOnce("PTZ", "public/stream-monitor-data/devices.json", "CAM-PTZ"), true);
+  });
+  // —— 形状按命中区间判定（阻塞 7）———————————————————————————
+
+  it("形状按命中自己的区间判：编号后面跟散文，散文不许借前面编号的形状通过", () => {
+    // 上一版的 `allowedIn` 拿整段字符串跑 `context`，于是「串里只要有一处像编号，
+    // 同前缀的散文就整串放行」；`matchesWithIndex` 又按值去重，第二处散文根本不判定。
+    const mixed: Array<[file: string, text: string, prose: string]> = [
+      [
+        "public/stream-monitor-data/incidents.json",
+        "OTA-1001-1 · OTA 批量升级",
+        "OTA",
+      ],
+      [
+        "public/stream-monitor-data/devices.json",
+        "MIC-S6-1192 · MIC 通道",
+        "MIC",
+      ],
+      [
+        "public/stream-monitor-data/alarms/shard-000.json",
+        "AL-00037 · AL 阈值下调",
+        "AL",
+      ],
+    ];
+    for (const [file, text, prose] of mixed) {
+      // 两处命中都在（按值去重会吃掉第二处）
+      const hits = matchesWithIndex(text).filter((hit) => hit.value === prose);
+      assert.equal(hits.length, 2, `「${text}」里的两处 ${prose} 必须都被找到`);
+      // 第一处在编号形状里 → 放行；第二处是散文 → 必须变红
+      assert.equal(allowedIn(prose, file, text, hits[0].index), true, `编号那一处应放行：${text}`);
+      assert.equal(allowedIn(prose, file, text, hits[1].index), false, `散文那一处必须变红：${text}`);
+    }
+
+    // 同类多命中不再被按值去重吞掉
+    assert.deepEqual(matchesOf("LIVE 与 LIVE"), ["LIVE", "LIVE"]);
+    // 被更大命中完整包住的那一处仍然只报一次（`zh-CN` 里的 `CN`）
+    assert.deepEqual(matchesOf("zh-CN"), ["zh-CN"]);
+  });
+
+  // —— 敏感词 `AV` ——————————————————————————————————————
+
+  it("`AV` 是敏感词：白名单里没有它，任何一处出现都变红", () => {
+    // 白名单表里既没有 `AV`，也不能借着 `context` / `files` 把它放回来
+    assert.deepEqual(
+      ALLOWED.filter((entry) => /(^|[^A-Za-z])AV([^A-Za-z]|$)/.test(entry.match)).map((entry) => entry.match),
+      [],
+      "白名单里不许再有 `AV`：型号前缀已整体去掉",
+    );
+
+    // 旧型号名必须变红（两个大写字母落进 UPPER_RUN，且没有白名单）
+    const legacy = "AV-MIC-S6 · 直播";
+    assert.ok(matchesOf(legacy).includes("AV"), "`AV` 必须被 UPPER_RUN 抓到");
+    const avHit = matchesWithIndex(legacy).find((hit) => hit.value === "AV");
+    assert.ok(avHit);
+    assert.equal(
+      allowedIn("AV", "public/stream-monitor-data/devices.json", legacy, avHit.index),
+      false,
+      "`AV` 不许被任何白名单放行",
+    );
+    // 旧型号残留在数据集 / 源码里也不许悄悄过关
+    assert.deepEqual(
+      scanData(resolve(process.cwd(), PUBLIC_DATA_DIR, "devices.json")).filter((item) =>
+        /(^|[^A-Za-z])AV([^A-Za-z]|$)/.test(item.snippet),
+      ),
+      [],
+      "公开数据集里还有 `AV` 残留",
+    );
+  });
+
+  it("设备型号已去掉 `AV-` 前缀：数据集与生成器模板都改成了 `MIC-` / `CAM-` / `GW-`", () => {
+    // 数据集：型号字段必须是新写法，且不能再带 `AV-`
+    const devices = JSON.parse(
+      readFileSync(resolve(process.cwd(), PUBLIC_DATA_DIR, "devices.json"), "utf8"),
+    ) as Array<{ id: string; model: string }>;
+    const models = Array.from(new Set(devices.map((device) => device.model))).sort();
+    // 只认 `MIC-` / `CAM-` / `GW-` 三种前缀（不锁死型号全集：加新型号不该让守卫变红）
+    assert.deepEqual(
+      models.filter((model) => !/^(MIC|CAM|GW)-[A-Z0-9]+$/.test(model)),
+      [],
+      `型号里出现了非预期前缀：${models.join(" / ")}`,
+    );
+    // 本轮的五个型号仍在（改名不能把型号改没了）
+    for (const expected of ["CAM-360", "CAM-PTZ", "GW-200", "MIC-S6", "MIC-S8"]) {
+      assert.ok(models.includes(expected), `型号 ${expected} 不见了`);
+    }
+    assert.ok(
+      devices.every((device) => device.id.startsWith(device.model)),
+      "设备编号仍应是「型号 + 序号」",
+    );
+
+    // 生成器模板：只改数据不改模板的话，下次 `npm run mock:generate` 会写回 `AV-`
+    const generator = readFileSync(resolve(process.cwd(), "..", "scripts/mock/generate.mjs"), "utf8");
+    assert.ok(!/AV-/.test(generator), "生成器模板里还有 `AV-` 型号前缀");
+    assert.ok(/"MIC-S6"/.test(generator), "生成器模板里应只剩新型号");
   });
 });

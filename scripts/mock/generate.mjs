@@ -300,11 +300,11 @@ const EMPTY_POINTS = [
 // 4. 设备（含设备画像：固件、自检、OTA、信号序列）
 // ============================================================
 const DEVICE_MODELS = [
-  { model: "AV-MIC-S6", type: "拾音终端", kind: "audio", fw: ["3.4.0", "3.4.1", "3.4.2"] },
-  { model: "AV-MIC-S8", type: "阵列拾音器", kind: "audio", fw: ["2.8.4", "2.8.6", "2.9.0"] },
-  { model: "AV-CAM-360", type: "全景摄像头", kind: "video", fw: ["5.2.1", "5.2.3", "5.3.0"] },
-  { model: "AV-CAM-PTZ", type: "球机", kind: "video", fw: ["4.6.2", "4.7.0"] },
-  { model: "AV-GW-200", type: "网关", kind: "gateway", fw: ["1.9.3", "2.0.0"] },
+  { model: "MIC-S6", type: "拾音终端", kind: "audio", fw: ["3.4.0", "3.4.1", "3.4.2"] },
+  { model: "MIC-S8", type: "阵列拾音器", kind: "audio", fw: ["2.8.4", "2.8.6", "2.9.0"] },
+  { model: "CAM-360", type: "全景摄像头", kind: "video", fw: ["5.2.1", "5.2.3", "5.3.0"] },
+  { model: "CAM-PTZ", type: "球机", kind: "video", fw: ["4.6.2", "4.7.0"] },
+  { model: "GW-200", type: "网关", kind: "gateway", fw: ["1.9.3", "2.0.0"] },
 ];
 const AUDIO_MODELS = DEVICE_MODELS.filter((m) => m.kind === "audio");
 const VIDEO_MODELS = DEVICE_MODELS.filter((m) => m.kind === "video");
