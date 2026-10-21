@@ -36,7 +36,25 @@ ENV NODE_ENV=production
 # standalone 的 server.js 从环境变量取监听地址；这两个值不设就等于 `next start`
 # 的默认端口，且可能只绑 127.0.0.1——容器外就再也探不到 3001。
 ENV PORT=3001
-ENV HOSTNAME=0.0.0.0
+# ⚠️ HOSTNAME 必须是**空字符串**，不能是 0.0.0.0（BLF-1400）。
+#
+# standalone 的 server.js 模板是：
+#     const hostname = process.env.HOSTNAME || '0.0.0.0'
+#     startServer({ hostname, port: currentPort, ... })
+#
+# Next 拼**绝对**重定向 URL 时用的是这个启动期 hostname（不是请求的 Host 头），
+# 所以 HOSTNAME=0.0.0.0 会让登录重定向跳到 http://0.0.0.0:3001/login ——
+# 浏览器根本连不上（实测 ERR_SSL_PROTOCOL_ERROR）。
+#
+# 置空之后：
+#   · server.listen(port, '') 仍监听所有网卡（Node 的空 hostname 等同于
+#     undefined，实测 address = "::"），**监听行为不变**；
+#   · Next 的 fetchHostname 变成 ''（falsy），于是 next.config.mjs 里的
+#     experimental.trustHostHeader 才生效 —— 它让 Next 改用请求的 Host 头
+#     拼 URL，也就是浏览器真正访问的那个域名。
+#
+# ⚠️ 以后改成 0.0.0.0 会让反代下的登录重定向再次指向错误地址。
+ENV HOSTNAME=""
 
 # --chown 让 next 运行时能写 .next/cache（fetch/router 缓存），同时不必以 root 跑。
 COPY --chown=node:node --from=builder /app/.next/standalone ./

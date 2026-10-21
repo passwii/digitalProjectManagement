@@ -53,6 +53,41 @@ HEALTH_TARGETS = (
 HEALTH_ATTEMPTS = 45
 HEALTH_INTERVAL = 2
 
+# HTTPS 入口（BLF-1400）。
+#
+# 为什么 PWA 必须有 HTTPS —— 实测（Chrome 140，非 localhost 的 HTTP 源）：
+#     isSecureContext        = false
+#     navigator.serviceWorker = undefined   ← Chrome 直接把 SW API 屏蔽
+#     installability_errors  = not-from-secure-origin
+#
+# 没有安全上下文就没有 service worker → Chrome 拿不到 WebAPK → 只能降级成
+# 「快捷方式」安装 → 主屏幕图标右下角挂一个 **Chrome 徽标**，而且装出来的
+# 不是真应用（没有应用抽屉入口、没有独立包名）。
+#
+# 所以这几项配错的后果是**静默**的：部署成功、站点能访问、图标能显示，
+# 只有装机方式不对。必须在部署前就拦下来。
+#
+# 每项 = (变量名, 说明)。检查的是服务器上 /opt/pm/.env 的实际取值。
+REQUIRED_ENV_CHECKS = (
+    ("PM_DOMAIN", "对外 HTTPS 域名，必须与宿主机 Caddy 的站点域名一致"),
+    (
+        "PM_HOST_BIND",
+        "宿主机上 web 端口的绑定地址，必须是 127.0.0.1（公网只能走 caddy 的 443）",
+    ),
+    (
+        "API_PORT_BIND",
+        "宿主机上 api 端口的绑定地址，必须是 127.0.0.1",
+    ),
+    (
+        "NEXT_PUBLIC_API_BASE",
+        "前端 API 基址，必须是 https://<域名>/api/v1",
+    ),
+    (
+        "CORS_ORIGINS",
+        "后端跨域源，必须是 https://<域名>",
+    ),
+)
+
 
 def build_prune_block(keep_spare: int = PRUNE_KEEP_SPARE) -> str:
     """渲染收尾的镜像回收片段。keep_spare=0 表示悬空镜像全清、不留回滚窗口。
@@ -99,6 +134,70 @@ prune_dangling_images || printf '警告：镜像回收出错，本次部署不�
 docker system df || printf '警告：docker system df 读取失败\\n' >&2"""
 
 
+def build_env_check_block() -> str:
+    """渲染 HTTPS 配置前置校验片段；验证值与域名一致，再执行部署。"""
+    expected_values = {
+        "PM_HOST_BIND": "127.0.0.1",
+        "API_PORT_BIND": "127.0.0.1",
+    }
+    lines = []
+    for name, desc in REQUIRED_ENV_CHECKS:
+        expected = expected_values.get(name)
+        expected_arg = f' "{expected}"' if expected is not None else ""
+        lines.append(f'  check_env "{name}" "{desc}"{expected_arg}')
+    body = "\n".join(lines)
+    return f"""# ---- HTTPS 前置校验（BLF-1400）----
+# 这些值控制公开域名、TLS 证书、API 同源地址以及 Web/API 的回环绑定。
+# 校验失败时在拉代码、构建或重启容器之前停止。
+check_env() {{
+  name="$1"
+  desc="$2"
+  expected="${{3:-}}"
+  value="$(grep -E "^${{name}}=" .env 2>/dev/null | head -1 | cut -d= -f2- | tr -d '\\"' | xargs || true)"
+  if [ -z "$value" ]; then
+    if [ "$name" = "NEXT_PUBLIC_API_BASE" ] && [ -n "${{domain:-}}" ]; then
+      # Compose 在该值为空或未设置时使用生产同源默认值。
+      value="https://$domain/api/v1"
+    else
+      printf '部署中止：.env 里缺少 %s（%s）\\n' "$name" "$desc" >&2
+      exit 1
+    fi
+  fi
+  case "$name" in
+    PM_DOMAIN)
+      if ! printf '%s' "$value" | grep -Eq '^[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?(\\.[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?)+$' \\
+        || ! printf '%s' "$value" | grep -q '[A-Za-z]'; then
+        printf '部署中止：PM_DOMAIN 必须是证书可识别的 DNS 域名，当前值为 %s\\n' "$value" >&2
+        exit 1
+      fi
+      domain="$value"
+      ;;
+    PM_HOST_BIND|API_PORT_BIND)
+      if [ "$value" != "$expected" ]; then
+        printf '部署中止：%s 必须为 %s，当前值为 %s\\n' "$name" "$expected" "$value" >&2
+        exit 1
+      fi
+      ;;
+    NEXT_PUBLIC_API_BASE)
+      if [ -z "${{domain:-}}" ] || [ "$value" != "https://$domain/api/v1" ]; then
+        printf '部署中止：NEXT_PUBLIC_API_BASE 必须为 https://%s/api/v1，当前值为 %s\\n' "${{domain:-<未配置>}}" "$value" >&2
+        exit 1
+      fi
+      ;;
+    CORS_ORIGINS)
+      if [ -z "${{domain:-}}" ] || [ "$value" != "https://$domain" ]; then
+        printf '部署中止：CORS_ORIGINS 必须为 https://%s，当前值为 %s\\n' "${{domain:-<未配置>}}" "$value" >&2
+        exit 1
+      fi
+      ;;
+  esac
+  printf '前置校验通过：%s\\n' "$name"
+}}
+
+{body}
+"""
+
+
 def build_remote_script(
     app_dir: str = DEFAULT_APP_DIR,
     branch: str = DEFAULT_BRANCH,
@@ -117,6 +216,7 @@ def build_remote_script(
     prune_block = (
         "\n" + build_prune_block(prune_spare) + "\n" if prune_spare is not None else ""
     )
+    env_check_block = build_env_check_block()
     return f"""set -euo pipefail
 cd {app_dir}
 
@@ -128,6 +228,7 @@ if [ -n "$(git status --porcelain)" ]; then
   exit 1
 fi
 
+{env_check_block}
 git pull --ff-only origin {branch}
 echo "已部署版本：$(git rev-parse --short HEAD)"
 

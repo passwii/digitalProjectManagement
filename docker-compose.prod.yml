@@ -1,19 +1,71 @@
-# VPS 生产覆盖配置：web 3001 + api 8001。
+# VPS 生产覆盖配置：宿主机 Caddy(HTTPS 443) + web 3001 + api 8001。
 # 使用：
-#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml \
+#     up -d --build
 #
 # APP_SECRET 和可选的 DATABASE_URL 从 /opt/pm/.env 注入，不提交到 Git。
+#
+# ================================================================
+# ⚠️ 端口暴露策略（BLF-1400，改动过，勿轻易改回去）
+# ================================================================
+#
+#   · 宿主机 Caddy → 80/443 对外 ← **唯一**的公网入口
+#   · web 容器       → 3001 只听 127.0.0.1
+#   · api 容器       → 8001 只听 127.0.0.1
+#
+# VPS 的宿主机 Caddy 已负责 HTTPS 与 /api/* 反代（oa.zikert.com）；此文件
+# 不启动第二个 Caddy，避免争用现有 80/443 监听。
+#
+# 以前 web 是 "3001:3001"（全网可达），公网可以直接走明文 HTTP 访问。
+# 那样装不了真 PWA —— 实测（Chrome 140，非 localhost 的 HTTP 源）：
+#
+#     isSecureContext        = false
+#     navigator.serviceWorker = undefined   ← Chrome 直接把 SW API 屏蔽
+#     installability_errors  = not-from-secure-origin
+#
+# 没有安全上下文就没有 service worker → Chrome 拿不到 WebAPK → 只能降级成
+# 「快捷方式」安装 → 主屏幕图标右下角挂一个 **Chrome 徽标**。
+# 装出来的也不是真应用：没有应用抽屉入口、没有独立包名、站内链接被别的
+# 应用点开会落回浏览器。
+#
+# 所以这不是「图标好不好看」的问题，是**装机方式**的问题，唯一的解法是 HTTPS。
+#
+# ================================================================
+# ⚠️ 为什么 ports 用「同一个插值表达式」而不是写死字面量
+# ================================================================
+#
+# compose 合并多个文件时，**ports 是去重合并，不是替换**：两个文件写同一条
+# 插值表达式时，插值后相同 → 合并后仍只有一条；一旦 prod 改写成另一个
+# 字面量，base 的那条会被**追加**在后面。
+#
+# 后果很具体：若 prod 写 "- 127.0.0.1:3001:3001" 而 base 写 "- 3001:3001"，
+# 最终是**两条都在** —— 3001 同时绑 0.0.0.0 与 127.0.0.1，公网照样能用
+# 明文 HTTP 访问，PWA 依然装不成真应用，而且看起来"配置过了"（很难查）。
+#
+# 所以这里与基础文件 docker-compose.yml **写完全相同的表达式**，
+# 只靠 PM_HOST_BIND / API_PORT_BIND 切换绑定地址：
+#
+#   · 基础文件（本地开发）：PM_HOST_BIND 未设 → 0.0.0.0（容器外可访问）
+#   · 本文件（生产）：      PM_HOST_BIND=127.0.0.1 → 只听回环
+#
+# ⚠️ 生产必须显式设 PM_HOST_BIND=127.0.0.1 与 API_PORT_BIND=127.0.0.1
+#    （在 /opt/pm/.env 里），否则生产会沿用 0.0.0.0，公网仍可明文访问。
+#    部署脚本 scripts/deploy_vps.py 会检查这两项。
 
 services:
   api:
     restart: unless-stopped
     ports:
-      - "8001:8001"
+      # 收回本机：宿主机 Caddy 反代到 8001，公网不需要直连 API。
+      # 表达式与基础文件**完全一致**（见文件头「为什么 ports 用同一个插值
+      # 表达式」）：靠 API_PORT_BIND 切绑定地址，合并后仍只有一条。
+      - "${API_PORT_BIND:-0.0.0.0}:8001:8001"
     environment:
       TZ: Asia/Shanghai
       APP_SECRET: "${APP_SECRET:?APP_SECRET must be set}"
-      DATABASE_URL: "${DATABASE_URL:?DATABASE_URL must be set to a PostgreSQL URL}"
-      CORS_ORIGINS: "${CORS_ORIGINS:-http://145.79.143.98:3001}"
+      DATABASE_URL: "${DATABASE_URL:?DATABASE_URL must be set}"
+      # CORS 白名单匹配浏览器访问的 HTTPS 源，不是 Caddy 到上游的 loopback 地址。
+      CORS_ORIGINS: "${CORS_ORIGINS:-https://${PM_DOMAIN}}"
       # 生产环境：本地后端被直接拒绝，附件正文只能进 R2（见 api/core/storage.py）。
       APP_ENV: production
       STORAGE_BACKEND: "${STORAGE_BACKEND:-r2}"
@@ -22,6 +74,18 @@ services:
     restart: unless-stopped
     build:
       args:
-        NEXT_PUBLIC_API_BASE: "${NEXT_PUBLIC_API_BASE:-http://145.79.143.98:8001/api/v1}"
+        # 构建期编进前端产物的 API 基址。**必须与宿主机 Caddy 域名同源**，
+        # 浏览器请求由 Caddy 按 /api/* 转发给 API 容器。
+        #
+        # ⚠️ build.args 按 key 合并、**后一个文件赢**，所以这里同名 key 直接
+        #    覆盖基础文件的值即可（不需要 !override）。
+        #    但 .env 的优先级**高于** compose 文件里的 ${VAR:-default}：
+        #    .env 里若写着 NEXT_PUBLIC_API_BASE=http://127.0.0.1:8001/api/v1，
+        #    插值出来的就是这个 localhost 值，prod 的默认值根本不生效。
+        #    → 生产必须在 /opt/pm/.env 里把 NEXT_PUBLIC_API_BASE 改成
+        #      https://<域名>（或删掉这一行，让默认值生效）。
+        NEXT_PUBLIC_API_BASE: >-
+          ${NEXT_PUBLIC_API_BASE:-https://${PM_DOMAIN}/api/v1}
     ports:
-      - "3001:3001"
+      # 收回本机：公网 HTTPS 由宿主机 Caddy 提供。表达式同基础文件（见文件头）。
+      - "${PM_HOST_BIND:-0.0.0.0}:3001:3001"

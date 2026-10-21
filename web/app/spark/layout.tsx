@@ -25,7 +25,7 @@ export const metadata: Metadata = {
 /**
  * 站点视口（BLF-1389）。
  *
- * `themeColor` 取站点自己的底色（#070a12，与 `public/spark/manifest.webmanifest`
+ * `themeColor` 取站点自己的底色（#070a12，与 `app/spark/manifest.webmanifest/route.ts`
  * 的 `theme_color` / `background_color` 同值），与主工作台的 #0F2742 区分开 ——
  * standalone 启动时状态栏色与页面顶色才对得上，不出现两截颜色。
  *

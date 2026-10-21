@@ -242,17 +242,9 @@ const SITE_EXTRA_FILES = [
 ];
 
 /**
- * 站点自己的 PWA 清单（BLF-1389）：**静态 JSON 文件**，不在 `public/` 下的
- * 数据目录里，但同样是「装到主屏幕后由系统展示」的用户可见文案。
- *
- * 为什么单列而不是并进 `PUBLIC_DATA_DIR`：那个目录是访客可下载的**数据**，
- * 这里是要被系统读走的**应用元数据**，两者性质不同，分开写清楚各自的
- * 扫描意图（数据目录扫 JSON，这里扫 .webmanifest）。
+ * 站点 manifest 的用户可见名称与描述由共享构造器提供；纳入同一文案扫描。
  */
-const SITE_MANIFEST_FILES = [
-  "public/spark/manifest.webmanifest",
-  "public/stream-monitor/manifest.webmanifest",
-];
+const SITE_MANIFEST_FILES = ["lib/pwaManifest.ts"];
 
 /**
  * 公开静态数据集（访客可以直接在地址栏敲 `/stream-monitor-data/index.json` 下载）。

@@ -5,8 +5,8 @@
      + icon-512-maskable.png（purpose maskable，全 bleed 底 + 中央安全区作画）
      + apple-touch-icon.png（iOS 主屏幕图标，180×180）。
 
-maskable 安全区：Android 自适应图标遮罩最多裁掉四周各约 18%（圆形遮罩），
-所以字母主体只占中央 ~64%，四周留纯色底——系统怎么裁都不会裁掉字母。
+maskable 安全区：Android 自适应图标使用圆形遮罩，圆形安全区直径约为图标的 80%。
+SHZK 与中文副标按原比例放大，并完整留在圆形安全区内；四周保留纯色 bleed 底。
 
 用法：python3 scripts/gen_pwa_icons.py（依赖 Pillow）
 """
@@ -27,6 +27,38 @@ OUT_DIR = os.path.join(ROOT, "web", "public", "icons")
 NAVY = (15, 39, 66, 255)  # #0F2742，与 manifest theme_color 同值
 ICE = (140, 188, 255, 255)  # #8CBCFF
 RING = (104, 174, 255, 90)  # 描边光晕，低透明度
+
+# 分隔线与中文名的颜色（**不透明**）。
+#
+# 为什么不能带 alpha：Pillow 的 ImageDraw 画颜色时是**直接写像素**，
+# 不是 alpha 混合 —— fill=(104,174,255,165) 会把那几个像素的 alpha 写成
+# 165，而不是在底色上叠一层 65% 不透明的线。
+#
+# 后果对 maskable 图标是致命的：它的底本该**全 bleed 不透明**（Android
+# 自适应图标会拿它裁形状），却在画面中间留出一片半透明的“洞”，
+# alpha=165 的洞有 611 个像素、alpha=230 的 334 个（实测）。
+# Android 补洞的颜色不可控，部分 Chrome 版本还会因此判定图标不合格，
+# 把 PWA 装机降级成带 Chrome 徽标的快捷方式。
+#
+# 所以这里改成**先算好混合结果**（见 blend_on），再用不透明色作画。
+LINE = (104, 174, 255, 255)  # 分隔线
+LABEL = (214, 228, 249, 255)  # 中文品牌名
+
+
+def blend_on(base: tuple[int, int, int, int], top: tuple[int, int, int, int]):
+    """把带 alpha 的前景色合成到不透明底色上，返回**不透明**的结果。
+
+    公式就是标准 source-over 混合（底色不透明时 alpha 恒为 255）：
+
+        out = round(base * (1 - a) + top * a)
+
+    为什么要手工算：Pillow 的 ImageDraw 不做 alpha 混合（见上面 LINE 的
+    注释）。想要“半透明线叠在深蓝底上”的观感，就得自己算混合值。
+    """
+    alpha = top[3] / 255
+    return tuple(
+        round(base[index] * (1 - alpha) + top[index] * alpha) for index in range(3)
+    ) + (255,)
 
 # SHZK 使用 Verdana Bold。中文副标需要真实 CJK 字体：不能回退到 Pillow
 # 内置位图字体（不含中文，会把品牌名渲染成缺字框）。
@@ -76,24 +108,47 @@ def load_cjk_font(size: int):
     raise IconBuildError("未找到可用的中文字体（macOS STHeiti / Windows 微软雅黑 / Linux Noto Sans CJK）")
 
 
-def draw_mark(draw: ImageDraw.ImageDraw, box: int, scale: float) -> None:
-    """画 SHZK 字标、分隔线与中文品牌名（scale 缩放作画区）。"""
+def draw_mark(
+    draw: ImageDraw.ImageDraw,
+    box: int,
+    *,
+    base: tuple[int, int, int, int] = NAVY,
+) -> None:
+    """画 SHZK 字标、分隔线与中文品牌名，保留各自原字形比例。
+
+    两个字号以 maskable 原布局（0.72）为基准：Latin 放大 1.60 倍，中文
+    与分隔线放大 2.80 倍。垂直位置与选定预览一致，整组内容留在圆形安全区。
+
+    `base` 是作画区底色：分隔线与中文名的半透明观感靠**预先混合**得到
+    （见 blend_on），画上去的像素一律不透明 —— 底图不该出现 alpha 洞。
+    """
     cx = box / 2
-    font = load_font(_px(box * 0.20 * scale))
-    text = "SHZK"
-    # 顶部基线：字母中心落在 44% 高度
-    draw.text((cx, box * 0.43), text, font=font, fill=ICE, anchor="mm")
-    # 元素分隔线
-    lw, lh = box * 0.24 * scale, max(2, _px(box * 0.018 * scale))
-    draw.rounded_rectangle(
-        [cx - lw / 2, box * 0.60 - lh / 2, cx + lw / 2, box * 0.60 + lh / 2],
-        radius=lh // 2,
-        fill=(104, 174, 255, 165),
+    latin_scale = 0.72 * 1.60
+    detail_scale = 0.72 * 2.80
+    draw.text(
+        (cx, box * (218 / 512)),
+        "SHZK",
+        font=load_font(_px(round(box * 0.20 * latin_scale))),
+        fill=ICE,
+        anchor="mm",
     )
-    # 中文品牌名置于分隔线下方；maskable 版本也位于中心安全区内。
-    label = "数科云办公"
-    label_font = load_cjk_font(_px(box * 0.060 * scale))
-    draw.text((cx, box * 0.72), label, font=label_font, fill=(214, 228, 249, 230), anchor="mm")
+    # 元素分隔线
+    lw = box * 0.24 * detail_scale
+    lh = max(2, _px(round(box * 0.018 * detail_scale)))
+    line_y = box * (292 / 512)
+    draw.rounded_rectangle(
+        [cx - lw / 2, line_y - lh / 2, cx + lw / 2, line_y + lh / 2],
+        radius=lh // 2,
+        fill=blend_on(base, (104, 174, 255, 165)),
+    )
+    # 中文品牌名置于分隔线下方，并完整落在 maskable 圆形安全区内。
+    draw.text(
+        (cx, box * (350 / 512)),
+        "数科云办公",
+        font=load_cjk_font(_px(round(box * 0.060 * detail_scale))),
+        fill=blend_on(base, (214, 228, 249, 230)),
+        anchor="mm",
+    )
 
 
 def make_any(size: int, *, transparent_corners: bool = True) -> Image.Image:
@@ -106,17 +161,27 @@ def make_any(size: int, *, transparent_corners: bool = True) -> Image.Image:
     # 内圈细线（与 icon.svg 的描边呼应）
     m = _px(size * 0.055)
     draw.rounded_rectangle(
-        [m, m, size - m, size - m], radius=r - m, outline=RING, width=max(2, size // 128)
+        [m, m, size - m, size - m],
+        radius=r - m,
+        # 描边同样预先混合：Pillow 不做 alpha 混合，直接写 alpha=90 会
+        # 在圆角底上留出一条半透明的圈（与 maskable 的 alpha 洞同源问题）。
+        outline=blend_on(NAVY, RING),
+        width=max(2, size // 128),
     )
-    draw_mark(draw, size, 1.0)
+    draw_mark(draw, size, base=NAVY)
     return img
 
 
 def make_maskable(size: int) -> Image.Image:
-    """purpose maskable：全 bleed 方底，作画只占中央 64%（安全区）。"""
+    """purpose maskable：全 bleed 方底，文字与分隔线留在中央圆形安全区内。
+
+    底与作画都是**完全不透明**的：maskable 图标会被 Android 自适应图标
+    直接裁形状，任何 alpha 洞都会被系统用自选颜色补上（颜色不可控），
+    部分 Chrome 版本还会因此把装机降级成带 Chrome 徽标的快捷方式。
+    """
     img = Image.new("RGBA", (size, size), NAVY)
     draw = ImageDraw.Draw(img)
-    draw_mark(draw, size, 0.72)
+    draw_mark(draw, size, base=NAVY)
     return img
 
 

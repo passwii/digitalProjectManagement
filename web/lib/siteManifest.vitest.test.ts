@@ -8,6 +8,11 @@ import {
   STREAM_MONITOR_SITE,
   siteIdentityFor,
 } from "./siteIdentity";
+import {
+  SPARK_PWA_MANIFEST,
+  STREAM_MONITOR_PWA_MANIFEST,
+  type PwaManifest,
+} from "./pwaManifest";
 
 /**
  * 站点级 PWA 身份契约（BLF-1389）。
@@ -28,18 +33,14 @@ import {
  * 真正的端到端效果由 `scripts/acceptance_blf1389_mobile.py` 在真浏览器里验。
  */
 
-/** 站点身份 → 静态 manifest 文件路径。 */
-const SITE_MANIFEST_FILES: Record<string, string> = {
-  [SPARK_SITE.manifest]: "public/spark/manifest.webmanifest",
-  [STREAM_MONITOR_SITE.manifest]: "public/stream-monitor/manifest.webmanifest",
+/** 站点 manifest URL → middleware 实际返回的清单对象。 */
+const SITE_MANIFESTS: Record<string, PwaManifest> = {
+  [SPARK_SITE.manifest]: SPARK_PWA_MANIFEST,
+  [STREAM_MONITOR_SITE.manifest]: STREAM_MONITOR_PWA_MANIFEST,
 };
 
 function read(relative: string): string {
   return readFileSync(resolve(process.cwd(), relative), "utf8");
-}
-
-function readManifest(relative: string): Record<string, unknown> {
-  return JSON.parse(read(relative)) as Record<string, unknown>;
 }
 
 /**
@@ -84,17 +85,22 @@ describe("站点级 PWA 身份：manifest 契约（BLF-1389）", () => {
     );
   });
 
-  it("两个站点的 manifest 文件都存在，且 URL 与布局声明的一致", () => {
-    for (const [url, file] of Object.entries(SITE_MANIFEST_FILES)) {
-      expect(existsSync(resolve(process.cwd(), file)), `${file} 不存在`).toBe(true);
-      // URL → 文件路径的映射必须与布局里写的 manifest 一致（否则 404）。
-      expect(url).toBe(`/${file.replace(/^public\//, "")}`);
+  it("两个站点的 manifest URL 由 middleware 直接返回 JSON，且与布局声明一致", () => {
+    const middleware = read("middleware.ts");
+    expect(middleware).toContain("SPARK_PWA_MANIFEST");
+    expect(middleware).toContain("STREAM_MONITOR_PWA_MANIFEST");
+    expect(middleware).toContain('"Content-Type": "application/manifest+json"');
+
+    for (const url of Object.keys(SITE_MANIFESTS)) {
+      const site = url.slice(1).split("/")[0];
+      const layout = read(`app/${site}/layout.tsx`);
+      expect(layout).toMatch(new RegExp(`manifest:\\s*"${url}"`));
     }
   });
 
   it("站点 manifest 字段齐全（standalone / scope / 主题色 / 图标 / 快捷方式）", () => {
-    for (const [url, file] of Object.entries(SITE_MANIFEST_FILES)) {
-      const manifest = readManifest(file);
+    for (const [url, manifest] of Object.entries(SITE_MANIFESTS)) {
+      const file = url;
 
       expect(manifest.display, `${file} 必须是 standalone`).toBe("standalone");
       expect(manifest.lang, `${file} 缺 lang`).toBe("zh-CN");
@@ -115,7 +121,7 @@ describe("站点级 PWA 身份：manifest 契约（BLF-1389）", () => {
       expect(manifest.background_color, `${file} 缺 background_color`).toBeTruthy();
 
       // 图标：至少 192 / 512 / maskable 三档，且都指向 public/icons/ 下真实存在的文件。
-      const icons = (manifest.icons ?? []) as Array<Record<string, unknown>>;
+      const icons = manifest.icons;
       expect(icons.length, `${file} 没有声明图标`).toBeGreaterThan(0);
       const sizes = icons.map((icon) => String(icon.sizes));
       const purposes = icons.map((icon) => String(icon.purpose));
@@ -123,7 +129,7 @@ describe("站点级 PWA 身份：manifest 契约（BLF-1389）", () => {
       expect(sizes, `${file} 缺 512x512 图标`).toContain("512x512");
       expect(purposes, `${file} 缺 maskable 图标`).toContain("maskable");
       for (const icon of icons) {
-        const src = String(icon.src ?? "");
+        const src = icon.src;
         expect(src.startsWith("/"), `${file} 的图标路径必须是站内绝对路径`).toBe(true);
         expect(
           iconFileExists(src),
@@ -132,10 +138,10 @@ describe("站点级 PWA 身份：manifest 契约（BLF-1389）", () => {
       }
 
       // 快捷方式：指向站点内的高频页面。
-      const shortcuts = (manifest.shortcuts ?? []) as Array<Record<string, unknown>>;
+      const shortcuts = manifest.shortcuts;
       expect(shortcuts.length, `${file} 没有声明 shortcuts`).toBeGreaterThan(0);
       for (const shortcut of shortcuts) {
-        const shortcutUrl = String(shortcut.url ?? "");
+        const shortcutUrl = shortcut.url;
         expect(
           shortcutUrl.startsWith(scope),
           `${file} 的快捷方式 ${shortcutUrl} 落在 scope ${scope} 之外`,
@@ -145,18 +151,14 @@ describe("站点级 PWA 身份：manifest 契约（BLF-1389）", () => {
   });
 
   it("站点 manifest 用中文品牌，不出现英文品牌（BLF-1397 口径）", () => {
-    for (const file of Object.values(SITE_MANIFEST_FILES)) {
-      const raw = read(file);
-      expect(raw, `${file} 出现了英文品牌`).not.toMatch(/Stream Monitor|STREAM MONITOR/);
-      expect(raw, `${file} 出现了旧品牌`).not.toMatch(/NebulaCloud/i);
-    }
+    const raw = read("lib/pwaManifest.ts");
+    expect(raw, "站点 manifest 源码出现英文品牌").not.toMatch(/Stream Monitor|STREAM MONITOR/);
+    expect(raw, "站点 manifest 源码出现旧品牌").not.toMatch(/NebulaCloud/i);
   });
 
   it("站点 manifest 的 name 与布局的标题、站点身份三处一致", () => {
-    expect(readManifest("public/spark/manifest.webmanifest").name).toBe(SPARK_SITE.name);
-    expect(readManifest("public/stream-monitor/manifest.webmanifest").name).toBe(
-      STREAM_MONITOR_SITE.name,
-    );
+    expect(SPARK_PWA_MANIFEST.name).toBe(SPARK_SITE.name);
+    expect(STREAM_MONITOR_PWA_MANIFEST.name).toBe(STREAM_MONITOR_SITE.name);
     // 布局标题也是同一套品牌名。
     expect(read("app/spark/layout.tsx")).toMatch(/absolute:\s*"云电竞管理平台"/);
     expect(read("app/stream-monitor/layout.tsx")).toMatch(/title:\s*"智能音视频平台"/);
@@ -201,12 +203,12 @@ describe("站点级 PWA 身份：视口契约（BLF-1389）", () => {
   it("站点的 themeColor 与 manifest 的 theme_color 同值", () => {
     // standalone 启动时状态栏色与页面顶色对不上，就是这两处漂了。
     const sparkLayout = read("app/spark/layout.tsx");
-    const sparkManifest = readManifest("public/spark/manifest.webmanifest");
+    const sparkManifest = SPARK_PWA_MANIFEST;
     expect(sparkLayout).toContain(String(sparkManifest.theme_color));
     expect(sparkLayout).toContain(SPARK_SITE.themeColor);
 
     const avLayout = read("app/stream-monitor/layout.tsx");
-    const avManifest = readManifest("public/stream-monitor/manifest.webmanifest");
+    const avManifest = STREAM_MONITOR_PWA_MANIFEST;
     expect(avLayout).toContain(String(avManifest.theme_color));
     expect(avLayout).toContain(STREAM_MONITOR_SITE.themeColor);
   });

@@ -37,7 +37,7 @@ export const metadata: Metadata = {
  * 与页面顶色对不上（深蓝状态栏 + 浅灰页面）。
  *
  * ⚠️ manifest 的 `theme_color` 只能是**一个**值（规范如此），那里取深色
- * （站点默认主题），与 `public/stream-monitor/manifest.webmanifest` 同值。
+ * （站点默认主题），与 `app/stream-monitor/manifest.webmanifest/route.ts` 同值。
  *
  * `viewportFit: "cover"`：刘海 / 圆角屏下铺满，安全区由
  * `AvShell.module.css` 的 `env(safe-area-inset-*)` 消化。

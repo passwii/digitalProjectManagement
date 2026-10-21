@@ -42,6 +42,36 @@ class PwaIconLocalizationTest(unittest.TestCase):
         self.assertEqual(icon.size, (180, 180))
         self.assertEqual(icon.getpixel((0, 0)), (15, 39, 66, 255))
 
+    def test_maskable_icon_is_fully_opaque(self):
+        """maskable 图标必须**每个像素都不透明**（BLF-1400）。
+
+        曾经的坑：分隔线用 fill=(104,174,255,165)、中文名用 alpha=230，
+        而 Pillow 的 ImageDraw 是**直接写像素**、不做 alpha 混合 ——
+        于是这些像素的 alpha 变成 165/230，在全 bleed 底图中间留出一片
+        “洞”（实测 611 + 334 个像素）。
+
+        后果：maskable 图标会被 Android 自适应图标直接裁形状，alpha 洞
+        会被系统用**自选颜色**补上（颜色不可控）；部分 Chrome 版本还会
+        因此判定图标不合格，把 PWA 装机降级成带 Chrome 徽标的快捷方式。
+        """
+        alpha = make_maskable(512).getchannel("A")
+        self.assertEqual(alpha.getextrema(), (255, 255))
+
+    def test_any_icon_has_no_intermediate_alpha(self):
+        """purpose any 的图标只允许「全透明」与「全不透明」两种像素。
+
+        圆角外透明是对的（交给系统裁形状），但**中间值**说明作画时直接
+        写了带 alpha 的颜色 —— Pillow 不做 alpha 混合，会在底上留洞。
+        """
+        for size in (192, 512):
+            with self.subTest(size=size):
+                alpha = make_any(size).getchannel("A")
+                values = set(alpha.get_flattened_data())
+                self.assertTrue(
+                    values <= {0, 255},
+                    f"any 图标出现了中间 alpha 值 {sorted(values - {0, 255})}",
+                )
+
 
 if __name__ == "__main__":
     unittest.main()
