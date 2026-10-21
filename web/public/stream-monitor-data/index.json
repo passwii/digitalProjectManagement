@@ -84,6 +84,7 @@
     "incidents.json",
     "kpi.json",
     "org.json",
+    "overview-ranges.json",
     "points.json",
     "rankings.json",
     "rules.json",

@@ -1609,6 +1609,408 @@ const typeDistribution = ALARM_TYPES.map((t) => ({
 })).sort((a, b) => b.count - a.count || a.type_code.localeCompare(b.type_code));
 
 // ============================================================
+// 12b. 总览页三档时间范围（BLF-1424 Stage 2）
+// ============================================================
+//
+// 为什么单独追加一份 overview-ranges.json：
+//   · `kpi.json` / `trends.json` 是「当日口径」的既有契约（Stage 1 落位，多个页面在吃），
+//     总览页要在 近 24 小时 / 今日 / 近 7 日 之间**真的换数**，就需要三套口径同时到位；
+//   · 只追加新文件、不改既有文件 —— 重跑生成器后其它 JSON 的字节一个都不动，
+//     PR 里不会出现十几 MB 的「重排噪声」；
+//   · 每档的 trend / heatmap / levels / scenes / points / types 都是**同一窗口内的告警**
+//     聚合出来的，所以「逐项相加 = 总量」可以被 validate.mjs 逐条钉住。
+const isHandled = (a) => a.status === "closed" || a.status === "false_positive";
+const isUnhandled = (a) => a.status === "new" || a.status === "dispatched";
+
+/** 三档窗口定义：live = 滚动 24h；today = 今天自然日；week = 最近 7 个自然日。 */
+const OVERVIEW_RANGE_DEFS = [
+  {
+    key: "live",
+    label: "近 24 小时",
+    window_label: "近 24 小时",
+    granularity: "hour",
+    bucket_count: 24,
+    inWindow: (a) => a.ts_offset_minutes >= 0 && a.ts_offset_minutes < DAY,
+    incidentInWindow: (i) => i.started_offset_minutes >= 0 && i.started_offset_minutes < DAY,
+  },
+  {
+    key: "today",
+    label: "今日",
+    window_label: "今日",
+    granularity: "hour",
+    // 锚点在正午：自然日 = 偏移 [0,720]（00:00 → 12:00），所以是 12 个整点桶
+    bucket_count: ANCHOR_CLOCK / HOUR,
+    inWindow: (a) => dayDiff(a.ts_offset_minutes) === 0,
+    incidentInWindow: (i) => dayDiff(i.started_offset_minutes) === 0,
+  },
+  {
+    key: "week",
+    label: "近 7 日",
+    window_label: "近 7 日",
+    granularity: "day",
+    bucket_count: 7,
+    inWindow: (a) => {
+      const d = dayDiff(a.ts_offset_minutes);
+      return d >= 0 && d <= 6;
+    },
+    incidentInWindow: (i) => {
+      const d = dayDiff(i.started_offset_minutes);
+      return d >= 0 && d <= 6;
+    },
+  },
+];
+
+/**
+ * 一个桶的完整内容（小时桶 / 日桶 / 历史上同期的桶共用同一形状）。
+ *
+ * 为什么桶里要带 `levels` 与 `open_incidents`：数据流推进时前端只做「切片 + 拼接」，
+ * 分级环形图与「在办事件」两个数字也必须跟着滚动窗口走。桶把这两项拆好，
+ * 滚动后的合计就是**逐桶相加**，不会出现「图里的总数对不上 KPI」。
+ */
+function bucketOf({ label, list, incidentInBucket }) {
+  const windowIncidents = incidents.filter(incidentInBucket);
+  return {
+    label,
+    alarms: list.length,
+    handled: list.filter(isHandled).length,
+    // 未处置口径与 kpi.json 一致（new + dispatched）；帧里的 totals 直接由逐桶相加得到
+    unhandled: list.filter(isUnhandled).length,
+    incidents: windowIncidents.length,
+    /** 其中仍在办（未 closed）的事件数：事件卡片的「在办 N 起」按窗口过滤，不再全站一个数 */
+    open_incidents: windowIncidents.filter((it) => it.status !== "closed").length,
+    false_positive: list.filter((a) => a.false_positive).length,
+    levels: windowLevels(list),
+    // 场景构成也按桶存：场景环形图中心的「合计」必须与 KPI 同窗口，
+    // 否则推进一帧后同一屏会同时出现 483 与 532 两个总数。
+    scenes: windowScenes(list),
+  };
+}
+
+/** 小时桶（偏移 [lo,hi)），新 → 旧；今天的桶只覆盖自然日内的部分。 */
+function hourBuckets(def) {
+  return Array.from({ length: def.bucket_count }, (_, i) => {
+    const lo = i * HOUR;
+    const hi = lo + HOUR;
+    const list = allAlarms.filter((a) => def.inWindow(a) && a.ts_offset_minutes >= lo && a.ts_offset_minutes < hi);
+    const clock = clockHour(lo);
+    return bucketOf({
+      label: `${String(clock).padStart(2, "0")}:00`,
+      list,
+      incidentInBucket: (it) => it.started_offset_minutes >= lo && it.started_offset_minutes < hi,
+    });
+  });
+}
+
+/** 自然日桶（新 → 旧，0 = 今天）。 */
+function dayBuckets(def) {
+  return Array.from({ length: def.bucket_count }, (_, d) => {
+    const list = allAlarms.filter((a) => def.inWindow(a) && dayDiff(a.ts_offset_minutes) === d);
+    const local = new Date(localMs(d * DAY));
+    return bucketOf({
+      label: `${local.getUTCMonth() + 1}/${local.getUTCDate()}`,
+      list,
+      incidentInBucket: (it) => dayDiff(it.started_offset_minutes) === d,
+    });
+  });
+}
+
+/** 窗口内的分级构成：总数 + 其中未处置。 */
+function windowLevels(list) {
+  return [1, 2, 3, 4].map((level) => ({
+    level,
+    total: list.filter((a) => a.level === level).length,
+    unhandled: list.filter((a) => a.level === level && isUnhandled(a)).length,
+  }));
+}
+
+/** 窗口内的场景构成（`name` 是站点名，图例里做主标签的副注）。 */
+function windowScenes(list) {
+  return ["campus", "hospital", "justice"].map((scene) => ({
+    scene,
+    name: SITES.find((x) => x.scene === scene).name,
+    count: list.filter((a) => a.scene === scene).length,
+    unhandled: list.filter((a) => a.scene === scene && isUnhandled(a)).length,
+  }));
+}
+
+/** 窗口内的点位 Top（口径与 rankings.json 的 points 一致）。 */
+function windowPoints(list, limit = 6) {
+  const byPoint = new Map();
+  for (const a of list) {
+    const row = byPoint.get(a.point_id) ?? {
+      point_id: a.point_id,
+      point_room: a.point_room,
+      total: 0,
+      level1: 0,
+      false_positive: 0,
+    };
+    row.total += 1;
+    if (a.level === 1) row.level1 += 1;
+    if (a.false_positive) row.false_positive += 1;
+    byPoint.set(a.point_id, row);
+  }
+  return [...byPoint.values()]
+    .map((row) => ({ ...row, fp_rate: Number(((row.false_positive / row.total) * 100).toFixed(1)) }))
+    .sort((a, b) => b.total - a.total || a.point_id.localeCompare(b.point_id))
+    .slice(0, limit);
+}
+
+/** 窗口内的告警类型 Top。 */
+function windowTypes(list, limit = 6) {
+  return ALARM_TYPES.map((t) => ({
+    type_code: t.code,
+    type_name: t.name,
+    category: t.cat,
+    count: list.filter((a) => a.type_code === t.code).length,
+  }))
+    .filter((row) => row.count > 0)
+    .sort((a, b) => b.count - a.count || a.type_code.localeCompare(b.type_code))
+    .slice(0, limit);
+}
+
+/** 热力图的横轴刻度：与既有总览一致，每 6 格标一个钟点，其余留空。 */
+function heatAxis(clockOfIndex) {
+  return Array.from({ length: 24 }, (_, i) =>
+    i % 6 === 0 ? String(clockOfIndex(i)).padStart(2, "0") : "",
+  );
+}
+
+/**
+ * 热力窗口：三档必须是**三种形状**，一眼能看出不同。
+ *   · live ：1 行 × 24 格（滚动 24 小时，从左到右由旧到新，轴上是真实钟点）
+ *   · today：1 行 × 24 格（今天的钟点网格，尚未到来的小时为空）
+ *   · week ：7 行 × 24 格（7 个自然日 × 24 小时）
+ */
+function windowHeatmap(def, list) {
+  if (def.key === "live") {
+    // j = 0 最旧（23 小时前）… j = 23 最新（当前小时）
+    const cells = Array.from({ length: 24 }, (_, j) => {
+      const offsetHour = 23 - j;
+      const lo = offsetHour * HOUR;
+      const hi = lo + HOUR;
+      return {
+        hour: clockHour(lo),
+        count: list.filter((a) => a.ts_offset_minutes >= lo && a.ts_offset_minutes < hi).length,
+      };
+    });
+    return {
+      axis: heatAxis((j) => clockHour((23 - j) * HOUR)),
+      rows: [{ key: "rolling", label: "近 24 小时", cells }],
+    };
+  }
+  if (def.key === "today") {
+    const cells = Array.from({ length: 24 }, (_, hour) => ({
+      hour,
+      count: list.filter((a) => clockHour(a.ts_offset_minutes) === hour).length,
+    }));
+    return {
+      axis: heatAxis((i) => i),
+      rows: [{ key: "today", label: "今天", cells }],
+    };
+  }
+  const dayLabels = ["今天", "昨天"];
+  const rows = Array.from({ length: 7 }, (_, d) => ({
+    key: `day-${d}`,
+    label: dayLabels[d] ?? `${d} 天前`,
+    cells: Array.from({ length: 24 }, (_, hour) => ({
+      hour,
+      count: allAlarms.filter((a) => def.inWindow(a) && dayDiff(a.ts_offset_minutes) === d && clockHour(a.ts_offset_minutes) === hour).length,
+    })),
+  }));
+  return { axis: heatAxis((i) => i), rows };
+}
+
+/**
+ * 数据流推进的帧数：小时档 8 帧（8 × 5s ≈ 40s 一轮），日档 4 帧。
+ * 日档必须显著小于桶数（7）：否则一轮下来整段窗口都被换掉，KPI 会出现一次
+ * 从 532 → 996 的跳变，看起来像数据错乱而不是「数据在流」。
+ */
+const DEMO_FRAMES_HOURLY = 8;
+const DEMO_FRAMES_DAILY = 4;
+const DEMO_TICK_SECONDS = 5;
+
+/** 数据流推进帧里「新增桶」的取值来源：一周前同一时段（数据里真实存在，不是拍脑袋）。 */
+function historicalHourBucket(daysAgo, clock) {
+  const list = allAlarms.filter(
+    (a) => dayDiff(a.ts_offset_minutes) === daysAgo && clockHour(a.ts_offset_minutes) === clock,
+  );
+  return bucketOf({
+    label: `${String(clock).padStart(2, "0")}:00`,
+    list,
+    incidentInBucket: (it) =>
+      dayDiff(it.started_offset_minutes) === daysAgo && clockHour(it.started_offset_minutes) === clock,
+  });
+}
+
+function historicalDayBucket(daysAgo) {
+  const list = allAlarms.filter((a) => dayDiff(a.ts_offset_minutes) === daysAgo);
+  const local = new Date(localMs(daysAgo * DAY));
+  return bucketOf({
+    label: `${local.getUTCMonth() + 1}/${local.getUTCDate()}`,
+    list,
+    incidentInBucket: (it) => dayDiff(it.started_offset_minutes) === daysAgo,
+  });
+}
+
+/**
+ * 推进帧里新增那一格的日期文案：窗口是向「未来」滚的，标签也必须向前走。
+ *
+ * 值取自历史上 8 天前的同一天（数据真实存在），但标签不能跟着用那一天 ——
+ * 否则周档会看着时间轴从 10/19 倒退到 10/11。所以这里给「今天 + N 天」的模拟日期。
+ */
+function futureDayLabel(daysAhead) {
+  const local = new Date(localMs(-daysAhead * DAY));
+  return `${local.getUTCMonth() + 1}/${local.getUTCDate()}`;
+}
+
+/**
+ * 演示帧：窗口每 tick 向「现在」滚动一格 —— 最旧的一格掉出、最新的一格补进来。
+ * 因此帧里给出的是**滚动后**的 totals / levels（KPI 与分级图直接读它），而不是让前端做加法：
+ * 前端（尤其 TSX）不参与任何业务数字的运算。
+ */
+function buildStreamFrames(def, trend) {
+  // trend 是「新 → 旧」：滚动一格 = 去掉数组末尾（最旧）并在开头补一格（最新）
+  let totals = totalsFrom(trend);
+  const isDaily = def.granularity === "day";
+  const addedBuckets = [];
+  const frames = [];
+  const frameCount = isDaily ? DEMO_FRAMES_DAILY : DEMO_FRAMES_HOURLY;
+  for (let i = 0; i < frameCount; i += 1) {
+    // 来源按天错开（7..14 天前），并跳过「和被挤掉的旧桶完全一样」的候选：
+    // 固定用「7 天前同一钟点」时，有些桶的历史值恰好等于旧桶（实测 13:00 是 5 条 → 5 条），
+    // 那一帧推进后曲线与 KPI 完全不动，演示时看起来像卡住。
+    const clock = isDaily ? 0 : (ANCHOR_CLOCK / HOUR + 1 + i) % 24;
+    const dropped = trend[trend.length - 1 - i];
+    const sameBucket = (a, b) =>
+      a.alarms === b.alarms && a.handled === b.handled && a.incidents === b.incidents && a.false_positive === b.false_positive;
+    let daysAgo = isDaily ? 8 + i : 7 + (i % 8);
+    let added = isDaily ? historicalDayBucket(daysAgo) : historicalHourBucket(daysAgo, clock);
+    for (let attempt = 0; attempt < 5 && sameBucket(added, dropped); attempt += 1) {
+      daysAgo += 1;
+      added = isDaily ? historicalDayBucket(daysAgo) : historicalHourBucket(daysAgo, clock);
+    }
+    // 新补进来的那一格代表「刚刚到达」：时间轴向前走（周档要换成今天的 N 天后），
+    // 而且这一格里的事件全部是刚入库的 —— 一个也还没关闭，所以在办 = 事件数。
+    added = {
+      ...added,
+      label: isDaily ? futureDayLabel(i + 1) : added.label,
+      open_incidents: added.incidents,
+    };
+    // 逐桶重算（不做「加减近似」）：未处置 = new + dispatched，与 kpi.json 同口径，
+    // 用减法会在「已确认（acknowledged）」上漂出负数 —— 帧里的数字必须能对得上明细。
+    addedBuckets.unshift(added);
+    const rolling = [...addedBuckets, ...trend.slice(0, trend.length - (i + 1))];
+    totals = totalsFrom(rolling);
+    frames.push({
+      trend_label: added.label,
+      alarms: added.alarms,
+      handled: added.handled,
+      unhandled: added.unhandled,
+      incidents: added.incidents,
+      open_incidents: added.open_incidents,
+      false_positive: added.false_positive,
+      // `added_levels` 是**新增那一格自己**的分级构成（与上面的 alarms / handled 同一格），
+      // `levels` 是滚动后整个窗口的合计（页面读它画分级图）。两个分开存，
+      // 才能让「逐桶相加 = 滚动后合计」在数据文件里被直接验算。
+      added_levels: added.levels,
+      levels: levelsFrom(rolling),
+      scenes: scenesFrom(rolling),
+      heat: { row: 0, hour: isDaily ? ANCHOR_CLOCK / HOUR : clock },
+      totals,
+    });
+  }
+  return { tick_seconds: DEMO_TICK_SECONDS, frames };
+}
+
+/** 桶列表 → totals。比率也在这里算好，前端只负责格式化，不做业务除法。 */
+function totalsFrom(buckets) {
+  const sum = (key) => buckets.reduce((total, b) => total + b[key], 0);
+  const alarms = sum("alarms");
+  const handled = sum("handled");
+  const falsePositive = sum("false_positive");
+  return {
+    alarms,
+    handled,
+    unhandled: sum("unhandled"),
+    false_positive: falsePositive,
+    incidents: sum("incidents"),
+    // 在办事件 **按窗口过滤**：全站一个数的话，今日只有 10 起事件却显示「在办 36 起」
+    open_incidents: sum("open_incidents"),
+    handled_rate: alarms ? Number(((handled / alarms) * 100).toFixed(1)) : 0,
+    false_positive_rate: alarms ? Number(((falsePositive / alarms) * 100).toFixed(1)) : 0,
+  };
+}
+
+/** 桶列表 → 分级构成（总数 + 其中未处置），与 `totalsFrom` 同一套逐桶相加。 */
+function levelsFrom(buckets) {
+  return [1, 2, 3, 4].map((level) => ({
+    level,
+    total: buckets.reduce((total, b) => total + b.levels.find((row) => row.level === level).total, 0),
+    unhandled: buckets.reduce((total, b) => total + b.levels.find((row) => row.level === level).unhandled, 0),
+  }));
+}
+
+/** 桶列表 → 场景构成（同样逐桶相加，保证环形图合计 = KPI 总数）。 */
+function scenesFrom(buckets) {
+  return ["campus", "hospital", "justice"].map((scene) => ({
+    scene,
+    name: SITES.find((x) => x.scene === scene).name,
+    count: buckets.reduce((total, b) => total + b.scenes.find((row) => row.scene === scene).count, 0),
+    unhandled: buckets.reduce((total, b) => total + b.scenes.find((row) => row.scene === scene).unhandled, 0),
+  }));
+}
+
+const overviewRanges = {};
+for (const def of OVERVIEW_RANGE_DEFS) {
+  const windowAlarms = allAlarms.filter(def.inWindow);
+  const trend = def.granularity === "day" ? dayBuckets(def) : hourBuckets(def);
+  const heatmap = windowHeatmap(def, windowAlarms);
+  const peak = trend.reduce((best, row) => (row.alarms > best.alarms ? row : best), trend[0]);
+  // totals 由 trend 的桶相加得到（不用另一套过滤），这样「逐桶相加 = 总量」天然成立
+  const totals = totalsFrom(trend);
+  overviewRanges[def.key] = {
+    key: def.key,
+    label: def.label,
+    window_label: def.window_label,
+    granularity: def.granularity,
+    kpi_defs: [
+      { key: "alarms", label: `${def.window_label}告警`, unit: "条", decimals: 0 },
+      { key: "handled", label: "已处置", unit: "条", decimals: 0 },
+      { key: "incidents", label: `${def.window_label}事件`, unit: "起", decimals: 0 },
+      { key: "false-positive", label: "误报率", unit: "%", decimals: 1 },
+    ],
+    totals,
+    peak: { label: peak.label, value: peak.alarms },
+    levels: levelsFrom(trend),
+    scenes: scenesFrom(trend),
+    trend,
+    heatmap: { ...heatmap, max: Math.max(1, ...heatmap.rows.flatMap((row) => row.cells.map((cell) => cell.count))) },
+    points: windowPoints(windowAlarms),
+    types: windowTypes(windowAlarms),
+    // 键名刻意不叫 demo：`public/stream-monitor-data/*.json` 是访客可下载的公开数据，
+    // siteCopyGuard 会把任何 demo / 「演示」判成「把自己写小」的措辞。
+    stream: buildStreamFrames(def, trend),
+  };
+}
+
+const overviewRangeFile = {
+  _meta: {
+    generated_at: DEMO_ANCHOR,
+    calc_note:
+      "总览页三档口径（BLF-1424）：live = 偏移 [0,1440) 的滚动 24 小时；" +
+      "today = 今天自然日（锚点正午，00:00 → 12:00）；week = 最近 7 个自然日（dayDiff 0..6）。" +
+      "每档的 totals / levels / scenes / trend / heatmap / points / types 都只统计该窗口内的告警（totals.open_incidents 也只数窗口内未关闭的事件），" +
+      "所以逐项相加必须等于 totals.alarms。趋势桶自带 levels / open_incidents，帧的滚动合计就是逐桶相加，" +
+      "分级环形图与「在办 N 起」会跟着数据流一起变。stream.frames 是页面数据流推进用的固定帧：窗口每 tick 向现在滚动一格" +
+      "（最旧一格掉出、最新一格补进来），新增格的取值来自历史上同期的桶，但标签向前走（周档是今天 + N 天），" +
+      "帧里直接给出滚动后的 totals / levels，前端不做业务运算。" +
+      "?static=1 与 prefers-reduced-motion 下只展示第 0 帧（不推进）。",
+    range_order: OVERVIEW_RANGE_DEFS.map((d) => d.key),
+  },
+  ranges: overviewRanges,
+};
+
+// ============================================================
 // 13. 场景 / 算法 / 规则 / 审计日志
 // ============================================================
 const SCENES = [
@@ -1805,6 +2207,8 @@ write("users.json", USERS, { pretty: true });
 write("incidents.json", incidents);
 write("kpi.json", kpi, { pretty: true });
 write("trends.json", { hourly: hourlyTrend, daily: dailyTrend, heatmap }, { pretty: true });
+// 总览页三档口径（BLF-1424）：只追加新文件，上面所有既有 JSON 的字节不变
+write("overview-ranges.json", overviewRangeFile, { pretty: true });
 write("rankings.json", { points: pointRank, types: typeDistribution }, { pretty: true });
 write("scenes.json", SCENES, { pretty: true });
 write("algorithms.json", { categories: ALGO_CATEGORIES, algorithms: ALGORITHMS }, { pretty: true });

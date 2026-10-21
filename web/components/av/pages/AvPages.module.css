@@ -196,6 +196,25 @@
   padding-top: var(--av-space-2);
 }
 
+/*
+ * 时间范围切换（BLF-1424）：range 一变，整块内容重挂载并播一次「12px 上浮 + 淡入」。
+ *
+ * 时长只能取 --av-dur-quick（160ms）—— 落在验收要求的 150–250ms 内，而且是四档
+ * 令牌里唯一合适的一档：`instant`(90ms) 看不出来，`base`(300ms) 已经超出范围。
+ * ?static=1 / reduced 下令牌归零，`both` 填充让元素直接停在终态（不会闪一下）。
+ */
+.rangeBody {
+  display: grid;
+  gap: var(--av-gap-section);
+  min-width: 0;
+  animation: avRangeSwap var(--av-dur-quick) var(--av-ease-enter) both;
+}
+
+/* 图表卡在换数时也淡一下：recharts 会重绘，容器同步淡入才不像「闪屏」 */
+.rangeChart {
+  animation: avFadeIn var(--av-dur-quick) var(--av-ease-enter) both;
+}
+
 .levelList {
   display: grid;
   gap: var(--av-space-1);
@@ -296,6 +315,26 @@
   aspect-ratio: 1.35 / 1;
   min-width: 0;
   background: var(--av-signal);
+}
+
+/*
+ * 单行热力（live / today 只有一行）：把格子拉高，否则 24 格挤在一条 20px 的
+ * 细带里，演示时看不出「这是一周 × 24 小时的窗口，只是当前档只有一行」。
+ */
+.heatmap[data-rows="single"] .heatCell {
+  /* aspect-ratio 会由「高度」反推宽度，24 格就会撑出面板（实测 1440 宽溢出 14px）；
+     单行时改成「宽度由栅格均分、高度只给下限」 */
+  aspect-ratio: auto;
+  min-height: calc(var(--av-space-5) + var(--av-space-4));
+}
+
+/*
+ * 演示态脉冲（BLF-1424）：每次推进到的那个小时格放大一下。
+ * 只动 transform，不参与布局；`?static=1` / reduced 下时长归零、类名也不挂。
+ */
+.heatCellPulse {
+  outline: 1px solid var(--av-ink-3);
+  animation: avHeatPulse var(--av-dur-slow) var(--av-ease-standard) both;
 }
 
 .heatLegend {

@@ -24,6 +24,7 @@ import type {
   DeviceStats,
   Incident,
   Kpi,
+  OverviewRanges,
   Point,
   Rankings,
   Rule,
@@ -121,6 +122,17 @@ export async function loadCore(baseUrl = DEFAULT_BASE_URL, fetcher?: Fetcher): P
     index, alarmsIndex, org, sites, points, devices, deviceStats, users,
     incidents, kpi, trends, rankings, scenes, algorithms, rules, auditLogs, transcripts,
   };
+}
+
+/**
+ * 总览页三档时间范围（≈30KB）。单独加载：只有 `/overview` 需要，
+ * 不必让其余页面为它付首屏预算（与 `loadCore` 的 890KB 分开放）。
+ */
+export function loadOverviewRanges(
+  baseUrl = DEFAULT_BASE_URL,
+  fetcher?: Fetcher,
+): Promise<OverviewRanges> {
+  return getJson<OverviewRanges>(baseUrl, "overview-ranges.json", fetcher);
 }
 
 /** 整套数据（含频谱矩阵）。演示 / 单测用；页面首屏请用 loadCore。 */

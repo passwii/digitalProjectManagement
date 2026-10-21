@@ -52,6 +52,8 @@ export function readDataset(dir = DATA_DIR) {
     incidents: readJson("incidents.json", dir),
     kpi: readJson("kpi.json", dir),
     trends: readJson("trends.json", dir),
+    // 总览页三档时间范围（BLF-1424）：追加文件，与 trends.json 的当日口径并存
+    overviewRanges: readJson("overview-ranges.json", dir),
     rankings: readJson("rankings.json", dir),
     scenes: readJson("scenes.json", dir),
     algorithms: readJson("algorithms.json", dir),

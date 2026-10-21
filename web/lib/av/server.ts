@@ -14,7 +14,7 @@
 import { readFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { join, resolve } from "node:path";
-import { loadAlarmPage, loadAlarmShard, loadCore, type Fetcher } from "./load";
+import { loadAlarmPage, loadAlarmShard, loadCore, loadOverviewRanges, type Fetcher } from "./load";
 import { toDateString } from "./time";
 import type {
   Alarm,
@@ -23,6 +23,7 @@ import type {
   DatasetCore,
   DatasetIndex,
   Incident,
+  OverviewRanges,
   Spectrum,
   Transcript,
 } from "./types";
@@ -74,6 +75,19 @@ let corePromise: Promise<DatasetCore> | null = null;
 export function getCore(): Promise<DatasetCore> {
   corePromise ??= loadCore("", fileFetcher);
   return corePromise;
+}
+
+/**
+ * 总览页三档时间范围（≈ 40KB）。
+ *
+ * 不并进 `DatasetCore`：只有 `/overview` 需要它，并进去会让其余 7 个页面的
+ * `getCore()` 多读一份文件（首屏预算是有硬约束的，见 `lib/av/view.ts` 的 CORE_FILES）。
+ */
+let overviewRangesPromise: Promise<OverviewRanges> | null = null;
+
+export function getOverviewRanges(): Promise<OverviewRanges> {
+  overviewRangesPromise ??= loadOverviewRanges("", fileFetcher);
+  return overviewRangesPromise;
 }
 
 /** 告警索引（3KB）；分页客户端也要用它，可以安全地作为 props 传给 Client Component。 */
