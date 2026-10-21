@@ -92,7 +92,7 @@ const FONT_SIZE_BASELINE: Record<string, Record<string, string>> = {
     ".metricHead": "11px",
     ".metricValue strong": "clamp(26px, 2.4vw, 34px)", // 数字档：22→26 / 29→34（BLF-1423 跟进）
     ".metricValue .metricNumber": "inherit",
-    ".metricValue span": "14px", // 数字档：单位跟着放大（11→14，BLF-1423 跟进）
+    ".metricValue .metricUnit": "14px", // 数字档：单位跟着放大（11→14，BLF-1423 跟进）
     ".metricFoot": "11px",
     ".metricFoot small": "10px",
     ".levelBadge": "11px",
@@ -540,6 +540,9 @@ describe("智能音视频平台 数字醒目档（BLF-1423 跟进）", () => {
     { tag: "AvPages", selector: ".sceneKpis strong", weight: "stat" },
     { tag: "AvPages", selector: ".gpuValue", weight: "stat" },
     { tag: "AvCharts", selector: ".donutCenter strong", weight: "figure" },
+    // 数字旁的注解（KPI 单位 / 「未处置 N」）：轻一档，但同样只走令牌
+    { tag: "AvUI", selector: ".metricValue .metricUnit", weight: "emphasis" },
+    { tag: "AvPages", selector: ".levelSub", weight: "emphasis" },
   ];
 
   it("数字令牌本身不许被调小调细", () => {
@@ -547,6 +550,7 @@ describe("智能音视频平台 数字醒目档（BLF-1423 跟进）", () => {
     expect(tokens.get("--av-text-figure")).toBe("26px");
     expect(tokens.get("--av-weight-figure")).toBe("800");
     expect(tokens.get("--av-weight-stat")).toBe("700");
+    expect(tokens.get("--av-weight-emphasis")).toBe("600");
 
     // KPI 是 clamp 档：只比两端的下限，避免把「随视口微调」也锁死
     const kpi = tokens.get("--av-text-kpi") ?? "";
@@ -584,3 +588,205 @@ describe("智能音视频平台 数字醒目档（BLF-1423 跟进）", () => {
     expect(uses, "16px 数字档至少要有三处消费方").toBeGreaterThanOrEqual(3);
   });
 });
+
+/**
+ * 数字字重级联（BLF-1423 复审 P2）。
+ *
+ * 复审在 HEAD `43a0575` 上抓到一条 P2：`.metricValue span` 这条**裸后代选择器**
+ * 本意是给「%」「条」这类单位用的，但它同样命中 `<strong>` 里 `AvCounter` 渲染的
+ * `span.metricNumber`（两者都是 `.metricValue` 的后代 span、特异性同为 0,2,0，
+ * 而单位那条在源码里更靠后），于是 `font-weight: 600` 胜出，
+ * 首页 KPI 主数字从 `<strong>` 继承的 `--av-weight-figure: 800` 被吞掉 ——
+ * 「数字加粗」这条改动实际没生效，而上面那种「某条规则写了什么」的断言照样是绿的。
+ *
+ * 所以这里不再只读单条规则，而是**按 CSS 级联规则推演**：
+ * 给定元素链（祖先 → 自身），收集所有能命中它的 `font-weight` 声明，
+ * 按（特异性 → 源码顺序）选出胜出者，遇到 `inherit` 就沿祖先链继续解析，
+ * 令牌则解析成最终字重。这条推演能真正回答「浏览器里数字到底有多粗」。
+ */
+describe("智能音视频平台 数字字重级联（BLF-1423 复审 P2）", () => {
+  const ui = cssFiles.find((entry) => entry.tag === "AvUI")!;
+
+  /** `<div class="metricValue"><strong><span class="metricNumber">93.3</span></strong>…` */
+  const KPI_NUMBER: NodeSpec[] = [
+    { tag: "div", classes: ["metricValue"] },
+    { tag: "strong", classes: [] },
+    { tag: "span", classes: ["metricNumber"] },
+  ];
+  /** 同一容器里的单位：`<span class="metricUnit">%</span>` */
+  const KPI_UNIT: NodeSpec[] = [
+    { tag: "div", classes: ["metricValue"] },
+    { tag: "span", classes: ["metricUnit"] },
+  ];
+
+  it("KPI 主数字最终生效的字重是 800，单位规则不许顺带压细它", () => {
+    expect(computedFontWeight(ui.source, KPI_NUMBER)).toBe("800");
+  });
+
+  it("单位自己固定 600，且与数字互不命中", () => {
+    expect(computedFontWeight(ui.source, KPI_UNIT)).toBe("600");
+    // 根因防线：单位绝不能再写成裸后代 `span`（那会连计数器里的 span 一起命中）
+    expect(maskComments(ui.source)).not.toMatch(/\.metricValue\s+span\s*\{/);
+  });
+
+  it("守卫有牙：两道防线全撤，推演结果变回 600", () => {
+    // 不复现一次「改坏就红」，上面两条只是看起来对的断言。
+    // 这里的退化版就是 HEAD `43a0575` 的真实形态：数字规则不写字重 + 单位用裸后代 span。
+    const original = maskComments(ui.source);
+    const noNumberWeight = original.replace(
+      /(\.metricValue \.metricNumber \{[^}]*?)font-weight: inherit;\n/,
+      "$1",
+    );
+    expect(noNumberWeight).not.toBe(original);
+    const regressed = noNumberWeight.replace(
+      ".metricValue .metricUnit {",
+      ".metricValue span {",
+    );
+    expect(regressed).not.toBe(noNumberWeight);
+    expect(computedFontWeight(regressed, KPI_NUMBER)).toBe("600");
+
+    // 只撤一道：另一道能兜住 —— 两层防线不是同一件事的重复
+    expect(computedFontWeight(noNumberWeight, KPI_NUMBER)).toBe("800");
+    const bareSpanOnly = original.replace(
+      ".metricValue .metricUnit {",
+      ".metricValue span {",
+    );
+    expect(computedFontWeight(bareSpanOnly, KPI_NUMBER)).toBe("800");
+  });
+
+  it("「未处置 N」也走字重令牌，不是裸 600", () => {
+    const pages = cssFiles.find((entry) => entry.tag === "AvPages")!;
+    expect(ruleBody(pages.source, ".levelSub")).toMatch(
+      /font-weight:\s*var\(--av-weight-emphasis\);/,
+    );
+  });
+});
+
+/* ---------------------------------------------------------------------------
+ * 级联推演的小工具（只支持 module.css 里实际用到的写法：标签 + 类 + 后代选择器）
+ * ------------------------------------------------------------------------- */
+
+type Compound = { tag: string | null; classes: string[] };
+/** 元素链上的一环：标签名 + 该类名列表（就地写 CSS Modules 的源类名，不含哈希） */
+type NodeSpec = { tag: string; classes: string[] };
+
+const COMPOUND_PATTERN = /^([a-z][a-z0-9-]*)?((?:\.[A-Za-z0-9_-]+)*)$/;
+
+/** `.metricValue strong` → [{classes:[metricValue]}, {tag:strong}]；不支持的写法返回 null。 */
+function parseSelector(selector: string): Compound[] | null {
+  const parts: Compound[] = [];
+  for (const raw of selector.trim().split(/\s+/)) {
+    const match = COMPOUND_PATTERN.exec(raw);
+    if (!match || (!match[1] && !match[2])) return null;
+    parts.push({
+      tag: match[1] ?? null,
+      classes: match[2] ? match[2].split(".").filter(Boolean) : [],
+    });
+  }
+  return parts.length > 0 ? parts : null;
+}
+
+function nodeMatches(node: NodeSpec, compound: Compound): boolean {
+  if (compound.tag && compound.tag !== node.tag) return false;
+  return compound.classes.every((name) => node.classes.includes(name));
+}
+
+/** 选择器是否命中「元素链的最后一环」（前面的复合选择器按后代关系匹配祖先）。 */
+function selectorMatches(selector: string, path: NodeSpec[]): boolean {
+  const parts = parseSelector(selector);
+  if (!parts || parts.length > path.length) return false;
+  if (!nodeMatches(path[path.length - 1], parts[parts.length - 1])) return false;
+  let cursor = path.length - 2;
+  for (let index = parts.length - 2; index >= 0; index -= 1) {
+    let found = -1;
+    for (let probe = cursor; probe >= 0; probe -= 1) {
+      if (nodeMatches(path[probe], parts[index])) {
+        found = probe;
+        break;
+      }
+    }
+    if (found < 0) return false;
+    cursor = found - 1;
+  }
+  return true;
+}
+
+type WeightRule = {
+  selector: string;
+  value: string;
+  order: number;
+  classes: number;
+  tags: number;
+};
+
+/**
+ * 一份 CSS 里**断点外**的所有 `font-weight` 声明。
+ *
+ * 只统计桌面宽屏基线（断点内是另一套排版，窄屏覆盖不在本守卫的验收范围）；
+ * 特异性按 CSS 的（类数 → 标签数）两级记，够区分 module.css 里全部规则。
+ */
+function fontWeightRules(source: string): WeightRule[] {
+  const css = maskComments(source);
+  const rules: WeightRule[] = [];
+  let cursor = 0;
+  let order = 0;
+  while (cursor < css.length) {
+    const brace = css.indexOf("{", cursor);
+    if (brace < 0) break;
+    const prelude = css.slice(cursor, brace).trim();
+    let depth = 1;
+    let end = brace + 1;
+    while (end < css.length && depth > 0) {
+      if (css[end] === "{") depth += 1;
+      else if (css[end] === "}") depth -= 1;
+      end += 1;
+    }
+    const body = css.slice(brace + 1, end - 1);
+    cursor = end;
+    if (prelude.startsWith("@")) continue; // 条件组规则整块跳过
+    const weight = /font-weight:\s*([^;]+);/.exec(body);
+    if (!weight) continue;
+    const selector = prelude.split("\n").pop()?.trim() ?? "";
+    const parts = parseSelector(selector);
+    if (!parts) continue;
+    rules.push({
+      selector,
+      value: weight[1].trim(),
+      order: (order += 1),
+      classes: parts.reduce((total, part) => total + part.classes.length, 0),
+      tags: parts.reduce((total, part) => total + (part.tag ? 1 : 0), 0),
+    });
+  }
+  return rules;
+}
+
+/** `inherit` / `unset` 返回 null（表示「去祖先链上找」）。 */
+function resolveWeightValue(value: string): string | null {
+  if (value === "inherit" || value === "unset") return null;
+  const tokenRef = /^var\((--av-[a-z0-9-]+)\)$/.exec(value);
+  if (tokenRef) return tokens.get(tokenRef[1]) ?? `MISSING:${tokenRef[1]}`;
+  return value;
+}
+
+/**
+ * 推演元素链最后一环**最终生效**的 font-weight。
+ *
+ * 从自身向上逐层找胜出声明：同一层内按（类数 → 标签数 → 源码顺序）决胜；
+ * 胜出值是 `inherit` 就继续上一层，一层都没有声明就继续往上（CSS 继承语义）。
+ */
+function computedFontWeight(source: string, path: NodeSpec[]): string {
+  const rules = fontWeightRules(source);
+  for (let depth = path.length - 1; depth >= 0; depth -= 1) {
+    const scoped = path.slice(0, depth + 1);
+    const matched = rules.filter((rule) => selectorMatches(rule.selector, scoped));
+    if (matched.length === 0) continue;
+    const winner = matched.reduce((best, rule) => {
+      if (rule.classes !== best.classes) return rule.classes > best.classes ? rule : best;
+      if (rule.tags !== best.tags) return rule.tags > best.tags ? rule : best;
+      return rule.order > best.order ? rule : best;
+    });
+    const resolved = resolveWeightValue(winner.value);
+    if (resolved !== null) return resolved;
+  }
+  return "unset";
+}

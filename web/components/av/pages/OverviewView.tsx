@@ -24,8 +24,10 @@ const INITIAL_STREAM_COUNT = 4;
 /**
  * KPI 数字的样式类（来自 AvUI.module.css）。
  *
- * 必须显式传给 `AvCounter`：`.metricValue span` 那条规则是给**单位**用的
- * （11px + 弱色），计数器渲染的 span 若不带这个类会被它命中，数字变成小号灰字。
+ * 必须显式传给 `AvCounter`：`.metricValue .metricNumber` 把字号 / 颜色 / 字重
+ * 全部 `inherit` 自 `<strong>`（`--av-text-kpi` + `--av-weight-figure` 800），
+ * 只保留等宽数字；计数器渲染的 span 若不带这个类，就没有显式继承链路可依。
+ * 单位的样式是另一个类 `.metricUnit`，两者互不命中。
  */
 const metricNumberClass = ui.metricNumber;
 

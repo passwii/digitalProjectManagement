@@ -231,7 +231,8 @@
   color: var(--av-ink-3);
   /* 跟「今日 N」同一行，字号不能差得太离谱（10 → 12px，BLF-1423 跟进） */
   font-size: var(--av-text-body);
-  font-weight: 600;
+  /* 字重也走令牌（BLF-1423 复审）：它是数字旁的注解，比 .levelTotal 的 700 轻一档 */
+  font-weight: var(--av-weight-emphasis);
   white-space: nowrap;
 }
 

@@ -135,7 +135,8 @@ export function AvMetric({
       <div className={s.metricValue}>
         {/* KPI 数字进入视口时从 0 滚到目标值（slow）；tabular-nums 由 CSS 给，不抖 */}
         <strong>{value}</strong>
-        {unit && <span>{unit}</span>}
+        {/* 单位走独立类：裸 `span` 会被 `.metricValue` 的后代规则连数字一起命中 */}
+        {unit && <span className={s.metricUnit}>{unit}</span>}
       </div>
       <div className={s.metricFoot}>
         <span>{detail}</span>

@@ -221,7 +221,7 @@
   /*
    * KPI 数字跟随色条同色（BLF-1422 / BLF-1423）：左边 2px 色条、图标、数字三者
    * 用同一个 --metric-tone，卡片底色保持中性 —— 「卡片克制、数字醒目」。
-   * 单位（`.metricValue span`）仍是弱文字色，避免整串数字发胖。
+   * 单位（`.metricUnit`）仍是弱文字色，避免整串数字发胖。
    *
    * 字号 / 字重走数字档令牌（BLF-1423 跟进）：KPI 是整屏第一眼的数字，
    * 26→34px、600→800 —— 「加粗几次」落到令牌上，而不是各处手写 font-weight。
@@ -234,20 +234,39 @@
   white-space: nowrap;
 }
 
-/* KPI 数字（计数器渲染的 span）：继承 strong 的字号与颜色，只保留等宽数字 */
+/*
+ * KPI 数字（计数器渲染的 span）：继承 strong 的字号、颜色与字重，只保留等宽数字。
+ *
+ * `font-weight: inherit` 是**必须写**的：它把「数字的字重来自 `.metricValue strong`
+ * 的 `--av-weight-figure`(800)」这条链路显式钉住 —— 单位规则再怎么改，
+ * 数字都不会被顺带压细。BLF-1423 复审的 P2 正是这里漏了字重：
+ * 数字规则当时只写了 color / font-family / font-size，唯独没写 font-weight，
+ * 而单位那条是裸后代选择器 `.metricValue span`，同样命中 `<strong>` 里
+ * `AvCounter` 渲染的 `span.metricNumber`，于是 600 成了唯一匹配的声明，
+ * 首页 KPI 主数字实际上并没有加粗。
+ */
 .metricValue .metricNumber {
   color: inherit;
   font-family: inherit;
   font-size: inherit;
+  font-weight: inherit;
   font-variant-numeric: tabular-nums;
 }
 
-.metricValue span {
+/*
+ * 单位：**必须是自己的类**，绝不能写成 `.metricValue span`。
+ * 后者除了命中这里的单位，也会命中 `<strong>` 里 `AvCounter` 渲染的
+ * `span.metricNumber`（同为后代 span），数字的字重就被这条规则吃掉了。
+ * 由 `avFontSizes.vitest.test.ts` 的「数字字重级联」用例守着（按选择器特异性
+ * 真实推演胜出声明，而不是只断言某条规则写了什么）。
+ */
+.metricValue .metricUnit {
   color: var(--av-ink-3);
   font-family: var(--font-body);
   /* 单位跟着数字上了一个档（11 → 14px）：34px 的数字旁边 11px 的「%」会浮得像脚注 */
   font-size: var(--av-text-emphasis);
-  font-weight: 600;
+  /* 单位比数字轻一档（800 → 600）：它是注解，不是读数 */
+  font-weight: var(--av-weight-emphasis);
   white-space: nowrap;
 }
 
