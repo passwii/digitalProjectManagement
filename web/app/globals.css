@@ -2918,8 +2918,24 @@ textarea,
    * @keyframes，动画会**静默不执行**（实测 animation-name 不是 none，但 opacity
    * 永远停在首帧）。把名字存进自定义属性后，module 里写 `var(--av-kf-xxx)`，
    * 变量替换发生在计算值阶段、不经过本地化，名字仍然是全局的那一个。
-   * 守卫见 lib/av/monitorMotion.vitest.test.tsx。
+   * 守卫见 lib/av/avKeyframes.vitest.test.ts（全量扫 5 个模块）与
+   * lib/av/monitorMotion.vitest.test.tsx（通道卡那几处）。
    */
+  /* 页面级通用帧（BLF-1433）：入场 / 退场 / 抽屉 / 骨架屏 / 范围切换 */
+  --av-kf-fade-in: avFadeIn;
+  --av-kf-fade-out: avFadeOut;
+  --av-kf-rise-in: avRiseIn;
+  --av-kf-range-swap: avRangeSwap;
+  --av-kf-heat-pulse: avHeatPulse;
+  --av-kf-breathe: avBreathe;
+  --av-kf-dot-pop: avDotPop;
+  --av-kf-grow-y: avGrowY;
+  --av-kf-wipe-up: avWipeUp;
+  --av-kf-drawer-in: avDrawerIn;
+  --av-kf-drawer-out: avDrawerOut;
+  --av-kf-skeleton: avSkeleton;
+
+  /* /monitor 通道卡（BLF-1425） */
   --av-kf-live-pulse: avLivePulse;
   --av-kf-live-ring: avLiveRing;
   --av-kf-scan-sweep: avScanSweep;

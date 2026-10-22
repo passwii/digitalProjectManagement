@@ -215,12 +215,12 @@
   display: grid;
   gap: var(--av-gap-section);
   min-width: 0;
-  animation: avRangeSwap var(--av-dur-quick) var(--av-ease-enter) both;
+  animation: var(--av-kf-range-swap) var(--av-dur-quick) var(--av-ease-enter) both;
 }
 
 /* 图表卡在换数时也淡一下：recharts 会重绘，容器同步淡入才不像「闪屏」 */
 .rangeChart {
-  animation: avFadeIn var(--av-dur-quick) var(--av-ease-enter) both;
+  animation: var(--av-kf-fade-in) var(--av-dur-quick) var(--av-ease-enter) both;
 }
 
 .levelList {
@@ -342,7 +342,7 @@
  */
 .heatCellPulse {
   outline: 1px solid var(--av-ink-3);
-  animation: avHeatPulse var(--av-dur-slow) var(--av-ease-standard) both;
+  animation: var(--av-kf-heat-pulse) var(--av-dur-slow) var(--av-ease-standard) both;
 }
 
 .heatLegend {
@@ -1052,21 +1052,21 @@
 }
 
 .dialog {
-  animation: avDrawerIn var(--av-dur-base) var(--av-ease-enter) both;
+  animation: var(--av-kf-drawer-in) var(--av-dur-base) var(--av-ease-enter) both;
 }
 
 .dialog[data-closing="true"] {
-  animation: avDrawerOut var(--av-dur-quick) var(--av-ease-exit) both;
+  animation: var(--av-kf-drawer-out) var(--av-dur-quick) var(--av-ease-exit) both;
 }
 
 .dialog::backdrop {
   background: var(--overlay);
   backdrop-filter: blur(6px);
-  animation: avFadeIn var(--av-dur-base) var(--av-ease-enter) both;
+  animation: var(--av-kf-fade-in) var(--av-dur-base) var(--av-ease-enter) both;
 }
 
 .dialog[data-closing="true"]::backdrop {
-  animation: avFadeOut var(--av-dur-quick) var(--av-ease-exit) both;
+  animation: var(--av-kf-fade-out) var(--av-dur-quick) var(--av-ease-exit) both;
 }
 
 .dialogHead {
@@ -1493,18 +1493,18 @@
  * 因此 `?static=1` / reduced 下连 keyframes 都不参与。
  */
 .timelineItem[data-motion-node] {
-  animation: avRiseIn var(--av-dur-base) var(--av-ease-enter) backwards;
+  animation: var(--av-kf-rise-in) var(--av-dur-base) var(--av-ease-enter) backwards;
   animation-delay: calc(var(--av-stagger-timeline) * var(--av-i, 0));
 }
 
 .timelineItem[data-motion-node] .timelineMark i {
-  animation: avDotPop var(--av-dur-quick) var(--av-ease-enter) both;
+  animation: var(--av-kf-dot-pop) var(--av-dur-quick) var(--av-ease-enter) both;
   animation-delay: calc(var(--av-stagger-timeline) * var(--av-i, 0));
 }
 
 .timelineItem[data-motion-node] .timelineMark::after {
   transform-origin: top center;
-  animation: avGrowY var(--av-dur-base) var(--av-ease-standard) both;
+  animation: var(--av-kf-grow-y) var(--av-dur-base) var(--av-ease-standard) both;
   animation-delay: calc(var(--av-stagger-timeline) * var(--av-i, 0));
 }
 
@@ -1759,7 +1759,7 @@
  */
 .sceneCard,
 .chainStep {
-  animation: avRiseIn var(--av-dur-base) var(--av-ease-enter) both;
+  animation: var(--av-kf-rise-in) var(--av-dur-base) var(--av-ease-enter) both;
   animation-delay: calc(var(--av-stagger-timeline) * var(--av-i, 0));
 }
 
@@ -2061,7 +2061,7 @@
     background: var(--av-surface);
     content: "";
     transform-origin: bottom center;
-    animation: avWipeUp var(--av-dur-slow) var(--av-ease-standard) both;
+    animation: var(--av-kf-wipe-up) var(--av-dur-slow) var(--av-ease-standard) both;
     pointer-events: none;
   }
 }

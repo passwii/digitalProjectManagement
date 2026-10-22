@@ -107,7 +107,7 @@
     var(--skeleton-base) 100%
   );
   background-size: 200% 100%;
-  animation: avSkeleton var(--av-dur-shimmer) linear infinite;
+  animation: var(--av-kf-skeleton) var(--av-dur-shimmer) linear infinite;
 }
 
 /*
@@ -126,7 +126,7 @@
 .skeletonSwap {
   width: 100%;
   height: 100%;
-  animation: avFadeIn var(--av-dur-base) var(--av-ease-standard) both;
+  animation: var(--av-kf-fade-in) var(--av-dur-base) var(--av-ease-standard) both;
 }
 
 /* ---------- Tab 滑块（layoutId） ---------- */
@@ -178,7 +178,7 @@
 
 /* 顶部时钟的秒位：每次跳变闪一帧（quick）。只动 opacity，不重排。 */
 .clockTick {
-  animation: avFadeIn var(--av-dur-quick) var(--av-ease-standard) both;
+  animation: var(--av-kf-fade-in) var(--av-dur-quick) var(--av-ease-standard) both;
 }
 
 /* ==========================================================================

@@ -1,0 +1,862 @@
+[
+  {
+    "scenario": "overview 切时间范围（avRangeSwap 整块上浮淡入 + avFadeIn 图表容器）",
+    "tabs": [
+      "近 24 小时",
+      "今日",
+      "近 7 日"
+    ],
+    "clicked": "今日",
+    "loadEventNames": [
+      "AvMotion_pageInFrames__toGmM",
+      "AvMotion_riseInFrames__6JFL1",
+      "avBreathe",
+      "avFadeIn",
+      "avGrowX",
+      "avRangeSwap",
+      "avSkeleton",
+      "ptr-spin"
+    ],
+    "eventNames": [
+      "AvMotion_pageInFrames__toGmM",
+      "AvMotion_riseInFrames__6JFL1",
+      "avBreathe",
+      "avFadeIn",
+      "avGrowX",
+      "avRangeSwap",
+      "avSkeleton",
+      "ptr-spin"
+    ],
+    "animations": [
+      {
+        "animation": "avRangeSwap",
+        "currentTimes": [
+          32,
+          66,
+          116
+        ],
+        "advancing": true
+      }
+    ],
+    "shots": [
+      {
+        "file": "artifacts/blf1433/range-swap-1.png",
+        "md5": "1bfa60d5665bbacfcaf09910eef32334"
+      },
+      {
+        "file": "artifacts/blf1433/range-swap-2.png",
+        "md5": "b6112a3cd93aae8d098b559b30d14c81"
+      },
+      {
+        "file": "artifacts/blf1433/range-swap-3.png",
+        "md5": "eebed43f557e74a7efdb60375da37a23"
+      }
+    ]
+  },
+  {
+    "scenario": "一级告警色条呼吸（avBreathe，data-level=\"1\"，全站唯一持续循环）",
+    "found": true,
+    "loadEventNames": [
+      "AvMotion_pageInFrames__toGmM",
+      "AvMotion_riseInFrames__6JFL1",
+      "avBreathe",
+      "avFadeIn",
+      "avSkeleton",
+      "ptr-spin"
+    ],
+    "animations": [
+      {
+        "animation": "avBreathe",
+        "currentTimes": [
+          517,
+          917,
+          1317,
+          1733
+        ],
+        "advancing": true
+      }
+    ],
+    "shots": [
+      {
+        "file": "artifacts/blf1433/breathe-1.png",
+        "md5": "91e3dbcd2bf9952de973fb70e085bd37"
+      },
+      {
+        "file": "artifacts/blf1433/breathe-2.png",
+        "md5": "ac79608572db8d386dc071a406ab0dda"
+      },
+      {
+        "file": "artifacts/blf1433/breathe-3.png",
+        "md5": "c6481e56961729ce6e9a2339789aa8d3"
+      }
+    ]
+  },
+  {
+    "scenario": "骨架屏高光扫过（avSkeleton，alarm「加载下一页」的 loading 占位）",
+    "nextButton": "clicked",
+    "skeletonSelector": "[class*=\"alarmSkeletonRow\"]",
+    "skeletonStartEvents": 4,
+    "animations": [
+      {
+        "animation": "avSkeleton",
+        "currentTimes": [
+          0,
+          117,
+          250
+        ],
+        "advancing": true
+      }
+    ],
+    "shots": [
+      {
+        "file": "artifacts/blf1433/skeleton-1.png",
+        "md5": "115022843744a0ae55b585a1ff3009c6"
+      },
+      {
+        "file": "artifacts/blf1433/skeleton-2.png",
+        "md5": "f4b92b053d253e423c96558b60f6b7b3"
+      },
+      {
+        "file": "artifacts/blf1433/skeleton-3.png",
+        "md5": "f027dd1bbee4ce1e6e5cb2f5dce7f63a"
+      }
+    ]
+  },
+  {
+    "scenario": "event 时间线逐节点点亮（avRiseIn + avDotPop + avGrowY，--av-i 错峰）",
+    "timeline": {
+      "count": 5,
+      "maxIndex": 4,
+      "delays": [
+        "0",
+        "1",
+        "2",
+        "3",
+        "4"
+      ]
+    },
+    "frozenAnimations": [
+      [
+        {
+          "name": "avRiseIn",
+          "pseudo": null,
+          "playState": "paused",
+          "currentTime": 0
+        },
+        {
+          "name": "avGrowY",
+          "pseudo": "::after",
+          "playState": "finished",
+          "currentTime": 300
+        },
+        {
+          "name": "avDotPop",
+          "pseudo": null,
+          "playState": "finished",
+          "currentTime": 160
+        }
+      ]
+    ],
+    "pauseCheck": {
+      "styleInjected": true,
+      "playState": "paused",
+      "opacity": "0"
+    },
+    "loadEventNames": [
+      "AvMotion_pageInFrames__toGmM",
+      "AvMotion_riseInFrames__6JFL1",
+      "avBreathe",
+      "avDotPop",
+      "avFadeIn",
+      "avGrowY::after",
+      "avRiseIn",
+      "ptr-spin"
+    ],
+    "animations": [
+      {
+        "animation": "avRiseIn",
+        "currentTimes": [
+          100,
+          233
+        ],
+        "advancing": true
+      },
+      {
+        "animation": "avGrowY::after",
+        "currentTimes": [
+          300,
+          300
+        ],
+        "advancing": false
+      },
+      {
+        "animation": "avDotPop",
+        "currentTimes": [
+          160,
+          160
+        ],
+        "advancing": false
+      }
+    ],
+    "settled": {
+      "count": 5,
+      "minOpacity": 1
+    },
+    "shots": [
+      {
+        "file": "artifacts/blf1433/timeline-1.png",
+        "md5": "07ec1c0268bc184f9f0598bd45ce46e6"
+      },
+      {
+        "file": "artifacts/blf1433/timeline-2.png",
+        "md5": "556d2840daa98c6e044c5e32274639cf"
+      },
+      {
+        "file": "artifacts/blf1433/timeline-3.png",
+        "md5": "50ef34bb918bcfee09f471b82aa329a1"
+      },
+      {
+        "file": "artifacts/blf1433/timeline-4.png",
+        "md5": "8f6ab292a24861d3f07b909fae7046c7"
+      }
+    ]
+  },
+  {
+    "scenario": "audio 频谱遮罩自下而上收走（avWipeUp，::after）",
+    "found": true,
+    "frozenAnimations": [
+      [
+        {
+          "name": "avWipeUp",
+          "pseudo": "::after",
+          "playState": "paused",
+          "currentTime": 0
+        }
+      ]
+    ],
+    "pauseCheck": {
+      "styleInjected": true,
+      "playState": "paused",
+      "transform": "matrix(1, 0, 0, 1, 0, 0)"
+    },
+    "loadEventNames": [
+      "AvMotion_pageInFrames__toGmM",
+      "avBreathe",
+      "avFadeIn",
+      "avWipeUp::after",
+      "ptr-spin"
+    ],
+    "animations": [
+      {
+        "animation": "avWipeUp::after",
+        "currentTimes": [
+          167,
+          317
+        ],
+        "advancing": true
+      }
+    ],
+    "shots": [
+      {
+        "file": "artifacts/blf1433/audio-wipe-1.png",
+        "md5": "ec0e1088ea1b44a17ff6ea008f0cb05b"
+      },
+      {
+        "file": "artifacts/blf1433/audio-wipe-2.png",
+        "md5": "394d1fb77ca4129ac0edc4016c707cdb"
+      },
+      {
+        "file": "artifacts/blf1433/audio-wipe-3.png",
+        "md5": "b0c87fc3e49fcb884af845d7b263dd7a"
+      },
+      {
+        "file": "artifacts/blf1433/audio-wipe-4.png",
+        "md5": "25a424a87b0c9d5bfc2918a328b32fd0"
+      }
+    ]
+  },
+  {
+    "scenario": "capability 场景卡 / 链路步骤错峰入场（avRiseIn，--av-i 由页面写入）",
+    "frozenAnimations": [
+      [
+        {
+          "name": "avRiseIn",
+          "pseudo": null,
+          "playState": "paused",
+          "currentTime": 0
+        },
+        {
+          "name": "avRiseIn",
+          "pseudo": null,
+          "playState": "paused",
+          "currentTime": 0
+        },
+        {
+          "name": "avRiseIn",
+          "pseudo": null,
+          "playState": "paused",
+          "currentTime": 0
+        }
+      ]
+    ],
+    "pauseCheck": {
+      "styleInjected": true,
+      "playState": "paused",
+      "opacity": "0"
+    },
+    "loadEventNames": [
+      "AvMotion_pageInFrames__toGmM",
+      "avFadeIn",
+      "avGrowX",
+      "avRiseIn",
+      "ptr-spin"
+    ],
+    "animations": [
+      {
+        "animation": "avRiseIn",
+        "currentTimes": [
+          17,
+          17,
+          17,
+          167,
+          167,
+          167
+        ],
+        "advancing": true
+      }
+    ],
+    "settled": {
+      "count": 11,
+      "minOpacity": 1
+    },
+    "shots": [
+      {
+        "file": "artifacts/blf1433/capability-in-1.png",
+        "md5": "34f7aa70c674af4b26c3f650379cb0df"
+      },
+      {
+        "file": "artifacts/blf1433/capability-in-2.png",
+        "md5": "2d500284803efa8172ad472337d07f9c"
+      },
+      {
+        "file": "artifacts/blf1433/capability-in-3.png",
+        "md5": "e10c25c22923e9227984a941bb10a129"
+      },
+      {
+        "file": "artifacts/blf1433/capability-in-4.png",
+        "md5": "c2544c269c8759468d9c8731f22f9837"
+      }
+    ]
+  },
+  {
+    "scenario": "抽屉滑入 / 滑出 + 遮罩淡入淡出（avDrawerIn/Out、avFadeIn/Out、::backdrop）",
+    "opened": true,
+    "closeInfo": "clicked",
+    "openAnimations": [
+      {
+        "name": "avDrawerIn",
+        "pseudo": null,
+        "playState": "running",
+        "currentTime": 67
+      },
+      {
+        "name": "avFadeIn",
+        "pseudo": "::backdrop",
+        "playState": "running",
+        "currentTime": 67
+      },
+      {
+        "name": "avBreathe",
+        "pseudo": null,
+        "playState": "running",
+        "currentTime": 67
+      }
+    ],
+    "closeAnimations": [
+      {
+        "name": "avDrawerOut",
+        "pseudo": null,
+        "playState": "running",
+        "currentTime": 0
+      },
+      {
+        "name": "avFadeOut",
+        "pseudo": "::backdrop",
+        "playState": "running",
+        "currentTime": 0
+      },
+      {
+        "name": "avBreathe",
+        "pseudo": null,
+        "playState": "running",
+        "currentTime": 833
+      }
+    ],
+    "backdropAnimation": {
+      "animationName": "avFadeIn",
+      "animationDuration": "0.3s",
+      "opacity": "0.78802",
+      "background": "rgba(7, 19, 31, 0.56)"
+    },
+    "closedAfter": true,
+    "animations": [
+      {
+        "animation": "avDrawerIn",
+        "currentTimes": [
+          67
+        ],
+        "advancing": true
+      },
+      {
+        "animation": "avFadeIn::backdrop",
+        "currentTimes": [
+          67
+        ],
+        "advancing": true
+      },
+      {
+        "animation": "avBreathe",
+        "currentTimes": [
+          67
+        ],
+        "advancing": true
+      },
+      {
+        "animation": "avDrawerOut",
+        "currentTimes": [
+          0
+        ],
+        "advancing": true
+      },
+      {
+        "animation": "avFadeOut::backdrop",
+        "currentTimes": [
+          0
+        ],
+        "advancing": true
+      },
+      {
+        "animation": "avBreathe",
+        "currentTimes": [
+          833
+        ],
+        "advancing": true
+      }
+    ],
+    "shots": [
+      {
+        "file": "artifacts/blf1433/drawer-open-1.png",
+        "md5": "bb8aa0d7afdab7f460b5131a9ea2cbe1"
+      },
+      {
+        "file": "artifacts/blf1433/drawer-open-2.png",
+        "md5": "fd6358f11930d499eae886987b1f7146"
+      },
+      {
+        "file": "artifacts/blf1433/drawer-open-3.png",
+        "md5": "b6e1262c03a5c78bbddce5a7ad953411"
+      },
+      {
+        "file": "artifacts/blf1433/drawer-close-1.png",
+        "md5": "340c9ef10d72b35bb70ad4b2c58e3db0"
+      },
+      {
+        "file": "artifacts/blf1433/drawer-close-2.png",
+        "md5": "6475c3ecb6fe4f6b36603d357dae3f71"
+      },
+      {
+        "file": "artifacts/blf1433/drawer-close-3.png",
+        "md5": "6475c3ecb6fe4f6b36603d357dae3f71"
+      }
+    ]
+  },
+  {
+    "scenario": "顶栏时钟秒跳闪一帧（avFadeIn，.clockTick 每秒重挂载）",
+    "distinctSeconds": 3,
+    "opacityRange": [
+      0,
+      1
+    ],
+    "clockAnimations": [
+      {
+        "name": "avFadeIn",
+        "currentTime": 160,
+        "playState": "finished"
+      },
+      {
+        "name": "avFadeIn",
+        "currentTime": 160,
+        "playState": "finished"
+      },
+      {
+        "name": "avFadeIn",
+        "currentTime": 160,
+        "playState": "finished"
+      },
+      {
+        "name": "avFadeIn",
+        "currentTime": 160,
+        "playState": "finished"
+      },
+      {
+        "name": "avFadeIn",
+        "currentTime": 160,
+        "playState": "finished"
+      },
+      {
+        "name": "avFadeIn",
+        "currentTime": 160,
+        "playState": "finished"
+      },
+      {
+        "name": "avFadeIn",
+        "currentTime": 160,
+        "playState": "finished"
+      },
+      {
+        "name": "avFadeIn",
+        "currentTime": 160,
+        "playState": "finished"
+      },
+      {
+        "name": "avFadeIn",
+        "currentTime": 160,
+        "playState": "finished"
+      },
+      {
+        "name": "avFadeIn",
+        "currentTime": 160,
+        "playState": "finished"
+      }
+    ],
+    "animations": [
+      {
+        "animation": "avFadeIn",
+        "currentTimes": [
+          160,
+          160,
+          160,
+          160,
+          160,
+          160,
+          160,
+          160,
+          160,
+          160,
+          160,
+          160,
+          160,
+          160,
+          160,
+          160,
+          160,
+          160,
+          160,
+          160,
+          160,
+          160,
+          160,
+          160,
+          160,
+          160,
+          160,
+          160,
+          160,
+          160,
+          160,
+          160,
+          160,
+          160,
+          160,
+          160,
+          160,
+          0,
+          17,
+          33,
+          50,
+          67,
+          83,
+          100,
+          117,
+          133,
+          150,
+          160,
+          160,
+          160,
+          160,
+          160,
+          160,
+          160,
+          160,
+          160,
+          160,
+          160,
+          160,
+          160,
+          160,
+          160,
+          160,
+          160,
+          160,
+          160,
+          160,
+          160,
+          160,
+          160,
+          160,
+          160,
+          160,
+          160,
+          160,
+          160,
+          160,
+          160,
+          160,
+          160,
+          160,
+          160,
+          160,
+          160,
+          160,
+          160,
+          160,
+          160,
+          160,
+          160,
+          160,
+          160,
+          160,
+          160,
+          160,
+          160,
+          160,
+          0,
+          17,
+          33,
+          50,
+          67,
+          83,
+          100,
+          117,
+          133,
+          150,
+          160,
+          160,
+          160,
+          160,
+          160,
+          160,
+          160,
+          160,
+          160,
+          160,
+          160,
+          160,
+          160,
+          160,
+          160,
+          160,
+          160,
+          160,
+          160,
+          160,
+          160,
+          160,
+          160,
+          160,
+          160,
+          160,
+          160,
+          160,
+          160,
+          160,
+          160,
+          160,
+          160,
+          160,
+          160,
+          160,
+          160,
+          160,
+          160,
+          160,
+          160,
+          160,
+          160,
+          160,
+          160,
+          160,
+          160,
+          160,
+          160,
+          160
+        ],
+        "advancing": true
+      }
+    ],
+    "shots": [
+      {
+        "file": "artifacts/blf1433/clock-1.png",
+        "md5": "87ca39ff0760acc5a44f7b901b5b3da1"
+      },
+      {
+        "file": "artifacts/blf1433/clock-2.png",
+        "md5": "2ea0a10f83dd014edd363de3fc29b8b3"
+      },
+      {
+        "file": "artifacts/blf1433/clock-3.png",
+        "md5": "f7e4c34d0e636cce463d596ed5d0aea3"
+      }
+    ]
+  },
+  {
+    "scenario": "?static=1 三连拍 MD5 + 无半透明 / 空白面板",
+    "staticResults": [
+      {
+        "page": "overview",
+        "identical": true,
+        "hashes": [
+          "c68dcaaf66db95fdd7a74a174633e65b",
+          "c68dcaaf66db95fdd7a74a174633e65b",
+          "c68dcaaf66db95fdd7a74a174633e65b"
+        ],
+        "invisible": 0,
+        "nodeCount": 40,
+        "animations": 0,
+        "motion": "off"
+      },
+      {
+        "page": "monitor",
+        "identical": true,
+        "hashes": [
+          "3464218fd56fe9943894be40ff402593",
+          "3464218fd56fe9943894be40ff402593",
+          "3464218fd56fe9943894be40ff402593"
+        ],
+        "invisible": 0,
+        "nodeCount": 15,
+        "animations": 0,
+        "motion": "off"
+      },
+      {
+        "page": "alarm",
+        "identical": true,
+        "hashes": [
+          "9c8de6894b0d7fe281e2351e488f80c4",
+          "9c8de6894b0d7fe281e2351e488f80c4",
+          "9c8de6894b0d7fe281e2351e488f80c4"
+        ],
+        "invisible": 0,
+        "nodeCount": 19,
+        "animations": 0,
+        "motion": "off"
+      },
+      {
+        "page": "event",
+        "identical": true,
+        "hashes": [
+          "0cb6fb278a2d2f346b210f2d2ac6734e",
+          "0cb6fb278a2d2f346b210f2d2ac6734e",
+          "0cb6fb278a2d2f346b210f2d2ac6734e"
+        ],
+        "invisible": 0,
+        "nodeCount": 14,
+        "animations": 0,
+        "motion": "off"
+      },
+      {
+        "page": "device",
+        "identical": true,
+        "hashes": [
+          "594f4b583c21b1cc57cba24baa059599",
+          "594f4b583c21b1cc57cba24baa059599",
+          "594f4b583c21b1cc57cba24baa059599"
+        ],
+        "invisible": 0,
+        "nodeCount": 34,
+        "animations": 0,
+        "motion": "off"
+      },
+      {
+        "page": "capability",
+        "identical": true,
+        "hashes": [
+          "f9ab9dee36ed8d3daaf17db7d6ae9ae1",
+          "f9ab9dee36ed8d3daaf17db7d6ae9ae1",
+          "f9ab9dee36ed8d3daaf17db7d6ae9ae1"
+        ],
+        "invisible": 0,
+        "nodeCount": 25,
+        "animations": 0,
+        "motion": "off"
+      },
+      {
+        "page": "audio",
+        "identical": true,
+        "hashes": [
+          "83a610e23034cc775c3d564898677e7e",
+          "83a610e23034cc775c3d564898677e7e",
+          "83a610e23034cc775c3d564898677e7e"
+        ],
+        "invisible": 0,
+        "nodeCount": 19,
+        "animations": 0,
+        "motion": "off"
+      }
+    ]
+  },
+  {
+    "scenario": "prefers-reduced-motion: reduce 下完全冻结",
+    "reducedResults": [
+      {
+        "page": "overview",
+        "runningAnimations": 0,
+        "allAnimations": 0,
+        "invisible": 0,
+        "nodeCount": 40
+      },
+      {
+        "page": "monitor",
+        "runningAnimations": 0,
+        "allAnimations": 0,
+        "invisible": 0,
+        "nodeCount": 15
+      },
+      {
+        "page": "alarm",
+        "runningAnimations": 0,
+        "allAnimations": 0,
+        "invisible": 0,
+        "nodeCount": 19
+      },
+      {
+        "page": "event",
+        "runningAnimations": 0,
+        "allAnimations": 0,
+        "invisible": 0,
+        "nodeCount": 14
+      },
+      {
+        "page": "device",
+        "runningAnimations": 0,
+        "allAnimations": 0,
+        "invisible": 0,
+        "nodeCount": 34
+      },
+      {
+        "page": "capability",
+        "runningAnimations": 0,
+        "allAnimations": 0,
+        "invisible": 0,
+        "nodeCount": 25
+      },
+      {
+        "page": "audio",
+        "runningAnimations": 0,
+        "allAnimations": 0,
+        "invisible": 0,
+        "nodeCount": 19
+      }
+    ]
+  }
+]

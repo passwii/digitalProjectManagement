@@ -668,7 +668,7 @@
     border: 0;
     background: var(--overlay);
     /* 遮罩淡入（base）：与抽屉滑入同一拍，避免「先黑一屏、再滑出侧栏」 */
-    animation: avFadeIn var(--av-dur-base) var(--av-ease-enter) both;
+    animation: var(--av-kf-fade-in) var(--av-dur-base) var(--av-ease-enter) both;
   }
   .content {
     padding: 16px calc(var(--av-gutter) + var(--av-safe-r))
