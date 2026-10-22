@@ -1,5 +1,6 @@
 {
   "baseUrl": "http://127.0.0.1:3001",
+  "mode": "normal",
   "widths": [
     1440,
     390
@@ -19,6 +20,18 @@
     "computedAnimationName": "avKfAuditMissingFrame",
     "caught": 1,
     "leftoverAfterRemove": 0
+  },
+  "expectationGateSelfCheck": {
+    "ok": true,
+    "probeSelector": "[data-av-kf-audit-missing-selector]",
+    "mirroredFrom": {
+      "page": "overview",
+      "width": 1440,
+      "selector": "[class*=\"rangeBody\"]"
+    },
+    "caught": 1,
+    "failureText": "overview 1440px：[data-av-kf-audit-missing-selector] 在该 page × width 未渲染（选择器漂了、元素被删或动画没挂上）—— 未标 optional 的期望不允许「没采到就放行」",
+    "optionalTreatedAsFailure": 0
   },
   "runs": [
     {
@@ -183,6 +196,7 @@
       "selector": "[class*=\"rangeBody\"]",
       "pseudo": null,
       "frame": "avRangeSwap",
+      "optional": false,
       "present": true,
       "names": [
         "avRangeSwap"
@@ -195,6 +209,7 @@
       "selector": "[class*=\"heatCellPulse\"]",
       "pseudo": null,
       "frame": "avHeatPulse",
+      "optional": false,
       "present": true,
       "names": [
         "avHeatPulse"
@@ -207,6 +222,7 @@
       "selector": "[class*=\"levelBadge\"][data-level=\"1\"] [class*=\"levelSwatch\"]",
       "pseudo": null,
       "frame": "avBreathe",
+      "optional": false,
       "present": true,
       "names": [
         "avBreathe"
@@ -219,6 +235,7 @@
       "selector": "[class*=\"skeleton\"]:not([class*=\"skeletonSwap\"])",
       "pseudo": null,
       "frame": "avSkeleton",
+      "optional": true,
       "present": true,
       "names": [
         "avSkeleton"
@@ -231,6 +248,7 @@
       "selector": "[class*=\"timelineItem\"][data-motion-node]",
       "pseudo": null,
       "frame": "avRiseIn",
+      "optional": false,
       "present": true,
       "names": [
         "avRiseIn"
@@ -243,6 +261,7 @@
       "selector": "[class*=\"sceneCard\"]",
       "pseudo": null,
       "frame": "avRiseIn",
+      "optional": false,
       "present": true,
       "names": [
         "avRiseIn"
@@ -255,6 +274,7 @@
       "selector": "[class*=\"chainStep\"]",
       "pseudo": null,
       "frame": "avRiseIn",
+      "optional": false,
       "present": true,
       "names": [
         "avRiseIn"
@@ -267,6 +287,7 @@
       "selector": "[class*=\"spectroWrap\"]",
       "pseudo": "::after",
       "frame": "avWipeUp",
+      "optional": false,
       "present": true,
       "names": [
         "avWipeUp"
@@ -279,6 +300,7 @@
       "selector": "[class*=\"rangeBody\"]",
       "pseudo": null,
       "frame": "avRangeSwap",
+      "optional": false,
       "present": true,
       "names": [
         "avRangeSwap"
@@ -291,6 +313,7 @@
       "selector": "[class*=\"heatCellPulse\"]",
       "pseudo": null,
       "frame": "avHeatPulse",
+      "optional": false,
       "present": true,
       "names": [
         "avHeatPulse"
@@ -303,6 +326,7 @@
       "selector": "[class*=\"levelBadge\"][data-level=\"1\"] [class*=\"levelSwatch\"]",
       "pseudo": null,
       "frame": "avBreathe",
+      "optional": false,
       "present": true,
       "names": [
         "avBreathe"
@@ -315,6 +339,7 @@
       "selector": "[class*=\"skeleton\"]:not([class*=\"skeletonSwap\"])",
       "pseudo": null,
       "frame": "avSkeleton",
+      "optional": true,
       "present": true,
       "names": [
         "avSkeleton"
@@ -327,6 +352,7 @@
       "selector": "[class*=\"timelineItem\"][data-motion-node]",
       "pseudo": null,
       "frame": "avRiseIn",
+      "optional": false,
       "present": true,
       "names": [
         "avRiseIn"
@@ -339,6 +365,7 @@
       "selector": "[class*=\"sceneCard\"]",
       "pseudo": null,
       "frame": "avRiseIn",
+      "optional": false,
       "present": true,
       "names": [
         "avRiseIn"
@@ -351,6 +378,7 @@
       "selector": "[class*=\"chainStep\"]",
       "pseudo": null,
       "frame": "avRiseIn",
+      "optional": false,
       "present": true,
       "names": [
         "avRiseIn"
@@ -363,6 +391,7 @@
       "selector": "[class*=\"spectroWrap\"]",
       "pseudo": "::after",
       "frame": "avWipeUp",
+      "optional": false,
       "present": true,
       "names": [
         "avWipeUp"
@@ -370,15 +399,16 @@
       "ok": true
     }
   ],
+  "expectationMisses": [],
   "staticFreeze": [
     {
       "page": "overview",
       "width": 1440,
       "identical": true,
       "hashes": [
-        "c1e6f00dad603ed49aec06e8c270cc2c",
-        "c1e6f00dad603ed49aec06e8c270cc2c",
-        "c1e6f00dad603ed49aec06e8c270cc2c"
+        "cbc12bff240afeb2a6bdaba26b1e17f9",
+        "cbc12bff240afeb2a6bdaba26b1e17f9",
+        "cbc12bff240afeb2a6bdaba26b1e17f9"
       ],
       "nodes": 40,
       "invisible": 0,
@@ -390,9 +420,9 @@
       "width": 1440,
       "identical": true,
       "hashes": [
-        "c9bb0e85975c92e12560f52324195ea6",
-        "c9bb0e85975c92e12560f52324195ea6",
-        "c9bb0e85975c92e12560f52324195ea6"
+        "a36b89188daef6a84f3de2546c8f7d00",
+        "a36b89188daef6a84f3de2546c8f7d00",
+        "a36b89188daef6a84f3de2546c8f7d00"
       ],
       "nodes": 15,
       "invisible": 0,
@@ -432,9 +462,9 @@
       "width": 1440,
       "identical": true,
       "hashes": [
-        "eacbf3c9e3590e86ed16e97e5a57311d",
-        "eacbf3c9e3590e86ed16e97e5a57311d",
-        "eacbf3c9e3590e86ed16e97e5a57311d"
+        "5729dffbaea52740b62675eaf6303db8",
+        "5729dffbaea52740b62675eaf6303db8",
+        "5729dffbaea52740b62675eaf6303db8"
       ],
       "nodes": 34,
       "invisible": 0,
@@ -530,9 +560,9 @@
       "width": 390,
       "identical": true,
       "hashes": [
-        "3407698fdc913e9806d38fb434964c5a",
-        "3407698fdc913e9806d38fb434964c5a",
-        "3407698fdc913e9806d38fb434964c5a"
+        "526c8897691b5d9de64be041c8ee71b5",
+        "526c8897691b5d9de64be041c8ee71b5",
+        "526c8897691b5d9de64be041c8ee71b5"
       ],
       "nodes": 34,
       "invisible": 0,
@@ -684,6 +714,6 @@
   ],
   "failures": [],
   "expectationHits": 16,
-  "expectationMisses": [],
+  "expectationOptionalMisses": 0,
   "pass": true
 }

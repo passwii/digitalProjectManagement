@@ -12,14 +12,24 @@
 //   · 每页 × 1440 / 390 两档，遍历所有元素及其 ::before / ::after / ::backdrop，
 //     收集 `getComputedStyle().animationName`，逐个名字查 @keyframes 集合；
 //   · 解析不到的名字记一条，正常应为 **0 条**；
-//   · `EXPECTATIONS` 里列的（页面, 选择器, 期望帧名）若元素存在，必须解析成该帧名
-//     —— 这是「修好之后真的开始播」的正向证据，不是只看有没有报错。
+//   · `EXPECTATIONS` 里列的（页面, 选择器, 期望帧名）**按 page × width 逐条记账**：
+//     元素没渲染 → failure；元素渲染了但 animationName 是 none → failure；采样到帧名但
+//     不是期望的那条 → failure。只有显式标了 `optional: true` 的按需节点（例如点击
+//     「加载下一页」后才挂载的骨架屏）允许「没出现」，但仍记进 `expectationMisses`。
+//     **不存在「null 即放行」**：这正是 Stage 3/4 review 抓过两次的恒真断言。
 //
-// **负向自检**：先在第一个页面上插一个指向不存在帧名的探针元素，同一套扫描必须
-// 报出它（≥1 条），否则说明扫描口径坏了（查不到就通过的恒真断言，Stage 3/4 review
-// 抓过两次）。自检不通过直接判失败，不进入正式统计。
+// **两条负向自检**（任一不通过都直接判失败）：
+//   1. 帧名解析口径：先在第一个页面上插一个指向不存在帧名的探针元素，同一套扫描必须
+//      报出它（≥1 条）；
+//   2. 期望门禁口径：把一条真实期望的选择器换成不存在的，`judgeExpectations` 必须报
+//      failure（同一份逻辑，见 expectationGateSelfCheck）。
+//   另有端到端模式 `--break-expectation`：真的把第 1 条期望的选择器改坏再跑完整轮，
+//   审计必须整体失败、JSON 里 `pass: false`。用法见下。
 //
-// 用法：node scripts/av-keyframes-audit.mjs [baseUrl] [outDir]
+// 用法：
+//   node scripts/av-keyframes-audit.mjs [baseUrl] [outDir]
+//   node scripts/av-keyframes-audit.mjs [baseUrl] [outDir] --break-expectation
+//     ↑ 负向自检模式：期望门禁必须 fail（退出码 1）。产物写到单独目录，别覆盖正式报告。
 // 依赖本机 Chrome（可用 CHROME_PATH 覆盖），CDP 薄封装与 av-monitor-motion.mjs /
 // av-layout-overflow.mjs 同一套做法。
 import { spawn } from "node:child_process";
@@ -28,15 +38,21 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 
-const baseUrl = process.argv[2] ?? "http://127.0.0.1:3001";
-const outDir = process.argv[3] ?? "artifacts/blf1433";
+const positionalArgs = process.argv.slice(2).filter((arg) => !arg.startsWith("--"));
+const baseUrl = positionalArgs[0] ?? "http://127.0.0.1:3001";
+const outDir = positionalArgs[1] ?? "artifacts/blf1433";
+// 端到端负向自检：把第 1 条期望的选择器改坏，整轮必须 pass: false。
+const breakExpectation = process.argv.includes("--break-expectation");
 const chromePath = process.env.CHROME_PATH ?? "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
 
 // 五页 + capability / audio（issue 要求的两页额外覆盖）。
 const PAGES = ["overview", "monitor", "alarm", "event", "device", "capability", "audio"];
 const WIDTHS = [1440, 390];
 
-/** 元素存在即必须解析成该帧名（不存在不算失败：骨架屏之类的按需挂载）。 */
+/**
+ * 期望项：元素在该 page × width 必须渲染、且计算 animationName 必须包含 `frame`。
+ * 只有显式 `optional: true` 的按需节点允许「没渲染」（仍会记进 expectationMisses）。
+ */
 // 选择器用 `[class*=...]`：类名在运行时带着 CSS Modules 的哈希后缀（`.rangeBody`
 // 实际渲染成 `.AvPages_rangeBody__xxxxx`），写死类名会一条都命中不到。
 const EXPECTATIONS = [
@@ -50,15 +66,67 @@ const EXPECTATIONS = [
   { page: "event", selector: '[class*="timelineItem"][data-motion-node]', frame: "avRiseIn" },
   { page: "capability", selector: '[class*="sceneCard"]', frame: "avRiseIn" },
   { page: "capability", selector: '[class*="chainStep"]', frame: "avRiseIn" },
-  // 骨架屏只在「加载下一页」的等待窗口里存在：先点按钮再轮询（见 pollExpectations 的 action）
+  // 骨架屏只在「加载下一页」的等待窗口里存在：先点按钮再轮询（见 pollExpectations 的 action）。
+  // 它是否出现取决于数据返回时机，属于按需节点 —— 标 optional，不拿「没采到」当失败；
+  // 但一旦采到，帧名仍必须对（下面的 judgeExpectations 对 optional 项照样校验帧名）。
   {
     page: "alarm",
     selector: '[class*="skeleton"]:not([class*="skeletonSwap"])',
     frame: "avSkeleton",
     action: "click-load-more",
+    optional: true,
   },
   { page: "audio", selector: '[class*="spectroWrap"]', pseudo: "::after", frame: "avWipeUp" },
 ];
+
+// 负向自检模式：第 1 条期望的选择器改成页面里不可能存在的特征，门禁必须报 failure。
+const BROKEN_EXPECTATION_SELECTOR = '[data-av-kf-audit-missing-selector]';
+const ACTIVE_EXPECTATIONS = breakExpectation
+  ? EXPECTATIONS.map((item, index) =>
+      index === 0 ? { ...item, selector: BROKEN_EXPECTATION_SELECTOR, optional: false } : item,
+    )
+  : EXPECTATIONS;
+
+/**
+ * 期望门禁（纯函数，便于自检）：按 page × width 逐条判定。
+ * 返回 { failures, misses }：
+ *   · 采样到帧名但不是期望值 → failure；
+ *   · 元素渲染了但 animationName 一直是 none → failure（动画没挂上，不是「不存在」）；
+ *   · 元素没渲染且没标 optional → failure（选择器漂了或被删了）；
+ *   · 元素没渲染且标了 optional → 只进 misses，不算失败。
+ * `present` = 采样窗口内元素是否出现过；`names` = 首次采到的 animationName 列表。
+ */
+function judgeExpectations(records) {
+  const failures = [];
+  const misses = [];
+  for (const record of records) {
+    const where = `${record.page} ${record.width}px：${record.selector}${record.pseudo ?? ""}`;
+    if (record.names !== null && record.names !== undefined) {
+      if (!record.names.includes(record.frame)) {
+        failures.push(`${where} 期望 ${record.frame}，实际 ${JSON.stringify(record.names)}`);
+      }
+      continue;
+    }
+    misses.push({
+      page: record.page,
+      width: record.width,
+      selector: record.selector,
+      optional: record.optional === true,
+      reason: record.present ? "element-present-but-no-animation" : "element-not-rendered",
+    });
+    if (record.optional === true) continue;
+    if (record.present) {
+      failures.push(`${where} 元素已渲染但 animationName 为 none（期望 ${record.frame}）`);
+    } else {
+      failures.push(
+        `${where} 在该 page × width 未渲染（选择器漂了、元素被删或动画没挂上）` +
+          `—— 未标 optional 的期望不允许「没采到就放行」`,
+      );
+    }
+  }
+  return { failures, misses };
+}
+
 
 const NEGATIVE_PROBE_FRAME = "avKfAuditMissingFrame";
 
@@ -158,6 +226,8 @@ function pollExpectations(expectations, budgetMs = 8000) {
       if (trigger) trigger.click();
     }
     const hits = items.map(() => null);
+    // 元素是否出现过要单独记：出现但 animationName 一直是 none，和根本没渲染是两回事
+    const seen = items.map(() => false);
     const deadline = performance.now() + ${budgetMs};
     while (performance.now() < deadline) {
       let pending = false;
@@ -169,6 +239,7 @@ function pollExpectations(expectations, budgetMs = 8000) {
           pending = true;
           continue;
         }
+        seen[index] = true;
         const style = getComputedStyle(el, item.pseudo || null);
         const names = (style.animationName || "").split(",").map((value) => value.trim());
         if (names.some((name) => name && name !== "none")) {
@@ -180,7 +251,7 @@ function pollExpectations(expectations, budgetMs = 8000) {
       if (!pending) break;
       await new Promise((done) => setTimeout(done, 120));
     }
-    return items.map((item, index) => ({ names: hits[index], frame: item.frame }));
+    return items.map((item, index) => ({ names: hits[index], found: seen[index], frame: item.frame }));
   })()`;
 }
 
@@ -225,11 +296,14 @@ async function evaluate(expression) {
 
 const report = {
   baseUrl,
+  mode: breakExpectation ? "negative-expectation-probe" : "normal",
   widths: WIDTHS,
   pages: PAGES,
   negativeSelfCheck: null,
+  expectationGateSelfCheck: null,
   runs: [],
   expectations: [],
+  expectationMisses: [],
   staticFreeze: [],
   reducedMotion: [],
   failures: [],
@@ -334,7 +408,7 @@ try {
       });
       // 不带 ?static=1：静态档整段 animation: none，比对不出任何东西
       await send("Page.navigate", { url: `${baseUrl}/stream-monitor/${page}` });
-      const pageExpectations = EXPECTATIONS.filter((item) => item.page === page);
+      const pageExpectations = ACTIVE_EXPECTATIONS.filter((item) => item.page === page);
       const needsLoadingWindow = pageExpectations.some((item) => item.action === "click-load-more");
       if (needsLoadingWindow) await throttle(600);
       // 导航后立刻开始轮询（瞬时节点），轮询结束后再等页面稳定做全量扫描
@@ -391,24 +465,30 @@ try {
       );
 
       pageExpectations.forEach((expectation, index) => {
-        const names = polled[index]?.names ?? null;
+        const polledItem = polled[index] ?? {};
+        const names = polledItem.names ?? null;
         report.expectations.push({
           page,
           width,
           selector: expectation.selector,
           pseudo: expectation.pseudo ?? null,
           frame: expectation.frame,
-          present: names !== null,
+          optional: expectation.optional === true,
+          // present = 采样窗口内元素是否出现过；names = 首次采到的 animationName
+          present: polledItem.found === true,
           names,
           ok: names === null ? null : names.includes(expectation.frame),
         });
-        if (names !== null && !names.includes(expectation.frame)) {
-          report.failures.push(
-            `${page} ${width}px：${expectation.selector}${expectation.pseudo ?? ""} 期望 ${expectation.frame}，` +
-              `实际 ${JSON.stringify(names)}`,
-          );
-        }
       });
+      // 逐 page × width 记账：没渲染 / 没有动画 / 帧名不符都进 failures，
+      // 不再依赖「8 项全丢」或跨宽度的 some() 兜底。
+      const pageGate = judgeExpectations(
+        report.expectations.filter((entry) => entry.page === page && entry.width === width),
+      );
+      report.failures.push(...pageGate.failures);
+      if (pageGate.failures.length > 0) {
+        process.stdout.write(`${page} ${width}px：期望门禁 ${pageGate.failures.length} 条失败\n`);
+      }
     }
   }
 
@@ -507,14 +587,69 @@ try {
     report.failures.push("整轮没有任何动画的 currentTime 在推进 —— 动画没有真的在播，结果不可信");
   }
 
+  // ---- 期望门禁的负向自检（不额外跑一轮浏览器，复用同一份判定逻辑） ----
+  // 把一条真实采样改成「选择器漂了」的样子（names: null / present: false），
+  // 门禁必须报出它；再把同一条标成 optional，必须不再算失败。
+  // 这一步专门证明「元素没渲染不会被静默放行」，而不是靠 matched.length === 0 兜底。
+  {
+    const target =
+      report.expectations.find(
+        (item) =>
+          item.optional !== true &&
+          item.names !== null &&
+          item.selector !== BROKEN_EXPECTATION_SELECTOR,
+      ) ??
+      report.expectations.find(
+        (item) => item.optional !== true && item.selector !== BROKEN_EXPECTATION_SELECTOR,
+      ) ??
+      null;
+    if (target === null) {
+      report.expectationGateSelfCheck = { ok: false, reason: "没有可用的真实期望采样" };
+      report.failures.push("期望门禁自检无法执行：没有任何真实期望采样");
+    } else {
+      const drifted = {
+        ...target,
+        selector: BROKEN_EXPECTATION_SELECTOR,
+        present: false,
+        names: null,
+        optional: false,
+        ok: null,
+      };
+      // 用「干净的」真实采样 + 一条漂移项自检；负向模式（--break-expectation）下
+      // 正式采样里已经有同选择器的失败，先剔掉，保证自检自己只该多出 1 条。
+      const cleanRecords = report.expectations.filter(
+        (item) => item.selector !== BROKEN_EXPECTATION_SELECTOR,
+      );
+      const probe = judgeExpectations([...cleanRecords, drifted]);
+      const caught = probe.failures.filter((text) => text.includes(BROKEN_EXPECTATION_SELECTOR));
+      const optionalProbe = judgeExpectations([{ ...drifted, optional: true }]);
+      const ok = caught.length === 1 && optionalProbe.failures.length === 0;
+      report.expectationGateSelfCheck = {
+        ok,
+        probeSelector: BROKEN_EXPECTATION_SELECTOR,
+        mirroredFrom: { page: target.page, width: target.width, selector: target.selector },
+        caught: caught.length,
+        failureText: caught[0] ?? null,
+        optionalTreatedAsFailure: optionalProbe.failures.length,
+      };
+      if (!ok) {
+        report.failures.push(
+          `期望门禁自检未通过：选择器改成不存在后 failures=${caught.length}（应为 1），` +
+            `标 optional 后 failures=${optionalProbe.failures.length}（应为 0）—— 门禁可能是恒真`,
+        );
+      }
+    }
+  }
+
   // 期望值至少要命中一次，证明「修好之后真的开始播」这条正向证据真的取到了
-  const matched = report.expectations.filter((item) => item.present);
-  report.expectationHits = matched.length;
-  // 一条都没采到的期望是死断言：列出来（不进 failures，但要清掉或改成能被采到的选择器）
-  report.expectationMisses = EXPECTATIONS.filter(
-    (item) => !report.expectations.some((entry) => entry.selector === item.selector && entry.present),
-  ).map((item) => `${item.page} ${item.selector}`);
-  if (matched.length === 0) {
+  const finalGate = judgeExpectations(report.expectations);
+  report.expectationHits = report.expectations.filter(
+    (item) => item.names !== null && item.names.includes(item.frame),
+  ).length;
+  // miss 按 page × width × 选择器逐条记（不再用跨宽度的 some() 一笔勾销）
+  report.expectationMisses = finalGate.misses;
+  report.expectationOptionalMisses = finalGate.misses.filter((item) => item.optional).length;
+  if (report.expectationHits === 0) {
     report.failures.push("EXPECTATIONS 一条都没命中（元素均未渲染）—— 正向证据缺失");
   }
 
@@ -524,8 +659,10 @@ try {
   console.log(
     JSON.stringify(
       {
+        mode: report.mode,
         pass: report.pass,
         negativeSelfCheck: report.negativeSelfCheck,
+        expectationGateSelfCheck: report.expectationGateSelfCheck,
         totalAnimated,
         totalProgressed: report.runs.reduce((sum, run) => sum + (run.progressed ?? 0), 0),
         unresolved: report.runs.reduce((sum, run) => sum + run.unresolved.length, 0),
@@ -534,12 +671,21 @@ try {
         reducedMotionFrozen: report.reducedMotion.filter((item) => item.running === 0).length,
         reducedMotionTotal: report.reducedMotion.length,
         expectationHits: report.expectationHits,
+        expectationTotal: report.expectations.length,
+        expectationMisses: report.expectationMisses,
         failures: report.failures,
       },
       null,
       2,
     ),
   );
+  if (breakExpectation) {
+    console.log(
+      report.pass
+        ? "负向自检模式：期望门禁没有失败 —— 门禁恒真，本次结果不可信"
+        : "负向自检模式：期望门禁按预期失败（见上面 failures）",
+    );
+  }
   if (!report.pass) process.exitCode = 1;
 } finally {
   try {
