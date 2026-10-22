@@ -30,7 +30,9 @@ const chromePath = process.env.CHROME_PATH ?? "/Applications/Google Chrome.app/C
 const PAGES = ["overview", "monitor", "alarm", "event", "device", "capability", "audio", "__stress"];
 // 窄屏档（390 / 360）是 BLF-1389 补的：之前只到 720px，
 // 手机宽度下的卡片溢出从来没被这个脚本看过 —— 而窄屏正是溢出高发区。
-const WIDTHS = [1440, 1920, 1180, 900, 720, 390, 360];
+// 1280 是 BLF-1429（Stage 8 验收矩阵）补的：五档验收宽度 1440/1280/1180/900/390 里，
+// 1280 是常见的笔记本外接屏宽度，之前只在 /alarm 的行高标定里量过，溢出从没扫过。
+const WIDTHS = [1440, 1280, 1920, 1180, 900, 720, 390, 360];
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
