@@ -132,3 +132,14 @@ python3 scripts/deploy_vps.py        # 由人决定时机；合并 PR 不会自�
 - [ ] 没有调试残留：`console.log`、`debugger`、临时 TODO
 - [ ] commit author 与提交信息符合 §6
 - [ ] 当前 HEAD 上相关 CI 绿；未绿就明确写"CI 运行中 + 本地结果"，不要含糊说"测试通过"
+- [ ] 发给用户的本机链接是 Tailscale 地址（不是 `localhost`），且已自己打开验证（§9）
+
+## 9. 本机预览与链接发布（Tailscale）
+
+给用户任何指向**本机运行内容**的链接（预览页、评论页面、仪表板等）时，一律给 Tailscale 链接，**永远不给 `localhost` / `127.0.0.1`**：用户在多台电脑和手机上工作，链接必须在其 tailnet 内可达。
+
+- 用 `tailscale serve` 把本地服务发布到 tailnet（例：`tailscale serve --bg 3001`）；`tailscale serve status` 查看已发布地址。首次使用需先在 tailnet 启用 Serve（未启用时命令只提示去 login.tailscale.com/f/serve 启用，不会写入任何配置）。
+- 发布前**先跑 `tailscale serve status`**：Serve 是「establish or replace」语义，同一 host / port / mount 会被直接覆盖。根路径（`https:443 /`）已经被别的预览占着时，不要直接 `tailscale serve --bg <port>` 把人家的顶下线；改成发布到自己的路径（`tailscale serve --bg --https=443 --set-path=/<issue> <port>`），或换一个没人用的 `--https=<port>`。只覆盖 / 收回自己发布的那一项。
+- 收回时**只收回自己发布的那一项**：先跑 `tailscale serve status`，再用同一 endpoint 的 `off` 形式撤回（例：`tailscale serve --https=443 off`；带路径的写成 `tailscale serve --https=<port> --set-path=<path> off`，具体参数以 `status` 列出的那项为准）。**不要用 `tailscale serve reset`** —— 它清空的是整台机器当前的 Serve 配置，会把本机其他预览、仪表板一起下线；只有 `tailscale serve status` 确认本机没有任何其他 Serve 配置时，才可以用 `reset`。
+- 发布后**自己先打开该链接**，确认可访问、页面正常，再把链接发给用户；打不开就先修好或说明原因，不发未验证的链接。
+- 给完整地址（`https://<machine>.<tailnet>.ts.net/...`），不要只给端口或相对路径。
