@@ -1,0 +1,86 @@
+{
+  "baseUrl": "http://127.0.0.1:3012",
+  "page": "overview",
+  "checks": {
+    "seriesDiffer": true,
+    "darkSeriesPaintedBefore": 6,
+    "lightSeriesPaintedAfter": 6,
+    "residualDarkSeries": 0,
+    "chartSvgCount": 3,
+    "darkTheme": "dark",
+    "lightTheme": "light"
+  },
+  "failures": [],
+  "snapshots": {
+    "dark": {
+      "theme": "dark",
+      "series": [
+        "rgb(108, 243, 255)",
+        "rgb(125, 180, 255)",
+        "rgb(189, 166, 255)",
+        "rgb(255, 143, 199)",
+        "rgb(255, 154, 106)",
+        "rgb(255, 196, 107)",
+        "rgb(198, 255, 114)",
+        "rgb(94, 240, 200)"
+      ],
+      "painted": [
+        "url(#av-series-fill-alarms)",
+        "rgb(108, 243, 255)",
+        "transparent",
+        "rgb(125, 180, 255)",
+        "rgb(189, 166, 255)",
+        "rgb(255, 143, 199)",
+        "rgb(13, 29, 44)",
+        "rgb(255, 154, 106)",
+        "rgb(255, 196, 107)",
+        "rgb(156, 180, 196)"
+      ],
+      "chartNodes": 3
+    },
+    "light": {
+      "theme": "light",
+      "series": [
+        "rgb(23, 97, 125)",
+        "rgb(47, 95, 191)",
+        "rgb(109, 76, 194)",
+        "rgb(160, 59, 115)",
+        "rgb(162, 62, 57)",
+        "rgb(128, 85, 24)",
+        "rgb(95, 122, 31)",
+        "rgb(23, 121, 95)"
+      ],
+      "painted": [
+        "url(#av-series-fill-alarms)",
+        "rgb(23, 97, 125)",
+        "transparent",
+        "rgb(47, 95, 191)",
+        "rgb(109, 76, 194)",
+        "rgb(160, 59, 115)",
+        "#fff",
+        "rgb(162, 62, 57)",
+        "rgb(128, 85, 24)",
+        "rgb(94, 112, 125)"
+      ],
+      "chartNodes": 3
+    }
+  },
+  "pass": true,
+  "darkSeriesPainted": [
+    "rgb(108, 243, 255)",
+    "rgb(125, 180, 255)",
+    "rgb(189, 166, 255)",
+    "rgb(255, 143, 199)",
+    "rgb(255, 154, 106)",
+    "rgb(255, 196, 107)"
+  ],
+  "residualDark": [],
+  "repaintedLight": [
+    "rgb(23, 97, 125)",
+    "rgb(47, 95, 191)",
+    "rgb(109, 76, 194)",
+    "rgb(160, 59, 115)",
+    "rgb(162, 62, 57)",
+    "rgb(128, 85, 24)"
+  ]
+}

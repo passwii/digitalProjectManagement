@@ -380,6 +380,23 @@ try {
   await setDarkTheme();
   await send("Page.navigate", { url: `${baseUrl}/stream-monitor/alarm` });
   await waitFor(`document.querySelectorAll('[class*="alarmList"] > li').length > 0`, 20000, "首页告警行");
+  /*
+   * 先等水合再点。
+   *
+   * `?static=1` 的那一轮只量几何，SSR 出来就能量；这一轮要**点按钮** —— SSR 的 12 行
+   * 是 React 还没接管时就已经在 DOM 里的，此时 `click()` 不会触发 `onClick`，于是
+   * 「加载下一页追加行」必然超时（dev 冷启动实测复现；生产构建快一点，掩盖了这条竞态）。
+   * 判据用 React 挂在宿主节点上的内部 props（`__reactProps$…`）：出现即说明这棵子树
+   * 已水合。不写固定 sleep，也不放宽后面的断言。
+   */
+  await waitFor(
+    `(() => {
+      const button = Array.from(document.querySelectorAll('button')).find((el) => el.textContent.trim() === '加载下一页');
+      return !!button && Object.keys(button).some((key) => key.startsWith('__reactProps'));
+    })()`,
+    30000,
+    "「加载下一页」完成水合",
+  );
   await evaluate(`(() => {
     window.__alarmInserted = [];
     const list = document.querySelector('[class*="alarmList"]');

@@ -1,0 +1,719 @@
+{
+  "baseUrl": "http://127.0.0.1:3012",
+  "mode": "normal",
+  "widths": [
+    1440,
+    390
+  ],
+  "pages": [
+    "overview",
+    "monitor",
+    "alarm",
+    "event",
+    "device",
+    "capability",
+    "audio"
+  ],
+  "negativeSelfCheck": {
+    "ok": true,
+    "probeFrame": "avKfAuditMissingFrame",
+    "computedAnimationName": "avKfAuditMissingFrame",
+    "caught": 1,
+    "leftoverAfterRemove": 0
+  },
+  "expectationGateSelfCheck": {
+    "ok": true,
+    "probeSelector": "[data-av-kf-audit-missing-selector]",
+    "mirroredFrom": {
+      "page": "overview",
+      "width": 1440,
+      "selector": "[class*=\"rangeBody\"]"
+    },
+    "caught": 1,
+    "failureText": "overview 1440px：[data-av-kf-audit-missing-selector] 在该 page × width 未渲染（选择器漂了、元素被删或动画没挂上）—— 未标 optional 的期望不允许「没采到就放行」",
+    "optionalTreatedAsFailure": 0
+  },
+  "runs": [
+    {
+      "page": "overview",
+      "width": 1440,
+      "keyframes": 30,
+      "animated": 23,
+      "resolved": 23,
+      "unresolved": [],
+      "sampled": 9,
+      "running": 3,
+      "progressed": 3
+    },
+    {
+      "page": "monitor",
+      "width": 1440,
+      "keyframes": 30,
+      "animated": 214,
+      "resolved": 214,
+      "unresolved": [],
+      "sampled": 194,
+      "running": 194,
+      "progressed": 194
+    },
+    {
+      "page": "alarm",
+      "width": 1440,
+      "keyframes": 30,
+      "animated": 39,
+      "resolved": 39,
+      "unresolved": [],
+      "sampled": 24,
+      "running": 11,
+      "progressed": 12
+    },
+    {
+      "page": "event",
+      "width": 1440,
+      "keyframes": 30,
+      "animated": 46,
+      "resolved": 46,
+      "unresolved": [],
+      "sampled": 19,
+      "running": 9,
+      "progressed": 9
+    },
+    {
+      "page": "device",
+      "width": 1440,
+      "keyframes": 30,
+      "animated": 32,
+      "resolved": 32,
+      "unresolved": [],
+      "sampled": 5,
+      "running": 2,
+      "progressed": 2
+    },
+    {
+      "page": "capability",
+      "width": 1440,
+      "keyframes": 30,
+      "animated": 18,
+      "resolved": 18,
+      "unresolved": [],
+      "sampled": 10,
+      "running": 2,
+      "progressed": 2
+    },
+    {
+      "page": "audio",
+      "width": 1440,
+      "keyframes": 30,
+      "animated": 5,
+      "resolved": 5,
+      "unresolved": [],
+      "sampled": 4,
+      "running": 3,
+      "progressed": 3
+    },
+    {
+      "page": "overview",
+      "width": 390,
+      "keyframes": 30,
+      "animated": 22,
+      "resolved": 22,
+      "unresolved": [],
+      "sampled": 7,
+      "running": 3,
+      "progressed": 3
+    },
+    {
+      "page": "monitor",
+      "width": 390,
+      "keyframes": 30,
+      "animated": 214,
+      "resolved": 214,
+      "unresolved": [],
+      "sampled": 193,
+      "running": 193,
+      "progressed": 193
+    },
+    {
+      "page": "alarm",
+      "width": 390,
+      "keyframes": 30,
+      "animated": 39,
+      "resolved": 39,
+      "unresolved": [],
+      "sampled": 23,
+      "running": 11,
+      "progressed": 11
+    },
+    {
+      "page": "event",
+      "width": 390,
+      "keyframes": 30,
+      "animated": 45,
+      "resolved": 45,
+      "unresolved": [],
+      "sampled": 17,
+      "running": 8,
+      "progressed": 8
+    },
+    {
+      "page": "device",
+      "width": 390,
+      "keyframes": 30,
+      "animated": 32,
+      "resolved": 32,
+      "unresolved": [],
+      "sampled": 4,
+      "running": 1,
+      "progressed": 1
+    },
+    {
+      "page": "capability",
+      "width": 390,
+      "keyframes": 30,
+      "animated": 18,
+      "resolved": 18,
+      "unresolved": [],
+      "sampled": 9,
+      "running": 1,
+      "progressed": 1
+    },
+    {
+      "page": "audio",
+      "width": 390,
+      "keyframes": 30,
+      "animated": 5,
+      "resolved": 5,
+      "unresolved": [],
+      "sampled": 3,
+      "running": 2,
+      "progressed": 2
+    }
+  ],
+  "expectations": [
+    {
+      "page": "overview",
+      "width": 1440,
+      "selector": "[class*=\"rangeBody\"]",
+      "pseudo": null,
+      "frame": "avRangeSwap",
+      "optional": false,
+      "present": true,
+      "names": [
+        "avRangeSwap"
+      ],
+      "ok": true
+    },
+    {
+      "page": "overview",
+      "width": 1440,
+      "selector": "[class*=\"heatCellPulse\"]",
+      "pseudo": null,
+      "frame": "avHeatPulse",
+      "optional": false,
+      "present": true,
+      "names": [
+        "avHeatPulse"
+      ],
+      "ok": true
+    },
+    {
+      "page": "alarm",
+      "width": 1440,
+      "selector": "[class*=\"levelBadge\"][data-level=\"1\"] [class*=\"levelSwatch\"]",
+      "pseudo": null,
+      "frame": "avBreathe",
+      "optional": false,
+      "present": true,
+      "names": [
+        "avBreathe"
+      ],
+      "ok": true
+    },
+    {
+      "page": "alarm",
+      "width": 1440,
+      "selector": "[class*=\"skeleton\"]:not([class*=\"skeletonSwap\"])",
+      "pseudo": null,
+      "frame": "avSkeleton",
+      "optional": true,
+      "present": true,
+      "names": [
+        "avSkeleton"
+      ],
+      "ok": true
+    },
+    {
+      "page": "event",
+      "width": 1440,
+      "selector": "[class*=\"timelineItem\"][data-motion-node]",
+      "pseudo": null,
+      "frame": "avRiseIn",
+      "optional": false,
+      "present": true,
+      "names": [
+        "avRiseIn"
+      ],
+      "ok": true
+    },
+    {
+      "page": "capability",
+      "width": 1440,
+      "selector": "[class*=\"sceneCard\"]",
+      "pseudo": null,
+      "frame": "avRiseIn",
+      "optional": false,
+      "present": true,
+      "names": [
+        "avRiseIn"
+      ],
+      "ok": true
+    },
+    {
+      "page": "capability",
+      "width": 1440,
+      "selector": "[class*=\"chainStep\"]",
+      "pseudo": null,
+      "frame": "avRiseIn",
+      "optional": false,
+      "present": true,
+      "names": [
+        "avRiseIn"
+      ],
+      "ok": true
+    },
+    {
+      "page": "audio",
+      "width": 1440,
+      "selector": "[class*=\"spectroWrap\"]",
+      "pseudo": "::after",
+      "frame": "avWipeUp",
+      "optional": false,
+      "present": true,
+      "names": [
+        "avWipeUp"
+      ],
+      "ok": true
+    },
+    {
+      "page": "overview",
+      "width": 390,
+      "selector": "[class*=\"rangeBody\"]",
+      "pseudo": null,
+      "frame": "avRangeSwap",
+      "optional": false,
+      "present": true,
+      "names": [
+        "avRangeSwap"
+      ],
+      "ok": true
+    },
+    {
+      "page": "overview",
+      "width": 390,
+      "selector": "[class*=\"heatCellPulse\"]",
+      "pseudo": null,
+      "frame": "avHeatPulse",
+      "optional": false,
+      "present": true,
+      "names": [
+        "avHeatPulse"
+      ],
+      "ok": true
+    },
+    {
+      "page": "alarm",
+      "width": 390,
+      "selector": "[class*=\"levelBadge\"][data-level=\"1\"] [class*=\"levelSwatch\"]",
+      "pseudo": null,
+      "frame": "avBreathe",
+      "optional": false,
+      "present": true,
+      "names": [
+        "avBreathe"
+      ],
+      "ok": true
+    },
+    {
+      "page": "alarm",
+      "width": 390,
+      "selector": "[class*=\"skeleton\"]:not([class*=\"skeletonSwap\"])",
+      "pseudo": null,
+      "frame": "avSkeleton",
+      "optional": true,
+      "present": true,
+      "names": [
+        "avSkeleton"
+      ],
+      "ok": true
+    },
+    {
+      "page": "event",
+      "width": 390,
+      "selector": "[class*=\"timelineItem\"][data-motion-node]",
+      "pseudo": null,
+      "frame": "avRiseIn",
+      "optional": false,
+      "present": true,
+      "names": [
+        "avRiseIn"
+      ],
+      "ok": true
+    },
+    {
+      "page": "capability",
+      "width": 390,
+      "selector": "[class*=\"sceneCard\"]",
+      "pseudo": null,
+      "frame": "avRiseIn",
+      "optional": false,
+      "present": true,
+      "names": [
+        "avRiseIn"
+      ],
+      "ok": true
+    },
+    {
+      "page": "capability",
+      "width": 390,
+      "selector": "[class*=\"chainStep\"]",
+      "pseudo": null,
+      "frame": "avRiseIn",
+      "optional": false,
+      "present": true,
+      "names": [
+        "avRiseIn"
+      ],
+      "ok": true
+    },
+    {
+      "page": "audio",
+      "width": 390,
+      "selector": "[class*=\"spectroWrap\"]",
+      "pseudo": "::after",
+      "frame": "avWipeUp",
+      "optional": false,
+      "present": true,
+      "names": [
+        "avWipeUp"
+      ],
+      "ok": true
+    }
+  ],
+  "expectationMisses": [],
+  "staticFreeze": [
+    {
+      "page": "overview",
+      "width": 1440,
+      "identical": true,
+      "hashes": [
+        "c1e6f00dad603ed49aec06e8c270cc2c",
+        "c1e6f00dad603ed49aec06e8c270cc2c",
+        "c1e6f00dad603ed49aec06e8c270cc2c"
+      ],
+      "nodes": 40,
+      "invisible": 0,
+      "animations": 0,
+      "motion": "off"
+    },
+    {
+      "page": "monitor",
+      "width": 1440,
+      "identical": true,
+      "hashes": [
+        "c9bb0e85975c92e12560f52324195ea6",
+        "c9bb0e85975c92e12560f52324195ea6",
+        "c9bb0e85975c92e12560f52324195ea6"
+      ],
+      "nodes": 15,
+      "invisible": 0,
+      "animations": 0,
+      "motion": "off"
+    },
+    {
+      "page": "alarm",
+      "width": 1440,
+      "identical": true,
+      "hashes": [
+        "013a13505578f78e51821e2ef1b6868a",
+        "013a13505578f78e51821e2ef1b6868a",
+        "013a13505578f78e51821e2ef1b6868a"
+      ],
+      "nodes": 19,
+      "invisible": 0,
+      "animations": 0,
+      "motion": "off"
+    },
+    {
+      "page": "event",
+      "width": 1440,
+      "identical": true,
+      "hashes": [
+        "76d8c6c4d245997c7d0fe56615e611e9",
+        "76d8c6c4d245997c7d0fe56615e611e9",
+        "76d8c6c4d245997c7d0fe56615e611e9"
+      ],
+      "nodes": 14,
+      "invisible": 0,
+      "animations": 0,
+      "motion": "off"
+    },
+    {
+      "page": "device",
+      "width": 1440,
+      "identical": true,
+      "hashes": [
+        "eacbf3c9e3590e86ed16e97e5a57311d",
+        "eacbf3c9e3590e86ed16e97e5a57311d",
+        "eacbf3c9e3590e86ed16e97e5a57311d"
+      ],
+      "nodes": 34,
+      "invisible": 0,
+      "animations": 0,
+      "motion": "off"
+    },
+    {
+      "page": "capability",
+      "width": 1440,
+      "identical": true,
+      "hashes": [
+        "5c37a85852844e3673eca25d0cc4a666",
+        "5c37a85852844e3673eca25d0cc4a666",
+        "5c37a85852844e3673eca25d0cc4a666"
+      ],
+      "nodes": 25,
+      "invisible": 0,
+      "animations": 0,
+      "motion": "off"
+    },
+    {
+      "page": "audio",
+      "width": 1440,
+      "identical": true,
+      "hashes": [
+        "6caf8d73799798e9aaac68037f248ca4",
+        "6caf8d73799798e9aaac68037f248ca4",
+        "6caf8d73799798e9aaac68037f248ca4"
+      ],
+      "nodes": 19,
+      "invisible": 0,
+      "animations": 0,
+      "motion": "off"
+    },
+    {
+      "page": "overview",
+      "width": 390,
+      "identical": true,
+      "hashes": [
+        "e86d8554c12c23c11bd788cb181c192e",
+        "e86d8554c12c23c11bd788cb181c192e",
+        "e86d8554c12c23c11bd788cb181c192e"
+      ],
+      "nodes": 40,
+      "invisible": 0,
+      "animations": 0,
+      "motion": "off"
+    },
+    {
+      "page": "monitor",
+      "width": 390,
+      "identical": true,
+      "hashes": [
+        "5aa047eaebd6b706dc5aeb29d6dcf02d",
+        "5aa047eaebd6b706dc5aeb29d6dcf02d",
+        "5aa047eaebd6b706dc5aeb29d6dcf02d"
+      ],
+      "nodes": 15,
+      "invisible": 0,
+      "animations": 0,
+      "motion": "off"
+    },
+    {
+      "page": "alarm",
+      "width": 390,
+      "identical": true,
+      "hashes": [
+        "8da2b54d8586ce953fa05f1aa228179b",
+        "8da2b54d8586ce953fa05f1aa228179b",
+        "8da2b54d8586ce953fa05f1aa228179b"
+      ],
+      "nodes": 19,
+      "invisible": 0,
+      "animations": 0,
+      "motion": "off"
+    },
+    {
+      "page": "event",
+      "width": 390,
+      "identical": true,
+      "hashes": [
+        "5d64321a1a6a24f537c4144ebdf605c6",
+        "5d64321a1a6a24f537c4144ebdf605c6",
+        "5d64321a1a6a24f537c4144ebdf605c6"
+      ],
+      "nodes": 14,
+      "invisible": 0,
+      "animations": 0,
+      "motion": "off"
+    },
+    {
+      "page": "device",
+      "width": 390,
+      "identical": true,
+      "hashes": [
+        "526c8897691b5d9de64be041c8ee71b5",
+        "526c8897691b5d9de64be041c8ee71b5",
+        "526c8897691b5d9de64be041c8ee71b5"
+      ],
+      "nodes": 34,
+      "invisible": 0,
+      "animations": 0,
+      "motion": "off"
+    },
+    {
+      "page": "capability",
+      "width": 390,
+      "identical": true,
+      "hashes": [
+        "fa724f48a0ebb2c21adfe73b7676b891",
+        "fa724f48a0ebb2c21adfe73b7676b891",
+        "fa724f48a0ebb2c21adfe73b7676b891"
+      ],
+      "nodes": 25,
+      "invisible": 0,
+      "animations": 0,
+      "motion": "off"
+    },
+    {
+      "page": "audio",
+      "width": 390,
+      "identical": true,
+      "hashes": [
+        "869da9e5a910b0376d32ae2fe08369eb",
+        "869da9e5a910b0376d32ae2fe08369eb",
+        "869da9e5a910b0376d32ae2fe08369eb"
+      ],
+      "nodes": 19,
+      "invisible": 0,
+      "animations": 0,
+      "motion": "off"
+    }
+  ],
+  "reducedMotion": [
+    {
+      "page": "overview",
+      "width": 1440,
+      "nodes": 40,
+      "running": 0,
+      "all": 0,
+      "invisible": 0
+    },
+    {
+      "page": "monitor",
+      "width": 1440,
+      "nodes": 15,
+      "running": 0,
+      "all": 0,
+      "invisible": 0
+    },
+    {
+      "page": "alarm",
+      "width": 1440,
+      "nodes": 19,
+      "running": 0,
+      "all": 0,
+      "invisible": 0
+    },
+    {
+      "page": "event",
+      "width": 1440,
+      "nodes": 14,
+      "running": 0,
+      "all": 0,
+      "invisible": 0
+    },
+    {
+      "page": "device",
+      "width": 1440,
+      "nodes": 34,
+      "running": 0,
+      "all": 0,
+      "invisible": 0
+    },
+    {
+      "page": "capability",
+      "width": 1440,
+      "nodes": 25,
+      "running": 0,
+      "all": 0,
+      "invisible": 0
+    },
+    {
+      "page": "audio",
+      "width": 1440,
+      "nodes": 19,
+      "running": 0,
+      "all": 0,
+      "invisible": 0
+    },
+    {
+      "page": "overview",
+      "width": 390,
+      "nodes": 40,
+      "running": 0,
+      "all": 0,
+      "invisible": 0
+    },
+    {
+      "page": "monitor",
+      "width": 390,
+      "nodes": 15,
+      "running": 0,
+      "all": 0,
+      "invisible": 0
+    },
+    {
+      "page": "alarm",
+      "width": 390,
+      "nodes": 19,
+      "running": 0,
+      "all": 0,
+      "invisible": 0
+    },
+    {
+      "page": "event",
+      "width": 390,
+      "nodes": 14,
+      "running": 0,
+      "all": 0,
+      "invisible": 0
+    },
+    {
+      "page": "device",
+      "width": 390,
+      "nodes": 34,
+      "running": 0,
+      "all": 0,
+      "invisible": 0
+    },
+    {
+      "page": "capability",
+      "width": 390,
+      "nodes": 25,
+      "running": 0,
+      "all": 0,
+      "invisible": 0
+    },
+    {
+      "page": "audio",
+      "width": 390,
+      "nodes": 19,
+      "running": 0,
+      "all": 0,
+      "invisible": 0
+    }
+  ],
+  "failures": [],
+  "expectationHits": 16,
+  "expectationOptionalMisses": 0,
+  "pass": true
+}

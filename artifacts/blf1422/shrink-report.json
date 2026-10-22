@@ -1,0 +1,1269 @@
+{
+  "count": 126,
+  "totalBytes": 18349235,
+  "totalMB": 18.35,
+  "maxBytes": 329775,
+  "maxFile": "event-1180-light-before.png",
+  "files": [
+    {
+      "file": "alarm-1159.png",
+      "originalWidth": 1159,
+      "originalHeight": 2047,
+      "cropped": false,
+      "finalWidth": 1159,
+      "finalHeight": 2047,
+      "originalBytes": 296446,
+      "finalBytes": 106419
+    },
+    {
+      "file": "alarm-1160.png",
+      "originalWidth": 1160,
+      "originalHeight": 1200,
+      "cropped": false,
+      "finalWidth": 1160,
+      "finalHeight": 1200,
+      "originalBytes": 278909,
+      "finalBytes": 99948
+    },
+    {
+      "file": "alarm-1180-dark-after.png",
+      "originalWidth": 1180,
+      "originalHeight": 1400,
+      "cropped": false,
+      "finalWidth": 1180,
+      "finalHeight": 1400,
+      "originalBytes": 285674,
+      "finalBytes": 102145
+    },
+    {
+      "file": "alarm-1180-dark-before.png",
+      "originalWidth": 1180,
+      "originalHeight": 5548,
+      "cropped": true,
+      "finalWidth": 1180,
+      "finalHeight": 3000,
+      "originalBytes": 794017,
+      "finalBytes": 173941
+    },
+    {
+      "file": "alarm-1180-light-after.png",
+      "originalWidth": 1180,
+      "originalHeight": 1400,
+      "cropped": false,
+      "finalWidth": 1180,
+      "finalHeight": 1400,
+      "originalBytes": 289404,
+      "finalBytes": 104018
+    },
+    {
+      "file": "alarm-1180-light-before.png",
+      "originalWidth": 1180,
+      "originalHeight": 5548,
+      "cropped": true,
+      "finalWidth": 1180,
+      "finalHeight": 3000,
+      "originalBytes": 807408,
+      "finalBytes": 177138
+    },
+    {
+      "file": "alarm-1180.png",
+      "originalWidth": 1180,
+      "originalHeight": 1200,
+      "cropped": false,
+      "finalWidth": 1180,
+      "finalHeight": 1200,
+      "originalBytes": 283926,
+      "finalBytes": 101143
+    },
+    {
+      "file": "alarm-1280-dark-after.png",
+      "originalWidth": 1280,
+      "originalHeight": 1400,
+      "cropped": false,
+      "finalWidth": 1280,
+      "finalHeight": 1400,
+      "originalBytes": 293693,
+      "finalBytes": 105748
+    },
+    {
+      "file": "alarm-1280-dark-before.png",
+      "originalWidth": 1280,
+      "originalHeight": 4590,
+      "cropped": true,
+      "finalWidth": 1280,
+      "finalHeight": 3000,
+      "originalBytes": 786393,
+      "finalBytes": 197911
+    },
+    {
+      "file": "alarm-1280-light-after.png",
+      "originalWidth": 1280,
+      "originalHeight": 1400,
+      "cropped": false,
+      "finalWidth": 1280,
+      "finalHeight": 1400,
+      "originalBytes": 297816,
+      "finalBytes": 107873
+    },
+    {
+      "file": "alarm-1280-light-before.png",
+      "originalWidth": 1280,
+      "originalHeight": 4590,
+      "cropped": true,
+      "finalWidth": 1280,
+      "finalHeight": 3000,
+      "originalBytes": 798777,
+      "finalBytes": 202605
+    },
+    {
+      "file": "alarm-1280.png",
+      "originalWidth": 1280,
+      "originalHeight": 1200,
+      "cropped": false,
+      "finalWidth": 1280,
+      "finalHeight": 1200,
+      "originalBytes": 291718,
+      "finalBytes": 104683
+    },
+    {
+      "file": "alarm-1440-dark-after.png",
+      "originalWidth": 1440,
+      "originalHeight": 1400,
+      "cropped": false,
+      "finalWidth": 1440,
+      "finalHeight": 1400,
+      "originalBytes": 301082,
+      "finalBytes": 107590
+    },
+    {
+      "file": "alarm-1440-dark-before.png",
+      "originalWidth": 1440,
+      "originalHeight": 4590,
+      "cropped": true,
+      "finalWidth": 1440,
+      "finalHeight": 3000,
+      "originalBytes": 798659,
+      "finalBytes": 200533
+    },
+    {
+      "file": "alarm-1440-light-after.png",
+      "originalWidth": 1440,
+      "originalHeight": 1400,
+      "cropped": false,
+      "finalWidth": 1440,
+      "finalHeight": 1400,
+      "originalBytes": 305162,
+      "finalBytes": 109467
+    },
+    {
+      "file": "alarm-1440-light-before.png",
+      "originalWidth": 1440,
+      "originalHeight": 4590,
+      "cropped": true,
+      "finalWidth": 1440,
+      "finalHeight": 3000,
+      "originalBytes": 812954,
+      "finalBytes": 204805
+    },
+    {
+      "file": "alarm-1440.png",
+      "originalWidth": 1440,
+      "originalHeight": 1200,
+      "cropped": false,
+      "finalWidth": 1440,
+      "finalHeight": 1200,
+      "originalBytes": 298801,
+      "finalBytes": 106446
+    },
+    {
+      "file": "alarm-1920.png",
+      "originalWidth": 1920,
+      "originalHeight": 1200,
+      "cropped": false,
+      "finalWidth": 1920,
+      "finalHeight": 1200,
+      "originalBytes": 307801,
+      "finalBytes": 110937
+    },
+    {
+      "file": "alarm-390-dark-after.png",
+      "originalWidth": 390,
+      "originalHeight": 2369,
+      "cropped": false,
+      "finalWidth": 390,
+      "finalHeight": 2369,
+      "originalBytes": 240159,
+      "finalBytes": 83780
+    },
+    {
+      "file": "alarm-390-dark-before.png",
+      "originalWidth": 390,
+      "originalHeight": 6456,
+      "cropped": true,
+      "finalWidth": 390,
+      "finalHeight": 3000,
+      "originalBytes": 709886,
+      "finalBytes": 125478
+    },
+    {
+      "file": "alarm-390-light-after.png",
+      "originalWidth": 390,
+      "originalHeight": 2369,
+      "cropped": false,
+      "finalWidth": 390,
+      "finalHeight": 2369,
+      "originalBytes": 239792,
+      "finalBytes": 86882
+    },
+    {
+      "file": "alarm-390-light-before.png",
+      "originalWidth": 390,
+      "originalHeight": 6456,
+      "cropped": true,
+      "finalWidth": 390,
+      "finalHeight": 3000,
+      "originalBytes": 711607,
+      "finalBytes": 129429
+    },
+    {
+      "file": "alarm-900-dark-after.png",
+      "originalWidth": 900,
+      "originalHeight": 2028,
+      "cropped": false,
+      "finalWidth": 900,
+      "finalHeight": 2028,
+      "originalBytes": 265075,
+      "finalBytes": 93205
+    },
+    {
+      "file": "alarm-900-dark-before.png",
+      "originalWidth": 900,
+      "originalHeight": 5528,
+      "cropped": true,
+      "finalWidth": 900,
+      "finalHeight": 3000,
+      "originalBytes": 751086,
+      "finalBytes": 161007
+    },
+    {
+      "file": "alarm-900-light-after.png",
+      "originalWidth": 900,
+      "originalHeight": 2028,
+      "cropped": false,
+      "finalWidth": 900,
+      "finalHeight": 2028,
+      "originalBytes": 267789,
+      "finalBytes": 95884
+    },
+    {
+      "file": "alarm-900-light-before.png",
+      "originalWidth": 900,
+      "originalHeight": 5528,
+      "cropped": true,
+      "finalWidth": 900,
+      "finalHeight": 3000,
+      "originalBytes": 760948,
+      "finalBytes": 164897
+    },
+    {
+      "file": "capability-1180-dark-after.png",
+      "originalWidth": 1180,
+      "originalHeight": 2774,
+      "cropped": false,
+      "finalWidth": 1180,
+      "finalHeight": 2774,
+      "originalBytes": 380339,
+      "finalBytes": 147533
+    },
+    {
+      "file": "capability-1180-dark-before.png",
+      "originalWidth": 1180,
+      "originalHeight": 2771,
+      "cropped": false,
+      "finalWidth": 1180,
+      "finalHeight": 2771,
+      "originalBytes": 385173,
+      "finalBytes": 149202
+    },
+    {
+      "file": "capability-1180-light-after.png",
+      "originalWidth": 1180,
+      "originalHeight": 2774,
+      "cropped": false,
+      "finalWidth": 1180,
+      "finalHeight": 2774,
+      "originalBytes": 383827,
+      "finalBytes": 150669
+    },
+    {
+      "file": "capability-1180-light-before.png",
+      "originalWidth": 1180,
+      "originalHeight": 2771,
+      "cropped": false,
+      "finalWidth": 1180,
+      "finalHeight": 2771,
+      "originalBytes": 389032,
+      "finalBytes": 151845
+    },
+    {
+      "file": "capability-1280-dark-after.png",
+      "originalWidth": 1280,
+      "originalHeight": 1844,
+      "cropped": false,
+      "finalWidth": 1280,
+      "finalHeight": 1844,
+      "originalBytes": 388113,
+      "finalBytes": 148792
+    },
+    {
+      "file": "capability-1280-dark-before.png",
+      "originalWidth": 1280,
+      "originalHeight": 1871,
+      "cropped": false,
+      "finalWidth": 1280,
+      "finalHeight": 1871,
+      "originalBytes": 393241,
+      "finalBytes": 149850
+    },
+    {
+      "file": "capability-1280-light-after.png",
+      "originalWidth": 1280,
+      "originalHeight": 1844,
+      "cropped": false,
+      "finalWidth": 1280,
+      "finalHeight": 1844,
+      "originalBytes": 392108,
+      "finalBytes": 152294
+    },
+    {
+      "file": "capability-1280-light-before.png",
+      "originalWidth": 1280,
+      "originalHeight": 1871,
+      "cropped": false,
+      "finalWidth": 1280,
+      "finalHeight": 1871,
+      "originalBytes": 397464,
+      "finalBytes": 154065
+    },
+    {
+      "file": "capability-1440-dark-after.png",
+      "originalWidth": 1440,
+      "originalHeight": 1829,
+      "cropped": false,
+      "finalWidth": 1440,
+      "finalHeight": 1829,
+      "originalBytes": 390434,
+      "finalBytes": 148704
+    },
+    {
+      "file": "capability-1440-dark-before.png",
+      "originalWidth": 1440,
+      "originalHeight": 1856,
+      "cropped": false,
+      "finalWidth": 1440,
+      "finalHeight": 1856,
+      "originalBytes": 395221,
+      "finalBytes": 150509
+    },
+    {
+      "file": "capability-1440-light-after.png",
+      "originalWidth": 1440,
+      "originalHeight": 1829,
+      "cropped": false,
+      "finalWidth": 1440,
+      "finalHeight": 1829,
+      "originalBytes": 395107,
+      "finalBytes": 152901
+    },
+    {
+      "file": "capability-1440-light-before.png",
+      "originalWidth": 1440,
+      "originalHeight": 1856,
+      "cropped": false,
+      "finalWidth": 1440,
+      "finalHeight": 1856,
+      "originalBytes": 400027,
+      "finalBytes": 154151
+    },
+    {
+      "file": "capability-390-dark-after.png",
+      "originalWidth": 390,
+      "originalHeight": 4269,
+      "cropped": false,
+      "finalWidth": 390,
+      "finalHeight": 4269,
+      "originalBytes": 364370,
+      "finalBytes": 127171
+    },
+    {
+      "file": "capability-390-dark-before.png",
+      "originalWidth": 390,
+      "originalHeight": 4215,
+      "cropped": true,
+      "finalWidth": 390,
+      "finalHeight": 3000,
+      "originalBytes": 368494,
+      "finalBytes": 90187
+    },
+    {
+      "file": "capability-390-light-after.png",
+      "originalWidth": 390,
+      "originalHeight": 4269,
+      "cropped": false,
+      "finalWidth": 390,
+      "finalHeight": 4269,
+      "originalBytes": 365051,
+      "finalBytes": 131132
+    },
+    {
+      "file": "capability-390-light-before.png",
+      "originalWidth": 390,
+      "originalHeight": 4215,
+      "cropped": true,
+      "finalWidth": 390,
+      "finalHeight": 3000,
+      "originalBytes": 369627,
+      "finalBytes": 92510
+    },
+    {
+      "file": "capability-900-dark-after.png",
+      "originalWidth": 900,
+      "originalHeight": 2976,
+      "cropped": false,
+      "finalWidth": 900,
+      "finalHeight": 2976,
+      "originalBytes": 364170,
+      "finalBytes": 137230
+    },
+    {
+      "file": "capability-900-dark-before.png",
+      "originalWidth": 900,
+      "originalHeight": 2987,
+      "cropped": false,
+      "finalWidth": 900,
+      "finalHeight": 2987,
+      "originalBytes": 368851,
+      "finalBytes": 138026
+    },
+    {
+      "file": "capability-900-light-after.png",
+      "originalWidth": 900,
+      "originalHeight": 2976,
+      "cropped": false,
+      "finalWidth": 900,
+      "finalHeight": 2976,
+      "originalBytes": 365793,
+      "finalBytes": 141815
+    },
+    {
+      "file": "capability-900-light-before.png",
+      "originalWidth": 900,
+      "originalHeight": 2987,
+      "cropped": false,
+      "finalWidth": 900,
+      "finalHeight": 2987,
+      "originalBytes": 371015,
+      "finalBytes": 143272
+    },
+    {
+      "file": "device-1180-dark-after.png",
+      "originalWidth": 1180,
+      "originalHeight": 3440,
+      "cropped": false,
+      "finalWidth": 1180,
+      "finalHeight": 3440,
+      "originalBytes": 514984,
+      "finalBytes": 184836
+    },
+    {
+      "file": "device-1180-dark-before.png",
+      "originalWidth": 1180,
+      "originalHeight": 2993,
+      "cropped": false,
+      "finalWidth": 1180,
+      "finalHeight": 2993,
+      "originalBytes": 459470,
+      "finalBytes": 167202
+    },
+    {
+      "file": "device-1180-light-after.png",
+      "originalWidth": 1180,
+      "originalHeight": 3440,
+      "cropped": false,
+      "finalWidth": 1180,
+      "finalHeight": 3440,
+      "originalBytes": 517537,
+      "finalBytes": 190886
+    },
+    {
+      "file": "device-1180-light-before.png",
+      "originalWidth": 1180,
+      "originalHeight": 2993,
+      "cropped": false,
+      "finalWidth": 1180,
+      "finalHeight": 2993,
+      "originalBytes": 463563,
+      "finalBytes": 171282
+    },
+    {
+      "file": "device-1280-dark-after.png",
+      "originalWidth": 1280,
+      "originalHeight": 2323,
+      "cropped": false,
+      "finalWidth": 1280,
+      "finalHeight": 2323,
+      "originalBytes": 503965,
+      "finalBytes": 180008
+    },
+    {
+      "file": "device-1280-dark-before.png",
+      "originalWidth": 1280,
+      "originalHeight": 1753,
+      "cropped": false,
+      "finalWidth": 1280,
+      "finalHeight": 1753,
+      "originalBytes": 450230,
+      "finalBytes": 164114
+    },
+    {
+      "file": "device-1280-light-after.png",
+      "originalWidth": 1280,
+      "originalHeight": 2323,
+      "cropped": false,
+      "finalWidth": 1280,
+      "finalHeight": 2323,
+      "originalBytes": 505799,
+      "finalBytes": 184918
+    },
+    {
+      "file": "device-1280-light-before.png",
+      "originalWidth": 1280,
+      "originalHeight": 1753,
+      "cropped": false,
+      "finalWidth": 1280,
+      "finalHeight": 1753,
+      "originalBytes": 452310,
+      "finalBytes": 170456
+    },
+    {
+      "file": "device-1440-dark-after.png",
+      "originalWidth": 1440,
+      "originalHeight": 2290,
+      "cropped": false,
+      "finalWidth": 1440,
+      "finalHeight": 2290,
+      "originalBytes": 521764,
+      "finalBytes": 184661
+    },
+    {
+      "file": "device-1440-dark-before.png",
+      "originalWidth": 1440,
+      "originalHeight": 1753,
+      "cropped": false,
+      "finalWidth": 1440,
+      "finalHeight": 1753,
+      "originalBytes": 455898,
+      "finalBytes": 165666
+    },
+    {
+      "file": "device-1440-light-after.png",
+      "originalWidth": 1440,
+      "originalHeight": 2290,
+      "cropped": false,
+      "finalWidth": 1440,
+      "finalHeight": 2290,
+      "originalBytes": 524677,
+      "finalBytes": 190681
+    },
+    {
+      "file": "device-1440-light-before.png",
+      "originalWidth": 1440,
+      "originalHeight": 1753,
+      "cropped": false,
+      "finalWidth": 1440,
+      "finalHeight": 1753,
+      "originalBytes": 459992,
+      "finalBytes": 171395
+    },
+    {
+      "file": "device-390-dark-after.png",
+      "originalWidth": 390,
+      "originalHeight": 7345,
+      "cropped": false,
+      "finalWidth": 390,
+      "finalHeight": 7345,
+      "originalBytes": 455933,
+      "finalBytes": 144498
+    },
+    {
+      "file": "device-390-dark-before.png",
+      "originalWidth": 390,
+      "originalHeight": 6446,
+      "cropped": true,
+      "finalWidth": 390,
+      "finalHeight": 3000,
+      "originalBytes": 406321,
+      "finalBytes": 62754
+    },
+    {
+      "file": "device-390-light-after.png",
+      "originalWidth": 390,
+      "originalHeight": 7345,
+      "cropped": false,
+      "finalWidth": 390,
+      "finalHeight": 7345,
+      "originalBytes": 453615,
+      "finalBytes": 148237
+    },
+    {
+      "file": "device-390-light-before.png",
+      "originalWidth": 390,
+      "originalHeight": 6446,
+      "cropped": true,
+      "finalWidth": 390,
+      "finalHeight": 3000,
+      "originalBytes": 404508,
+      "finalBytes": 64605
+    },
+    {
+      "file": "device-900-dark-after.png",
+      "originalWidth": 900,
+      "originalHeight": 3962,
+      "cropped": false,
+      "finalWidth": 900,
+      "finalHeight": 3962,
+      "originalBytes": 481904,
+      "finalBytes": 169167
+    },
+    {
+      "file": "device-900-dark-before.png",
+      "originalWidth": 900,
+      "originalHeight": 3207,
+      "cropped": true,
+      "finalWidth": 900,
+      "finalHeight": 3000,
+      "originalBytes": 424688,
+      "finalBytes": 147934
+    },
+    {
+      "file": "device-900-light-after.png",
+      "originalWidth": 900,
+      "originalHeight": 3962,
+      "cropped": false,
+      "finalWidth": 900,
+      "finalHeight": 3962,
+      "originalBytes": 480760,
+      "finalBytes": 175104
+    },
+    {
+      "file": "device-900-light-before.png",
+      "originalWidth": 900,
+      "originalHeight": 3207,
+      "cropped": true,
+      "finalWidth": 900,
+      "finalHeight": 3000,
+      "originalBytes": 426732,
+      "finalBytes": 152715
+    },
+    {
+      "file": "event-1180-dark-after.png",
+      "originalWidth": 1180,
+      "originalHeight": 2163,
+      "cropped": false,
+      "finalWidth": 1180,
+      "finalHeight": 2163,
+      "originalBytes": 464921,
+      "finalBytes": 164137
+    },
+    {
+      "file": "event-1180-dark-before.png",
+      "originalWidth": 1180,
+      "originalHeight": 9248,
+      "cropped": true,
+      "finalWidth": 1180,
+      "finalHeight": 3000,
+      "originalBytes": 2672073,
+      "finalBytes": 321709
+    },
+    {
+      "file": "event-1180-light-after.png",
+      "originalWidth": 1180,
+      "originalHeight": 2163,
+      "cropped": false,
+      "finalWidth": 1180,
+      "finalHeight": 2163,
+      "originalBytes": 465332,
+      "finalBytes": 168093
+    },
+    {
+      "file": "event-1180-light-before.png",
+      "originalWidth": 1180,
+      "originalHeight": 9248,
+      "cropped": true,
+      "finalWidth": 1180,
+      "finalHeight": 3000,
+      "originalBytes": 2676430,
+      "finalBytes": 329775
+    },
+    {
+      "file": "event-1280-dark-after.png",
+      "originalWidth": 1280,
+      "originalHeight": 2510,
+      "cropped": false,
+      "finalWidth": 1280,
+      "finalHeight": 2510,
+      "originalBytes": 486661,
+      "finalBytes": 170465
+    },
+    {
+      "file": "event-1280-dark-before.png",
+      "originalWidth": 1280,
+      "originalHeight": 13959,
+      "cropped": true,
+      "finalWidth": 1280,
+      "finalHeight": 3000,
+      "originalBytes": 2807965,
+      "finalBytes": 234454
+    },
+    {
+      "file": "event-1280-light-after.png",
+      "originalWidth": 1280,
+      "originalHeight": 2510,
+      "cropped": false,
+      "finalWidth": 1280,
+      "finalHeight": 2510,
+      "originalBytes": 490168,
+      "finalBytes": 175320
+    },
+    {
+      "file": "event-1280-light-before.png",
+      "originalWidth": 1280,
+      "originalHeight": 13959,
+      "cropped": true,
+      "finalWidth": 1280,
+      "finalHeight": 3000,
+      "originalBytes": 2823083,
+      "finalBytes": 239456
+    },
+    {
+      "file": "event-1440-dark-after.png",
+      "originalWidth": 1440,
+      "originalHeight": 1610,
+      "cropped": false,
+      "finalWidth": 1440,
+      "finalHeight": 1610,
+      "originalBytes": 475007,
+      "finalBytes": 164810
+    },
+    {
+      "file": "event-1440-dark-before.png",
+      "originalWidth": 1440,
+      "originalHeight": 10495,
+      "cropped": true,
+      "finalWidth": 1440,
+      "finalHeight": 3000,
+      "originalBytes": 2757492,
+      "finalBytes": 296095
+    },
+    {
+      "file": "event-1440-light-after.png",
+      "originalWidth": 1440,
+      "originalHeight": 1610,
+      "cropped": false,
+      "finalWidth": 1440,
+      "finalHeight": 1610,
+      "originalBytes": 477062,
+      "finalBytes": 169944
+    },
+    {
+      "file": "event-1440-light-before.png",
+      "originalWidth": 1440,
+      "originalHeight": 10495,
+      "cropped": true,
+      "finalWidth": 1440,
+      "finalHeight": 3000,
+      "originalBytes": 2766625,
+      "finalBytes": 301922
+    },
+    {
+      "file": "event-390-dark-after.png",
+      "originalWidth": 390,
+      "originalHeight": 2561,
+      "cropped": false,
+      "finalWidth": 390,
+      "finalHeight": 2561,
+      "originalBytes": 359610,
+      "finalBytes": 108491
+    },
+    {
+      "file": "event-390-dark-before.png",
+      "originalWidth": 390,
+      "originalHeight": 13057,
+      "cropped": true,
+      "finalWidth": 390,
+      "finalHeight": 3000,
+      "originalBytes": 2179125,
+      "finalBytes": 122823
+    },
+    {
+      "file": "event-390-light-after.png",
+      "originalWidth": 390,
+      "originalHeight": 2561,
+      "cropped": false,
+      "finalWidth": 390,
+      "finalHeight": 2561,
+      "originalBytes": 357753,
+      "finalBytes": 112240
+    },
+    {
+      "file": "event-390-light-before.png",
+      "originalWidth": 390,
+      "originalHeight": 13057,
+      "cropped": true,
+      "finalWidth": 390,
+      "finalHeight": 3000,
+      "originalBytes": 2185014,
+      "finalBytes": 126502
+    },
+    {
+      "file": "event-900-dark-after.png",
+      "originalWidth": 900,
+      "originalHeight": 2143,
+      "cropped": false,
+      "finalWidth": 900,
+      "finalHeight": 2143,
+      "originalBytes": 427538,
+      "finalBytes": 148381
+    },
+    {
+      "file": "event-900-dark-before.png",
+      "originalWidth": 900,
+      "originalHeight": 9228,
+      "cropped": true,
+      "finalWidth": 900,
+      "finalHeight": 3000,
+      "originalBytes": 2591916,
+      "finalBytes": 307892
+    },
+    {
+      "file": "event-900-light-after.png",
+      "originalWidth": 900,
+      "originalHeight": 2143,
+      "cropped": false,
+      "finalWidth": 900,
+      "finalHeight": 2143,
+      "originalBytes": 425463,
+      "finalBytes": 153904
+    },
+    {
+      "file": "event-900-light-before.png",
+      "originalWidth": 900,
+      "originalHeight": 9228,
+      "cropped": true,
+      "finalWidth": 900,
+      "finalHeight": 3000,
+      "originalBytes": 2579306,
+      "finalBytes": 314475
+    },
+    {
+      "file": "monitor-1180-dark-after.png",
+      "originalWidth": 1180,
+      "originalHeight": 2149,
+      "cropped": false,
+      "finalWidth": 1180,
+      "finalHeight": 2149,
+      "originalBytes": 431323,
+      "finalBytes": 165663
+    },
+    {
+      "file": "monitor-1180-dark-before.png",
+      "originalWidth": 1180,
+      "originalHeight": 1689,
+      "cropped": false,
+      "finalWidth": 1180,
+      "finalHeight": 1689,
+      "originalBytes": 275216,
+      "finalBytes": 106720
+    },
+    {
+      "file": "monitor-1180-light-after.png",
+      "originalWidth": 1180,
+      "originalHeight": 2149,
+      "cropped": false,
+      "finalWidth": 1180,
+      "finalHeight": 2149,
+      "originalBytes": 332429,
+      "finalBytes": 123271
+    },
+    {
+      "file": "monitor-1180-light-before.png",
+      "originalWidth": 1180,
+      "originalHeight": 1689,
+      "cropped": false,
+      "finalWidth": 1180,
+      "finalHeight": 1689,
+      "originalBytes": 250316,
+      "finalBytes": 96576
+    },
+    {
+      "file": "monitor-1280-dark-after.png",
+      "originalWidth": 1280,
+      "originalHeight": 1655,
+      "cropped": false,
+      "finalWidth": 1280,
+      "finalHeight": 1655,
+      "originalBytes": 427927,
+      "finalBytes": 165629
+    },
+    {
+      "file": "monitor-1280-dark-before.png",
+      "originalWidth": 1280,
+      "originalHeight": 1442,
+      "cropped": false,
+      "finalWidth": 1280,
+      "finalHeight": 1442,
+      "originalBytes": 276302,
+      "finalBytes": 106574
+    },
+    {
+      "file": "monitor-1280-light-after.png",
+      "originalWidth": 1280,
+      "originalHeight": 1655,
+      "cropped": false,
+      "finalWidth": 1280,
+      "finalHeight": 1655,
+      "originalBytes": 405995,
+      "finalBytes": 171807
+    },
+    {
+      "file": "monitor-1280-light-before.png",
+      "originalWidth": 1280,
+      "originalHeight": 1442,
+      "cropped": false,
+      "finalWidth": 1280,
+      "finalHeight": 1442,
+      "originalBytes": 292372,
+      "finalBytes": 124664
+    },
+    {
+      "file": "monitor-1440-dark-after.png",
+      "originalWidth": 1440,
+      "originalHeight": 1655,
+      "cropped": false,
+      "finalWidth": 1440,
+      "finalHeight": 1655,
+      "originalBytes": 462893,
+      "finalBytes": 176096
+    },
+    {
+      "file": "monitor-1440-dark-before.png",
+      "originalWidth": 1440,
+      "originalHeight": 1442,
+      "cropped": false,
+      "finalWidth": 1440,
+      "finalHeight": 1442,
+      "originalBytes": 286733,
+      "finalBytes": 109181
+    },
+    {
+      "file": "monitor-1440-light-after.png",
+      "originalWidth": 1440,
+      "originalHeight": 1655,
+      "cropped": false,
+      "finalWidth": 1440,
+      "finalHeight": 1655,
+      "originalBytes": 405529,
+      "finalBytes": 160742
+    },
+    {
+      "file": "monitor-1440-light-before.png",
+      "originalWidth": 1440,
+      "originalHeight": 1442,
+      "cropped": false,
+      "finalWidth": 1440,
+      "finalHeight": 1442,
+      "originalBytes": 307112,
+      "finalBytes": 126999
+    },
+    {
+      "file": "monitor-390-dark-after.png",
+      "originalWidth": 390,
+      "originalHeight": 3727,
+      "cropped": false,
+      "finalWidth": 390,
+      "finalHeight": 3727,
+      "originalBytes": 429473,
+      "finalBytes": 166419
+    },
+    {
+      "file": "monitor-390-dark-before.png",
+      "originalWidth": 390,
+      "originalHeight": 3009,
+      "cropped": true,
+      "finalWidth": 390,
+      "finalHeight": 3000,
+      "originalBytes": 289692,
+      "finalBytes": 103095
+    },
+    {
+      "file": "monitor-390-light-after.png",
+      "originalWidth": 390,
+      "originalHeight": 3727,
+      "cropped": false,
+      "finalWidth": 390,
+      "finalHeight": 3727,
+      "originalBytes": 316625,
+      "finalBytes": 106929
+    },
+    {
+      "file": "monitor-390-light-before.png",
+      "originalWidth": 390,
+      "originalHeight": 3009,
+      "cropped": true,
+      "finalWidth": 390,
+      "finalHeight": 3000,
+      "originalBytes": 234383,
+      "finalBytes": 77118
+    },
+    {
+      "file": "monitor-900-dark-after.png",
+      "originalWidth": 900,
+      "originalHeight": 3388,
+      "cropped": false,
+      "finalWidth": 900,
+      "finalHeight": 3388,
+      "originalBytes": 590266,
+      "finalBytes": 246307
+    },
+    {
+      "file": "monitor-900-dark-before.png",
+      "originalWidth": 900,
+      "originalHeight": 2670,
+      "cropped": false,
+      "finalWidth": 900,
+      "finalHeight": 2670,
+      "originalBytes": 352047,
+      "finalBytes": 140517
+    },
+    {
+      "file": "monitor-900-light-after.png",
+      "originalWidth": 900,
+      "originalHeight": 3388,
+      "cropped": false,
+      "finalWidth": 900,
+      "finalHeight": 3388,
+      "originalBytes": 369715,
+      "finalBytes": 134962
+    },
+    {
+      "file": "monitor-900-light-before.png",
+      "originalWidth": 900,
+      "originalHeight": 2670,
+      "cropped": false,
+      "finalWidth": 900,
+      "finalHeight": 2670,
+      "originalBytes": 254810,
+      "finalBytes": 97182
+    },
+    {
+      "file": "overview-1180-dark-after.png",
+      "originalWidth": 1180,
+      "originalHeight": 2911,
+      "cropped": false,
+      "finalWidth": 1180,
+      "finalHeight": 2911,
+      "originalBytes": 334716,
+      "finalBytes": 118543
+    },
+    {
+      "file": "overview-1180-dark-before.png",
+      "originalWidth": 1180,
+      "originalHeight": 3023,
+      "cropped": true,
+      "finalWidth": 1180,
+      "finalHeight": 3000,
+      "originalBytes": 326565,
+      "finalBytes": 118021
+    },
+    {
+      "file": "overview-1180-light-after.png",
+      "originalWidth": 1180,
+      "originalHeight": 2911,
+      "cropped": false,
+      "finalWidth": 1180,
+      "finalHeight": 2911,
+      "originalBytes": 341047,
+      "finalBytes": 121163
+    },
+    {
+      "file": "overview-1180-light-before.png",
+      "originalWidth": 1180,
+      "originalHeight": 3023,
+      "cropped": true,
+      "finalWidth": 1180,
+      "finalHeight": 3000,
+      "originalBytes": 332095,
+      "finalBytes": 120772
+    },
+    {
+      "file": "overview-1280-dark-after.png",
+      "originalWidth": 1280,
+      "originalHeight": 1962,
+      "cropped": false,
+      "finalWidth": 1280,
+      "finalHeight": 1962,
+      "originalBytes": 322407,
+      "finalBytes": 114323
+    },
+    {
+      "file": "overview-1280-dark-before.png",
+      "originalWidth": 1280,
+      "originalHeight": 1995,
+      "cropped": false,
+      "finalWidth": 1280,
+      "finalHeight": 1995,
+      "originalBytes": 316149,
+      "finalBytes": 114959
+    },
+    {
+      "file": "overview-1280-light-after.png",
+      "originalWidth": 1280,
+      "originalHeight": 1962,
+      "cropped": false,
+      "finalWidth": 1280,
+      "finalHeight": 1962,
+      "originalBytes": 327826,
+      "finalBytes": 117703
+    },
+    {
+      "file": "overview-1280-light-before.png",
+      "originalWidth": 1280,
+      "originalHeight": 1995,
+      "cropped": false,
+      "finalWidth": 1280,
+      "finalHeight": 1995,
+      "originalBytes": 321583,
+      "finalBytes": 117852
+    },
+    {
+      "file": "overview-1440-dark-after.png",
+      "originalWidth": 1440,
+      "originalHeight": 1910,
+      "cropped": false,
+      "finalWidth": 1440,
+      "finalHeight": 1910,
+      "originalBytes": 328623,
+      "finalBytes": 118251
+    },
+    {
+      "file": "overview-1440-dark-before.png",
+      "originalWidth": 1440,
+      "originalHeight": 1959,
+      "cropped": false,
+      "finalWidth": 1440,
+      "finalHeight": 1959,
+      "originalBytes": 320013,
+      "finalBytes": 115372
+    },
+    {
+      "file": "overview-1440-light-after.png",
+      "originalWidth": 1440,
+      "originalHeight": 1910,
+      "cropped": false,
+      "finalWidth": 1440,
+      "finalHeight": 1910,
+      "originalBytes": 334825,
+      "finalBytes": 120389
+    },
+    {
+      "file": "overview-1440-light-before.png",
+      "originalWidth": 1440,
+      "originalHeight": 1959,
+      "cropped": false,
+      "finalWidth": 1440,
+      "finalHeight": 1959,
+      "originalBytes": 326048,
+      "finalBytes": 118554
+    },
+    {
+      "file": "overview-390-dark-after.png",
+      "originalWidth": 390,
+      "originalHeight": 3434,
+      "cropped": false,
+      "finalWidth": 390,
+      "finalHeight": 3434,
+      "originalBytes": 260378,
+      "finalBytes": 85237
+    },
+    {
+      "file": "overview-390-dark-before.png",
+      "originalWidth": 390,
+      "originalHeight": 3499,
+      "cropped": true,
+      "finalWidth": 390,
+      "finalHeight": 3000,
+      "originalBytes": 260919,
+      "finalBytes": 78937
+    },
+    {
+      "file": "overview-390-light-after.png",
+      "originalWidth": 390,
+      "originalHeight": 3434,
+      "cropped": false,
+      "finalWidth": 390,
+      "finalHeight": 3434,
+      "originalBytes": 260441,
+      "finalBytes": 87179
+    },
+    {
+      "file": "overview-390-light-before.png",
+      "originalWidth": 390,
+      "originalHeight": 3499,
+      "cropped": true,
+      "finalWidth": 390,
+      "finalHeight": 3000,
+      "originalBytes": 263277,
+      "finalBytes": 81230
+    },
+    {
+      "file": "overview-900-dark-after.png",
+      "originalWidth": 900,
+      "originalHeight": 3172,
+      "cropped": false,
+      "finalWidth": 900,
+      "finalHeight": 3172,
+      "originalBytes": 292584,
+      "finalBytes": 101789
+    },
+    {
+      "file": "overview-900-dark-before.png",
+      "originalWidth": 900,
+      "originalHeight": 3298,
+      "cropped": true,
+      "finalWidth": 900,
+      "finalHeight": 3000,
+      "originalBytes": 287437,
+      "finalBytes": 93819
+    },
+    {
+      "file": "overview-900-light-after.png",
+      "originalWidth": 900,
+      "originalHeight": 3172,
+      "cropped": false,
+      "finalWidth": 900,
+      "finalHeight": 3172,
+      "originalBytes": 295690,
+      "finalBytes": 103989
+    },
+    {
+      "file": "overview-900-light-before.png",
+      "originalWidth": 900,
+      "originalHeight": 3298,
+      "cropped": true,
+      "finalWidth": 900,
+      "finalHeight": 3000,
+      "originalBytes": 291213,
+      "finalBytes": 96925
+    }
+  ]
+}
