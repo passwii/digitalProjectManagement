@@ -120,6 +120,7 @@ python3 scripts/deploy_vps.py        # 由人决定时机；合并 PR 不会自�
 - **时间口径统一 `Asia/Shanghai`**（README §4.4）：不用本机时区，不写裸 `datetime.now()`。
 - **迁移**：只新增 revision，不改已合入的历史；`tests/test_migration_revision_ids.py` 守迁移链。迁移验证用随机临时 schema，不碰共享库。
 - **前端样式与动效**：颜色只用令牌，时长/缓动只用 `var(--av-*)` 与 `AV_MOTION`，不写毫秒字面量与颜色字面量 —— `web/lib/av/*.vitest.test.ts` 有源码守卫。
+- **前端界面文案**：Avoid unnecessary secondary labels and descriptions. Let the layout do the explaining. 不堆叠多余的二级标签与说明文字，让布局本身完成解释，而不是靠文字补充。
 - **`/stream-monitor` 演示站**：画面用 CSS/SVG 合成，不往 `public/` 加视频/图片素材。
 - **改公共函数 / hook / route / schema 前**先跑 `codegraph callers|impact`（仓库已建索引 `codegraph status .`），确认影响面再改。
 
