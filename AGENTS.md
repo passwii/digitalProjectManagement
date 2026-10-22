@@ -138,6 +138,7 @@ python3 scripts/deploy_vps.py        # 由人决定时机；合并 PR 不会自�
 
 给用户任何指向**本机运行内容**的链接（预览页、评论页面、仪表板等）时，一律给 Tailscale 链接，**永远不给 `localhost` / `127.0.0.1`**：用户在多台电脑和手机上工作，链接必须在其 tailnet 内可达。
 
-- 用 `tailscale serve` 把本地服务发布到 tailnet（例：`tailscale serve --bg 3001`）；`tailscale serve status` 查看已发布地址，`tailscale serve reset` 收回。
+- 用 `tailscale serve` 把本地服务发布到 tailnet（例：`tailscale serve --bg 3001`）；`tailscale serve status` 查看已发布地址。
+- 收回时**只收回自己发布的那一项**：先跑 `tailscale serve status`，再用同一 endpoint 的 `off` 形式撤回（例：`tailscale serve --https=443 off`；带路径的写成 `tailscale serve --https=<port> --set-path=<path> off`，具体参数以 `status` 列出的那项为准）。**不要用 `tailscale serve reset`** —— 它清空的是整台机器当前的 Serve 配置，会把本机其他预览、仪表板一起下线；只有 `tailscale serve status` 确认本机没有任何其他 Serve 配置时，才可以用 `reset`。
 - 发布后**自己先打开该链接**，确认可访问、页面正常，再把链接发给用户；打不开就先修好或说明原因，不发未验证的链接。
 - 给完整地址（`https://<machine>.<tailnet>.ts.net/...`），不要只给端口或相对路径。
