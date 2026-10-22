@@ -430,7 +430,7 @@ export function AvSignalChart({
           <Area
             type="monotone"
             dataKey="value"
-            name="RSSI"
+            name="信号强度"
             stroke={palette.signal}
             strokeWidth={1.5}
             fill={palette.signal}

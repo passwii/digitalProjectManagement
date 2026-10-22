@@ -1,6 +1,13 @@
 import type { CSSProperties } from "react";
 import s from "./AvMotion.module.css";
 import { formatTimecode } from "@/lib/av/timecode";
+import {
+  VIDEO_CODEC_LINE,
+  VIDEO_DETECTION_LABEL,
+  VIDEO_NO_SIGNAL_LABEL,
+  VIDEO_REGION_LABEL,
+  type AvDetectionClass,
+} from "@/lib/av/labels";
 
 /**
  * 合成监控画面（Stage 3 / BLF-1425）。
@@ -21,8 +28,8 @@ import { formatTimecode } from "@/lib/av/timecode";
  */
 
 export interface AvVideoBox {
-  /** 检测类别（画面上的英文标签，与站内其它 CV 叠层一致）。 */
-  label: string;
+  /** 检测类别：机器可读值，展示时经 `VIDEO_DETECTION_LABEL` 映射成中文。 */
+  label: AvDetectionClass;
   /** 置信度 0–1。 */
   confidence: number;
   /** 框的位置与尺寸（百分比，相对画面）。 */
@@ -50,9 +57,9 @@ export function videoBoxesOf(seed: number): AvVideoBox[] {
    */
   type BoxPreset = Omit<AvVideoBox, "phase">;
   const presets: BoxPreset[] = [
-    { label: "PERSON", confidence: 0.96, tone: 1, x: 38, y: 34, width: 18, height: 36 },
-    { label: "PERSON", confidence: 0.88, tone: 8, x: 60, y: 22, width: 15, height: 30 },
-    { label: "VEHICLE", confidence: 0.79, tone: 4, x: 52, y: 58, width: 20, height: 30 },
+    { label: "person", confidence: 0.96, tone: 1, x: 38, y: 34, width: 18, height: 36 },
+    { label: "person", confidence: 0.88, tone: 8, x: 60, y: 22, width: 15, height: 30 },
+    { label: "vehicle", confidence: 0.79, tone: 4, x: 52, y: 58, width: 20, height: 30 },
   ];
   return presets.map((preset, index) => ({
     ...preset,
@@ -69,7 +76,7 @@ export default function AvVideoScene({
   seed,
   frame,
   state = "online",
-  codec = "H.265 · 25FPS",
+  codec = VIDEO_CODEC_LINE,
 }: {
   seed: number;
   frame: number;
@@ -100,7 +107,7 @@ export default function AvVideoScene({
           className={s.videoRoi}
           style={{ "--av-roi-delay": (0.15 + (seed % 7) / 20).toFixed(3) } as CSSProperties}
         >
-          ROI
+          {VIDEO_REGION_LABEL}
         </span>
       )}
       {boxes.map((box, index) => (
@@ -119,11 +126,11 @@ export default function AvVideoScene({
           }
         >
           <span className={s.videoBoxLabel}>
-            {box.label} {Math.round(box.confidence * 100)}%
+            {VIDEO_DETECTION_LABEL[box.label]} {Math.round(box.confidence * 100)}%
           </span>
         </span>
       ))}
-      <span className={s.videoMeta}>{offline ? "NO SIGNAL" : codec}</span>
+      <span className={s.videoMeta}>{offline ? VIDEO_NO_SIGNAL_LABEL : codec}</span>
       <span className={s.videoClock}>{offline ? "--:--:--" : formatTimecode(frame)}</span>
     </div>
   );

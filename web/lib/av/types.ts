@@ -96,7 +96,7 @@ export interface Device {
   site_id: string;
   point_id: string;
   point_room: string;
-  /** 型号编号，如 AV-MIC-S6 */
+  /** 型号编号，如 MIC-S6 */
   model: string;
   /** 中文品类，如「拾音终端」 */
   type_name: string;

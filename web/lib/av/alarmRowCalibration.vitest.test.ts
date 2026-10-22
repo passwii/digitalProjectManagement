@@ -45,8 +45,15 @@ function ruleBody(css: string, selector: string): string {
   return "";
 }
 
-/** 实测：1440×1200 dark 下右侧三卡栈（410 + 185 + 337 + 2×12）的内容高。 */
-const RAIL_CONTENT_HEIGHT_1440 = 956;
+/**
+ * 实测：1440×1200 dark 下右侧三卡栈的内容高。
+ *
+ * BLF-1431（Stage 7）删掉「未处置分级」「告警剧本」两处说明型副标题后，三卡栈从
+ * 956px 降到 915px —— 行高跟着从 67px 收到 63px，等式重新成立。
+ * 数值来自 `scripts/av-alarm-row-calibration.mjs` 的 `railContentBottom`
+ * （2026-10-21，1440 / 1280 / 1180 / 1160 四档实测一致，底边差 1px）。
+ */
+const RAIL_CONTENT_HEIGHT_1440 = 915;
 /** 实测：面板 chrome（头 + 工具条 + 底栏 + 内边距）加上列表上边距，合计 160px。 */
 const PANEL_CHROME_HEIGHT = 160;
 /** 验收允许的底边差。 */
@@ -61,6 +68,7 @@ describe("/alarm 行高标定（BLF-1426）", () => {
     const match = /--av-alarm-row-h:\s*(\d+)px;/.exec(GLOBALS);
     expect(match, "globals.css 缺少 --av-alarm-row-h").not.toBeNull();
     const rowHeight = Number(match![1]);
+    // BLF-1431 起行高是 63px（右栏删掉两条说明型副标题后重标定）
     const panelHeight = PANEL_CHROME_HEIGHT + ALARM_PAGE_SIZE * rowHeight;
     expect(
       Math.abs(panelHeight - RAIL_CONTENT_HEIGHT_1440),

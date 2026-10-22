@@ -5,7 +5,14 @@ import Link from "next/link";
 import { m } from "framer-motion";
 import { AvBar, AvEmpty, AvLegend, AvPageHeader, AvPanel, AvStatusBadge } from "@/components/av/AvUI";
 import type { AvTone } from "@/lib/av/labels";
-import { compactAge, DEVICE_STATUS_LABEL, DEVICE_STATUS_TONE, formatCount } from "@/lib/av/labels";
+import {
+  CHANNEL_KIND_LABEL,
+  compactAge,
+  DEVICE_STATUS_LABEL,
+  DEVICE_STATUS_TONE,
+  formatCount,
+  SIGNAL_PERCENTILE_LABEL,
+} from "@/lib/av/labels";
 import { toRelative } from "@/lib/av/time";
 import AvTabs from "@/components/av/AvTabs";
 import AvCounter from "@/components/av/motion/AvCounter";
@@ -86,7 +93,7 @@ function ChannelCard({
       <div className={s.channelStage} data-channel-state={liveState}>
         {/* LIVE / 离线徽标 + 递增时间码（动效关闭时时间码停在起点） */}
         <AvLiveBadge className={s.channelLive} state={liveState} frame={frame} />
-        <span className={s.channelKind}>{isVideo ? "VIDEO" : "AUDIO"}</span>
+        <span className={s.channelKind}>{isVideo ? CHANNEL_KIND_LABEL.video : CHANNEL_KIND_LABEL.audio}</span>
         {/* 缓慢的横向扫描线：只给在线通道（离线卡是静态灰态，连扫描线都不要） */}
         {liveState === "online" && (
           <span
@@ -122,7 +129,7 @@ function ChannelCard({
           <span>{channel.typeName} <b>{channel.model}</b></span>
           <span>固件 <b>{channel.firmware}</b></span>
           <span>信号 <b>{channel.signal}/100</b></span>
-          <span>CPU <b>{channel.cpu}%</b></span>
+          <span>处理器占用 <b>{channel.cpu}%</b></span>
           <span>心跳 <b>{compactAge(channel.heartbeatOffsetMinutes)}前</b></span>
         </div>
       </div>
@@ -211,7 +218,6 @@ export default function MonitorView({ channels, counts, signalHealth, models, ga
       <AvPageHeader
         route="/stream-monitor/monitor"
         title="实时音视频监控"
-        subtitle="多模态感知通道：音频拾取与视频画面按场景聚合"
         aside={
           <AvTabs
             items={[
@@ -253,14 +259,13 @@ export default function MonitorView({ channels, counts, signalHealth, models, ga
       <div className={s.gridTwo}>
         <AvPanel
           title="通道信号质量"
-          subtitle="全量设备的 RSSI 健康分位"
           icon="monitor"
           meta={`离线 ${formatCount(counts.offline)} 台`}
           motionKey="monitor-signal"
         >
           <div className={s.typeList}>
             <AvBar
-              label="平均值"
+              label={SIGNAL_PERCENTILE_LABEL.average}
               value={signalHealth.avg}
               max={100}
               tone="signal"
@@ -268,7 +273,7 @@ export default function MonitorView({ channels, counts, signalHealth, models, ga
               detail={<AvCounter value={signalHealth.avg.toFixed(1)} />}
             />
             <AvBar
-              label="P90"
+              label={SIGNAL_PERCENTILE_LABEL.high}
               value={signalHealth.p90}
               max={100}
               tone="success"
@@ -276,7 +281,7 @@ export default function MonitorView({ channels, counts, signalHealth, models, ga
               detail={<AvCounter value={String(signalHealth.p90)} />}
             />
             <AvBar
-              label="P50"
+              label={SIGNAL_PERCENTILE_LABEL.median}
               value={signalHealth.p50}
               max={100}
               tone="violet"
@@ -284,7 +289,7 @@ export default function MonitorView({ channels, counts, signalHealth, models, ga
               detail={<AvCounter value={String(signalHealth.p50)} />}
             />
             <AvBar
-              label="P10（弱信号尾部）"
+              label={SIGNAL_PERCENTILE_LABEL.low}
               value={signalHealth.p10}
               max={100}
               tone="warning"
@@ -295,10 +300,10 @@ export default function MonitorView({ channels, counts, signalHealth, models, ga
           <div className={s.firmwareRow}>
             <AvLegend
               items={[
-                { label: "平均", tone: "signal" },
-                { label: "P90", tone: "success" },
-                { label: "P50", tone: "violet" },
-                { label: "P10", tone: "warning" },
+                { label: SIGNAL_PERCENTILE_LABEL.average, tone: "signal" },
+                { label: SIGNAL_PERCENTILE_LABEL.high, tone: "success" },
+                { label: SIGNAL_PERCENTILE_LABEL.median, tone: "violet" },
+                { label: SIGNAL_PERCENTILE_LABEL.low, tone: "warning" },
               ]}
             />
           </div>
@@ -306,7 +311,6 @@ export default function MonitorView({ channels, counts, signalHealth, models, ga
 
         <AvPanel
           title="终端型号构成"
-          subtitle="网关 / 拾音 / 视觉终端"
           icon="device"
           meta={`${models.length} 种型号`}
           motionKey="monitor-models"
@@ -329,7 +333,6 @@ export default function MonitorView({ channels, counts, signalHealth, models, ga
 
       <AvPanel
         title="网关与链路"
-        subtitle="网关与链路状态"
         icon="device"
         meta={`${gateways.length} 台网关`}
         motionKey="monitor-gateways"

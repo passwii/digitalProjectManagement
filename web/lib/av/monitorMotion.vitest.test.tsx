@@ -45,7 +45,7 @@ const WAVE = Array.from({ length: 26 }, (_, index) => 0.25 + ((index * 37) % 60)
 
 function channel(index: number, kind: "audio" | "video", status: "online" | "offline" = "online"): MonitorChannel {
   return {
-    id: `${kind === "video" ? "AV-CAM-PTZ" : "AV-MIC-S8"}-${1000 + index}`,
+    id: `${kind === "video" ? "CAM-PTZ" : "MIC-S8"}-${1000 + index}`,
     room: `${index + 1} 楼测试通道 ${index + 1}`,
     siteName: "数慧智科演示站点",
     sceneName: "校园安全",
@@ -175,9 +175,9 @@ describe("参数化波形：同屏多张音频卡不能是同一段动画", () =
   });
 
   it("waveformSeed 对同一个 id 稳定，对不同 id 有区分度", () => {
-    expect(waveformSeed("AV-MIC-S8-1001")).toBe(waveformSeed("AV-MIC-S8-1001"));
-    expect(waveformSeed("AV-MIC-S8-1001")).not.toBe(waveformSeed("AV-MIC-S8-1002"));
-    const seeds = new Set(Array.from({ length: 50 }, (_, index) => waveformSeed(`AV-MIC-${index}`)));
+    expect(waveformSeed("MIC-S8-1001")).toBe(waveformSeed("MIC-S8-1001"));
+    expect(waveformSeed("MIC-S8-1001")).not.toBe(waveformSeed("MIC-S8-1002"));
+    const seeds = new Set(Array.from({ length: 50 }, (_, index) => waveformSeed(`MIC-${index}`)));
     expect(seeds.size).toBeGreaterThan(40);
   });
 });
@@ -352,7 +352,7 @@ describe("AvVideoScene 离线态：冻结帧（review P2）", () => {
     expect(scene.querySelectorAll("[data-tone]")).toHaveLength(0);
     expect(scene.querySelector('[class*="videoScan"]')).toBeNull();
     expect(scene.querySelector('[class*="videoRoi"]')).toBeNull();
-    expect(scene.textContent).toContain("NO SIGNAL");
+    expect(scene.textContent).toContain("无信号");
     expect(scene.querySelector('[class*="videoClock"]')?.textContent).toBe("--:--:--");
   });
 

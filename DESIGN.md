@@ -332,7 +332,7 @@ components:
 **对齐策略只有两种，且都是显式的**：
 
 - **同行等高**（peer row）—— 并排的卡片底边对齐。栅格走 `align-items: stretch` + 卡片 `height: 100%`，卡片边框被拉到该行最高的那张，整排底边落在同一条线上。
-- **竖向侧栏顶对齐**（rail column）—— 右侧一列是若干**互相独立**的面板（离线清单 / 型号构成 / OTA），它们之间没有「同行」关系，强行等高只会让内容少的面板空出一大片，所以走 `align-content: start`。
+- **竖向侧栏顶对齐**（rail column）—— 右侧一列是若干**互相独立**的面板（离线清单 / 型号构成 / 固件升级），它们之间没有「同行」关系，强行等高只会让内容少的面板空出一大片，所以走 `align-content: start`。
 
 **圆角**：卡片类一律直角（`--av-radius-card: 0px`）；徽标 / 芯片类才走胶囊（`--av-radius-pill`）—— 胶囊是识别信号的一部分，不能丢。
 
@@ -349,6 +349,53 @@ components:
 这套规格由 `web/lib/av/avLayoutTokens.vitest.test.ts`（间距刻度、卡片圆角、同类卡片等高、栅格对齐、图表高度档位）与 `web/lib/av/avFontSizes.vitest.test.ts`（字号档位齐全、无裸字面量、渲染等价）守着，实测由 `scripts/av-layout-shoot.mjs`（走查五个断点 × 深浅两主题）与 `scripts/av-layout-overflow.mjs`（等高策略会不会让内容溢出）完成。
 
 **卡片溢出的判定口径**（`scripts/av-layout-overflow.mjs` 用它，`web/lib/av/avOverflowRule.vitest.test.ts` 守它）：卡片的内容**超出自己的盒子**就算失败 —— 判据是任一轴的 `scrollHeight/Width` 与 `clientHeight/Width` 之差超过 1px 容差，**不看 `overflow` 计算值**。理由：那六个卡片族在受管 CSS 里一条 `overflow` 都没设（默认 `visible`），若把「是否溢出」挂在「`overflow` ∈ {hidden, clip, auto, scroll}」上，这一半判定**永远不会成立** —— 内容真的溢出盒子时工具反而报绿灯。内容是被裁、可滚动还是溢出到盒子外，只影响报告里的措辞，不影响「算不算失败」。判定逻辑放在 `scripts/lib/avOverflowRule.mjs`，脚本与守卫共用同一份，不会各自漂移。
+
+### 演示站点的文案规则
+
+界面面向国内市场，可见文案只有三种合法性：**中文**、**数据**、**白名单里的专有英文**。三条规则都由 CI 守着 —— 五个字母的 `RSSI`、两个字母的 `P90`、`zh-CN` 这种 locale code，人眼评审一眼就滑过去了，靠自觉守不住。
+
+**① 标题下只写数据。** 面板头（`AvPanel`）与页头（`AvPageHeader`）的 `subtitle` 是可选的，一旦写就必须是**数据型**：含数字、含 `${...}` 插值，或整个值就是一个数据变量（`subtitle={view.windowLabel}`）。判据一句话：**副标题回答「这屏数的是哪个窗口 / 多少条 / 筛出来几台」，不回答「这张图怎么读」「这个模块是干什么的」。** 因此这四类一律不写：
+
+- 复述标题（「网关与链路」下面写「网关与链路状态」）；
+- 解释图怎么读（「颜色越深代表该时段告警越多」）；
+- 营销口号（「实时检测 · 自动分级 · 闭环处置」「多模态融合感知 · 全场景智能安防」）；
+- 空态操作指引（「选择任意一起事件」）—— 指引写在空态正文（`AvEmpty` 的 `hint`）里。
+
+例外只有两种，且必须进白名单并写明理由：**范围标签**（如「离线 / 维护中」，计数在 `meta` 里）与**诚实的能力说明**（如「规则为只读展示，当前不可编辑」—— 删掉才是撒谎）。KPI 卡的脚注（`KpiCard.note`）同一口径：数据型保留（`离线 14 · 维护 4`），说明型删除（`按该窗口内的告警口径计算`）。由 `web/lib/av/subtitleCopy.test.ts` 守着，删掉的句子进 denylist 防回填。
+
+**② 英文只留专有名词。** 用户可见字符串里不许出现「两个以上连续大写拉丁字母」（`LIVE` / `RSSI` / `ROI`）、分位记号（`P90` / `P50` / `P10`）、`xx-XX` 形式的 locale code。能留的只有四类，逐条写在 `web/lib/av/englishResidue.test.ts` 的白名单里（每条一句理由）：
+
+- **型号**：`MIC-S6` / `MIC-S8` / `CAM-360` / `CAM-PTZ` / `GW-200`（**没有 `AV-` 前缀**：`AV` 是敏感词，见下条）；
+- **编号**：`AL-00037` / `EV-20260145` / `PT-B1-1F01` / `OTA-1001-1`（编号是检索与对账的主键，中文化会让深链接失效）；
+- **单位**：`GB` / `TB` / `PB` / `dBm` / `dBA` / `Hz` / `ms` / `%`；
+- **标准号 / 行业通用缩写**：`H.265` / `HBM3` / `ICU` / `AI`。
+
+单位符号不翻译，其余一律中文：`LIVE`→实时、`OFFLINE`→离线、`VIDEO`/`AUDIO`→视频/音频、`CPU`→处理器占用、`GPU0`→显卡 0、`OTA`→固件升级、`RSSI`→信号强度、`ROI`→分析区域、`PERSON`/`VEHICLE`→人员/车辆、`P90/P50/P10`→较高分位/中位/较低分位（具体数值仍显示，只是不再出现记号）、`25FPS`→25 帧/秒、`Top N`→前 N。**新增英文必须显式加白并写理由**，这就是把这次的口径判断固化成契约。
+
+两条口径细节，都是被真实漏网案例逼出来的：
+
+- **`AV` 是敏感词，一处都不许出现**。设备型号已从 `AV-MIC-S6` / `AV-CAM-PTZ` / `AV-GW-200` 改成 `MIC-S6` / `CAM-PTZ` / `GW-200`（公开数据集与 `scripts/mock/generate.mjs` 的生成模板一起改，否则重跑 `mock:generate` 会写回英文）。白名单里**没有**、也不许再加 `AV` 这一条 —— 两个字母的大写串本来就落进 `UPPER_RUN`，不给它白名单就等于它在任何一处都会变红。
+- **同一个字符串里的每一处英文都要过白名单**（`englishResidue.test.ts` 的 `matchesWithIndex` 遍历全部非重叠命中）。只看第一处的话，`MIC-S6 · LIVE` 会因为 `MIC` 已在白名单里而整串通过，`LIVE` 根本没被检查过 —— 白名单契约也就等于可以绕过。去重按**命中区间**而不是按值：只吞掉被已有命中完整包住的那一处（`zh-CN` 里的 `CN`），同名的第二处（`LIVE 与 LIVE`）必须各自判定。
+- **编号类白名单要带形状（`context`），不能只写前缀**。`OTA` 只在 `OTA-\d+-\d+` 这种记录编号里放行；`OTA 批量升级：…` 这种散文标题必须变红。`PTZ` 这类「型号组成部分」同样带形状（`context: /CAM-PTZ/`）——「拆开就不再是型号」这句话只有写成正则才是契约，裸的 `match: "PTZ"` 会把「PTZ 云台自动跟随」这类散文放过去。
+- **形状按命中自己的区间判，不按整段字符串**。`context` 只对命中所在的复合记号（`tokenAround`：`OTA-1001-1`、`MIC-S6-1192` 这种由字母数字与 `-_.+` 连成的整体）生效。拿整段 text 跑 `context` 的话，`OTA-1001-1 · OTA 批量升级` 里后面那条散文会借前面编号的形状整串通过 —— 而形状判定与「这一处命中」脱钩，白名单契约就是空话。
+- **整张表都要二分，契约由用例守**。白名单里每一条要么带形状（`context` 规定编号 / 型号长什么样、`files` 限定机器值只在哪几个文件里出现），要么进 `SHAPE_EXEMPT` 例外集合（`GB` / `TB` / `PB` 这类单位符号、`ICU` / `AI` 这类行业通用词 —— 它们本来就没有形状可言）。不是只收紧 `OTA` / `PTZ` 两条：剩下的裸前缀（`MIC` / `PT` / `DO` …）同样会把「MIC 通道信号质量」放过去。例外集合与白名单表互相对照的断言就在 `englishResidue.test.ts` 里：表里新加一条既没形状、又不在例外集合里的，用例直接红。
+- **字面量扫描必须整份源码一次词法遍历，不能逐行**。跨行模板字面量的首行只有开引号、中间行没有引号、末行只有闭引号，逐行 `exec` 的话三行全扫不到，整段静态文案等于不存在 —— 而本 Stage 自己改的副标题就是三行（`DeviceView.tsx` 的 `每 2 小时一个采样点 · 末端为当前值（${…}）`，`EventView.tsx` 还有两处）。行号不能拿「开引号那一行」充数，要按命中在段内的下标算回源文件行。标签属性里的 JSX children（`aside={<span>…</span>}`，本仓库 10+ 处）同一口径：`{…}` 不能整段丢掉，要对属性表达式递归。
+
+**扫什么地方（三条，缺一条就有盲区）**：
+
+- **组件与纯逻辑**（`components/av` / `lib/av`）的 `.ts` / `.tsx`，测试文件除外；
+- **路由层**（`app/stream-monitor`）的 `page.tsx` / `layout.tsx` —— `metadata.title`、空态 `hint`、页头文案都是直接上屏的，本 Stage 自己就改过 `app/stream-monitor/audio/page.tsx` 的空态；口径与 `siteCopyGuard.test.ts` 的 `SITE_DIRS` 一致。内部校验页 `__stress` 两处（组件 `StressView.tsx`、路由页 `app/stream-monitor/%5F%5Fstress/page.tsx`）显式排除。
+- **公开数据集**（`public/stream-monitor-data/*.json`）的字符串值 —— 访客能直接下载这些文件。
+
+源码里**两种写法都要取**：字符串字面量（含 JSX 属性值 `hint="…"`，含模板字面量的静态部分，含插值里再起的字符串 / 模板），以及 **raw JSX 文本节点**（`>` 与 `<` 之间、不是 `{…}` 表达式；包括标签属性里的 JSX children）。两类都是**整份文件一次词法遍历**，行号按命中位置算回源文件。第二类不是可选项：这套 UI 的可见文案大量是 children（`<th className={s.num}>处理器占用</th>`、`<span>中位</span>`、`aside={<span>… 个算法</span>}`），只抓引号字面量的话，本 Stage 改的表头 / 徽标 / 抽屉小标题回填成英文不会触发任何信号 —— 而验收标准里「守卫用例」那一证恰好指着这一类。
+
+**③ 编码值一律映射，不直接上屏。** locale code、场景代码、枚举值是**数据**，中文只发生在展示层，映射表统一放 `web/lib/av/labels.ts`，页面里不写第二张表（否则同一个编码会在五页里漂成五种说法）。数据集原值不动：`transcripts.json` 的 `language: "zh-CN"` 保留，界面上是「普通话」；`scenes.json` 的 `code: "CAMPUS"` 保留，能力页上显示「校园」。
+
+**数据集中「会原样上屏的标题」也是文案，不是编码。** `incidents.json` 的 `title` 直接渲染在 `/event` 的列表、表格与详情「标题」行三处，所以这类散文标题要直接写成中文（固件升级类事件现为「固件批量升级：…」），**不能靠白名单放行英文** —— 数据集里的字符串同样被 `englishResidue.test.ts` 扫。数据由 `scripts/mock/generate.mjs` 生成，改文案时模板要一起改，否则下次 `npm run mock:generate` 会把它写回去。
+
+**④ 删文案会改布局，等高关系要重新量。** 副标题占一行（11px / 1.5 行高 + 4px 上边距 ≈ 20.5px），删掉就改面板高度：`/alarm` 右栏删掉两条说明型副标题后三卡栈降了 41px，左面板（12 行 × 行高 + 面板 chrome）比它长出 49px —— 于是 `--av-alarm-row-h` 从 67px 收到 63px（`panel chrome 160px + 12 × 63px = 916px`，对照三卡栈 915px，底边差 1px），**而不是**用一条说明文把高度填回去。改文案后必须重跑 `scripts/av-alarm-row-calibration.mjs` 与 `scripts/av-layout-overflow.mjs`。
+
+**⑤ 四套守卫的分工**（别重复造，也别绕过）：品牌（`siteBrandCopy.test.ts`：英文 `Stream Monitor` / 中文名 / URL 前缀）、措辞（`siteCopyGuard.test.ts`：mock / 演示 / 工程术语 / 内部口径）、英文残留（`englishResidue.test.ts`：字母表口径 + 带形状的白名单，扫组件 / 路由层 / 公开数据集，字面量与 raw JSX 文本节点（含属性里的 children）都整份文件取）、副标题形状（`subtitleCopy.test.ts`：只写数据 + denylist）。
 
 ### 演示站点的色彩体系与动效节奏
 

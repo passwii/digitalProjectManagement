@@ -163,12 +163,12 @@ export default function EventView({ rows, detail, initialId, counts, userNames }
         route="/stream-monitor/event"
         title="事件中心"
         /*
-          标题下的这一句是本 Stage 的事实说明，不是文案清理（中文化 / 删冗余描述是 Stage 7 的事）：
-          页面里已经同时有告警融合事件与巡检 / 上下线 / OTA 等普通事件，只写「多起告警融合成一起事件」
-          就在选择「普通事件」筛选时与列表自相矛盾（Codex review 第 4 轮）。按 Stage 7 的约定写成数据型，
-          两类计数直接来自 props，不写死。
+          标题下只留**数据型**一行（Stage 7 口径）：页面里同时有告警融合事件与巡检 /
+          上下线 / 固件升级等普通事件，只写「多起告警融合成一起事件」会在选择
+          「普通事件」筛选时与列表自相矛盾（Codex review 第 4 轮）。两类计数直接来自 props，
+          不写死；原先结尾的「两类都可全程追溯」是解释句，已删。
         */
-        subtitle={`告警融合 ${formatCount(counts.alarm)} 起 · 普通事件 ${formatCount(counts.routine)} 起，两类都可全程追溯`}
+        subtitle={`告警融合 ${formatCount(counts.alarm)} 起 · 普通事件 ${formatCount(counts.routine)} 起`}
         aside={
           <div className={s.eventFilters}>
             <AvTabs items={kindTabs} value={kind} onChange={changeKind} ariaLabel="事件性质筛选" />
@@ -441,7 +441,7 @@ export default function EventView({ rows, detail, initialId, counts, userNames }
                 title="证据链"
                 subtitle={
                   incidentKind(selected.incident) === "alarm"
-                    ? "事件关联的告警与音视频证据"
+                    ? undefined
                     : `普通事件 · 关联告警 0 条 / 时间线 ${selected.incident.timeline.length} 个运营节点`
                 }
                 icon="alarm"
@@ -469,7 +469,7 @@ export default function EventView({ rows, detail, initialId, counts, userNames }
               </AvPanel>
             </AvPanelReveal>
           ) : (
-            <AvPanel title="事件追溯" subtitle="选择任意一起事件" icon="event" motionKey="event-empty">
+            <AvPanel title="事件追溯" icon="event" motionKey="event-empty">
               <AvEmpty title="未选择事件" hint="点击事件列表中的任意一行，右侧显示时间线与证据链。" />
             </AvPanel>
           )}

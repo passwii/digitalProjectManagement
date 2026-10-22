@@ -32,7 +32,9 @@ import {
   formatPercent,
   incidentKind,
   levelMeta,
+  sceneCodeLabel,
   sceneMeta,
+  SIGNAL_PERCENTILE_LABEL,
   type AvTone,
 } from "./labels";
 import type { AvSeriesTone } from "./tone";
@@ -44,7 +46,11 @@ export interface KpiCard {
   unit?: string;
   detail: string;
   tone: AvTone;
-  /** 章节标题下的口径说明，避免把「滚动 24 小时」读成「今日」 */
+  /**
+   * 卡片脚注第二行。**只写数据**（带数字的拆分 / 比率）。
+   * 「这个数怎么来的」这类口径说明在 BLF-1431 里删了：判定口径与
+   * `lib/av/subtitleCopy.test.ts` 守副标题的那套是同一个。
+   */
   note?: string;
 }
 
@@ -87,14 +93,13 @@ export function overviewKpis(kpi: Kpi): KpiCard[] {
       unit: "起",
       detail: `累计 ${formatCount(kpi.incident_total)} 起`,
       tone: "violet",
-      note: "跨告警融合后的人工确认单元",
     },
     {
       key: "response",
       label: "平均响应",
       value: kpi.avg_response_minutes.toFixed(1),
       unit: "分钟",
-      detail: `P90 ${kpi.response_p90_minutes.toFixed(1)} 分钟`,
+      detail: `${SIGNAL_PERCENTILE_LABEL.high} ${kpi.response_p90_minutes.toFixed(1)} 分钟`,
       tone: "warning",
       note: `误报率 ${kpi.false_positive_rate.toFixed(1)}%`,
     },
@@ -178,7 +183,8 @@ export function sceneCards(core: DatasetCore) {
     return {
       scene,
       name: def?.name ?? meta.fallbackName,
-      code: def?.code ?? "",
+      // 数据集里的 `code` 是 CAMPUS / HOSPITAL / JUSTICE（机器可读原值），展示时映射成中文
+      code: sceneCodeLabel(def?.code),
       slogan: def?.slogan ?? "",
       desc: def?.desc ?? "",
       apps: def?.apps ?? [],
@@ -617,7 +623,8 @@ export function overviewKpisFrom(range: OverviewRange, totals: OverviewTotals): 
           value: formatCount(totals.incidents),
           unit: def.unit,
           detail: `在办 ${formatCount(totals.open_incidents)} 起`,
-          note: "跨告警融合后的人工确认单元",
+          // 数据型脚注：把「这个数只数告警融合事件」直接写成计数，不再用说明句
+          note: `告警融合 ${formatCount(totals.incidents)} 起`,
           tone: OVERVIEW_KPI_TONE[def.key],
         };
       default:
@@ -627,7 +634,6 @@ export function overviewKpisFrom(range: OverviewRange, totals: OverviewTotals): 
           value: totals.false_positive_rate.toFixed(def.decimals),
           unit: def.unit,
           detail: `误报 ${formatCount(totals.false_positive)} 条 / 告警 ${formatCount(totals.alarms)} 条`,
-          note: "按该窗口内的告警口径计算",
           tone: OVERVIEW_KPI_TONE[def.key],
         };
     }

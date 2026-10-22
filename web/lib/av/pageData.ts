@@ -408,35 +408,35 @@ export async function getCapabilityData(): Promise<CapabilityProps> {
   const rules = core.rules;
   const chain = [
     {
-      code: "01 / CAPTURE",
+      code: "01 / 采集",
       title: "采集",
       detail: "拾音终端 · 全景摄像头 · 网关",
       count: core.kpi.device_total,
       unit: "台终端",
     },
     {
-      code: "02 / AUDIO",
+      code: "02 / 音频",
       title: "音频前端",
       detail: "降噪 · 抗混响 · 分贝检测 · 声源定位",
       count: groups.find((group) => group.code === "audio")?.count ?? 0,
       unit: "个音频算法",
     },
     {
-      code: "03 / RECOGNIZE",
+      code: "03 / 识别",
       title: "多模态识别",
       detail: "视觉 AI · 语音语义 · 关键词",
       count: (groups.find((group) => group.code === "vision")?.count ?? 0) + (groups.find((group) => group.code === "speech")?.count ?? 0),
       unit: "个识别算法",
     },
     {
-      code: "04 / FUSION",
+      code: "04 / 融合",
       title: "融合分级",
       detail: "大模型融合 · 置信度打分 · 自动定级",
       count: groups.find((group) => group.code === "llm")?.count ?? 0,
       unit: "个融合算法",
     },
     {
-      code: "05 / RESPONSE",
+      code: "05 / 处置",
       title: "处置联动",
       detail: "通知 · 派发 · 声光驱离 · 复核归档",
       count: rules.length,

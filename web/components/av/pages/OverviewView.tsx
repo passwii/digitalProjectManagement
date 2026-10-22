@@ -100,7 +100,6 @@ export default function OverviewView(props: OverviewProps) {
       <AvPageHeader
         route="/stream-monitor/overview"
         title="总览驾驶舱"
-        subtitle="多模态融合感知 · 全场景智能安防"
         actions={<AvTabs items={tabs} value={range} onChange={setRange} ariaLabel="时间范围" />}
       />
 
@@ -129,11 +128,7 @@ export default function OverviewView(props: OverviewProps) {
         <div className={s.splitWide}>
           <AvPanel
             title="告警趋势"
-            subtitle={
-              view.granularity === "day"
-                ? `${view.windowLabel}按自然日汇总（告警 / 已处置 / 事件 / 误报）`
-                : `${view.windowLabel}按小时汇总（告警 / 已处置 / 事件 / 误报）`
-            }
+            subtitle={view.windowLabel}
             icon="overview"
             meta={view.granularity === "day" ? "按自然日" : "按小时"}
             motionKey="overview-trend"
@@ -171,7 +166,6 @@ export default function OverviewView(props: OverviewProps) {
 
           <AvPanel
             title="告警分级"
-            subtitle={`${view.windowLabel}全量 vs 未处置拆分`}
             icon="alarm"
             meta={`未处置 ${formatCount(atTick.totals.unhandled)}`}
             motionKey="overview-levels"
@@ -199,7 +193,6 @@ export default function OverviewView(props: OverviewProps) {
         <AvPanelReveal index={0} className={s.gridThree}>
           <AvPanel
             title="场景分布"
-            subtitle={`${view.windowLabel}告警按业务场景`}
             icon="capability"
             meta={`${atTick.scenes.length} 个场景`}
             motionKey="overview-scenes"
@@ -221,11 +214,6 @@ export default function OverviewView(props: OverviewProps) {
 
           <AvPanel
             title={`告警热力 · ${view.label}`}
-            subtitle={
-              view.granularity === "day"
-                ? "颜色越深代表该时段告警越多（7 个自然日 × 24 小时）"
-                : "颜色越深代表该时段告警越多（UTC+8 时钟）"
-            }
             icon="event"
             meta={`峰值 ${formatCount(view.heatmap.max)} 条/小时`}
             motionKey="overview-heatmap"
@@ -278,9 +266,8 @@ export default function OverviewView(props: OverviewProps) {
         <div className={s.gridTwo}>
           <AvPanel
             title="重点点位"
-            subtitle={`按告警总量排序（${view.windowLabel}）`}
             icon="device"
-            meta={`Top ${view.points.length}`}
+            meta={`前 ${view.points.length}`}
             motionKey="overview-points"
           >
             <ul className={s.rankList}>
@@ -308,7 +295,6 @@ export default function OverviewView(props: OverviewProps) {
 
           <AvPanel
             title="高频告警类型"
-            subtitle={`按告警条数排序（${view.windowLabel}）`}
             icon="capability"
             meta={`${view.types.length} 类`}
             motionKey="overview-types"
@@ -339,7 +325,7 @@ export default function OverviewView(props: OverviewProps) {
 
       <div className={s.splitWide}>
         <AvPanel
-          title="GPU 算力资源池"
+          title="显卡算力资源池"
           subtitle={`${props.gpu.meta.model} · 显存 ${formatGb(props.gpu.meta.vramTotalGb)} · 利用率 ${formatPercent(props.gpu.meta.utilization)}`}
           icon="chip"
           meta={`${props.gpu.cards.length} 张卡`}
@@ -348,14 +334,14 @@ export default function OverviewView(props: OverviewProps) {
           <div className={s.gpuList}>
             {props.gpu.cards.map((card) => (
               <div key={card.index} className={s.gpuRow} style={{ "--tone": toneVar(card.tone) } as React.CSSProperties}>
-                <span className={s.gpuName}>GPU{card.index}</span>
+                <span className={s.gpuName}>显卡 {card.index}</span>
                 <div
                   className={s.gpuTrack}
                   role="progressbar"
                   aria-valuenow={card.utilization}
                   aria-valuemin={0}
                   aria-valuemax={100}
-                  aria-label={`GPU${card.index} 利用率`}
+                  aria-label={`显卡 ${card.index} 利用率`}
                 >
                   <span className={s.gpuFill} style={{ width: `${Math.min(100, Math.max(0, card.utilization))}%` }} />
                 </div>
@@ -387,7 +373,6 @@ export default function OverviewView(props: OverviewProps) {
 
         <AvPanel
           title="实时告警流"
-          subtitle="最新告警按时间滚动"
           icon="alarm"
           meta={paused ? "已暂停轮播" : `已展示 ${visibleAlarms.length} / ${props.recent.length}`}
           action={

@@ -15,6 +15,7 @@ import {
   formatSeconds,
   levelMeta,
   sceneMeta,
+  SIGNAL_PERCENTILE_LABEL,
   type AvTone,
 } from "@/lib/av/labels";
 import { toAbsolute, toRelative } from "@/lib/av/time";
@@ -223,7 +224,6 @@ export default function AlarmView(props: AlarmViewProps) {
       <AvPageHeader
         route="/stream-monitor/alarm"
         title="告警中心"
-        subtitle="实时检测 · 自动分级 · 闭环处置"
         aside={
           <AvTabs
             items={[{ value: "all", label: "全部级别", count: alarms.length }, ...levelCounts]}
@@ -311,7 +311,6 @@ export default function AlarmView(props: AlarmViewProps) {
         <div className={s.railStack}>
           <AvPanel
             title="未处置分级"
-            subtitle="待确认与处置中告警的分级构成"
             icon="alarm"
             meta={`${formatCount(props.unhandled)} 条`}
             motionKey="alarm-unhandled"
@@ -340,7 +339,7 @@ export default function AlarmView(props: AlarmViewProps) {
               <strong>{formatMinutes(props.metrics.avgResponse)}</strong>
             </div>
             <div className={s.railRow}>
-              <span>P50 / P90</span>
+              <span>{SIGNAL_PERCENTILE_LABEL.median} / {SIGNAL_PERCENTILE_LABEL.high}</span>
               <strong>{formatMinutes(props.metrics.p50, 0)} / {formatMinutes(props.metrics.p90, 0)}</strong>
             </div>
             <div className={s.railRow}>
@@ -355,7 +354,6 @@ export default function AlarmView(props: AlarmViewProps) {
 
           <AvPanel
             title="告警剧本"
-            subtitle="每个剧本都有完整时间线，可回看处置过程"
             icon="capability"
             meta={`${props.scripts.length} 个`}
             motionKey="alarm-scripts"
@@ -494,7 +492,6 @@ function AlarmDetail({
   userNames: Record<string, string>;
   onClose: () => void;
 }) {
-  const meta = levelMeta(alarm.level);
   return (
     <>
       <div className={s.dialogHead}>

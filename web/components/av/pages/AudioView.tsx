@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Spectrum, Transcript } from "@/lib/av/types";
-import { formatCount, formatPercent, formatSeconds, levelMeta, type AvTone } from "@/lib/av/labels";
+import { formatCount, formatPercent, formatSeconds, levelMeta, transcriptLanguageLabel, type AvTone } from "@/lib/av/labels";
 import { useTheme } from "@/components/theme/ThemeProvider";
 import { parseCssColor, spectrumPixels } from "@/lib/av/color";
 import { AvKV, AvLevelBadge, AvPageHeader, AvPanel } from "@/components/av/AvUI";
@@ -171,7 +171,6 @@ export default function AudioView({ alarm, spectrum, transcript, samples }: Audi
       <AvPageHeader
         route="/stream-monitor/audio"
         title="音频分析"
-        subtitle="频谱与说话人转写"
         aside={
           <div className={s.audioPicker}>
             {samples.slice(0, 4).map((sample) => (
@@ -192,7 +191,7 @@ export default function AudioView({ alarm, spectrum, transcript, samples }: Audi
         title={alarm.title}
         subtitle={`${alarm.room} · ${alarm.typeName}`}
         icon="monitor"
-        meta={`${formatSeconds(spectrum.seconds)} · ${formatCount(spectrum.bins)} bins`}
+        meta={`${formatSeconds(spectrum.seconds)} · ${formatCount(spectrum.bins)} 个频段`}
         motionKey="audio-meta"
       >
         <div className={s.dialogTitle} style={{ marginBottom: 10 }}>
@@ -210,13 +209,11 @@ export default function AudioView({ alarm, spectrum, transcript, samples }: Audi
           <span>峰值点 <b>{spectrum.peaks.length}</b></span>
           {transcript && <span>关键词命中 <b>{transcript.keyword_hits.length}</b></span>}
         </div>
-        <p className={s.softNote} style={{ marginTop: 8 }}>{spectrum.note}</p>
       </AvPanel>
 
       <div className={s.splitWide}>
         <AvPanel
           title="频谱图"
-          subtitle="颜色深浅代表能量强度；纵轴为频率，横轴为时间"
           icon="wave"
           meta={`${spectrum.colMs}ms / 帧`}
           motionKey="audio-spectrogram"
@@ -239,9 +236,10 @@ export default function AudioView({ alarm, spectrum, transcript, samples }: Audi
             >
               {playing ? "暂停" : "播放"}
             </button>
+            {/* 诚实说明保留（站点确实没有音频文件），实现细节（rAF / CSS transition /
+                base64 解码方式）不上屏 —— 那是给维护者的话，不是给访客的。 */}
             <span className={s.softNote}>
-              当前仅提供频谱矩阵与转写，未包含音频文件：游标按 1 倍速走完 {formatSeconds(spectrum.seconds)}，
-              用于呈现「转写跟随游标高亮」的交互（rAF 驱动，不用 CSS transition）。
+              当前仅提供频谱与转写文本，未包含音频文件；游标按 1 倍速走完 {formatSeconds(spectrum.seconds)}。
             </span>
           </div>
           <div style={{ marginTop: 10 }}>
@@ -250,7 +248,7 @@ export default function AudioView({ alarm, spectrum, transcript, samples }: Audi
         </AvPanel>
 
         <div className={s.railStack}>
-          <AvPanel title="频谱画像" subtitle="与告警级别的对应关系" icon="chip" motionKey="audio-facts">
+          <AvPanel title="频谱画像" icon="chip" motionKey="audio-facts">
             <AvKV
               rows={[
                 { label: "画像", value: profileLabel[spectrum.profile] ?? spectrum.profile },
@@ -270,7 +268,7 @@ export default function AudioView({ alarm, spectrum, transcript, samples }: Audi
           {transcript && (
             <AvPanel
               title="转写与关键词"
-              subtitle={`${transcript.language} · ${transcript.speakers.length} 位说话人`}
+              subtitle={`${transcriptLanguageLabel(transcript.language)} · ${transcript.speakers.length} 位说话人`}
               icon="event"
               meta={`${transcript.segments.length} 句`}
               motionKey="audio-transcript"
