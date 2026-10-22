@@ -346,7 +346,7 @@ components:
 
 **顶栏 / 页面标题 / 卡片左边缘**必须落在同一条竖线上：顶栏与内容区共用一个 `--av-gutter`（桌面 20px / ≤900px 14px / ≤720px 12px），改一处就两处一起动。
 
-这套规格由 `web/lib/av/avLayoutTokens.vitest.test.ts`（间距刻度、卡片圆角、同类卡片等高、栅格对齐、图表高度档位）与 `web/lib/av/avFontSizes.vitest.test.ts`（字号档位齐全、无裸字面量、渲染等价）守着，实测由 `scripts/av-layout-shoot.mjs`（走查五个断点 × 深浅两主题）与 `scripts/av-layout-overflow.mjs`（等高策略会不会让内容溢出）完成。
+这套规格由 `web/lib/av/avLayoutTokens.vitest.test.ts`（间距刻度、卡片圆角、同类卡片等高、栅格对齐、图表高度档位）与 `web/lib/av/avFontSizes.vitest.test.ts`（字号档位齐全、无裸字面量、渲染等价）守着，实测由 `scripts/av-layout-shoot.mjs`（走查五个断点 × 深浅两主题）、`scripts/av-acceptance-catalog.mjs`（验收矩阵：1440 / 1280 / 1180 / 900 / 390 × 六页 × 深浅主题，同一目录里出 `before` / `after` 两套图）与 `scripts/av-layout-overflow.mjs`（等高策略会不会让内容溢出）完成。
 
 **卡片溢出的判定口径**（`scripts/av-layout-overflow.mjs` 用它，`web/lib/av/avOverflowRule.vitest.test.ts` 守它）：卡片的内容**超出自己的盒子**就算失败 —— 判据是任一轴的 `scrollHeight/Width` 与 `clientHeight/Width` 之差超过 1px 容差，**不看 `overflow` 计算值**。理由：那六个卡片族在受管 CSS 里一条 `overflow` 都没设（默认 `visible`），若把「是否溢出」挂在「`overflow` ∈ {hidden, clip, auto, scroll}」上，这一半判定**永远不会成立** —— 内容真的溢出盒子时工具反而报绿灯。内容是被裁、可滚动还是溢出到盒子外，只影响报告里的措辞，不影响「算不算失败」。判定逻辑放在 `scripts/lib/avOverflowRule.mjs`，脚本与守卫共用同一份，不会各自漂移。
 
@@ -399,9 +399,25 @@ components:
 
 ### 演示站点的色彩体系与动效节奏
 
-`/stream-monitor` 是对外演示用的产品界面，色彩要「丰富、可分」而不是「克制、少色」。但多色不等于多套色值：颜色仍然只有**一个真源** `web/app/globals.css`，组件里不出现任何 `#hex` / `rgb()`（由 `web/lib/avSourceGuard.vitest.test.ts` 守着）。这一节说明 AV 站点在既有语义色之外多出来的两组东西。
+`/stream-monitor` 是对外演示用的产品界面，色彩要「丰富、可分」而不是「克制、少色」。但多色不等于多套色值：颜色仍然只有**一个真源** `web/app/globals.css`，组件里不出现任何 `#hex` / `rgb()`（由 `web/lib/avSourceGuard.vitest.test.ts` 守着）。这一节按「状态 → 级别 → 系列 → 表面 → 动效」的顺序，写清 AV 站点的颜色与动效口径。
 
-**数据系列色（8 档）**。语义色（危险 / 警告 / 完成 / 信号 / 执行 / 数据紫 / 中性）只回答「这是什么状态」，多系列图表要的是「这条线是第几条」，所以另起一组 `--av-series-1..8`：
+**① 状态语义色（tone，7 组）**。组件只回答「这是什么状态」，所以 tone 是语义层，不直接写色值：每个 tone 由一条主令牌加一条 soft 底色组成，深浅主题各自解析，AV 层不复制浅色值。
+
+| tone | 消费的主令牌 | 语义 | 典型用在哪 |
+| --- | --- | --- | --- |
+| `--av-tone-signal` / `-soft` | `--brand` / `--doing-bg` | 信号 / 链路 | 导航当前项、链路状态、三级告警 |
+| `--av-tone-action` / `-soft` | `--action` / `--done-bg` | 可执行动作 / 完成 | 主按钮、固件升级入口、已完成 |
+| `--av-tone-danger` / `-soft` | `--danger` / `--danger-bg` | 危险 / 失败 | 一级告警、离线、告警量上升 |
+| `--av-tone-warning` / `-soft` | `--warn` / `--warn-bg` | 警告 / 临界 | 二级告警、接近阈值 |
+| `--av-tone-violet` / `-soft` | `--data-violet` / `--violet-soft` | 事件 / 次维度 | 事件中心、分析结果 |
+| `--av-tone-neutral` / `-soft` | `--todo` / `--todo-bg` | 中性 / 未知 | 四级告警、待处理 |
+| `--av-tone-success` / `-soft` | `--done` / `--done-bg` | 完成 / 健康 | 已处置、在线 |
+
+浅色主题不在这张表里再抄一遍：`--brand` / `--danger` 这些主令牌在 `:root[data-theme="light"]` 里已经换过值，AV 别名自动跟随。新增 tone 只允许走「主令牌别名 + soft 底色」这一种形状，写死 `#hex` 会被源码守卫拦下。
+
+**② 告警四级（level）**。四级是**业务枚举**，不是 tone 的别名集合：`--av-level-1..4` 各自带 `-soft`（底）与 `-line`（描边），一级 = 珊瑚 / 二级 = 琥珀 / 三级 = 信号青 / 四级 = 弱文字，并且**颜色与文字标签双通道**表达级别（色弱用户靠「一级·严重」这行字辨）。级别色只在告警语境用，不回流到 tone 或系列色。
+
+**③ 数据系列色（8 档）**。语义色（危险 / 警告 / 完成 / 信号 / 执行 / 数据紫 / 中性）只回答「这是什么状态」，多系列图表要的是「这条线是第几条」，所以另起一组 `--av-series-1..8`：
 
 | 令牌 | 色相 | 深色 | 浅色 | 典型用途 |
 | --- | --- | --- | --- | --- |
@@ -416,10 +432,12 @@ components:
 
 两条规则：
 
-- **语义色不借给数据系列，系列色不借给状态**。告警级别、设备状态、算法状态永远用语义色；图表里「第 N 条系列」用系列色。这样「珊瑚」在页面上只有一种含义。
+- **语义色与系列色各走各的入口，即使色相相同**。告警级别、设备状态、算法状态永远用 tone / level；图表里「第 N 条系列」用 series。`--av-series-5` 与 `--av-danger` 现在指向同一个珊瑚色，但它们是两个令牌、两个含义：前者是「第五条系列」，后者是「危险 / 失败」。换色时改的是底层色值来源，两个含义不会被一次 `toneVar()` 调用混在一起。
 - **系列色在两种主题下都必须对卡片底保持 ≥ 3:1 对比度**（图表线不是文字，3:1 是可见性下限）。所以柠檬没有复用 `--action`（浅色下它是按钮底色，`#c6df7b` 画在白底上几乎看不见），而是单独给了 `--data-lemon`。这条由 `web/lib/av/avColorTokens.vitest.test.ts` 逐档计算守着。
 
 组件入口统一在 `web/lib/av/tone.ts`：`toneVar(tone)` 产出 `var(--av-tone-*)`，`seriesVar(n)` 产出 `var(--av-series-n)`，`colorVar(tone | "series-n")` 是两者共用的入口 —— 页面不需要知道某个颜色属于哪一组。
+
+**图表在运行时读令牌，不在构建期写死颜色**。recharts 的 `stroke` / `fill` 要的是具体色值，不能传 `var()`，所以 `web/components/av/AvCharts.tsx` 的 `useAvPalette()` 用 `getComputedStyle(document.documentElement)` 读 `--av-*` 的计算值，并把 `series-1..8` 逐条读出来。它的 `useEffect` 依赖 `appliedTheme` 而不是 `resolvedTheme`：`data-theme` 是 Provider 在自己的 effect 里落的，React effect 子先父后，用 `resolvedTheme` 会在主题还没落盘时读到上一套令牌 —— 图表于是停在旧配色直到刷新（Stage 1 的 AC5 就是这条失败）。主题一切换，`appliedTheme` 变 → 重读 → 八条系列色和语义色一起换成新主题的值，这也是「浅色主题下图表色值正确」的机器口径。
 
 **KPI 数字与色条同色**。度量卡、状态格、图例里的数字跟随自己的颜色（`--metric-tone` / `--tone`），左边 2px 色条、图标、数字三者同色；**卡片底色保持中性**。这是「卡片克制、数字醒目」的具体做法：一屏四个 KPI，靠数字和色条区分类别，靠底色区分只会变成满屏色块。
 
@@ -442,7 +460,7 @@ components:
 
 这一组由 `web/lib/av/avFontSizes.vitest.test.ts` 的「数字醒目档」用例守着：令牌值、每个数字元素消费的字重令牌、中号数字档的消费方数量，任何一项被调回旧值都会变红。
 
-**分层表面与每页光晕**。改之前暗色只有 `#07131f`（底）与 `#0d1d2c`（卡）两个值，整屏一个深蓝平板。现在表面分三档，并且每个页面有一档自己的极淡光晕：
+**④ 分层表面与每页光晕**。改之前暗色只有 `#07131f`（底）与 `#0d1d2c`（卡）两个值，整屏一个深蓝平板。现在表面分三档，并且每个页面有一档自己的极淡光晕：
 
 | 令牌 | 深色 | 浅色 | 用途 |
 | --- | --- | --- | --- |
@@ -450,9 +468,25 @@ components:
 | `--av-surface-2` | `#0d1d2c` | `#ffffff` | 卡片 / 面板 / 状态格 |
 | `--av-surface-3` | `#13293c` | `#f3f7f9` | 抬升面：表头、面板头、hover |
 
-光晕（页面底色上的 `radial-gradient`，暗色是 8% 左右的洗色，浅色是同色系浅底）：`--av-tint-overview` 青 / `--av-tint-monitor` 紫 / `--av-tint-alarm` 珊瑚 / `--av-tint-event` 琥珀 / `--av-tint-device` 柠檬绿。它们全部是既有 soft 底色的别名，因此深浅主题自动跟随，不需要在浅色块里再抄一份值。
+三条分层规则：
 
-**动效节奏（演示档）**。对外讲解时，观众要**看得见**动效在发生：240ms 的面板入场在投影上几乎一帧结束，看不出错峰与层次。所以主力档与慢档放慢，操作反馈档不动（变慢就是发黏）：
+- **只往上抬一层**：内容永远坐在 `surface-2` 上，`surface-3` 只用于同一张卡片内部的表头 / 面板头 / hover，不出现「卡上卡上卡」；需要更强的分组时用 1px `--av-divider` 分隔，而不是再加一档底色。
+- **暗色的层级靠亮度差，不靠阴影**：三档深蓝的明度差已经足够（`#07131f → #0d1d2c → #13293c`），暗色里加投影只会糊成一团；浅色反过来，白卡靠 `--line` 描边从雾白画布上「浮」起来。
+- **抬升面不承载语义色**：`surface-3` 是中性底，状态永远由 tone / level 的色条、徽标、文字表达 —— 底色一变，颜色对比度就得重算，这是最容易被一次「好看的渐变」破坏的契约。
+
+光晕（页面底色上的 `radial-gradient`，暗色是 8% 左右的洗色，浅色是同色系浅底）每页一档，五个数据页靠色相区分，卡片底色保持中性：
+
+| 页面 | 令牌 | 别名到 | 色相 |
+| --- | --- | --- | --- |
+| 总览 | `--av-tint-overview` | `--brand-soft` | 青 |
+| 实时音视频监控 | `--av-tint-monitor` | `--violet-soft` | 紫 |
+| 告警中心 | `--av-tint-alarm` | `--danger-bg` | 珊瑚 |
+| 事件中心 | `--av-tint-event` | `--warn-bg` | 琥珀 |
+| 设备管理 | `--av-tint-device` | `--done-bg` | 柠檬绿 |
+
+它们全部是既有 soft 底色的别名，因此深浅主题自动跟随，不需要在浅色块里再抄一份值；能力与场景页没有数据光晕（它是说明页，不是数据页）。
+
+**⑤ 动效节奏（演示档）**。对外讲解时，观众要**看得见**动效在发生：240ms 的面板入场在投影上几乎一帧结束，看不出错峰与层次。所以主力档与慢档放慢，操作反馈档不动（变慢就是发黏）：
 
 | 令牌 | 值 | 用途 |
 | --- | --- | --- |
@@ -460,12 +494,35 @@ components:
 | `--av-dur-quick` | 160ms | hover / 徽标变更 / 退场 |
 | `--av-dur-base` | 300ms | 抽屉、面板入场、Tab 切换 |
 | `--av-dur-slow` | 600ms | 页面级入场、图表入场、KPI 滚动 |
-| `--av-stagger-list` | 45ms | 列表错峰步长（前 10 项） |
-| `--av-stagger-timeline` | 90ms | 时间线节点错峰 |
+| `--av-dur-breathe` | 3000ms | 一级告警色条呼吸（唯一的持续循环动效） |
+| `--av-dur-shimmer` | 1200ms | 骨架屏高光扫过（不是入场动画，单独一个值） |
+| `--av-stagger-list` | 45ms | 列表错峰步长（前 10 项，第 11 项起不再延迟） |
+| `--av-stagger-timeline` | 90ms | 时间线节点错峰（逐个点亮） |
 
-0.65s 是慢档的硬上限：再慢就会被读成卡顿。`?static=1`（截图 / 录屏）与 `prefers-reduced-motion: reduce` 下所有时长归零、动画包装不渲染，同一 URL 连拍三次必须逐字节一致；数值契约由 `web/lib/av/motion.vitest.test.ts` 钉死。
+0.65s 是慢档的硬上限：再慢就会被读成卡顿。**错峰有上限**：列表只对前 10 项错峰（第 10 项 0.45s，正好落在 base 内），超过 100 行的长列表直接不做入场错峰 —— 50 条全错峰会让最后一条等 1.5s，看起来像没加载完。
+
+**关键帧名走变量转发**。CSS Modules 会把 `animation: avFadeIn` 里的名字本地化成 `<模块>_avFadeIn__hash`，而 `@keyframes` 定义在全局的 `globals.css` 里；名字对不上时浏览器**不报错**（`animation-name` 不是 `none`，元素永远停在首帧）。所以模块里一律写 `animation: ... var(--av-kf-fade-in)`，`globals.css` 的 `--av-kf-*` 段把 23 个帧名转发出去（`-fade-in` / `-rise-in` / `-drawer-in` / `-skeleton` / `-breathe` / `-dot-pop` …）。这条由 `web/lib/av/avKeyframes.vitest.test.ts`（扫 5 个 CSS 模块的 `animation` / `animation-name`，只放行 `var(--av-kf-*)` 或本文件内的 `@keyframes`，并反向校验每个令牌指向的帧真的存在）与 `scripts/av-keyframes-audit.mjs`（真实浏览器里比对 `getComputedStyle().animationName` 与 `CSSKeyframeRules`，未解析帧名必须为 0）两道守卫守着。
+
+**降级规则（三档，全部归零而不是「藏起来」）**：
+
+1. `?static=1`（截图 / 录屏）—— 首帧前由 `AV_MOTION_BOOTSTRAP_SCRIPT` 在 `<html>` 上挂 `data-av-motion="off"`，`--av-dur-*` 全部 0ms、骨架 / 交叉淡入的包装组件不渲染，recharts 的 `isAnimationActive` 为 false，设备数据流的 `tick` 固定在 0（基准帧）。同一 URL 连拍三次必须逐字节一致。
+2. `prefers-reduced-motion: reduce` —— 同一组令牌在媒体查询里归零，`avDurationSeconds()` 返回 0、`avItemMotion()` 给 `initial: false`；元素直接出现在终态，不靠 `display: none` 或 `opacity: 0` 藏起来（那会让 reduced-motion 用户丢内容）。
+3. 两者叠加不特殊处理：任一命中即冻结。
+
+冻结的是**时长**，不是**终态**：透明度、位移、图表高度都必须落在正常结束时的值上 —— 所以验收里同时断言「没有动画在跑」与「没有半透明面板」两条，只看前者会把 `from { opacity: 0 }` 卡住的页面放过去。数值契约由 `web/lib/av/motion.vitest.test.ts` 钉死（裸毫秒、裸 cubic-bezier、令牌值两边一致），运行时冻结由 `scripts/av-keyframes-audit.mjs` 的 `?static=1` 三连拍与 reduced-motion 轮验证；「主题切换后图表重读令牌」由 `scripts/av-palette-check.mjs` 验证（真实点击主题按钮，比对切换前后 SVG 上挂的 `stroke` / `fill`，要求浅色系列色出现且深色系列色零残留）。
 
 **图表尺寸的隐藏契约**。recharts 的 `ResponsiveContainer` 以 `height: 100%` 向上找「有确定高度的父节点」，中间任何一层包裹节点只写 `animation` 而不写高度，整张图就会量到 0×0 后什么都不画（BLF-1423 的 P0：告警趋势、7 日柱状、设备抽屉的信号曲线全部空白，而自带 inline 高度的环形图仍然可见）。现在的口径是：**档位高度只由 `ChartFrame` 的 `.frame`（inline `height`）提供，包裹层 `.skeletonSwap` 负责传递 `100%`**，两处不重复打补丁。这条由 `web/lib/av/chartFrameHeight.vitest.test.tsx` 守着 —— 既有源码断言（`.skeletonSwap` 必须有 `height: 100%`），也有真实渲染后的祖先链断言（含 `?static=1` 那条不套包裹层的分支）。
+
+### 演示态数据流
+
+`/stream-monitor` 是**免登录、无后端**的演示站：页面上的每个数字都来自仓库里的静态 JSON，不来自数据库，也不来自线上接口。链路固定为「生成 → 载入 → 投影 → 渲染」四段，改任何一段都要同步另外三段的口径。
+
+1. **生成（人手动、一次性）**：`scripts/mock/generate.mjs` 生成 `web/public/stream-monitor-data/*.json`（约 12MB，其中告警 9 个分片 ≈ 10.1MB、频谱 ≈ 0.65MB）。数据是**确定性**的：同一份脚本重跑得到同一批记录，时间锚点固定（`toAbsolute(0)` = 2026-10-19 12:00，Asia/Shanghai），所以哪一天打开演示站，看到的都是同一屏数据。改字段先改 `lib/av/types.ts` 与生成模板，再 `npm run mock:generate` —— 只手改 JSON 会被下一次生成覆盖。
+2. **载入（服务端）**：`lib/av/load.ts` 只负责取 JSON 与类型；`lib/av/server.ts` 注入读文件的 `Fetcher`，并用进程内 promise 缓存「只解析一次」。首屏只读 `loadCore()`（≈890KB 的聚合与索引），告警明细按游标分片懒加载，`spectra.json` 只在 `/stream-monitor/audio` 读 —— **首屏绝不拉全量告警**。
+3. **投影（Server Component）**：`lib/av/pageData.ts` 把核心数据集投影成每页自己的 props（只序列化这一页用到的字段），`app/stream-monitor/[section]/page.tsx` 按 section 选视图。首屏 HTML 里已经带好数字，浏览器不再为渲染首屏发一遍 JSON 请求，`/overview` 因此远低于 1MB 预算。
+4. **渲染（客户端）**：只有分页、筛选、抽屉、主题是客户端状态。告警每页 12 条（`ALARM_PAGE_SIZE`，首屏与「加载下一页」共用同一个常量），下一页游标由服务端算好；事件表格同理。设备页的「动态数据流」不是轮询接口，而是 `lib/av/deviceStream.ts` 的纯函数 `deviceFrameAt(base, tick)` 每 5 秒推进一帧（基准帧 + 4 个增量帧），`?static=1` 下 `tick` 恒为 0 —— 这也是「静态截图连拍三次一致」和「演示时数据在动」能同时成立的原因。
+
+一条边界：**演示数据不进数据库、不写审计、不代表真实设备**。所以页面上唯一的时刻来源是顶栏那颗「数据锚点」徽标（全站只出现这一处），文案里也不写「实时监控中」这类需要后端背书的说法；对外讲解说「演示数据」，不说「线上数据」。新增页面若需要新数据文件，先走生成器与 `types.ts`，不要在组件里手写常量数组 —— 那会绕开 `scripts/mock/validate.mjs` 的契约校验。
 
 ## Do's and Don'ts
 
