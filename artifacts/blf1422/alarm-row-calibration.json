@@ -1,0 +1,586 @@
+{
+  "baseUrl": "http://127.0.0.1:3012",
+  "expectedRows": 12,
+  "results": [
+    {
+      "width": 1440,
+      "theme": "dark",
+      "shot": "artifacts/blf1422/alarm-1440.png",
+      "rows": 12,
+      "columnCount": 2,
+      "rowHeights": [
+        63,
+        63,
+        63,
+        63,
+        63,
+        63,
+        63,
+        63,
+        63,
+        63,
+        63,
+        63
+      ],
+      "rowHeightMin": 63,
+      "rowHeightMax": 63,
+      "panelTop": 166.5,
+      "panelBoxBottom": 1082.5,
+      "panelBoxHeight": 916,
+      "panelNaturalHeight": 916,
+      "panelNaturalBottom": 1082.5,
+      "panelStretch": 0,
+      "panelPaddingX": 0,
+      "railTop": 166.5,
+      "railBoxBottom": 1082.5,
+      "railContentBottom": 1081.5,
+      "railCardHeights": [
+        389.5,
+        185,
+        316.5
+      ],
+      "railGap": 12,
+      "deltaPanelRail": 1,
+      "listHeight": 756,
+      "chromeHeight": 154,
+      "parts": {
+        "card": 63,
+        "badge": 22,
+        "main": 36,
+        "title": 18,
+        "facts": 14,
+        "aside": 23,
+        "asideChildren": [
+          14,
+          23,
+          22
+        ],
+        "paddingTop": 8,
+        "paddingBottom": 8
+      },
+      "chromeParts": {
+        "header": 52,
+        "toolbar": 38,
+        "list": 756,
+        "foot": 38,
+        "panelPaddingTop": 0,
+        "panelPaddingBottom": 0,
+        "body": {
+          "h": 862,
+          "padTop": 12,
+          "padBottom": 12,
+          "rowGap": null,
+          "overflowY": "visible"
+        },
+        "childHeights": [
+          {
+            "cls": "AvUI_panelHeader__4vYGc",
+            "h": 52
+          },
+          {
+            "cls": "AvUI_panelBody__QS32A ",
+            "h": 862
+          }
+        ]
+      },
+      "rowOverflow": [],
+      "clipped": [],
+      "truncation": {
+        "titleMinWidth": 473,
+        "titleMaxWidth": 489,
+        "truncatedTitles": 0,
+        "truncatedNumbers": 0,
+        "titleSamples": [],
+        "numberSamples": []
+      }
+    },
+    {
+      "width": 1280,
+      "theme": "dark",
+      "shot": "artifacts/blf1422/alarm-1280.png",
+      "rows": 12,
+      "columnCount": 2,
+      "rowHeights": [
+        63,
+        63,
+        63,
+        63,
+        63,
+        63,
+        63,
+        63,
+        63,
+        63,
+        63,
+        63
+      ],
+      "rowHeightMin": 63,
+      "rowHeightMax": 63,
+      "panelTop": 166.5,
+      "panelBoxBottom": 1082.5,
+      "panelBoxHeight": 916,
+      "panelNaturalHeight": 916,
+      "panelNaturalBottom": 1082.5,
+      "panelStretch": 0,
+      "panelPaddingX": 0,
+      "railTop": 166.5,
+      "railBoxBottom": 1082.5,
+      "railContentBottom": 1081.5,
+      "railCardHeights": [
+        389.5,
+        185,
+        316.5
+      ],
+      "railGap": 12,
+      "deltaPanelRail": 1,
+      "listHeight": 756,
+      "chromeHeight": 154,
+      "parts": {
+        "card": 63,
+        "badge": 22,
+        "main": 36,
+        "title": 18,
+        "facts": 14,
+        "aside": 23,
+        "asideChildren": [
+          14,
+          23,
+          22
+        ],
+        "paddingTop": 8,
+        "paddingBottom": 8
+      },
+      "chromeParts": {
+        "header": 52,
+        "toolbar": 38,
+        "list": 756,
+        "foot": 38,
+        "panelPaddingTop": 0,
+        "panelPaddingBottom": 0,
+        "body": {
+          "h": 862,
+          "padTop": 12,
+          "padBottom": 12,
+          "rowGap": null,
+          "overflowY": "visible"
+        },
+        "childHeights": [
+          {
+            "cls": "AvUI_panelHeader__4vYGc",
+            "h": 52
+          },
+          {
+            "cls": "AvUI_panelBody__QS32A ",
+            "h": 862
+          }
+        ]
+      },
+      "rowOverflow": [],
+      "clipped": [],
+      "truncation": {
+        "titleMinWidth": 363,
+        "titleMaxWidth": 379,
+        "truncatedTitles": 0,
+        "truncatedNumbers": 0,
+        "titleSamples": [],
+        "numberSamples": []
+      }
+    },
+    {
+      "width": 1180,
+      "theme": "dark",
+      "shot": "artifacts/blf1422/alarm-1180.png",
+      "rows": 12,
+      "columnCount": 2,
+      "rowHeights": [
+        63,
+        63,
+        63,
+        63,
+        63,
+        63,
+        63,
+        63,
+        63,
+        63,
+        63,
+        63
+      ],
+      "rowHeightMin": 63,
+      "rowHeightMax": 63,
+      "panelTop": 165,
+      "panelBoxBottom": 1081,
+      "panelBoxHeight": 916,
+      "panelNaturalHeight": 916,
+      "panelNaturalBottom": 1081,
+      "panelStretch": 0,
+      "panelPaddingX": 0,
+      "railTop": 165,
+      "railBoxBottom": 1081,
+      "railContentBottom": 1080,
+      "railCardHeights": [
+        389.5,
+        185,
+        316.5
+      ],
+      "railGap": 12,
+      "deltaPanelRail": 1,
+      "listHeight": 756,
+      "chromeHeight": 154,
+      "parts": {
+        "card": 63,
+        "badge": 22,
+        "main": 36,
+        "title": 18,
+        "facts": 14,
+        "aside": 23,
+        "asideChildren": [
+          14,
+          23,
+          22
+        ],
+        "paddingTop": 8,
+        "paddingBottom": 8
+      },
+      "chromeParts": {
+        "header": 52,
+        "toolbar": 38,
+        "list": 756,
+        "foot": 38,
+        "panelPaddingTop": 0,
+        "panelPaddingBottom": 0,
+        "body": {
+          "h": 862,
+          "padTop": 12,
+          "padBottom": 12,
+          "rowGap": null,
+          "overflowY": "visible"
+        },
+        "childHeights": [
+          {
+            "cls": "AvUI_panelHeader__4vYGc",
+            "h": 52
+          },
+          {
+            "cls": "AvUI_panelBody__QS32A ",
+            "h": 862
+          }
+        ]
+      },
+      "rowOverflow": [],
+      "clipped": [],
+      "truncation": {
+        "titleMinWidth": 268,
+        "titleMaxWidth": 284,
+        "truncatedTitles": 0,
+        "truncatedNumbers": 0,
+        "titleSamples": [],
+        "numberSamples": []
+      }
+    },
+    {
+      "width": 1160,
+      "theme": "dark",
+      "shot": "artifacts/blf1422/alarm-1160.png",
+      "rows": 12,
+      "columnCount": 2,
+      "rowHeights": [
+        63,
+        63,
+        63,
+        63,
+        63,
+        63,
+        63,
+        63,
+        63,
+        63,
+        63,
+        63
+      ],
+      "rowHeightMin": 63,
+      "rowHeightMax": 63,
+      "panelTop": 164.4,
+      "panelBoxBottom": 1080.4,
+      "panelBoxHeight": 916,
+      "panelNaturalHeight": 916,
+      "panelNaturalBottom": 1080.4,
+      "panelStretch": 0,
+      "panelPaddingX": 0,
+      "railTop": 164.4,
+      "railBoxBottom": 1080.4,
+      "railContentBottom": 1079.4,
+      "railCardHeights": [
+        389.5,
+        185,
+        316.5
+      ],
+      "railGap": 12,
+      "deltaPanelRail": 1,
+      "listHeight": 756,
+      "chromeHeight": 154,
+      "parts": {
+        "card": 63,
+        "badge": 22,
+        "main": 36,
+        "title": 18,
+        "facts": 14,
+        "aside": 23,
+        "asideChildren": [
+          14,
+          23,
+          22
+        ],
+        "paddingTop": 8,
+        "paddingBottom": 8
+      },
+      "chromeParts": {
+        "header": 52,
+        "toolbar": 38,
+        "list": 756,
+        "foot": 38,
+        "panelPaddingTop": 0,
+        "panelPaddingBottom": 0,
+        "body": {
+          "h": 862,
+          "padTop": 12,
+          "padBottom": 12,
+          "rowGap": null,
+          "overflowY": "visible"
+        },
+        "childHeights": [
+          {
+            "cls": "AvUI_panelHeader__4vYGc",
+            "h": 52
+          },
+          {
+            "cls": "AvUI_panelBody__QS32A ",
+            "h": 862
+          }
+        ]
+      },
+      "rowOverflow": [],
+      "clipped": [],
+      "truncation": {
+        "titleMinWidth": 248,
+        "titleMaxWidth": 264,
+        "truncatedTitles": 0,
+        "truncatedNumbers": 0,
+        "titleSamples": [],
+        "numberSamples": []
+      }
+    },
+    {
+      "width": 1159,
+      "theme": "dark",
+      "shot": "artifacts/blf1422/alarm-1159.png",
+      "rows": 12,
+      "columnCount": 1,
+      "rowHeights": [
+        63,
+        63,
+        63,
+        63,
+        63,
+        63,
+        63,
+        63,
+        63,
+        63,
+        63,
+        63
+      ],
+      "rowHeightMin": 63,
+      "rowHeightMax": 63,
+      "panelTop": 164.4,
+      "panelBoxBottom": 1080.4,
+      "panelBoxHeight": 916,
+      "panelNaturalHeight": 916,
+      "panelNaturalBottom": 1080.4,
+      "panelStretch": 0,
+      "panelPaddingX": 0,
+      "railTop": 1092.4,
+      "railBoxBottom": 2007.4,
+      "railContentBottom": 2007.4,
+      "railCardHeights": [
+        389.5,
+        185,
+        316.5
+      ],
+      "railGap": 12,
+      "deltaPanelRail": -927,
+      "listHeight": 756,
+      "chromeHeight": 154,
+      "parts": {
+        "card": 63,
+        "badge": 22,
+        "main": 36,
+        "title": 18,
+        "facts": 14,
+        "aside": 23,
+        "asideChildren": [
+          14,
+          23,
+          22
+        ],
+        "paddingTop": 8,
+        "paddingBottom": 8
+      },
+      "chromeParts": {
+        "header": 52,
+        "toolbar": 38,
+        "list": 756,
+        "foot": 38,
+        "panelPaddingTop": 0,
+        "panelPaddingBottom": 0,
+        "body": {
+          "h": 862,
+          "padTop": 12,
+          "padBottom": 12,
+          "rowGap": null,
+          "overflowY": "visible"
+        },
+        "childHeights": [
+          {
+            "cls": "AvUI_panelHeader__4vYGc",
+            "h": 52
+          },
+          {
+            "cls": "AvUI_panelBody__QS32A ",
+            "h": 862
+          }
+        ]
+      },
+      "rowOverflow": [],
+      "clipped": [],
+      "truncation": {
+        "titleMinWidth": 559,
+        "titleMaxWidth": 575,
+        "truncatedTitles": 0,
+        "truncatedNumbers": 0,
+        "titleSamples": [],
+        "numberSamples": []
+      }
+    },
+    {
+      "width": 1920,
+      "theme": "dark",
+      "shot": "artifacts/blf1422/alarm-1920.png",
+      "rows": 12,
+      "columnCount": 2,
+      "rowHeights": [
+        63,
+        63,
+        63,
+        63,
+        63,
+        63,
+        63,
+        63,
+        63,
+        63,
+        63,
+        63
+      ],
+      "rowHeightMin": 63,
+      "rowHeightMax": 63,
+      "panelTop": 166.5,
+      "panelBoxBottom": 1082.5,
+      "panelBoxHeight": 916,
+      "panelNaturalHeight": 916,
+      "panelNaturalBottom": 1082.5,
+      "panelStretch": 0,
+      "panelPaddingX": 0,
+      "railTop": 166.5,
+      "railBoxBottom": 1082.5,
+      "railContentBottom": 1081.5,
+      "railCardHeights": [
+        389.5,
+        185,
+        316.5
+      ],
+      "railGap": 12,
+      "deltaPanelRail": 1,
+      "listHeight": 756,
+      "chromeHeight": 154,
+      "parts": {
+        "card": 63,
+        "badge": 22,
+        "main": 36,
+        "title": 18,
+        "facts": 14,
+        "aside": 23,
+        "asideChildren": [
+          14,
+          23,
+          22
+        ],
+        "paddingTop": 8,
+        "paddingBottom": 8
+      },
+      "chromeParts": {
+        "header": 52,
+        "toolbar": 38,
+        "list": 756,
+        "foot": 38,
+        "panelPaddingTop": 0,
+        "panelPaddingBottom": 0,
+        "body": {
+          "h": 862,
+          "padTop": 12,
+          "padBottom": 12,
+          "rowGap": null,
+          "overflowY": "visible"
+        },
+        "childHeights": [
+          {
+            "cls": "AvUI_panelHeader__4vYGc",
+            "h": 52
+          },
+          {
+            "cls": "AvUI_panelBody__QS32A ",
+            "h": 862
+          }
+        ]
+      },
+      "rowOverflow": [],
+      "clipped": [],
+      "truncation": {
+        "titleMinWidth": 803,
+        "titleMaxWidth": 819,
+        "truncatedTitles": 0,
+        "truncatedNumbers": 0,
+        "titleSamples": [],
+        "numberSamples": []
+      }
+    }
+  ],
+  "loadMore": {
+    "before": 12,
+    "after": 24,
+    "added": 12,
+    "insertedCount": 12,
+    "animated": 12,
+    "sample": [
+      {
+        "tag": "LI",
+        "opacity": "0",
+        "transform": "matrix(1, 0, 0, 1, 0, -8)",
+        "inlineStyle": "opacity: 0; transform: translateY(-8px);"
+      },
+      {
+        "tag": "LI",
+        "opacity": "0",
+        "transform": "matrix(1, 0, 0, 1, 0, -8)",
+        "inlineStyle": "opacity: 0; transform: translateY(-8px);"
+      },
+      {
+        "tag": "LI",
+        "opacity": "0",
+        "transform": "matrix(1, 0, 0, 1, 0, -8)",
+        "inlineStyle": "opacity: 0; transform: translateY(-8px);"
+      }
+    ]
+  },
+  "failures": []
+}
