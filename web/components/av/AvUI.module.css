@@ -327,7 +327,7 @@
  * 的统一开关关掉（animation: none），这里不需要第二套判断。
  */
 .levelBadge[data-level="1"] .levelSwatch {
-  animation: avBreathe var(--av-dur-breathe) ease-in-out infinite alternate;
+  animation: var(--av-kf-breathe) var(--av-dur-breathe) ease-in-out infinite alternate;
 }
 
 .levelBadge svg {
@@ -492,7 +492,7 @@
 }
 
 .empty {
-  animation: avRiseIn var(--av-dur-slow) var(--av-ease-enter) both;
+  animation: var(--av-kf-rise-in) var(--av-dur-slow) var(--av-ease-enter) both;
   display: grid;
   justify-items: center;
   gap: var(--av-space-1);
@@ -752,7 +752,7 @@
 
 /* 状态徽标变更：从 0.9 弹入（quick）。key 换掉重挂载时 CSS 动画自然重播。 */
 .swapIn {
-  animation: avDotPop var(--av-dur-quick) var(--av-ease-enter) both;
+  animation: var(--av-kf-dot-pop) var(--av-dur-quick) var(--av-ease-enter) both;
 }
 
 .tag[data-tone] {
