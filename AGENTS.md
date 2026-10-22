@@ -132,3 +132,12 @@ python3 scripts/deploy_vps.py        # 由人决定时机；合并 PR 不会自�
 - [ ] 没有调试残留：`console.log`、`debugger`、临时 TODO
 - [ ] commit author 与提交信息符合 §6
 - [ ] 当前 HEAD 上相关 CI 绿；未绿就明确写"CI 运行中 + 本地结果"，不要含糊说"测试通过"
+- [ ] 发给用户的本机链接是 Tailscale 地址（不是 `localhost`），且已自己打开验证（§9）
+
+## 9. 本机预览与链接发布（Tailscale）
+
+给用户任何指向**本机运行内容**的链接（预览页、评论页面、仪表板等）时，一律给 Tailscale 链接，**永远不给 `localhost` / `127.0.0.1`**：用户在多台电脑和手机上工作，链接必须在其 tailnet 内可达。
+
+- 用 `tailscale serve` 把本地服务发布到 tailnet（例：`tailscale serve --bg 3001`）；`tailscale serve status` 查看已发布地址，`tailscale serve reset` 收回。
+- 发布后**自己先打开该链接**，确认可访问、页面正常，再把链接发给用户；打不开就先修好或说明原因，不发未验证的链接。
+- 给完整地址（`https://<machine>.<tailnet>.ts.net/...`），不要只给端口或相对路径。
