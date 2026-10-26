@@ -48,6 +48,7 @@ from scripts.deploy_vps import (  # noqa: E402
     DEFAULT_APP_DIR,
     DEFAULT_BRANCH,
     DEFAULT_COMPOSE_FILES,
+    PRUNE_BUILD_CACHE_UNTIL,
     PRUNE_KEEP_SPARE,
     REQUIRED_ENV_CHECKS,
     SSH_PROBE_TIMEOUT,
@@ -140,6 +141,7 @@ class DeployVpsScriptTest(unittest.TestCase):
         self.assertEqual(VPS_HOSTS, (VPS_HOST_V4, VPS_HOST_V6))
         self.assertEqual(DEFAULT_APP_DIR, "/opt/pm")
         self.assertEqual(DEFAULT_BRANCH, "main")
+        self.assertEqual(PRUNE_BUILD_CACHE_UNTIL, "24h")
         self.assertEqual(PRUNE_KEEP_SPARE, 1)
         self.assertEqual(
             DEFAULT_COMPOSE_FILES, ("docker-compose.yml", "docker-compose.prod.yml")
@@ -248,6 +250,35 @@ class DeployVpsImageReclaimTest(unittest.TestCase):
 
         self.assertIn("docker images -f dangling=true -q", script)
         self.assertIn('docker image rm "$id"', script)
+
+    def test_reclaims_only_old_build_cache(self):
+        """构建缓存不随镜像 tag 回收，但最近一次构建要留给下次部署复用。"""
+        script = build_remote_script()
+
+        self.assertIn('docker builder prune -f --filter "until=24h"', script)
+        commands = script_commands(script)
+        prunes = [cmd for cmd in commands if "builder prune" in cmd]
+        self.assertEqual(len(prunes), 1, prunes)
+        self.assertIn('docker builder prune -f --filter "until=24h"', prunes[0])
+
+    def test_build_cache_reclaim_runs_after_health_checks(self):
+        script = build_remote_script()
+        last_health = script.rindex("wait_for_health \"http://127.0.0.1:3001/\"")
+
+        self.assertGreater(script.index("prune_stale_build_cache"), last_health)
+
+    def test_build_cache_reclaim_failure_cannot_fail_the_deploy(self):
+        script = build_remote_script()
+
+        self.assertIn(
+            "prune_stale_build_cache || printf '警告：构建缓存回收出错，本次部署不受影响",
+            script,
+        )
+
+    def test_build_cache_reclaim_can_be_skipped_with_image_reclaim(self):
+        script = build_remote_script(prune_spare=None)
+
+        self.assertNotIn("builder prune", script)
 
     def test_never_prunes_tagged_images_or_volumes(self):
         """本机还跑着 pm-staging / new-api / cliproxyapi / nezha，-a 会误伤。"""
