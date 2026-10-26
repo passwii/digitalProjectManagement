@@ -35,6 +35,10 @@ SSH_CONNECT_TIMEOUT = 20
 # /opt/pm-staging、new-api、cliproxyapi、nezha 几套栈，连 -a 都可能把别人停着
 # 的容器依赖的镜像删掉；`pm-pg-data` / `pm-staging-data` 两个 volume 更是碰不得。
 PRUNE_KEEP_SPARE = 1
+# BuildKit 缓存与悬空镜像不同：即使镜像 tag 还在，构建层也会一直累积。实测 4 天
+# 的构建把 2.2GB 缓存留在一台 15GB 的机器上，根盘一度只剩 475MB。部署完成后
+# 只清 24 小时以前的缓存，保留最近一次构建层，下一次常规部署仍能复用。
+PRUNE_BUILD_CACHE_UNTIL = "24h"
 
 DEFAULT_APP_DIR = "/opt/pm"
 DEFAULT_BRANCH = "main"
@@ -93,9 +97,20 @@ def build_prune_block(keep_spare: int = PRUNE_KEEP_SPARE) -> str:
     """渲染收尾的镜像回收片段。keep_spare=0 表示悬空镜像全清、不留回滚窗口。
 
     只碰 `dangling=true`：有 tag 的镜像一律不动，volume 一概不碰。
+    构建缓存只清超过 PRUNE_BUILD_CACHE_UNTIL 的部分，保留最近一次构建。
     整体保证退出码 0——回收出任何毛病都不能把一个健康的部署判成失败。
     """
-    return f"""# ---- 回收悬空镜像（被新构建项掉 tag 的旧镜像）----
+    return f"""# ---- 回收过期构建缓存（保留最近一次构建）----
+prune_stale_build_cache() {{
+  # 只清超过时间窗口的层，不碰其他 Compose 项目正在使用的容器。
+  if docker builder prune -f --filter "until={PRUNE_BUILD_CACHE_UNTIL}"; then
+    return 0
+  fi
+  printf '警告：构建缓存回收失败，本次部署不受影响\\n' >&2
+  return 0
+}}
+
+# ---- 回收悬空镜像（被新构建项掉 tag 的旧镜像）----
 prune_dangling_images() {{
   # 先分开「列表读不到」和「确实没有悬空镜像」，否则 docker 挂了会被报告成
   # 一句太平的「没有悬空镜像可回收」。
@@ -129,6 +144,7 @@ prune_dangling_images() {{
   return 0
 }}
 # 回收是收尾动作：搞坏了也不能把已经成功的部署判成失败。
+prune_stale_build_cache || printf '警告：构建缓存回收出错，本次部署不受影响\\n' >&2
 prune_dangling_images || printf '警告：镜像回收出错，本次部署不受影响\\n' >&2
 # 同样不能裸跑：docker 挂了的话它会变成整个部署脚本的退出码。
 docker system df || printf '警告：docker system df 读取失败\\n' >&2"""
