@@ -4,6 +4,8 @@
 >
 > 新建会话、接新任务、回到旧任务，第一步都是同步到最新的 `origin/main` —— `git fetch origin --prune` 后 `git rebase origin/main`（或在 `main` 上 `git pull --ff-only`），确认当前分支已包含最新 `origin/main`，再读文档、改代码、跑测试。不要在落后的基线上开工：PR 平白冲突、改到别人已经重写的代码，基本都是漏了这一步；本地有未提交改动先 `git stash`，不要用 `git reset --hard` 硬覆盖，拉取失败（网络、认证、冲突）也要先解决再往下做。
 
+> **新 worktree 初始化后立即建立 CodeGraph 索引。** 在新 worktree 的仓库根目录运行 `codegraph init -i`。
+
 本文件是本仓库**协作与交付规则的入口**。测试怎么写、怎么跑、什么时候算通过，细则全在 **`TESTING.md`**；本文件只做摘要与指向，不重复定义。
 
 - 架构与技术事实：`README.md`（注意区分 `[现状]` 与 `[目标]`，目标态不要当现状实施）
