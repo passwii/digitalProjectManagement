@@ -118,7 +118,7 @@
 
 @media (prefers-reduced-motion: no-preference) {
   .prompt {
-    animation: prompt-in 360ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+    animation: prompt-in var(--av-dur-base) var(--av-ease-enter) both;
   }
   @keyframes prompt-in {
     from {

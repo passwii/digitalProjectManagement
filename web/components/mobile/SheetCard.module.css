@@ -14,8 +14,8 @@
  text-align: left;
  text-decoration: none;
  transition:
-  border-color var(--motion-fast) var(--ease-console),
-  transform 90ms var(--ease-console);
+  border-color var(--av-dur-quick) var(--av-ease-standard),
+  transform var(--av-dur-instant) var(--av-ease-standard);
 }
 .card:hover {
  border-color: var(--line-blue);

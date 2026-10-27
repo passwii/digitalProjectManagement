@@ -27,7 +27,10 @@
   font-weight: 400;
   line-height: 1.3;
   text-align: left;
-  transition: border-color 140ms ease, box-shadow 140ms ease, background-color 140ms ease;
+  transition:
+    border-color var(--av-dur-quick) var(--av-ease-standard),
+    box-shadow var(--av-dur-quick) var(--av-ease-standard),
+    background-color var(--av-dur-quick) var(--av-ease-standard);
 }
 
 .label,
@@ -39,7 +42,7 @@
 }
 
 .label { flex: 1; }
-.chevron { flex: none; color: var(--select-muted); transition: transform 140ms ease; }
+.chevron { flex: none; color: var(--select-muted); transition: transform var(--av-dur-quick) var(--av-ease-standard); }
 .trigger[aria-expanded="true"] .chevron { transform: rotate(180deg); }
 .trigger:hover:not(:disabled) { border-color: var(--select-accent); }
 .trigger:focus-visible { border-color: var(--select-accent); outline: 2px solid var(--select-accent); outline-offset: 2px; box-shadow: 0 0 0 3px var(--select-active-bg); }

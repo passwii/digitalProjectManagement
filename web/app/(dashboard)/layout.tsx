@@ -4,6 +4,7 @@ import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "rea
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { m, useReducedMotion } from "framer-motion";
+import { AV_EASE, AV_MOTION } from "@/lib/av/motion";
 import { authApi, clearSession } from "@/lib/api";
 import { clearMetaCache, loadMe, useMe, useMenus } from "@/lib/useMeta";
 import { identityViewOf } from "@/lib/identityCore";
@@ -555,7 +556,7 @@ function DashboardShell({ children, modal }: { children: React.ReactNode; modal?
                     <m.span
                       layoutId="primary-nav-active"
                       className={s.navActive}
-                      transition={{ duration: reduced ? 0 : 0.2, ease: [0.2, 0.72, 0.2, 1] }}
+                      transition={{ duration: reduced ? 0 : AV_MOTION.quick, ease: AV_EASE.standard }}
                     />
                   )}
                 </Link>
@@ -591,7 +592,7 @@ function DashboardShell({ children, modal }: { children: React.ReactNode; modal?
               className={s.routeView}
               initial={reduced ? false : { opacity: 0, y: 4 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: reduced ? 0 : 0.22, ease: [0.2, 0.72, 0.2, 1] }}
+              transition={{ duration: reduced ? 0 : AV_MOTION.base, ease: AV_EASE.enter }}
             >
               {children}
             </m.div>

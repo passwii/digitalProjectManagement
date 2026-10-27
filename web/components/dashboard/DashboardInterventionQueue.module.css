@@ -14,8 +14,14 @@
   position: relative;
   min-width: 0;
   border-bottom: 1px solid var(--dash-line-soft);
-  animation: queueIn 620ms var(--ease-console) both;
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--queue-signal) 7%, transparent),
+    transparent 46%
+  );
+  animation: queueIn var(--av-dur-slow) var(--av-ease-enter) both;
   animation-delay: var(--queue-delay);
+  transition: background var(--av-dur-quick) var(--av-ease-standard);
 }
 
 .item:last-child { border-bottom: 0; }
@@ -24,7 +30,19 @@
 .danger { --queue-signal: var(--dash-alert); }
 .neutral { --queue-signal: var(--dash-muted); }
 
-.pin { display: none; }
+.pin {
+  position: absolute;
+  z-index: 1;
+  top: 11px;
+  bottom: 11px;
+  left: 0;
+  width: 2px;
+  background: var(--queue-signal);
+  box-shadow: 0 0 11px color-mix(in srgb, var(--queue-signal) 36%, transparent);
+  pointer-events: none;
+  animation: queuePinIn var(--av-dur-slow) var(--av-ease-enter) both;
+  animation-delay: var(--queue-delay);
+}
 
 .link {
   position: relative;
@@ -32,25 +50,34 @@
   grid-template-columns: minmax(0, 1fr) 18px;
   gap: 3px 12px;
   min-width: 0;
-  padding: 11px 18px 12px;
+  padding: 11px 18px 12px 20px;
   color: var(--dash-ink);
   text-decoration: none;
-  transition: color 180ms ease-out, background 180ms ease-out;
+  transition: color var(--av-dur-quick) var(--av-ease-standard), background var(--av-dur-quick) var(--av-ease-standard);
 }
 
 .link:hover,
 .link:focus-visible {
   color: var(--queue-signal);
-  background: var(--row-hover);
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--queue-signal) 11%, transparent), transparent 46%),
+    var(--row-hover);
   text-decoration: none;
 }
 
 .kind {
   grid-column: 1;
+  justify-self: start;
+  min-height: 22px;
+  padding: 3px 7px 0;
+  border: 1px solid color-mix(in srgb, var(--queue-signal) 34%, transparent);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--queue-signal) 9%, transparent);
   color: var(--queue-signal);
   font-family: var(--font-mono);
   font-size: 9px;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.1em;
+  line-height: 1.5;
 }
 
 .title {
@@ -80,9 +107,18 @@
   align-self: center;
   color: var(--queue-signal);
   opacity: 0.7;
+  transition:
+    opacity var(--av-dur-quick) var(--av-ease-standard),
+    transform var(--av-dur-quick) var(--av-ease-standard);
 }
 
 .arrow svg { width: 15px; height: 15px; stroke: currentColor; stroke-width: 1.3; }
+
+.link:hover .arrow,
+.link:focus-visible .arrow {
+  opacity: 1;
+  transform: translate(2px, -2px);
+}
 
 .expand {
   display: flex;
@@ -99,7 +135,7 @@
   font-family: var(--font-mono);
   font-size: 10px;
   text-align: left;
-  transition: color 160ms ease-out, background 160ms ease-out;
+  transition: color var(--av-dur-quick) var(--av-ease-standard), background var(--av-dur-quick) var(--av-ease-standard);
 }
 
 .expand:hover,
@@ -117,7 +153,7 @@
   border-right: 1px solid currentColor;
   border-bottom: 1px solid currentColor;
   transform: translateY(-2px) rotate(45deg);
-  transition: transform 160ms ease-out;
+  transition: transform var(--av-dur-quick) var(--av-ease-standard);
 }
 
 .expandIconOpen { transform: translateY(2px) rotate(225deg); }
@@ -147,9 +183,28 @@
   to { opacity: 1; clip-path: inset(0); }
 }
 
+@keyframes queuePinIn {
+  from {
+    opacity: 0;
+    transform: scaleY(0.2);
+  }
+  to {
+    opacity: 1;
+    transform: scaleY(1);
+  }
+}
+
+:global(:root[data-theme="light"]) .pin {
+  box-shadow: none;
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .item { animation: none; }
+  .item,
+  .pin { animation: none; }
   .link,
   .expand,
-  .expandIcon { transition: none; }
+  .expandIcon,
+  .arrow { transition: none; }
+  .link:hover .arrow,
+  .link:focus-visible .arrow { transform: none; }
 }

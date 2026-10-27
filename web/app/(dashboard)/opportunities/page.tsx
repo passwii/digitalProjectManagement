@@ -18,6 +18,7 @@ import PageHeader from "@/components/ui/PageHeader";
 import Select from "@/components/ui/Select";
 import MotionReveal from "@/components/motion/MotionReveal";
 import { useMenus } from "@/lib/useMeta";
+import { AV_STAGGER } from "@/lib/av/motion";
 
 const SIZE_OPTIONS = [15, 50, 100];
 const URL_DEFAULTS = { q: "", stage: "", page: "1", size: "15" };
@@ -206,7 +207,7 @@ function OpportunitiesInner() {
             />
           }
         >
-          <MotionReveal delay={0.08}>
+          <MotionReveal delay={AV_STAGGER.list * 2}>
             <CardList label="商机管理">
               {items.map((item) => (
                 <CardItem

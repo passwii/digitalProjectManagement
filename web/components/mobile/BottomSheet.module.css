@@ -1,7 +1,6 @@
 /* Dock 单档入口面板：固定位置，正文原生滚动；视觉令牌沿用控制台。 */
 .root {
  --m-sheet-top: max(42px, env(safe-area-inset-top, 0px));
- --m-sheet-motion: 260ms;
  position: fixed;
  inset: 0;
  z-index: 36;
@@ -14,7 +13,7 @@
  inset: 0;
  background: var(--overlay);
  opacity: 1;
- transition: opacity var(--m-sheet-motion) var(--ease-console);
+ transition: opacity var(--av-dur-base) var(--av-ease-standard);
 }
 .root[data-open="false"] .scrim { opacity: 0; }
 
@@ -31,8 +30,8 @@
  background: var(--card);
  border-radius: var(--m-sheet-r) var(--m-sheet-r) 0 0;
  box-shadow: 0 -12px 40px var(--dock-shadow);
- animation: sheet-in var(--m-sheet-motion) var(--ease-console);
- transition: transform var(--m-sheet-motion) var(--ease-console);
+ animation: sheet-in var(--av-dur-base) var(--av-ease-enter);
+ transition: transform var(--av-dur-base) var(--av-ease-standard);
 }
 .panel[data-open="false"] { transform: translateY(100%); }
 

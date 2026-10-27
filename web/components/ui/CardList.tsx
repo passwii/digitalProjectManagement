@@ -17,6 +17,7 @@
  */
 
 import { useEffect, type ReactNode } from "react";
+import { useReducedMotion } from "framer-motion";
 import s from "./CardList.module.css";
 import { DesktopTableFrame } from "./ListPageLayout";
 
@@ -142,6 +143,7 @@ export function DesktopTable({ children }: { children: ReactNode }) {
  * （桌面行为零回归），调用方在它之后再调这个即可。
  */
 export function useVisibleTargetScroll(target: number, ready: boolean) {
+ const reduced = useReducedMotion();
  useEffect(() => {
   if (!target || !ready) return;
   const cands = Array.from(
@@ -149,10 +151,10 @@ export function useVisibleTargetScroll(target: number, ready: boolean) {
   );
   const el = cands.find((e) => e.getClientRects().length > 0) ?? cands[0];
   if (!el) return;
-  el.scrollIntoView({ block: "center", behavior: "smooth" });
+  el.scrollIntoView({ block: "center", behavior: reduced ? "auto" : "smooth" });
   // 行本身不可聚焦，交给其中的操作按钮（与 useTargetScroll 同口径）
   el
    .querySelector<HTMLElement>("button, a, input, select")
    ?.focus({ preventScroll: true });
- }, [target, ready]);
+ }, [target, ready, reduced]);
 }

@@ -1,7 +1,7 @@
 /*
  * 样式化日期组件。
  *
- * 全部颜色走 `var(--x)` token —— 浅色主题只覆盖颜色、不覆盖 `--radius` / `--motion`，
+ * 全部颜色走 `var(--x)` token —— 浅色主题只覆盖颜色、不覆盖 `--radius` / motion tokens，
  * 所以这里只写一套几何，深浅模式自动成立，**不要写 [data-theme] 分支**。
  * 弹层的定位、`z-index: 45`、月份导航条底色刻意与 ProjectPicker 保持一致，
  * 两类弹层叠放时观感统一。
@@ -76,7 +76,7 @@
 .triggerInvalid { border-color: var(--danger); }
 .triggerInvalid:focus-visible {
   border-color: var(--danger);
-  box-shadow: 0 0 0 3px rgba(181, 60, 53, 0.12);
+  box-shadow: 0 0 0 3px var(--danger-bg);
 }
 
 /* ---------- 弹层 ---------- */
@@ -101,7 +101,7 @@
      overscroll-behavior: contain 阻止滚动链传到正文/页面。 */
   overflow: auto;
   overscroll-behavior: contain;
-  animation: popIn var(--motion) var(--ease-console);
+  animation: popIn var(--av-dur-quick) var(--av-ease-enter);
 }
 .popMonth { width: min(260px, 90vw); }
 /* 上方空间更宽裕时翻到触发器正上方（由 usePopoverPlacement 计算 placement）。

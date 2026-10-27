@@ -2,6 +2,7 @@
 // 轻量 Toast：ToastProvider + useToast()。右上角堆叠，4s 自动消失。
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
+import { AV_EASE, AV_MOTION } from "@/lib/av/motion";
 import st from "./Toast.module.css";
 
 export type ToastKind = "ok" | "err" | "info";
@@ -57,7 +58,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
               initial={reduced ? false : { opacity: 0, y: -6, scale: 0.99 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={reduced ? { opacity: 1 } : { opacity: 0, y: -4, scale: 0.99 }}
-              transition={{ duration: reduced ? 0 : 0.18 }}
+              transition={{ duration: reduced ? 0 : AV_MOTION.quick, ease: AV_EASE.enter }}
             >
               <span className={st.icon} aria-hidden>
                 {t.kind === "ok" ? "✓" : t.kind === "err" ? "!" : "i"}

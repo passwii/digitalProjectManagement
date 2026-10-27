@@ -3,6 +3,7 @@
 import { AnimatePresence, m, useReducedMotion } from "framer-motion";
 import { useId, useRef, type KeyboardEvent } from "react";
 import Select from "@/components/ui/Select";
+import { AV_EASE, AV_MOTION } from "@/lib/av/motion";
 import s from "./MotionTabs.module.css";
 
 interface Item<T extends string> {
@@ -71,6 +72,7 @@ export default function MotionTabs<T extends string>({
             {active === item.id && !reduced && (
               <m.span
                 layoutId={`tab-${layoutId}`}
+                transition={{ duration: AV_MOTION.quick, ease: AV_EASE.standard }}
                 style={{ position: "absolute", left: 12, right: 12, bottom: -1, height: 2, background: "var(--brand)" }}
               />
             )}
@@ -87,7 +89,7 @@ export default function MotionTabs<T extends string>({
           initial={reduced ? false : { opacity: 0, y: panelOffset }}
           animate={{ opacity: 1, y: 0 }}
           exit={reduced ? { opacity: 1 } : { opacity: 0 }}
-          transition={{ duration: reduced ? 0 : 0.16 }}
+          transition={{ duration: reduced ? 0 : AV_MOTION.quick, ease: AV_EASE.standard }}
         >
           {children}
         </m.div>

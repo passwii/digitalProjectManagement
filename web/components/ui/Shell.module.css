@@ -31,7 +31,7 @@
   color: var(--nav-ink);
   background: var(--nav-bg);
   border-right: 1px solid var(--nav-border);
-  transition: width 240ms cubic-bezier(0.16, 1, 0.3, 1), flex-basis 240ms cubic-bezier(0.16, 1, 0.3, 1);
+  transition: width var(--av-dur-base) var(--av-ease-enter), flex-basis var(--av-dur-base) var(--av-ease-enter);
 }
 .collapsed .sidebar { width: var(--sidebar-width); flex-basis: var(--sidebar-width); }
 
@@ -159,7 +159,10 @@
   color: var(--nav-muted);
   font-size: 13px;
   font-weight: 500;
-  transition: color 140ms ease, background 140ms ease, transform 90ms ease;
+  transition:
+    color var(--av-dur-quick) var(--av-ease-standard),
+    background var(--av-dur-quick) var(--av-ease-standard),
+    transform var(--av-dur-instant) var(--av-ease-standard);
 }
 .navLink > svg,
 .navLink > .label {
@@ -247,7 +250,11 @@
   color: var(--nav-muted);
   background: transparent;
   cursor: pointer;
-  transition: color 140ms ease, background-color 140ms ease, border-color 140ms ease, transform 100ms ease;
+  transition:
+    color var(--av-dur-quick) var(--av-ease-standard),
+    background-color var(--av-dur-quick) var(--av-ease-standard),
+    border-color var(--av-dur-quick) var(--av-ease-standard),
+    transform var(--av-dur-instant) var(--av-ease-standard);
 }
 .collapseBtn svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
 .collapseBtn:hover { color: var(--nav-ink); background: var(--nav-hover-bg); border-color: var(--nav-border); }
@@ -259,7 +266,7 @@
   margin-left: var(--sidebar-width);
   display: flex;
   flex-direction: column;
-  transition: margin-left 240ms cubic-bezier(0.16, 1, 0.3, 1);
+  transition: margin-left var(--av-dur-base) var(--av-ease-enter);
 }
 
 /* 所有已登录路由继承 Login / Dashboard 的控制环境。 */
@@ -444,7 +451,7 @@
   height: 30px;
   border-radius: 50%;
   background: var(--line-soft);
-  animation: identityPulse 1.2s ease-in-out infinite;
+  animation: identityPulse var(--av-dur-shimmer) var(--av-ease-standard) infinite;
 }
 .userChip .nameSkel {
   display: block;
@@ -452,7 +459,7 @@
   height: 12px;
   border-radius: 4px;
   background: var(--line-soft);
-  animation: identityPulse 1.2s ease-in-out infinite;
+  animation: identityPulse var(--av-dur-shimmer) var(--av-ease-standard) infinite;
 }
 @keyframes identityPulse {
   0%, 100% { opacity: .55; }
@@ -476,7 +483,7 @@
   border: 1px solid var(--line);
   border-radius: var(--radius);
   box-shadow: var(--shadow-float);
-  animation: userMenuIn 120ms ease-out;
+  animation: userMenuIn var(--av-dur-quick) var(--av-ease-enter);
 }
 .userMenuItem {
   display: flex;
@@ -608,7 +615,7 @@
   /* 标签显隐已回到 display 切换（无过渡），这里只需压掉剩下的宽度/位移过渡 */
   .shell[data-console-shell="true"] .sidebar,
   .shell[data-console-shell="true"] .main,
-  .shell[data-console-shell="true"] .collapseBtn { transition-duration: 1ms; }
+  .shell[data-console-shell="true"] .collapseBtn { transition: none; }
 }
 @media (max-width: 520px) {
   .brandText b { font-size: 15px; }

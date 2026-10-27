@@ -378,23 +378,29 @@ function AdminInner() {
                 <table className="grid" aria-busy={logs.loading}>
                   <thead><tr><th>时间</th><th>操作人</th><th>动作</th><th>对象</th><th>详情</th><th>IP</th></tr></thead>
                   <tbody>
-                    {logItems.map((l) => (
-                      <tr key={l.id} className="clickable-row" onClick={() => setLogDetail(l)}>
-                        <td className="mono tiny">{fmtDateTime(l.created_at)}</td>
-                        <td>{l.operator_name}</td>
-                        <td className="tiny">{auditActionLabel(l.action, l.resource)}</td>
-                        <td className="tiny">{auditResourceDisplay(l.resource, l.resource_id)}</td>
-                        <td>
-                          <span
-                            className="ellipsis"
-                            title={auditDetailLabel(l.action, l.resource, l.detail)}
-                          >
-                            {auditDetailLabel(l.action, l.resource, l.detail)}
-                          </span>
-                        </td>
-                        <td className="mono tiny">{l.ip || "-"}</td>
-                      </tr>
-                    ))}
+                    {logItems.map((l) => {
+                      const detail = auditDetailLabel(l.action, l.resource, l.detail);
+                      return (
+                        <tr key={l.id} className="clickable-row" onClick={() => setLogDetail(l)}>
+                          <td className="mono tiny">{fmtDateTime(l.created_at)}</td>
+                          <td>{l.operator_name}</td>
+                          <td className="tiny">{auditActionLabel(l.action, l.resource)}</td>
+                          <td className="tiny">{auditResourceDisplay(l.resource, l.resource_id)}</td>
+                          <td>
+                            <button
+                              type="button"
+                              className="linklike ellipsis"
+                              title={detail}
+                              aria-label={`查看日志详情：${detail}`}
+                              onClick={(event) => { event.stopPropagation(); setLogDetail(l); }}
+                            >
+                              {detail}
+                            </button>
+                          </td>
+                          <td className="mono tiny">{l.ip || "-"}</td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </DesktopTable>

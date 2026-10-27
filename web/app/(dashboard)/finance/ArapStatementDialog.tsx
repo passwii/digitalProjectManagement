@@ -6,6 +6,7 @@ import { Dialog } from "@/components/ui/Modal";
 import Select from "@/components/ui/Select";
 import { financeApi, errText, type FinanceAccount, type FinanceARAPStatement, type FinanceAuxiliaryItem } from "@/lib/api";
 import type { ArapDocumentKind } from "./ArapDialogs";
+import fm from "./finance.module.css";
 
 function localDate(): string {
   const now = new Date();
@@ -182,7 +183,7 @@ export default function ArapStatementDialog({
             <div className="card"><p className="tiny muted">所选日期范围内没有已过账往来流水。</p></div>
           ) : (
             <div className="table-scroll">
-              <table className="grid">
+              <table className={`grid ${fm.scrollTable} ${fm.arapStatementTable}`}>
                 <thead><tr><th>日期</th><th>凭证号</th><th>业务</th><th>摘要</th><th>方向</th><th className="num">金额</th><th className="num">余额</th><th>状态</th></tr></thead>
                 <tbody>
                   {statement.items.map((item, index) => (

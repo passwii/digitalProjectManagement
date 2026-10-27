@@ -49,7 +49,7 @@
   border-radius: var(--radius-sm);
   background: var(--brand-soft);
   transform: translateX(calc(var(--active-index) * (100% + 4px)));
-  transition: transform 460ms var(--ease-console);
+  transition: transform 460ms var(--av-ease-standard);
 }
 
 /*
@@ -79,7 +79,7 @@
   transition-property: transform, background-color, border-color;
   transition-duration: 460ms, var(--motion-theme, 680ms), var(--motion-theme, 680ms);
   transition-timing-function:
-    var(--ease-console), cubic-bezier(.22, .61, .36, 1), cubic-bezier(.22, .61, .36, 1);
+    var(--av-ease-standard), cubic-bezier(.22, .61, .36, 1), cubic-bezier(.22, .61, .36, 1);
   transition-delay: 0s;
 }
 
@@ -127,7 +127,7 @@
 
 /* 换挡时图标轻转进来，比只换颜色更像「切过去了」 */
 .option.selected .icon {
-  animation: picker-icon-in 520ms var(--ease-console) both;
+  animation: picker-icon-in var(--av-dur-slow) var(--av-ease-standard) both;
 }
 
 .dot {
@@ -140,7 +140,7 @@
   background: currentColor;
   box-shadow: 0 0 8px currentColor;
   /* 圆点只在选中时挂载，所以每次换挡都会重新播一次 */
-  animation: picker-dot-in 520ms var(--ease-console) both;
+  animation: picker-dot-in var(--av-dur-slow) var(--av-ease-standard) both;
 }
 
 /* 选中项外圈的一抹柔光：扩散出去就消失，不留下常驻描边 */
@@ -152,7 +152,7 @@
   border-radius: var(--radius-sm);
   opacity: 0;
   pointer-events: none;
-  animation: picker-ring 620ms var(--ease-console);
+  animation: picker-ring var(--av-dur-slow) var(--av-ease-standard);
 }
 
 @keyframes picker-icon-in {

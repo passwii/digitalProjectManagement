@@ -13,11 +13,13 @@ describe("DashboardReadout", () => {
         value={3}
         detail="我负责 1 项"
         tone="danger"
+        accent="coral"
       />,
     );
 
     const readout = screen.getByTestId("dashboard-readout");
     expect(readout.getAttribute("data-tone")).toBe("danger");
+    expect(readout.getAttribute("data-accent")).toBe("coral");
     expect(readout.getAttribute("aria-label")).toBe("逾期任务");
     expect(readout.textContent).toContain("逾期任务");
     expect(readout.textContent).toContain("我负责 1 项");
@@ -36,6 +38,7 @@ describe("DashboardReadout", () => {
 
     const readout = screen.getByTestId("dashboard-readout");
     expect(readout.getAttribute("data-tone")).toBe("neutral");
+    expect(readout.getAttribute("data-accent")).toBe("cyan");
     await waitFor(() => expect(readout.textContent).toContain("¥12,800"));
   });
 });

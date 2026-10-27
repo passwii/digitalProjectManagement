@@ -10,6 +10,7 @@ import {
   ListViewport,
 } from "@/components/ui/ListPageLayout";
 import MotionReveal from "@/components/motion/MotionReveal";
+import { AV_STAGGER } from "@/lib/av/motion";
 import {
   CONTRACT_STATUS,
   fmtMoney,
@@ -66,7 +67,7 @@ export function ProjectsListContent({
         />
       }
     >
-      <MotionReveal delay={0.08}>
+      <MotionReveal delay={AV_STAGGER.list * 2}>
         <CardList label="项目台账">
           {items.map((p) => (
             <CardItem

@@ -22,6 +22,8 @@ import {
   fmtDate,
   fmtDateTime,
   fmtMoney,
+  projectStatusLabel,
+  projectTone,
   projectChangeFieldLabel,
   projectChangeValueLabel,
 } from "@/lib/labels";
@@ -522,6 +524,7 @@ function ProjectDetail({ pid }: { pid: number }) {
           <h1 className="sr-only">{project.name}</h1>
           <div className="project-meta">
             <span className="mono">{project.code}</span>
+            <Badge status={projectStatusLabel(project.status)} tone={projectTone(project.status)} />
             <span>负责人：{owner || "-"}</span>
             <span>客户：{project.client || "-"}</span>
             <span>合同：{project.contract_status ? contractStatusLabel(project.contract_status) : "未登记"}</span>

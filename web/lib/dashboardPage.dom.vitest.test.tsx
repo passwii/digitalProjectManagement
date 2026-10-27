@@ -37,18 +37,22 @@ vi.mock("@/lib/api", async () => {
 
 vi.mock("recharts", () => {
   const Box = ({ children }: { children?: ReactNode }) => <div>{children}</div>;
+  const Svg = ({ children }: { children?: ReactNode }) => <svg>{children}</svg>;
+  const SvgGroup = ({ children }: { children?: ReactNode }) => <g>{children}</g>;
   return {
-    CartesianGrid: Box,
+    Area: SvgGroup,
+    AreaChart: Svg,
+    CartesianGrid: SvgGroup,
     Cell: Box,
     Legend: Box,
-    Line: Box,
-    LineChart: Box,
+    Line: SvgGroup,
+    LineChart: Svg,
     Pie: Box,
     PieChart: Box,
     ResponsiveContainer: Box,
-    Tooltip: Box,
-    XAxis: Box,
-    YAxis: Box,
+    Tooltip: SvgGroup,
+    XAxis: SvgGroup,
+    YAxis: SvgGroup,
   };
 });
 
@@ -144,6 +148,9 @@ describe("DashboardPage 刷新状态", () => {
     expect(readouts.getAttribute("aria-label")).toBe("工作台关键指标");
     expect(within(readouts).queryByRole("heading", { name: "当前工作态势" })).toBeNull();
     expect(readouts.querySelectorAll('[data-testid="dashboard-readout"]')).toHaveLength(4);
+    expect(
+      Array.from(readouts.querySelectorAll("[data-dashboard-readout]")).map((node) => node.getAttribute("data-accent")),
+    ).toEqual(["cyan", "coral", "amber", "blue"]);
     expect(screen.getByTestId("dashboard-zone-routes")).not.toBeNull();
     expect(screen.getByTestId("dashboard-zone-interventions")).not.toBeNull();
     expect(screen.getByTestId("dashboard-zone-pulse")).not.toBeNull();

@@ -4,16 +4,60 @@
   display: grid;
   grid-template-rows: auto auto 1fr;
   min-width: 0;
-  min-height: 132px;
-  padding: 16px 18px;
+  min-height: 138px;
+  overflow: hidden;
+  padding: 17px 18px 16px;
   border: 1px solid var(--dash-line-soft);
-  background: var(--dash-surface);
+  background:
+    linear-gradient(138deg, color-mix(in srgb, var(--readout-signal) 9%, transparent), transparent 55%),
+    var(--dash-surface);
+  animation: readoutIn var(--av-dur-slow) var(--av-ease-enter) both;
+  transition:
+    border-color var(--av-dur-quick) var(--av-ease-standard),
+    background var(--av-dur-quick) var(--av-ease-standard),
+    transform var(--av-dur-quick) var(--av-ease-standard);
+}
+
+.readout::before {
+  position: absolute;
+  top: -1px;
+  right: -1px;
+  left: -1px;
+  height: 2px;
+  content: "";
+  background: linear-gradient(
+    90deg,
+    var(--readout-signal),
+    color-mix(in srgb, var(--readout-signal) 24%, transparent) 52%,
+    transparent
+  );
+  transform-origin: left center;
+  animation: readoutSignalIn var(--av-dur-slow) var(--av-ease-enter) both;
+}
+
+.readout:nth-child(2) { animation-delay: var(--av-stagger-list); }
+.readout:nth-child(3) { animation-delay: calc(var(--av-stagger-list) + var(--av-stagger-list)); }
+.readout:nth-child(4) { animation-delay: calc(var(--av-stagger-list) + var(--av-stagger-list) + var(--av-stagger-list)); }
+
+.readout:hover {
+  border-color: color-mix(in srgb, var(--readout-signal) 44%, var(--dash-line));
+  background:
+    linear-gradient(138deg, color-mix(in srgb, var(--readout-signal) 13%, transparent), transparent 58%),
+    var(--dash-surface);
+  transform: translateY(-1px);
 }
 
 .neutral { --readout-signal: var(--dash-cyan); }
 .warn { --readout-signal: var(--dash-amber); }
 .danger { --readout-signal: var(--dash-alert); }
 .done { --readout-signal: var(--done); }
+
+.readout[data-accent="cyan"] { --readout-signal: var(--dash-cyan); }
+.readout[data-accent="blue"] { --readout-signal: var(--dash-blue); }
+.readout[data-accent="violet"] { --readout-signal: var(--dash-violet); }
+.readout[data-accent="amber"] { --readout-signal: var(--dash-amber); }
+.readout[data-accent="coral"] { --readout-signal: var(--dash-alert); }
+.readout[data-accent="green"] { --readout-signal: var(--dash-data-green); }
 
 .head {
   display: flex;
@@ -31,22 +75,34 @@
 }
 
 .signal {
-  width: 6px;
-  height: 6px;
+  position: relative;
+  width: 7px;
+  height: 7px;
   flex: none;
+  border: 1px solid color-mix(in srgb, var(--readout-signal) 64%, transparent);
   border-radius: 50%;
-  background: var(--readout-signal);
+  background: color-mix(in srgb, var(--readout-signal) 22%, var(--dash-surface));
+  box-shadow: 0 0 12px color-mix(in srgb, var(--readout-signal) 50%, transparent);
+}
+
+.signal::after {
+  position: absolute;
+  inset: -4px;
+  border: 1px solid color-mix(in srgb, var(--readout-signal) 30%, transparent);
+  border-radius: inherit;
+  content: "";
+  animation: readoutHaloIn var(--av-dur-slow) var(--av-ease-enter) both;
 }
 
 .value {
   min-width: 0;
   margin-top: 12px;
   overflow: hidden;
-  color: var(--dash-ink);
-  font-size: clamp(28px, 2.2vw, 38px);
-  font-weight: 700;
+  color: var(--readout-signal);
+  font-size: clamp(30px, 2.35vw, 40px);
+  font-weight: 760;
   line-height: 1.05;
-  letter-spacing: -0.025em;
+  letter-spacing: -0.035em;
   font-variant-numeric: tabular-nums;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -64,14 +120,60 @@
 }
 
 .detail :global(.mono) {
-  color: var(--dash-ink);
+  color: color-mix(in srgb, var(--readout-signal) 78%, var(--dash-ink));
   font-family: var(--font-mono);
+  font-weight: 700;
+}
+
+:global(:root[data-theme="light"]) .signal {
+  box-shadow: none;
+}
+
+:global(:root[data-theme="light"]) .signal::after {
+  border-color: color-mix(in srgb, var(--readout-signal) 22%, transparent);
+}
+
+@keyframes readoutIn {
+  from {
+    opacity: 0;
+    clip-path: inset(0 0 14px);
+  }
+  to {
+    opacity: 1;
+    clip-path: inset(0);
+  }
+}
+
+@keyframes readoutSignalIn {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+
+@keyframes readoutHaloIn {
+  from {
+    opacity: 0;
+    transform: scale(0.45);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
 }
 
 @media (max-width: 640px) {
   .readout {
-    min-height: 118px;
+    min-height: 122px;
     padding: 14px 16px;
   }
-  .value { font-size: 30px; }
+  .value { font-size: 32px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .readout,
+  .readout::before,
+  .signal::after {
+    animation: none;
+  }
+  .readout { transition: none; }
+  .readout:hover { transform: none; }
 }

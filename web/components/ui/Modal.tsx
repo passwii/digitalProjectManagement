@@ -11,6 +11,7 @@ import {
   useState,
 } from "react";
 import { AnimatePresence, m, useReducedMotion } from "framer-motion";
+import { AV_EASE, AV_MOTION } from "@/lib/av/motion";
 import {
   MODAL_BODY_ATTR,
   MODAL_CLOSE_ATTR,
@@ -297,7 +298,7 @@ export function Dialog({
           initial={reduced ? false : { opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          transition={{ duration: reduced ? 0 : 0.12 }}
+          transition={{ duration: reduced ? 0 : AV_MOTION.quick, ease: AV_EASE.standard }}
           onPointerDownCapture={(event) => {
             if (!openRef.current) {
               event.preventDefault();
@@ -318,7 +319,7 @@ export function Dialog({
             initial={reduced ? false : { opacity: 0, y: 6, scale: 0.995 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={reduced ? { opacity: 1 } : { opacity: 0, y: 4, scale: 0.995 }}
-            transition={{ duration: reduced ? 0 : 0.18 }}
+            transition={{ duration: reduced ? 0 : AV_MOTION.base, ease: AV_EASE.enter }}
             onMouseDown={(e) => e.stopPropagation()}
           >
             <header className={st.head}>
@@ -406,7 +407,7 @@ export function Drawer({
           initial={reduced ? false : { opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          transition={{ duration: reduced ? 0 : 0.12 }}
+          transition={{ duration: reduced ? 0 : AV_MOTION.quick, ease: AV_EASE.standard }}
           onPointerDownCapture={(event) => {
             if (!openRef.current) {
               event.preventDefault();
@@ -428,7 +429,7 @@ export function Drawer({
             initial={reduced ? false : { x: 16, opacity: 0.6 }}
             animate={{ x: 0, opacity: 1 }}
             exit={reduced ? { opacity: 1 } : { x: 16, opacity: 0 }}
-            transition={{ duration: reduced ? 0 : 0.18 }}
+            transition={{ duration: reduced ? 0 : AV_MOTION.base, ease: AV_EASE.enter }}
             onMouseDown={(e) => e.stopPropagation()}
           >
             <header className={st.head}>
@@ -521,7 +522,7 @@ export function Confirm({
           initial={reduced ? false : { opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          transition={{ duration: reduced ? 0 : 0.12 }}
+          transition={{ duration: reduced ? 0 : AV_MOTION.quick, ease: AV_EASE.standard }}
           onPointerDownCapture={(event) => {
             if (!openRef.current) {
               event.preventDefault();
@@ -542,7 +543,7 @@ export function Confirm({
             initial={reduced ? false : { opacity: 0, y: 6, scale: 0.995 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={reduced ? { opacity: 1 } : { opacity: 0, y: 4, scale: 0.995 }}
-            transition={{ duration: reduced ? 0 : 0.18 }}
+            transition={{ duration: reduced ? 0 : AV_MOTION.base, ease: AV_EASE.enter }}
             onMouseDown={(e) => e.stopPropagation()}
           >
             <header className={st.head}>

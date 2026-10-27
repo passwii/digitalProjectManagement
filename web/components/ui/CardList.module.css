@@ -58,6 +58,14 @@
 
 .card.clickable {
  cursor: pointer;
+ transition:
+  border-color var(--av-dur-quick) var(--av-ease-standard),
+  background-color var(--av-dur-quick) var(--av-ease-standard);
+}
+
+.card.clickable:hover {
+ border-color: var(--line-blue);
+ background: var(--brand-soft);
 }
 
 /* 定位命中（表格 row-target 的卡片形态）：同 --brand-soft 高亮口径 */
@@ -134,7 +142,7 @@
 .frow dt {
  flex: none;
  font-size: 12px;
- color: var(--ink-3);
+ color: var(--ink-2);
 }
 
 .frow dd {

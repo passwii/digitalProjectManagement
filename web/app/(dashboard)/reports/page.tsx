@@ -21,6 +21,7 @@ import ProgressBar from "@/components/ui/ProgressBar";
 import CountUp from "@/components/motion/CountUp";
 import MotionReveal from "@/components/motion/MotionReveal";
 import { useActivity } from "@/lib/useActivity";
+import { AV_STAGGER } from "@/lib/av/motion";
 
 type View = "detail" | "summary";
 
@@ -174,7 +175,7 @@ function ReportsInner() {
               <button
                 type="button"
                 className="btn-ghost"
-                style={{ height: 32, width: "auto" }}
+                style={{ width: "auto" }}
                 onClick={() => setUrl({ project_id: "", dept: "", subject: "", month: "" })}
               >
                 清除筛选
@@ -287,7 +288,7 @@ function ReportsInner() {
           )}
         </MotionReveal>
       ) : (
-        <MotionReveal className="split" delay={0.04}>
+        <MotionReveal className="split" delay={AV_STAGGER.list}>
           <div>
             <h2 className="section-title">按人员汇总</h2>
             {firstLoad ? (

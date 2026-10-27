@@ -22,6 +22,7 @@ import { useActivity } from "@/lib/useActivity";
 import { isAbortError } from "@/lib/useAsyncData";
 import { linkAbortSignal, refreshAbortMessage, useRegisterPageRefresh } from "@/lib/pageRefresh";
 import { CardItem, CardList, DesktopTable, useVisibleTargetScroll } from "@/components/ui/CardList";
+import { AV_STAGGER } from "@/lib/av/motion";
 
 type Decision = {
   kind: string;
@@ -194,7 +195,7 @@ function ApprovalsInner() {
 
       {err && <div className="err-banner" role="alert">{err}</div>}
       {notice && (
-        <div className="warn-banner" role="status" style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+        <div className="card" role="status" style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap", padding: "8px 12px", marginBottom: 12 }}>
           <span style={{ flex: 1, minWidth: 200 }}>{notice}</span>
           <button type="button" className="btn-ghost" onClick={() => setNotice("")}>关闭</button>
         </div>
@@ -361,7 +362,7 @@ function ApprovalsInner() {
           )}
 
           {(d?.budget_adjusts.length ?? 0) > 0 && (
-            <MotionReveal delay={0.04}>
+            <MotionReveal delay={AV_STAGGER.list}>
               <h2 className="section-title">预算调整</h2>
               {/* D4：手机端卡片流 —— 同一份数据，纯 CSS 在 767px 与下表切换（见 CardList） */}
               <CardList label="预算调整">
@@ -481,7 +482,7 @@ function ApprovalsInner() {
           )}
 
           {(d?.expenses.length ?? 0) > 0 && (
-            <MotionReveal delay={0.08}>
+            <MotionReveal delay={AV_STAGGER.list * 2}>
               <h2 className="section-title">支出审批</h2>
               {/* D4：手机端卡片流 —— 同一份数据，纯 CSS 在 767px 与下表切换（见 CardList） */}
               <CardList label="支出审批">

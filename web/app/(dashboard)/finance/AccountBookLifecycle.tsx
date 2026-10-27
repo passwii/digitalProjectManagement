@@ -7,6 +7,7 @@ import { LoadFailed } from "@/components/ui/PageState";
 import { useToast } from "@/components/ui/Toast";
 import { errText, financeApi, type FinanceBook, type FinanceDeletedBook } from "@/lib/api";
 import { useAsyncData } from "@/lib/useAsyncData";
+import fm from "./finance.module.css";
 
 export function MoveBookToRecycleBinDialog({
   open,
@@ -143,7 +144,7 @@ export function AccountBookRecycleBinDialog({
       <p className="tiny muted">拥有财务管理模块的用户可查看并恢复账套。恢复后，账套及其业务数据会重新开放；账套成员记录仅作为历史数据保留，不参与权限判断。</p>
       {books.firstLoad ? <p className="muted">正在加载回收站…</p> : books.error ? <LoadFailed message={books.error} onRetry={books.reload} /> : !books.data?.length ? <Empty title="回收站为空" hint="移入回收站的账套会保留在这里，拥有财务管理模块的用户可以恢复。" /> : (
         <div className="table-scroll">
-          <table className="grid">
+          <table className={`grid ${fm.scrollTable} ${fm.recycleBinTable}`}>
             <thead><tr><th>账套名称</th><th>编码</th><th>状态</th><th>移入时间</th><th>操作</th></tr></thead>
             <tbody>{books.data.map((book) => (
               <tr key={book.id}>

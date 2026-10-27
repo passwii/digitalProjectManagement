@@ -159,10 +159,10 @@ function AssetsInner() {
 function Overview({ overview, stats, categories, onSection, onBorrow, onPending }: { overview: { total: number; by_status: Record<string, number>; overdue: number }; stats: EquipmentStatistics; categories: EquipmentCategory[]; onSection: (s: Section) => void; onBorrow: () => void; onPending: () => void }) {
   return <>
     <div className="asset-kpis">
-      <button type="button" onClick={() => onSection("ledger")}><span>实物总数</span><b>{overview.total}</b></button>
-      <button type="button" onClick={() => onSection("ledger")}><span>可用实物</span><b>{overview.by_status.available ?? 0}</b></button>
-      <button type="button" onClick={onPending}><span>待验收</span><b>{overview.by_status.pending_acceptance ?? 0}</b></button>
-      <button type="button" onClick={onBorrow}><span>逾期借用</span><b className={overview.overdue ? "alert" : ""}>{overview.overdue}</b></button>
+      <button type="button" data-tone="signal" onClick={() => onSection("ledger")}><span>实物总数</span><b>{overview.total}</b></button>
+      <button type="button" data-tone="done" onClick={() => onSection("ledger")}><span>可用实物</span><b>{overview.by_status.available ?? 0}</b></button>
+      <button type="button" data-tone="warn" onClick={onPending}><span>待验收</span><b>{overview.by_status.pending_acceptance ?? 0}</b></button>
+      <button type="button" data-tone={overview.overdue ? "danger" : "done"} onClick={onBorrow}><span>逾期借用</span><b>{overview.overdue}</b></button>
     </div>
     <p className="asset-count-note">总览、分类与状态按实物数量统计；台账分页总数按入库记录数统计。</p>
     <section className="asset-panel">
@@ -170,7 +170,7 @@ function Overview({ overview, stats, categories, onSection, onBorrow, onPending 
         <div><h2>设备状态</h2></div>
       </div>
       <div className="asset-status-grid">
-        {Object.entries(STATUS).map(([key, label]) => <div key={key}><span>{label}</span><b>{overview.by_status[key] ?? 0}</b></div>)}
+        {Object.entries(STATUS).map(([key, label]) => <div key={key} className={`asset-status-metric ${key}`}><span>{label}</span><b>{overview.by_status[key] ?? 0}</b></div>)}
       </div>
       <div className="asset-panel-heading asset-category-heading"><div><h3>分类分布</h3></div></div>
       {stats.by_category.length ? <div className="asset-status-grid">

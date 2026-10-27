@@ -1,7 +1,7 @@
 .avatar {
   display: inline-flex; align-items: center; justify-content: center;
   border-radius: 50%; color: var(--on-brand); font-weight: 600; flex: 0 0 auto;
-  transition: transform 120ms ease-out;
+  transition: transform var(--av-dur-instant) var(--av-ease-standard);
 }
 .a0 { background: var(--avatar-1); }
 .a1 { background: var(--avatar-2); }
