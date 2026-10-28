@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 import Link from "next/link";
 import { useReducedMotion } from "framer-motion";
+import { avDurationMs } from "@/lib/av/motion";
 import {
   Area,
   AreaChart,
@@ -105,6 +106,7 @@ export default function DashboardPage() {
   const { canApprove } = useMenus();
   const { beginActivity } = useActivity();
   const reduced = useReducedMotion();
+  const chartAnimationMs = avDurationMs("slow", { reduced: Boolean(reduced), frozen: false });
   const [data, setData] = useState<DashboardSummary | null>(null);
   const [weekly, setWeekly] = useState<Weekly | null>(null);
   const [err, setErr] = useState("");
@@ -249,7 +251,7 @@ export default function DashboardPage() {
               <DashboardReadout
                 label="未读通知"
                 value={k.unread_notifications}
-                tone={k.unread_notifications > 0 ? "warn" : "neutral"}
+                tone="neutral"
                 detail="审批结果会通过通知告知您"
                 accent={k.unread_notifications > 0 ? "violet" : "blue"}
               />
@@ -320,10 +322,10 @@ export default function DashboardPage() {
                         dataKey="spent"
                         stroke="none"
                         fill="url(#dashboard-spend-field)"
-                        isAnimationActive={!reduced}
-                        animationDuration={620}
+                        isAnimationActive={chartAnimationMs > 0}
+                        animationDuration={chartAnimationMs}
                       />
-                      <Line type="monotone" dataKey="spent" stroke="var(--brand)" strokeWidth={2} dot={{ r: 3, fill: "var(--bg)", stroke: "var(--brand)", strokeWidth: 1.5 }} activeDot={{ r: 5, fill: "var(--action)", stroke: "var(--bg)", strokeWidth: 2 }} name="支出" isAnimationActive={!reduced} animationDuration={620} />
+                      <Line type="monotone" dataKey="spent" stroke="var(--brand)" strokeWidth={2} dot={{ r: 3, fill: "var(--bg)", stroke: "var(--brand)", strokeWidth: 1.5 }} activeDot={{ r: 5, fill: "var(--action)", stroke: "var(--bg)", strokeWidth: 2 }} name="支出" isAnimationActive={chartAnimationMs > 0} animationDuration={chartAnimationMs} />
                     </AreaChart>
                   </ResponsiveContainer>
                 </div>
