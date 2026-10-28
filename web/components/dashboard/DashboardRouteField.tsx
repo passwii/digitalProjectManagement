@@ -2,6 +2,7 @@ import type { CSSProperties } from "react";
 import { useState } from "react";
 import Link from "next/link";
 import type { HealthRow } from "@/lib/api";
+import { avStaggerSeconds } from "@/lib/av/motion";
 import { HEALTH_LABEL } from "@/lib/kpi";
 import { fmtDate, fmtPct, projectStatusLabel } from "@/lib/labels";
 import Empty from "@/components/ui/Empty";
@@ -45,7 +46,7 @@ export default function DashboardRouteField({ health }: { health: HealthRow[] })
               className={`${s.route} ${toneClass[row.health]}`}
               data-dashboard-route="true"
               data-health={row.health}
-              style={{ "--route-delay": `${index * 55}ms` } as CSSProperties}
+              style={{ "--route-delay": `${avStaggerSeconds(index, visibleHealth.length)}s` } as CSSProperties}
             >
               <span className={s.routePin} aria-hidden="true" />
               <div className={s.routeBody}>
@@ -64,7 +65,10 @@ export default function DashboardRouteField({ health }: { health: HealthRow[] })
 
                 <div className={s.trackLine} aria-label={`${row.name} 加权进度 ${progress}%`}>
                   <span className={s.track} aria-hidden="true">
-                    <span className={s.trackFill} style={{ transform: `scaleX(${progress / 100})` }} />
+                    <span
+                      className={s.trackFill}
+                      style={{ "--route-progress": progress / 100 } as CSSProperties}
+                    />
                     <span className={s.trackMarker} style={{ left: `${progress}%` }} />
                   </span>
                   <span className={s.progressValue}>{progress}%</span>

@@ -7,7 +7,7 @@
   margin-bottom: 22px;
   padding: 0 0 16px;
   border: 0;
-  border-bottom: 1px solid var(--line);
+  border-bottom: 1px solid color-mix(in srgb, var(--brand) 24%, var(--line));
   border-radius: 0;
   background: transparent;
   box-shadow: none;
@@ -155,6 +155,16 @@
   .filters > input { flex: 1 1 100%; min-width: 0; width: 100%; }
   .filters > select,
   .filters > [data-select-root="true"] { flex: 1 1 calc(50% - 4px); min-width: 140px; width: auto; }
+  .filters > input,
+  .filters > select,
+  .filters > [data-select-root="true"],
+  .filters > :global(.toolbar-field) > input,
+  .filters > :global(.toolbar-field) > select,
+  .filters > :global(.toolbar-field) [data-select-root="true"] > button,
+  .filters > :global(.toolbar-field) .picker-grow > button,
+  .filters > button,
+  .actions :global(button),
+  .actions :global(a) { min-height: var(--m-tap); }
   .actions { margin-left: 0; }
   .actions {
     padding-left: 0;

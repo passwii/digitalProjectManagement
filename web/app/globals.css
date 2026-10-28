@@ -112,15 +112,16 @@
  --dock-shadow: rgba(0, 0, 0, .24);
  --skeleton-base: rgba(146, 189, 210, .08);
  --skeleton-shine: rgba(108, 243, 255, .16);
- --motion: 140ms ease-out;
- --motion-fast: 160ms;
- --motion-base: 220ms;
- --motion-exit: 140ms;
- --motion-number: 420ms;
- --motion-chart: 500ms;
- --ease-console: cubic-bezier(0.2, 0.72, 0.2, 1);
+ /* Legacy workbench aliases point to the shared motion scale below. */
+ --motion: var(--av-dur-quick) var(--av-ease-standard);
+ --motion-fast: var(--av-dur-quick);
+ --motion-base: var(--av-dur-base);
+ --motion-exit: var(--av-dur-quick);
+ --motion-number: var(--av-dur-slow);
+ --motion-chart: var(--av-dur-slow);
+ --ease-console: var(--av-ease-standard);
  /*
-   * 主题切换过场时长（BLF-1292）。比 --motion(140ms) 慢得多——用户反馈「切换太生硬、
+   * 主题切换过场时长（BLF-1292）。比 AV_MOTION.quick(160ms) 慢得多——用户反馈「切换太生硬、
    * 动画要更慢一点」，明暗过渡就是靠这个值变柔和的。
    *
    * 唯一真源是 lib/themeTransition.ts 的 THEME_SWAP_MS：startThemeSwap() 会在过场期间
@@ -291,7 +292,7 @@ textarea {
 a {
  color: var(--brand);
  text-decoration: none;
- transition: color var(--motion);
+ transition: color var(--av-dur-quick) var(--av-ease-standard);
 }
 a:hover {
  color: var(--brand-hover);
@@ -336,9 +337,9 @@ textarea {
  color: var(--ink);
  outline: none;
  transition:
-  border-color var(--motion),
-  box-shadow var(--motion),
-  background-color var(--motion);
+  border-color var(--av-dur-quick) var(--av-ease-standard),
+  box-shadow var(--av-dur-quick) var(--av-ease-standard),
+  background-color var(--av-dur-quick) var(--av-ease-standard);
 }
 textarea {
  height: auto;
@@ -390,11 +391,11 @@ label > textarea {
 button {
  cursor: pointer;
  transition:
-  background var(--motion),
-  border-color var(--motion),
-  color var(--motion),
-  box-shadow var(--motion),
-  transform var(--motion);
+  background var(--av-dur-quick) var(--av-ease-standard),
+  border-color var(--av-dur-quick) var(--av-ease-standard),
+  color var(--av-dur-quick) var(--av-ease-standard),
+  box-shadow var(--av-dur-quick) var(--av-ease-standard),
+  transform var(--av-dur-instant) var(--av-ease-standard);
 }
 
 /* ---------- 键盘可达性：统一焦点环（鼠标点击不触发） ---------- */
@@ -437,7 +438,7 @@ summary:focus-visible,
  padding: 6px 12px;
  font-size: 13px;
  font-weight: 500;
- transition: top var(--motion);
+ transition: top var(--av-dur-quick) var(--av-ease-standard);
 }
 .skip-link:focus {
  top: 8px;
@@ -556,15 +557,16 @@ summary:focus-visible,
 
 /* ---------- card / banner ---------- */
 .card {
+ position: relative;
  background: var(--card);
  border: 1px solid var(--line);
  border-radius: var(--radius);
  padding: 20px;
  box-shadow: var(--shadow-card);
  transition:
-  border-color 150ms ease,
-  box-shadow 150ms ease,
-  transform 150ms ease;
+  border-color var(--av-dur-quick) var(--av-ease-standard),
+  box-shadow var(--av-dur-quick) var(--av-ease-standard),
+  transform var(--av-dur-quick) var(--av-ease-standard);
 }
 
 .err {
@@ -618,15 +620,16 @@ table.grid td {
 }
 table.grid thead th {
  height: 40px;
- font-size: 11px;
+ font-size: 12px;
  font-weight: 650;
  letter-spacing: 0.02em;
  color: var(--ink-2);
  background: var(--th-bg);
+ border-bottom-color: var(--line);
  white-space: nowrap;
 }
 table.grid tbody tr {
- transition: background var(--motion);
+ transition: background var(--av-dur-quick) var(--av-ease-standard);
 }
 table.grid tbody tr:hover {
  background: var(--row-hover);
@@ -640,12 +643,6 @@ table.grid tbody tr:last-child td {
 .clickable-row {
  cursor: pointer;
 }
-@media (hover: hover) {
- .clickable-row:hover > td:first-child {
-  box-shadow: inset 0 0 18px var(--signal-glow);
- }
-}
-
 /* 项目台账列宽固定，hover 只切换操作层，不参与文档流，避免行高和列宽闪动 */
 .project-table {
  min-width: 1066px;
@@ -742,7 +739,7 @@ th.num {
  padding: 14px;
  border: 1px solid var(--line);
  border-radius: var(--radius);
- background: var(--surface, var(--bg));
+ background: var(--card-lift);
 }
 .projects-control-section .page-head {
  margin: 0 0 12px;
@@ -790,10 +787,20 @@ th.num {
 }
 
 .section-title {
+ display: flex;
+ align-items: center;
+ gap: 9px;
  font-size: 15px;
  font-weight: 700;
  margin: 20px 0 10px;
  color: var(--ink);
+}
+.section-title::before {
+ width: 2px;
+ height: 13px;
+ flex: none;
+ background: var(--brand);
+ content: "";
 }
 .muted {
  color: var(--ink-2);
@@ -997,11 +1004,22 @@ th.num {
  margin-bottom: 14px;
 }
 .kpi {
+ position: relative;
+ overflow: hidden;
  background: var(--card);
  border: 1px solid var(--line);
  border-radius: var(--radius);
  padding: 15px 16px;
  box-shadow: var(--shadow-card);
+}
+.kpi::before {
+ position: absolute;
+ top: 0;
+ right: 0;
+ left: 0;
+ height: 1px;
+ background: color-mix(in srgb, var(--brand) 58%, transparent);
+ content: "";
 }
 .kpi .k {
  font-size: 11px;
@@ -1014,6 +1032,7 @@ th.num {
  font-size: 22px;
  font-weight: 700;
  letter-spacing: 0;
+ color: var(--brand);
 }
 .kpi .v.mono {
  font-size: 18px;
@@ -1035,9 +1054,9 @@ th.num {
  color: var(--ink-2);
  margin-bottom: -1px;
  transition:
-  color 140ms ease,
-  background 140ms ease,
-  border-color 140ms ease;
+  color var(--av-dur-quick) var(--av-ease-standard),
+  background var(--av-dur-quick) var(--av-ease-standard),
+  border-color var(--av-dur-quick) var(--av-ease-standard);
 }
 .tabs button.active {
  color: var(--brand);
@@ -1119,7 +1138,7 @@ th.num {
 .skel {
  background: linear-gradient(90deg, var(--skeleton-base) 25%, var(--skeleton-shine) 37%, var(--skeleton-base) 63%);
  background-size: 400% 100%;
- animation: skelShine 1.2s ease-in-out infinite;
+ animation: skelShine var(--av-dur-shimmer) var(--av-ease-standard) infinite;
  border-radius: var(--radius-sm);
 }
 .skel-title {
@@ -1186,7 +1205,7 @@ th.num {
  *
  * 三个「为什么」值得写下来：
  *
- * · 为什么只在属性存在时接管：组件自己的过渡是 140~220ms 的**交互**节奏。过场只该慢这一次，
+ * · 为什么只在属性存在时接管：组件自己的过渡遵循 AV_MOTION 的 90–300ms 操作节奏。过场只该慢这一次，
  *   所以只在过场窗口内接管；属性摘下后一切回到原速，不会把整个应用的 hover / focus
  *   一起拖成 680ms。
  *
@@ -1238,7 +1257,7 @@ th.num {
   z-index: 50;
   pointer-events: none;
   opacity: 0;
-  animation: theme-wash var(--motion-theme, 680ms) cubic-bezier(.33, 0, .2, 1) both;
+  animation: theme-wash var(--motion-theme, 680ms) var(--av-ease-enter) both;
  }
 
  :root[data-theme-transition="to-dark"] body::after {
@@ -1272,7 +1291,7 @@ th.num {
  padding: 12px 14px;
  border: 1px solid var(--line);
  border-radius: var(--radius);
- background: var(--card);
+ background: var(--card-lift);
  box-shadow: var(--shadow-card);
 }
 .toolbar-field {
@@ -1396,7 +1415,7 @@ th.num {
  align-items: center;
  gap: 12px;
  border-bottom: 1px solid var(--line-soft);
- transition: background 140ms ease;
+ transition: background var(--av-dur-quick) var(--av-ease-standard);
 }
 .attachment-row:last-child {
  border-bottom: 0;
@@ -1521,7 +1540,7 @@ th.num {
  min-width: 72px;
  padding: 10px 16px;
  font-size: 13px;
- border-radius: 6px 6px 0 0;
+ border-radius: var(--radius);
 }
 .detail-tabs button.active {
  background: var(--card);
@@ -1536,7 +1555,7 @@ th.num {
 
 .doc-shell {
  border: 1px solid var(--line);
- border-radius: 8px;
+ border-radius: var(--radius);
  background: var(--card);
  box-shadow: var(--shadow-card);
  overflow: hidden;
@@ -1628,7 +1647,7 @@ th.num {
  align-items: center;
  gap: 12px;
  border-bottom: 1px solid var(--line-soft);
- transition: background 140ms ease;
+ transition: background var(--av-dur-quick) var(--av-ease-standard);
 }
 .doc-file:last-child {
  border-bottom: 0;
@@ -1693,8 +1712,8 @@ th.num {
  border-radius: 7px;
  background: var(--card);
  transition:
-  border-color 150ms ease,
-  box-shadow 150ms ease;
+  border-color var(--av-dur-quick) var(--av-ease-standard),
+  box-shadow var(--av-dur-quick) var(--av-ease-standard);
 }
 .asset-tile:hover {
  border-color: var(--line-blue);
@@ -1867,7 +1886,7 @@ th.num {
 .preview-note {
  padding: 12px 14px;
  border: 1px dashed var(--line);
- border-radius: 7px;
+ border-radius: var(--radius);
  background: var(--th-bg);
  color: var(--ink-2);
  font-size: 13px;
@@ -1893,7 +1912,7 @@ th.num {
  align-items: flex-start;
  gap: 10px;
  border: 1px solid var(--line);
- border-radius: 7px;
+ border-radius: var(--radius);
  background: var(--card);
 }
 .contract-card > span {
@@ -2075,11 +2094,15 @@ th.num {
 /* 触控设备：可点元素至少 40px 高，避免行内小按钮在手机上误点（BLF-1093） */
 @media (pointer: coarse) {
  .btn-ghost,
- .btn-primary {
-  min-height: 36px;
+ .btn-primary,
+ .btn-danger,
+ .btn-danger-outline,
+ .btn-icon {
+  min-width: var(--m-tap);
+  min-height: var(--m-tap);
  }
  table.grid td.no-print button {
-  min-height: 34px;
+  min-height: var(--m-tap);
   padding-left: 10px;
   padding-right: 10px;
  }
@@ -2093,10 +2116,15 @@ th.num {
 /* ============ 全站交付控制台表面 ============ */
 /* 共享业务页继承同一套“工作面”节奏：表格保留密度，容器负责托举而不抢内容。 */
 .shell[data-console-shell="true"] .card,
-.shell[data-console-shell="true"] .toolbar-card,
-.shell[data-console-shell="true"] .projects-control-section,
 .shell[data-console-shell="true"] .doc-shell {
- background: var(--th-bg);
+ background: var(--card);
+ border-color: var(--line);
+ box-shadow: none;
+}
+
+.shell[data-console-shell="true"] .toolbar-card,
+.shell[data-console-shell="true"] .projects-control-section {
+ background: var(--card-lift);
  border-color: var(--line);
  box-shadow: none;
 }
@@ -2206,7 +2234,7 @@ th.num {
  height: 44px;
  color: var(--ink-2);
  font-family: var(--font-mono);
- font-size: 11px;
+ font-size: 12px;
  letter-spacing: .06em;
 }
 
@@ -2255,6 +2283,8 @@ th.num {
 
 .shell[data-console-shell="true"] .contract-card {
  background: transparent;
+ border: 0;
+ border-top: 1px solid var(--line-soft);
 }
 
 .shell[data-console-shell="true"] .detail-tabs {
@@ -2485,7 +2515,9 @@ textarea,
  opacity: 0;
  pointer-events: none;
  transform: translate(-50%, calc(-48px + min(var(--ptr-distance), 56px)));
- transition: opacity 120ms ease, transform 140ms ease-out;
+ transition:
+  opacity var(--av-dur-instant) var(--av-ease-standard),
+  transform var(--av-dur-quick) var(--av-ease-standard);
 }
 .ptr-ring {
  flex: none;
@@ -2494,7 +2526,7 @@ textarea,
  border-radius: 50%;
  border: 2px solid var(--line);
  border-top-color: currentColor;
- animation: ptr-spin 800ms linear infinite;
+ animation: ptr-spin var(--av-dur-slow) linear infinite;
 }
 .ptr[data-ptr-state="pulling"] {
  opacity: .96;

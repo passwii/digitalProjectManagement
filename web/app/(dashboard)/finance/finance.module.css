@@ -1,6 +1,21 @@
 .desktopActions { display: contents; }
 .mobileActions { display: none; }
 
+.kpiState[data-tone="done"] { color: var(--done); }
+.kpiState[data-tone="warn"] { color: var(--warn); }
+
+.scrollTable { min-width: var(--finance-table-min-width, 960px); }
+.scrollTable th,
+.scrollTable td { white-space: nowrap; }
+.foundationTable { --finance-table-min-width: 900px; }
+.voucherTable { --finance-table-min-width: 1040px; }
+.cashierTable { --finance-table-min-width: 1080px; }
+.fixedAssetTable { --finance-table-min-width: 1240px; }
+.balanceTable { --finance-table-min-width: 960px; }
+.projectExpenseTable { --finance-table-min-width: 1280px; }
+.arapStatementTable { --finance-table-min-width: 1160px; }
+.recycleBinTable { --finance-table-min-width: 820px; }
+
 @media (max-width: 767px) {
   .desktopActions { display: none; }
   .mobileActions {
@@ -39,7 +54,7 @@
     border-right: 1px solid currentColor;
     border-bottom: 1px solid currentColor;
     transform: rotate(45deg);
-    transition: transform 120ms ease;
+    transition: transform var(--av-dur-quick) var(--av-ease-standard);
   }
   .menuTrigger[aria-expanded="true"] .menuChevron { margin-top: 4px; transform: rotate(225deg); }
   .moreBody {
@@ -56,7 +71,7 @@
     border: 1px solid var(--line);
     border-radius: var(--radius);
     background: var(--th-bg);
-    box-shadow: 0 10px 28px rgb(0 0 0 / 16%);
+    box-shadow: var(--shadow-float);
   }
   .moreBody button { min-width: 0; width: 100%; }
   .moreBody button:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }

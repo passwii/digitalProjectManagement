@@ -22,6 +22,7 @@ import PageHeader from "@/components/ui/PageHeader";
 import { CardItem, CardList, DesktopTable, useVisibleTargetScroll } from "@/components/ui/CardList";
 import MotionReveal from "@/components/motion/MotionReveal";
 import { useActivity } from "@/lib/useActivity";
+import { AV_STAGGER } from "@/lib/av/motion";
 import ProgressNodeDialog from "./ProgressNodeDialog";
 
 const URL_DEFAULTS = {
@@ -121,7 +122,7 @@ function ProgressInner() {
       ) : tasks.length === 0 ? (
         <div className="card"><Empty title="暂无进度" hint="点击「添加进度」，记录节点时间和关键内容。" /></div>
       ) : (
-        <MotionReveal delay={0.08}>
+        <MotionReveal delay={AV_STAGGER.list * 2}>
           <CardList label="进度记录">
             {tasks.map((t) => (
               <CardItem

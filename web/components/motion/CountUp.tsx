@@ -2,6 +2,7 @@
 
 import { animate, useReducedMotion } from "framer-motion";
 import { useEffect, useRef, useState } from "react";
+import { AV_EASE, AV_MOTION } from "@/lib/av/motion";
 
 export default function CountUp({
   value,
@@ -22,8 +23,8 @@ export default function CountUp({
       return;
     }
     const controls = animate(displayRef.current, value, {
-      duration: 0.42,
-      ease: "easeOut",
+      duration: AV_MOTION.slow,
+      ease: AV_EASE.standard,
       onUpdate: (next) => {
         displayRef.current = next;
         setDisplay(next);

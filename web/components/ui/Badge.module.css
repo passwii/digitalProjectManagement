@@ -4,7 +4,9 @@
   font-family: var(--font-mono); white-space: nowrap;
   border: 1px solid transparent;
   letter-spacing: .01em;
-  transition: background 120ms ease-out, border-color 120ms ease-out;
+  transition:
+    background var(--av-dur-quick) var(--av-ease-standard),
+    border-color var(--av-dur-quick) var(--av-ease-standard);
 }
 .badge::before { width: 4px; height: 4px; margin-right: 5px; border-radius: 50%; background: currentColor; content: ""; opacity: .72; }
 .todo { background: var(--todo-bg); color: var(--todo); border-color: var(--line); }

@@ -21,6 +21,7 @@
  * 直接落在终态，不做任何演进。
  */
 import { motion as m, useReducedMotion, type Variants } from "framer-motion";
+import { AV_EASE, AV_MOTION } from "@/lib/av/motion";
 import st from "./StorySteps.module.css";
 
 /** 单个步骤（编号 + 文案），由调用方提供，组件不写死业务词。 */
@@ -32,11 +33,11 @@ export interface StoryStep {
 }
 
 /** 一条线推进的时长；缓动与全站 `--ease-console` 同款。 */
-const LINE_DURATION = 0.48;
+const LINE_DURATION = AV_MOTION.slow;
 /** 线走完到文字出现之间的间隔：先有线，再有字。 */
-const LABEL_DELAY = 0.16;
+const LABEL_DELAY = AV_MOTION.quick;
 /** 相邻两条线的启动间隔，略短于单条线时长，衔接顺滑但不抢拍。 */
-const STEP_STAGGER = 0.46;
+const STEP_STAGGER = AV_MOTION.slow;
 
 const stepsVariants: Variants = {
   hidden: {},
@@ -51,12 +52,12 @@ const stepVariants: Variants = {
 
 const lineVariants: Variants = {
   hidden: { scaleX: 0 },
-  show: { scaleX: 1, transition: { duration: LINE_DURATION, ease: [0.2, 0.72, 0.2, 1] } },
+  show: { scaleX: 1, transition: { duration: LINE_DURATION, ease: AV_EASE.enter } },
 };
 
 const metaVariants: Variants = {
   hidden: { opacity: 0, y: 6 },
-  show: { opacity: 1, y: 0, transition: { duration: 0.34, ease: [0.2, 0.72, 0.2, 1] } },
+  show: { opacity: 1, y: 0, transition: { duration: AV_MOTION.base, ease: AV_EASE.enter } },
 };
 
 export default function StorySteps({ steps }: { steps: readonly StoryStep[] }) {

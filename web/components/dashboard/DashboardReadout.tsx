@@ -5,6 +5,7 @@ import CountUp from "@/components/motion/CountUp";
 import s from "./DashboardReadout.module.css";
 
 export type DashboardReadoutTone = "neutral" | "warn" | "danger" | "done";
+export type DashboardReadoutAccent = "cyan" | "blue" | "violet" | "amber" | "coral" | "green";
 
 export default function DashboardReadout({
   label,
@@ -12,12 +13,14 @@ export default function DashboardReadout({
   format,
   detail,
   tone = "neutral",
+  accent = "cyan",
 }: {
   label: string;
   value: number;
   format?: (value: number) => string;
   detail: ReactNode;
   tone?: DashboardReadoutTone;
+  accent?: DashboardReadoutAccent;
 }) {
   return (
     <article
@@ -25,6 +28,7 @@ export default function DashboardReadout({
       data-dashboard-readout="true"
       data-testid="dashboard-readout"
       data-tone={tone}
+      data-accent={accent}
       aria-label={label}
     >
       <div className={s.head}>

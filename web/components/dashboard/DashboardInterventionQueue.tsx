@@ -2,6 +2,7 @@ import type { CSSProperties } from "react";
 import { useState } from "react";
 import Link from "next/link";
 import type { DashboardKpi, Weekly } from "@/lib/api";
+import { avStaggerSeconds } from "@/lib/av/motion";
 import { fmtDate, fmtDateTime } from "@/lib/labels";
 import Empty from "@/components/ui/Empty";
 import s from "./DashboardInterventionQueue.module.css";
@@ -118,7 +119,7 @@ export default function DashboardInterventionQueue({
           <li
             className={`${s.item} ${s[item.tone]}`}
             key={item.id}
-            style={{ "--queue-delay": `${index * 55}ms` } as CSSProperties}
+            style={{ "--queue-delay": `${avStaggerSeconds(index, visibleItems.length)}s` } as CSSProperties}
           >
             <span className={s.pin} aria-hidden="true" />
             <Link className={s.link} href={item.href} aria-label={`${item.kind}：${item.title}`}>

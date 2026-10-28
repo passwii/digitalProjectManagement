@@ -24,7 +24,7 @@
   height: 6px;
   border-radius: 50%;
   background: var(--brand);
-  animation: busyPulse 900ms ease-in-out infinite;
+  animation: busyPulse var(--av-dur-shimmer) var(--av-ease-standard) infinite;
 }
 @keyframes busyPulse {
   0%, 100% { opacity: .35; transform: scale(.8); }

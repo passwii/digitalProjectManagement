@@ -12,6 +12,7 @@ import {
 } from "@/lib/api";
 import { useAsyncData } from "@/lib/useAsyncData";
 import { useMenus } from "@/lib/useMeta";
+import Badge, { type BadgeTone } from "@/components/ui/Badge";
 import { LoadingBlock, LoadFailed, NoAccess } from "@/components/ui/PageState";
 import Empty from "@/components/ui/Empty";
 import PageHeader from "@/components/ui/PageHeader";
@@ -31,6 +32,18 @@ type MenuPosition = { top: number; left: number; width: number; maxHeight: numbe
 
 function money(value: string | number) {
   return Number(value || 0).toLocaleString("zh-CN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function financePeriodTone(status: FinancePeriod["status"] | null | undefined): BadgeTone {
+  if (status === "open") return "doing";
+  if (status === "closed") return "done";
+  return "paused";
+}
+
+function financePeriodLabel(status: FinancePeriod["status"] | null | undefined, openLabel = "开放录入") {
+  if (status === "open") return openLabel;
+  if (status === "closed") return "已结账";
+  return "已锁定";
 }
 
 function FinanceInner() {
@@ -279,9 +292,9 @@ function Overview({ book, period, periods, opening }: { book: FinanceBook; perio
   return <>
     <div className="kpi-row">
       <div className="kpi"><div className="k">账套</div><div className="v" style={{ fontSize: 22 }}>{book.name}</div><div className="kpi-foot">{book.code} · {book.base_currency}</div></div>
-      <div className="kpi"><div className="k">当前期间</div><div className="v">{period?.period ?? "-"}</div><div className="kpi-foot">{period?.status === "open" ? "开放录入" : period?.status === "closed" ? "已结账" : "已锁定"}</div></div>
+      <div className="kpi"><div className="k">当前期间</div><div className="v">{period?.period ?? "-"}</div><div className="kpi-foot"><Badge status={financePeriodLabel(period?.status)} tone={financePeriodTone(period?.status)} /></div></div>
       <div className="kpi"><div className="k">期间总数</div><div className="v">{periods.length}</div><div className="kpi-foot">自然月期间</div></div>
-      <div className="kpi"><div className="k">期初平衡</div><div className="v">{opening?.balanced ? "平衡" : "待校正"}</div><div className="kpi-foot">借 {money(opening?.debit ?? "0")} · 贷 {money(opening?.credit ?? "0")}</div></div>
+      <div className="kpi"><div className="k">期初平衡</div><div className={`v ${fm.kpiState}`} data-tone={opening?.balanced ? "done" : "warn"}>{opening?.balanced ? "平衡" : "待校正"}</div><div className="kpi-foot">借 {money(opening?.debit ?? "0")} · 贷 {money(opening?.credit ?? "0")}</div></div>
     </div>
     <div className="section-head"><div><h2>财务闭环</h2><p>账套 → 凭证 → 账簿 → 报表 → 结账，所有事实以已过账凭证为源头。</p></div></div>
     <div className="card" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(180px,1fr))", gap: 12 }}>
@@ -295,7 +308,7 @@ function Foundation({ accounts, loading, error, onRetry }: { accounts: FinanceAc
   if (error) return <LoadFailed message={error} onRetry={onRetry} />;
   return <>
     <div className="section-head"><div><h2>基础设置</h2><p>2022 版企业会计准则科目树。</p></div><span className="tiny muted">{accounts.length} 个科目</span></div>
-    <div className="table-scroll"><table className="grid"><thead><tr><th>编码</th><th>科目名称</th><th>类别</th><th>方向</th><th>辅助核算</th><th>状态</th></tr></thead><tbody>{accounts.slice(0, 120).map((account) => <tr key={account.id}><td className="mono">{account.code}</td><td style={{ paddingLeft: Math.max(12, account.level * 18) }}>{account.name}</td><td>{account.category}</td><td>{account.direction === "D" ? "借" : "贷"}</td><td>{Object.entries(account.aux_flags ?? {}).filter(([, enabled]) => enabled).map(([key]) => key).join("、") || "-"}</td><td><span className={`badge ${account.is_active ? "done" : "muted"}`}>{account.is_active ? "启用" : "停用"}</span></td></tr>)}</tbody></table></div>
+    <div className="table-scroll"><table className={`grid ${fm.scrollTable} ${fm.foundationTable}`}><thead><tr><th>编码</th><th>科目名称</th><th>类别</th><th>方向</th><th>辅助核算</th><th>状态</th></tr></thead><tbody>{accounts.slice(0, 120).map((account) => <tr key={account.id}><td className="mono">{account.code}</td><td style={{ paddingLeft: Math.max(12, account.level * 18) }}>{account.name}</td><td>{account.category}</td><td>{account.direction === "D" ? "借" : "贷"}</td><td>{Object.entries(account.aux_flags ?? {}).filter(([, enabled]) => enabled).map(([key]) => key).join("、") || "-"}</td><td><span className={`badge ${account.is_active ? "done" : "muted"}`}>{account.is_active ? "启用" : "停用"}</span></td></tr>)}</tbody></table></div>
   </>;
 }
 
@@ -363,7 +376,7 @@ function VoucherList({ book, period, templates, data, loading, error, onRetry, o
         ))}
       </CardList>
       <DesktopTable>
-        <table className="grid"><thead><tr><th>凭证号</th><th>日期</th><th>摘要</th><th className="num">借方</th><th className="num">贷方</th><th>状态</th><th className="no-print">操作</th></tr></thead>
+        <table className={`grid ${fm.scrollTable} ${fm.voucherTable}`}><thead><tr><th>凭证号</th><th>日期</th><th>摘要</th><th className="num">借方</th><th className="num">贷方</th><th>状态</th><th className="no-print">操作</th></tr></thead>
           <tbody>{data.map((voucher) => <tr key={voucher.id}>
             <td className="mono">{voucher.voucher_no}</td><td>{voucher.voucher_date}</td><td>{voucher.summary || "-"}</td>
             <td className="num">{money(voucher.total_debit)}</td><td className="num">{money(voucher.total_credit)}</td>
@@ -408,7 +421,7 @@ function CashierList({ book, period, statements, summary, loading, error, onRetr
   }
   return <>
     <div className="section-head"><div><h2>出纳与对账</h2><p>银行流水先入账待匹配区，再与当前账套已过账凭证核对。</p></div><div className="row-actions"><button className="btn-ghost" onClick={() => document.getElementById("finance-bank-import")?.click()} disabled={busy || !period}>导入银行流水</button><input id="finance-bank-import" type="file" accept=".xlsx" hidden onChange={(event) => { const file = event.target.files?.[0]; if (file) void importFile(file); }} /><button className="btn-ghost" onClick={onRetry}>刷新</button></div></div>
-    {loading ? <LoadingBlock kpis={3} label="加载银行对账…" /> : error ? <LoadFailed message={error} onRetry={onRetry} /> : <><div className="kpi-row"><div className="kpi"><div className="k">银行流水净额</div><div className="v">{money(summary?.bank_total ?? "0")}</div><div className="kpi-foot">当前期间导入流水</div></div><div className="kpi"><div className="k">未匹配笔数</div><div className="v">{summary?.unmatched_count ?? 0}</div><div className="kpi-foot">需要与凭证核对</div></div><div className="kpi"><div className="k">未匹配金额</div><div className="v">{money(summary?.unmatched_amount ?? "0")}</div><div className="kpi-foot">未达账项提示</div></div></div><div className="table-scroll"><table className="grid"><thead><tr><th>流水号</th><th>日期</th><th>方向</th><th className="num">金额</th><th>摘要</th><th>对方</th><th>状态</th></tr></thead><tbody>{statements.map((row) => <tr key={row.id}><td className="mono">{row.external_id}</td><td>{row.transaction_date}</td><td>{row.direction === "inflow" ? "流入" : "流出"}</td><td className="num">{money(row.amount)}</td><td>{row.summary || "-"}</td><td>{row.counterparty || "-"}</td><td><span className={`badge ${row.status === "matched" ? "done" : "doing"}`}>{row.status === "matched" ? "已匹配" : "待匹配"}</span></td></tr>)}</tbody></table></div></>}
+    {loading ? <LoadingBlock kpis={3} label="加载银行对账…" /> : error ? <LoadFailed message={error} onRetry={onRetry} /> : <><div className="kpi-row"><div className="kpi"><div className="k">银行流水净额</div><div className="v">{money(summary?.bank_total ?? "0")}</div><div className="kpi-foot">当前期间导入流水</div></div><div className="kpi"><div className="k">未匹配笔数</div><div className="v">{summary?.unmatched_count ?? 0}</div><div className="kpi-foot">需要与凭证核对</div></div><div className="kpi"><div className="k">未匹配金额</div><div className="v">{money(summary?.unmatched_amount ?? "0")}</div><div className="kpi-foot">未达账项提示</div></div></div><div className="table-scroll"><table className={`grid ${fm.scrollTable} ${fm.cashierTable}`}><thead><tr><th>流水号</th><th>日期</th><th>方向</th><th className="num">金额</th><th>摘要</th><th>对方</th><th>状态</th></tr></thead><tbody>{statements.map((row) => <tr key={row.id}><td className="mono">{row.external_id}</td><td>{row.transaction_date}</td><td>{row.direction === "inflow" ? "流入" : "流出"}</td><td className="num">{money(row.amount)}</td><td>{row.summary || "-"}</td><td>{row.counterparty || "-"}</td><td><span className={`badge ${row.status === "matched" ? "done" : "doing"}`}>{row.status === "matched" ? "已匹配" : "待匹配"}</span></td></tr>)}</tbody></table></div></>}
   </>;
 }
 
@@ -422,14 +435,16 @@ function FixedAssetList({ book, period, items, loading, error, onRetry, onChange
   }
   return <>
     <div className="section-head"><div><h2>固定资产</h2><p>资产卡片与月度直线法折旧；新增资产当月不折旧，次月开始计提。</p></div><div className="row-actions"><button className="btn-primary" disabled={busy || !period} onClick={depreciate}>计提本期折旧</button><button className="btn-ghost" onClick={onRetry}>刷新</button></div></div>
-    {loading ? <LoadingBlock kpis={0} label="加载固定资产…" /> : error ? <LoadFailed message={error} onRetry={onRetry} /> : <div className="table-scroll"><table className="grid"><thead><tr><th>资产编码</th><th>名称</th><th>类别</th><th>取得日期</th><th className="num">原值</th><th className="num">累计折旧</th><th className="num">账面净值</th><th>状态</th></tr></thead><tbody>{items.map((item) => <tr key={item.code}><td className="mono">{item.code}</td><td>{item.name}</td><td>{item.category || "-"}</td><td>{item.acquisition_date}</td><td className="num">{money(item.original_cost)}</td><td className="num">{money(item.accumulated_depreciation)}</td><td className="num">{money(item.net_book_value)}</td><td><span className="badge done">{item.status === "active" ? "在用" : "已处置"}</span></td></tr>)}</tbody></table></div>}
+    {loading ? <LoadingBlock kpis={0} label="加载固定资产…" /> : error ? <LoadFailed message={error} onRetry={onRetry} /> : <div className="table-scroll"><table className={`grid ${fm.scrollTable} ${fm.fixedAssetTable}`}><thead><tr><th>资产编码</th><th>名称</th><th>类别</th><th>取得日期</th><th className="num">原值</th><th className="num">累计折旧</th><th className="num">账面净值</th><th>状态</th></tr></thead><tbody>{items.map((item) => <tr key={item.code}><td className="mono">{item.code}</td><td>{item.name}</td><td>{item.category || "-"}</td><td>{item.acquisition_date}</td><td className="num">{money(item.original_cost)}</td><td className="num">{money(item.accumulated_depreciation)}</td><td className="num">{money(item.net_book_value)}</td><td><Badge status={item.status === "active" ? "在用" : "已处置"} tone={item.status === "active" ? "doing" : "done"} /></td></tr>)}</tbody></table></div>}
   </>;
 }
 
 function BalanceList({ period, items, reports, loading, error, onRetry }: { period: FinancePeriod | null; items: { account_code: string; account_name: string; debit_total: string; credit_total: string; ending_debit: string; ending_credit: string }[]; reports?: { balanceSheet: { totals: { assets: string; liabilities: string; equity: string; profit_before_close: string; balanced: boolean } }; income: { totals: { income: string; expense: string; profit: string } }; cashflow: { ready: boolean; unclassified_amount: string } }; loading: boolean; error: string; onRetry: () => void }) {
   if (loading) return <LoadingBlock kpis={0} label="加载余额表…" />;
   if (error) return <LoadFailed message={error} onRetry={onRetry} />;
-  return <><div className="section-head"><div><h2>账簿与报表</h2><p>{period?.period ?? "当前期间"} 的余额表和三大报表摘要，明细查询以后端已过账凭证为准。</p></div></div><div className="kpi-row"><div className="kpi"><div className="k">资产负债表</div><div className="v">{reports?.balanceSheet.totals.balanced ? "平衡" : "需检查"}</div><div className="kpi-foot">资产 {money(reports?.balanceSheet.totals.assets ?? "0")} · 负债+权益 {money((Number(reports?.balanceSheet.totals.liabilities ?? 0) + Number(reports?.balanceSheet.totals.equity ?? 0)))}</div></div><div className="kpi"><div className="k">利润表</div><div className="v">{money(reports?.income.totals.profit ?? "0")}</div><div className="kpi-foot">收入 {money(reports?.income.totals.income ?? "0")} · 费用 {money(reports?.income.totals.expense ?? "0")}</div></div><div className="kpi"><div className="k">现金流量表</div><div className="v">{reports?.cashflow.ready ? "已归类" : "待归类"}</div><div className="kpi-foot">未分类 {money(reports?.cashflow.unclassified_amount ?? "0")}</div></div></div><div className="table-scroll"><table className="grid"><thead><tr><th>科目</th><th>科目名称</th><th className="num">本期借方</th><th className="num">本期贷方</th><th className="num">期末借方</th><th className="num">期末贷方</th></tr></thead><tbody>{items.map((item) => <tr key={item.account_code}><td className="mono">{item.account_code}</td><td>{item.account_name}</td><td className="num">{money(item.debit_total)}</td><td className="num">{money(item.credit_total)}</td><td className="num">{money(item.ending_debit)}</td><td className="num">{money(item.ending_credit)}</td></tr>)}</tbody></table></div></>;
+  const balanced = reports?.balanceSheet.totals.balanced ?? false;
+  const cashflowReady = reports?.cashflow.ready ?? false;
+  return <><div className="section-head"><div><h2>账簿与报表</h2><p>{period?.period ?? "当前期间"} 的余额表和三大报表摘要，明细查询以后端已过账凭证为准。</p></div></div><div className="kpi-row"><div className="kpi"><div className="k">资产负债表</div><div className={`v ${fm.kpiState}`} data-tone={balanced ? "done" : "warn"}>{balanced ? "平衡" : "需检查"}</div><div className="kpi-foot">资产 {money(reports?.balanceSheet.totals.assets ?? "0")} · 负债+权益 {money((Number(reports?.balanceSheet.totals.liabilities ?? 0) + Number(reports?.balanceSheet.totals.equity ?? 0)))}</div></div><div className="kpi"><div className="k">利润表</div><div className="v">{money(reports?.income.totals.profit ?? "0")}</div><div className="kpi-foot">收入 {money(reports?.income.totals.income ?? "0")} · 费用 {money(reports?.income.totals.expense ?? "0")}</div></div><div className="kpi"><div className="k">现金流量表</div><div className={`v ${fm.kpiState}`} data-tone={cashflowReady ? "done" : "warn"}>{cashflowReady ? "已归类" : "待归类"}</div><div className="kpi-foot">未分类 {money(reports?.cashflow.unclassified_amount ?? "0")}</div></div></div><div className="table-scroll"><table className={`grid ${fm.scrollTable} ${fm.balanceTable}`}><thead><tr><th>科目</th><th>科目名称</th><th className="num">本期借方</th><th className="num">本期贷方</th><th className="num">期末借方</th><th className="num">期末贷方</th></tr></thead><tbody>{items.map((item) => <tr key={item.account_code}><td className="mono">{item.account_code}</td><td>{item.account_name}</td><td className="num">{money(item.debit_total)}</td><td className="num">{money(item.credit_total)}</td><td className="num">{money(item.ending_debit)}</td><td className="num">{money(item.ending_credit)}</td></tr>)}</tbody></table></div></>;
 }
 
 function ClosePanel({ book, period, check, loading, error, onRefresh, onClosed }: { book: string; period: FinancePeriod | null; check?: { ready: boolean; issues: { code: string; message: string }[] } | null; loading: boolean; error: string; onRefresh: () => void; onClosed: () => void }) {
@@ -445,7 +460,7 @@ function ClosePanel({ book, period, check, loading, error, onRefresh, onClosed }
     setBusy(true);
     try { await financeApi.reopen(book, period.id, period.version); toast.ok("期间已反结账"); onClosed(); } catch (e) { toast.err(errText(e)); } finally { setBusy(false); }
   }
-  return <><div className="section-head"><div><h2>期末结账</h2><p>结账前检查未审核凭证、断号、试算平衡和报表恒等式。</p></div><button className="btn-ghost" onClick={onRefresh}>刷新检查</button></div><div className="card"><div className="status-row"><b>当前期间</b><span>{period?.period ?? "-"}</span><span className={`badge ${period?.status === "open" ? "doing" : "done"}`}>{period?.status === "open" ? "待结账" : period?.status === "closed" ? "已结账" : "已锁定"}</span></div>{loading ? <p className="muted">正在执行结账前检查…</p> : error ? <p className="field-err">{error}</p> : check?.issues.length ? <div className="warning-list">{check.issues.map((issue) => <div className="status-row" key={issue.code}><span className="badge warn">阻断</span><span>{issue.message}</span><span className="mono tiny">{issue.code}</span></div>)}</div> : <div className="status-row"><span className="badge done">检查通过</span><span>当前期间满足结账前置条件。</span></div>}<div className="row-actions" style={{ marginTop: 16 }}>{period?.status === "open" && <button className="btn-primary" disabled={busy || !check?.ready} onClick={close}>结账</button>}{period?.status === "closed" && <button className="btn-ghost btn-danger-outline" disabled={busy} onClick={reopen}>反结账</button>}</div></div></>;
+  return <><div className="section-head"><div><h2>期末结账</h2><p>结账前检查未审核凭证、断号、试算平衡和报表恒等式。</p></div><button className="btn-ghost" onClick={onRefresh}>刷新检查</button></div><div className="card"><div className="status-row"><b>当前期间</b><span>{period?.period ?? "-"}</span><Badge status={financePeriodLabel(period?.status, "待结账")} tone={financePeriodTone(period?.status)} /></div>{loading ? <p className="muted">正在执行结账前检查…</p> : error ? <p className="field-err">{error}</p> : check?.issues.length ? <div className="warning-list">{check.issues.map((issue) => <div className="status-row" key={issue.code}><span className="badge warn">阻断</span><span>{issue.message}</span><span className="mono tiny">{issue.code}</span></div>)}</div> : <div className="status-row"><span className="badge done">检查通过</span><span>当前期间满足结账前置条件。</span></div>}<div className="row-actions" style={{ marginTop: 16 }}>{period?.status === "open" && <button className="btn-primary" disabled={busy || !check?.ready} onClick={close}>结账</button>}{period?.status === "closed" && <button className="btn-ghost btn-danger-outline" disabled={busy} onClick={reopen}>反结账</button>}</div></div></>;
 }
 
 function VoucherDialog({ open, book, period, accounts, onClose, onSaved }: { open: boolean; book: FinanceBook; period: FinancePeriod | null; accounts: FinanceAccount[]; onClose: () => void; onSaved: () => void }) {

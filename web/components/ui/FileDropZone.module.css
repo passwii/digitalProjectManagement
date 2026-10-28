@@ -28,7 +28,10 @@
   background: var(--th-bg);
   text-align: center;
   cursor: pointer;
-  transition: border-color var(--motion), background var(--motion), box-shadow var(--motion);
+  transition:
+    border-color var(--av-dur-quick) var(--av-ease-standard),
+    background var(--av-dur-quick) var(--av-ease-standard),
+    box-shadow var(--av-dur-quick) var(--av-ease-standard);
 }
 .zone:hover { border-color: var(--brand); background: var(--brand-soft); }
 .zone:focus-visible {
@@ -62,7 +65,9 @@
   line-height: 1;
   white-space: nowrap;
   cursor: pointer;
-  transition: background var(--motion), border-color var(--motion);
+  transition:
+    background var(--av-dur-quick) var(--av-ease-standard),
+    border-color var(--av-dur-quick) var(--av-ease-standard);
 }
 .button:hover { background: var(--brand-hover); border-color: var(--brand-hover); }
 .button:focus-visible {
@@ -212,7 +217,7 @@
 /* 体积不可知：不确定态来回滑动，不伪造具体百分比 */
 .trackIndeterminate .fill {
   width: 40%;
-  animation: slide 1.1s ease-in-out infinite;
+  animation: slide var(--av-dur-shimmer) var(--av-ease-standard) infinite;
 }
 .percent { font-size: 11px; color: var(--ink-2); min-width: 34px; text-align: right; }
 
@@ -223,7 +228,7 @@
 
 @media (prefers-reduced-motion: reduce) {
   .fill { transition: none; }
-  .trackIndeterminate .fill { animation-duration: 2.4s; }
+  .trackIndeterminate .fill { animation: none; transform: translateX(75%); }
 }
 
 /* 窄屏（移动端抽屉）：进度条缩窄，文件名让位给百分比 */

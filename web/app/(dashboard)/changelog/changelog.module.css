@@ -218,7 +218,10 @@
   border: 1px solid var(--line-soft);
   border-radius: var(--radius-sm);
   background: var(--card);
-  transition: border-color var(--motion), background var(--motion), transform var(--motion);
+  transition:
+    border-color var(--av-dur-quick) var(--av-ease-standard),
+    background var(--av-dur-quick) var(--av-ease-standard),
+    transform var(--av-dur-quick) var(--av-ease-standard);
 }
 
 .entry:hover { border-color: var(--line-blue); background: var(--row-hover); transform: translateX(2px); }

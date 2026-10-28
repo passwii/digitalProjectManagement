@@ -152,6 +152,7 @@
 }
 
 .asset-kpis button {
+  --asset-signal: var(--brand);
   display: grid;
   gap: 8px;
   min-width: 0;
@@ -162,12 +163,21 @@
   color: var(--ink);
   text-align: left;
   cursor: pointer;
-  transition: border-color var(--motion), background-color var(--motion), transform var(--motion);
+  transition:
+    border-color var(--av-dur-quick) var(--av-ease-standard),
+    background-color var(--av-dur-quick) var(--av-ease-standard),
+    transform var(--av-dur-quick) var(--av-ease-standard);
 }
 
+.asset-kpis button[data-tone="done"] { --asset-signal: var(--done); }
+.asset-kpis button[data-tone="warn"] { --asset-signal: var(--warn); }
+.asset-kpis button[data-tone="danger"] { --asset-signal: var(--danger); }
+.asset-kpis button span { color: var(--ink-2); }
+.asset-kpis button b { color: var(--asset-signal); }
+
 .asset-kpis button:hover {
-  border-color: var(--line-blue);
-  background: var(--brand-soft);
+  border-color: color-mix(in srgb, var(--asset-signal) 40%, var(--line));
+  background: color-mix(in srgb, var(--asset-signal) 7%, var(--card));
 }
 
 .asset-kpis button:active {
@@ -264,33 +274,42 @@
   color: var(--doing);
 }
 
-.asset-status.borrowed,
-.asset-status.pending_acceptance {
+.asset-status.borrowed {
+  border-color: var(--line-blue);
+  background: var(--doing-bg);
+  color: var(--doing);
+}
+
+.asset-status.pending_acceptance,
+.asset-status.maintenance {
   border-color: var(--line-warn);
   background: var(--warn-bg);
   color: var(--warn);
 }
 
-.asset-status.maintenance {
-  border-color: color-mix(in srgb, var(--data-violet) 46%, transparent);
-  background: color-mix(in srgb, var(--data-violet) 10%, transparent);
-  color: var(--data-violet);
-}
-
 .asset-status.scrapped,
 .asset-status.void {
-  border-color: var(--line-danger);
-  background: var(--danger-bg);
-  color: var(--danger);
+  border-color: var(--line);
+  background: var(--todo-bg);
+  color: var(--todo);
 }
 
 .asset-count,
 .asset-event-count {
   flex: none;
-  color: var(--warn);
+  color: var(--ink-2);
   font-size: 13px;
   font-variant-numeric: tabular-nums;
 }
+
+.asset-status-metric.available b,
+.asset-status-metric.accepted b { color: var(--done); }
+.asset-status-metric.claimed b,
+.asset-status-metric.borrowed b { color: var(--doing); }
+.asset-status-metric.pending_acceptance b,
+.asset-status-metric.maintenance b { color: var(--warn); }
+.asset-status-metric.scrapped b,
+.asset-status-metric.void b { color: var(--todo); }
 
 .asset-empty {
   padding: 24px 16px;
@@ -1007,6 +1026,18 @@
     padding: 15px;
   }
 
+  .asset-panel [data-cardlist] {
+    gap: 0;
+  }
+
+  .asset-panel [data-cardlist] > [data-card] {
+    padding: 12px 0;
+    border: 0;
+    border-bottom: 1px solid var(--line-soft);
+    background: transparent;
+    box-shadow: none;
+  }
+
   .asset-panel-heading,
   .asset-section-heading {
     align-items: flex-start;
@@ -1152,6 +1183,6 @@
 @media (prefers-reduced-motion: reduce) {
   .asset-kpis button,
   .asset-stat-track > span {
-    transition-duration: 0.01ms;
+    transition-duration: var(--av-dur-instant);
   }
 }

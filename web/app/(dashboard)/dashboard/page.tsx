@@ -1,12 +1,15 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import type { CSSProperties } from "react";
 import Link from "next/link";
 import { useReducedMotion } from "framer-motion";
+import { avDurationMs } from "@/lib/av/motion";
 import {
+  Area,
+  AreaChart,
   CartesianGrid,
   Line,
-  LineChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -29,7 +32,7 @@ import s from "./dashboard.module.css";
 import { isAbortError } from "@/lib/useAsyncData";
 import { linkAbortSignal, refreshAbortMessage, useRegisterPageRefresh } from "@/lib/pageRefresh";
 
-const SUBJECT_SIGNALS = ["cyan", "lime", "amber", "violet", "muted"] as const;
+const SUBJECT_SIGNALS = ["cyan", "blue", "violet", "magenta", "aqua", "amber", "lime", "muted"] as const;
 
 // 首页只保留最需要关注的项目；完整台账在 /projects。风险优先级：异常 > 风险 > 正常 > 已结束。
 const ROUTE_LIMIT = 8;
@@ -55,14 +58,17 @@ function SubjectPulse({ subjects }: { subjects: DashboardSummary["by_subject"] }
         const percent = Math.max(0, Math.min(100, (subject.spent / peak) * 100));
         const signal = SUBJECT_SIGNALS[index % SUBJECT_SIGNALS.length];
         return (
-          <div className={s.subjectRow} key={subject.subject}>
+          <div className={`${s.subjectRow} ${s[signal]}`} key={subject.subject}>
             <div className={s.subjectHead}>
               <span>{subject.subject}</span>
               <b>{fmtMoney(subject.spent)} 元</b>
             </div>
             {!single && (
               <div className={s.subjectTrack} aria-label={`${subject.subject}支出 ${fmtMoney(subject.spent)} 元`}>
-                <span className={`${s.subjectFill} ${s[signal]}`} style={{ transform: `scaleX(${percent / 100})` }} />
+                <span
+                  className={`${s.subjectFill} ${s[signal]}`}
+                  style={{ "--subject-progress": percent / 100 } as CSSProperties}
+                />
               </div>
             )}
           </div>
@@ -100,6 +106,7 @@ export default function DashboardPage() {
   const { canApprove } = useMenus();
   const { beginActivity } = useActivity();
   const reduced = useReducedMotion();
+  const chartAnimationMs = avDurationMs("slow", { reduced: Boolean(reduced), frozen: false });
   const [data, setData] = useState<DashboardSummary | null>(null);
   const [weekly, setWeekly] = useState<Weekly | null>(null);
   const [err, setErr] = useState("");
@@ -223,12 +230,14 @@ export default function DashboardPage() {
               label="我的项目"
               value={k.my_projects}
               detail={<>进行中 <span className="mono">{k.active_projects}</span></>}
+              accent="cyan"
             />
             <DashboardReadout
               label="逾期任务"
               value={k.overdue_tasks}
               tone={k.overdue_tasks > 0 ? "danger" : "neutral"}
               detail={<>我负责 <span className="mono">{k.my_overdue_tasks}</span></>}
+              accent={k.overdue_tasks > 0 ? "coral" : "green"}
             />
             {canApprove ? (
               <DashboardReadout
@@ -236,13 +245,15 @@ export default function DashboardPage() {
                 value={k.pending_approvals}
                 tone={k.pending_approvals > 0 ? "warn" : "done"}
                 detail={<>未读通知 <span className="mono">{k.unread_notifications}</span></>}
+                accent={k.pending_approvals > 0 ? "amber" : "green"}
               />
             ) : (
               <DashboardReadout
                 label="未读通知"
                 value={k.unread_notifications}
-                tone={k.unread_notifications > 0 ? "warn" : "neutral"}
+                tone="neutral"
                 detail="审批结果会通过通知告知您"
+                accent={k.unread_notifications > 0 ? "violet" : "blue"}
               />
             )}
             <DashboardReadout
@@ -250,6 +261,7 @@ export default function DashboardPage() {
               value={k.month_spent}
               format={fmtMoney}
               detail="按已通过支出统计"
+              accent="blue"
             />
           </div>
         </section>
@@ -293,13 +305,28 @@ export default function DashboardPage() {
               ) : (
                 <div className={s.chart}>
                   <ResponsiveContainer>
-                    <LineChart data={trendData} margin={{ top: 12, right: 18, bottom: 0, left: 0 }}>
+                    <AreaChart data={trendData} margin={{ top: 12, right: 18, bottom: 0, left: 0 }}>
+                      <defs>
+                        <linearGradient id="dashboard-spend-field" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="var(--dash-cyan)" stopOpacity={0.28} />
+                          <stop offset="72%" stopColor="var(--dash-cyan)" stopOpacity={0.04} />
+                          <stop offset="100%" stopColor="var(--dash-cyan)" stopOpacity={0} />
+                        </linearGradient>
+                      </defs>
                       <CartesianGrid stroke="var(--line-soft)" vertical={false} />
                       <XAxis dataKey="label" tick={{ fontSize: 11, fill: "var(--ink-2)" }} axisLine={{ stroke: "var(--line)" }} tickLine={false} />
                       <YAxis tick={{ fontSize: 11, fill: "var(--ink-2)" }} axisLine={false} tickLine={false} width={58} tickFormatter={(value) => (Number(value) >= 10000 ? `${Math.round(Number(value) / 10000)}万` : String(value))} />
                       <Tooltip formatter={(value) => [`${fmtMoney(Number(value))} 元`, "支出"]} contentStyle={{ background: "var(--card)", border: "1px solid var(--line-blue)", borderRadius: 0, color: "var(--ink)", fontSize: 12 }} />
-                      <Line type="monotone" dataKey="spent" stroke="var(--brand)" strokeWidth={2} dot={{ r: 3, fill: "var(--bg)", stroke: "var(--brand)", strokeWidth: 1.5 }} activeDot={{ r: 5, fill: "var(--action)", stroke: "var(--bg)", strokeWidth: 2 }} name="支出" isAnimationActive={!reduced} animationDuration={620} />
-                    </LineChart>
+                      <Area
+                        type="monotone"
+                        dataKey="spent"
+                        stroke="none"
+                        fill="url(#dashboard-spend-field)"
+                        isAnimationActive={chartAnimationMs > 0}
+                        animationDuration={chartAnimationMs}
+                      />
+                      <Line type="monotone" dataKey="spent" stroke="var(--brand)" strokeWidth={2} dot={{ r: 3, fill: "var(--bg)", stroke: "var(--brand)", strokeWidth: 1.5 }} activeDot={{ r: 5, fill: "var(--action)", stroke: "var(--bg)", strokeWidth: 2 }} name="支出" isAnimationActive={chartAnimationMs > 0} animationDuration={chartAnimationMs} />
+                    </AreaChart>
                   </ResponsiveContainer>
                 </div>
               )}

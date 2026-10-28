@@ -27,6 +27,7 @@ import CountUp from "@/components/motion/CountUp";
 import MotionReveal from "@/components/motion/MotionReveal";
 import MotionStagger from "@/components/motion/MotionStagger";
 import { useActivity } from "@/lib/useActivity";
+import { AV_STAGGER } from "@/lib/av/motion";
 import ExpenseActions, { type ExpenseAct } from "./ExpenseActions";
 import ExpenseDialog from "./ExpenseDialog";
 import ExpenseVouchersDialog from "./ExpenseVouchersDialog";
@@ -230,7 +231,7 @@ function CostsInner() {
               <Empty title={url.status ? "该状态下暂无支出" : "暂无支出"} hint="点击「+ 支出」开始登记。" />
             </div>
           ) : (
-            <MotionReveal delay={0.08}>
+            <MotionReveal delay={AV_STAGGER.list * 2}>
               <CardList label="支出记录">
                 {expenses.map((x) => (
                   <CardItem

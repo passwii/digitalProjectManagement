@@ -107,6 +107,11 @@
    窄屏下列表在后面透出来会让人以为弹层没盖住，也会误点到后面的行，
    所以这里真正铺满（之前是 92vh 底部弹层，与「移动端全屏弹层」的约定不一致）。 */
 @media (max-width: 900px) {
+  .foot button,
+  .foot a {
+    min-height: var(--m-tap);
+  }
+
   .panel {
     margin: 0;
     width: 100%;

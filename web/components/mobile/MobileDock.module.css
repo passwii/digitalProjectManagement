@@ -53,7 +53,7 @@
     text-decoration: none;
     /* iOS Safari paints its native rectangular tap highlight over the rounded press pill. */
     -webkit-tap-highlight-color: transparent;
-    transition: color var(--motion-fast) var(--ease-console), background var(--motion-fast) var(--ease-console);
+    transition: color var(--av-dur-quick) var(--av-ease-standard), background var(--av-dur-quick) var(--av-ease-standard);
   }
   .tab:hover { color: var(--dock-ink); text-decoration: none; }
   .tab:focus-visible { outline-color: var(--dock-focus); }
@@ -89,7 +89,7 @@
     background: var(--dock-active-bg, var(--brand-soft));
     opacity: 0;
     transform: scale(.9);
-    transition: opacity 180ms var(--ease-console), transform 180ms var(--ease-console);
+    transition: opacity var(--av-dur-base) var(--av-ease-standard), transform var(--av-dur-base) var(--av-ease-standard);
   }
   .tabActive .pill,
   .tabOpen .pill { opacity: 1; transform: none; }

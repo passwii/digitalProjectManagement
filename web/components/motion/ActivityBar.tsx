@@ -2,6 +2,7 @@
 
 import { AnimatePresence, m, useReducedMotion } from "framer-motion";
 import { useEffect, useState } from "react";
+import { AV_EASE, AV_MOTION } from "@/lib/av/motion";
 import { useActivity } from "@/lib/useActivity";
 import styles from "./ActivityBar.module.css";
 
@@ -25,7 +26,7 @@ export default function ActivityBar() {
     }
     if (!visible) return;
     setCompleting(true);
-    const timer = window.setTimeout(() => setVisible(false), reduced ? 0 : 220);
+    const timer = window.setTimeout(() => setVisible(false), reduced ? 0 : AV_MOTION.quick * 1000);
     return () => window.clearTimeout(timer);
   }, [active, reduced, visible]);
 
@@ -39,7 +40,7 @@ export default function ActivityBar() {
           initial={reduced ? { opacity: 1 } : { opacity: 0, scaleX: 0 }}
           animate={reduced ? { opacity: 1 } : { opacity: 1, scaleX: 1 }}
           exit={{ opacity: 0 }}
-          transition={{ duration: reduced ? 0 : 0.22 }}
+          transition={{ duration: reduced ? 0 : AV_MOTION.quick, ease: AV_EASE.standard }}
         >
           <m.span
             className={styles.track}
@@ -55,8 +56,8 @@ export default function ActivityBar() {
               reduced
                 ? { duration: 0 }
                 : completing
-                ? { duration: 0.22, ease: "easeOut" }
-                : { duration: 1.8, ease: "easeOut" }
+                ? { duration: AV_MOTION.quick, ease: AV_EASE.exit }
+                : { duration: AV_MOTION.slow, ease: AV_EASE.standard }
             }
           />
         </m.div>
