@@ -19,6 +19,11 @@ from ..core.database import get_db, parse_date
 from ..core.deps import get_current_user
 from ..core.limits import MAX_ATTACHMENT_SIZE, read_within_limit
 from ..core.paging import DEFAULT_PAGE_SIZE, paginate
+from ..core.project_changes import (
+    AUTO_SAVE_FIELD,
+    coalesce_project_changes,
+    record_project_change,
+)
 from ..core.rbac import (
     check_project_access,
     is_admin,
@@ -635,16 +640,27 @@ def update_project(
             ):
                 raise HTTPException(400, "项目名称已存在")
             setattr(p, f, v)
-            db.add(
-                ProjectChange(
-                    project_id=pid,
-                    field=f,
+            if f == AUTO_SAVE_FIELD:
+                record_project_change(
+                    db,
+                    pid,
+                    f,
+                    str(v or ""),
                     old=old_s,
-                    new=str(v or ""),
-                    by_id=user.id,
+                    user_id=user.id,
                     at=now,
                 )
-            )
+            else:
+                db.add(
+                    ProjectChange(
+                        project_id=pid,
+                        field=f,
+                        old=old_s,
+                        new=str(v or ""),
+                        by_id=user.id,
+                        at=now,
+                    )
+                )
     if "member_ids" in body:
         db.query(ProjectMember).filter_by(project_id=pid).delete()
         for uid in set(body["member_ids"]) | ({p.owner_id} if p.owner_id else set()):
@@ -751,7 +767,7 @@ def list_changes(
             "by_id": c.by_id,
             "at": iso(c.at),
         }
-        for c in rows
+        for c in coalesce_project_changes(rows)
     ]
 
 
