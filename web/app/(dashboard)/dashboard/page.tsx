@@ -187,34 +187,20 @@ export default function DashboardPage() {
 
   const k = data.kpi;
   const trendData = data.trend.map((point) => ({ ...point, label: point.month.slice(5) + "月" }));
-  const actionState = loading ? "刷新中" : err ? "需注意" : "已更新";
   const routeRows = [...data.health].sort(rankRoutes).slice(0, ROUTE_LIMIT);
   const hiddenRoutes = data.health.length - routeRows.length;
+  const showApprovalLink = canApprove && k.pending_approvals > 0;
 
   return (
     <div className={s.dashboard} data-dashboard-page="true" aria-busy={loading}>
       <PageHeader
         title="交付坐标盘"
         className={s.commandHeader}
-        actions={
-          <>
-            <span className={s.headerState}><i aria-hidden="true" />节点 / {actionState}</span>
-            <button
-              className={s.headerButton}
-              type="button"
-              onClick={() => void load()}
-              disabled={loading}
-              aria-busy={loading}
-            >
-              {loading ? "刷新中" : "刷新数据"}
-            </button>
-            {canApprove && k.pending_approvals > 0 && (
-              <Link className={s.approvalButton} href="/approvals">
-                进入审批 · {k.pending_approvals}
-              </Link>
-            )}
-          </>
-        }
+        actions={showApprovalLink ? (
+          <Link className={s.approvalButton} href="/approvals">
+            进入审批 · {k.pending_approvals}
+          </Link>
+        ) : undefined}
       />
       {err && (
         <div className={s.staleBanner} role="alert">
