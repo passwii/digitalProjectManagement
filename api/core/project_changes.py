@@ -104,12 +104,14 @@ def record_project_change(
     if field == AUTO_SAVE_FIELD:
         # SessionLocal 关闭了 autoflush；先让同一请求中更早的字段留痕可见。
         db.flush()
-        previous = (
+        recent = (
             db.query(ProjectChange)
             .filter_by(project_id=project_id)
             .order_by(ProjectChange.id.desc())
-            .first()
+            .limit(2)
+            .all()
         )
+        previous = recent[0] if recent else None
         if previous:
             previous_entry = ProjectChangeEntry(
                 id=previous.id,
@@ -130,9 +132,26 @@ def record_project_change(
                 chain_started_at=current_at,
             )
             if _continues_auto_save(current_entry, previous_entry):
-                previous.new = new
-                previous.at = current_at
-                return previous
+                older_entry = None
+                if len(recent) > 1:
+                    older = recent[1]
+                    older_entry = ProjectChangeEntry(
+                        id=older.id,
+                        field=older.field or "",
+                        old=older.old or "",
+                        new=older.new or "",
+                        by_id=older.by_id,
+                        at=older.at,
+                        chain_started_at=older.at,
+                    )
+                # 历史链已有相邻前序时保留各次保存的时间边界，追加后交给读取侧折叠；
+                # 单条当前记录仍可原地合并，避免正常自动保存持续膨胀。
+                if older_entry is None or not _continues_auto_save(
+                    previous_entry, older_entry
+                ):
+                    previous.new = new
+                    previous.at = current_at
+                    return previous
 
     row = ProjectChange(
         project_id=project_id,

@@ -7,7 +7,7 @@
 from datetime import timedelta
 
 from api.core.timeutil import app_now
-from api.models import ProjectChange, User
+from api.models import Project, ProjectChange, User
 from tests.test_project_changes_ledger import create_project, login
 
 
@@ -241,3 +241,49 @@ def test_pending_change_in_same_patch_breaks_auto_save_chain(client, db):
     listed = description_changes(client, headers, project["id"])
     assert len(listed) == 2
     assert [row["new"] for row in listed] == ["第一段，第二段", "第一段"]
+
+
+def test_new_autosave_extending_historical_chain_keeps_it_collapsed(client, db):
+    headers = login(client, "pm")
+    project = create_project(client, headers)
+    now = app_now()
+
+    session = db()
+    try:
+        user_id = session.query(User.id).filter(User.username == "pm").scalar()
+        project_row = session.query(Project).filter(Project.id == project["id"]).one()
+        project_row.description = "第一段，第二段"
+        session.add_all(
+            [
+                ProjectChange(
+                    project_id=project["id"],
+                    field="description",
+                    old="",
+                    new="第一段",
+                    by_id=user_id,
+                    at=now - timedelta(minutes=40),
+                ),
+                ProjectChange(
+                    project_id=project["id"],
+                    field="description",
+                    old="第一段",
+                    new="第一段，第二段",
+                    by_id=user_id,
+                    at=now - timedelta(minutes=20),
+                ),
+            ]
+        )
+        session.commit()
+    finally:
+        session.close()
+
+    response = client.patch(
+        f"/api/v1/projects/{project['id']}",
+        headers=headers,
+        json={"description": "第一段，第二段，第三段"},
+    )
+    assert response.status_code == 200, response.text
+
+    listed = description_changes(client, headers, project["id"])
+    assert len(listed) == 1
+    assert listed[0]["new"] == "第一段，第二段，第三段"
