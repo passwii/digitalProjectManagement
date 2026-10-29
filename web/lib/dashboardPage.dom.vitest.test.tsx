@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import type { DashboardSummary, Weekly } from "./api";
 
 const mocks = vi.hoisted(() => ({
@@ -9,6 +9,14 @@ const mocks = vi.hoisted(() => ({
   weekly: vi.fn(),
   beginActivity: vi.fn(),
   finish: vi.fn(),
+}));
+
+const routerMocks = vi.hoisted(() => ({
+  refresh: vi.fn(),
+}));
+
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ refresh: routerMocks.refresh }),
 }));
 
 vi.mock("next/link", () => ({
@@ -57,6 +65,7 @@ vi.mock("recharts", () => {
 });
 
 import DashboardPage from "../app/(dashboard)/dashboard/page";
+import { PageRefreshProvider, usePageRefresh } from "./pageRefresh";
 
 function summary(overrides: Partial<DashboardSummary["kpi"]> = {}): DashboardSummary {
   return {
@@ -128,12 +137,26 @@ const weekly: Weekly = {
   projects: [{ id: 12, code: "PJ-2026-001", name: "智慧展厅交付", status: "doing", progress: 68 }],
 };
 
+function RefreshProbe() {
+  const refresh = usePageRefresh();
+  const [error, setError] = useState("");
+  return (
+    <>
+      <button type="button" onClick={() => void refresh().catch((e: unknown) => setError(e instanceof Error ? e.message : String(e)))}>
+        触发页面刷新
+      </button>
+      <span data-testid="refresh-error">{error}</span>
+    </>
+  );
+}
+
 beforeEach(() => {
   mocks.summary.mockReset();
   mocks.weekly.mockReset();
   mocks.finish.mockReset();
   mocks.beginActivity.mockReset().mockReturnValue(mocks.finish);
   mocks.weekly.mockResolvedValue(weekly);
+  routerMocks.refresh.mockReset();
 });
 
 afterEach(() => cleanup());
@@ -160,6 +183,17 @@ describe("DashboardPage 刷新状态", () => {
     expect(screen.getByText("智慧展厅交付")).not.toBeNull();
     expect(screen.getByText("上线联调")).not.toBeNull();
     expect(screen.getByText("待我审批")).not.toBeNull();
+  });
+
+  it("顶部不展示节点状态和手动刷新入口", async () => {
+    mocks.summary.mockResolvedValueOnce(summary());
+
+    render(<DashboardPage />);
+
+    await screen.findByTestId("dashboard-zone-readouts");
+    expect(screen.queryByText("节点 / 已更新")).toBeNull();
+    expect(screen.queryByRole("button", { name: /刷新数据|刷新中/ })).toBeNull();
+    expect(screen.getByRole("link", { name: "进入审批 · 2" })).not.toBeNull();
   });
 
   it("项目航迹默认显示三项，展开后可查看其余项目并收起", async () => {
@@ -214,20 +248,23 @@ describe("DashboardPage 刷新状态", () => {
       .mockResolvedValueOnce(summary({ my_projects: 6 }))
       .mockImplementationOnce(() => new Promise((resolve) => { resolveRefresh = resolve; }));
 
-    render(<DashboardPage />);
-    const refresh = await screen.findByRole("button", { name: "刷新数据" });
+    render(
+      <PageRefreshProvider>
+        <RefreshProbe />
+        <DashboardPage />
+      </PageRefreshProvider>,
+    );
+    await screen.findByTestId("dashboard-zone-readouts");
     const page = document.querySelector('[data-dashboard-page="true"]');
     expect(page?.getAttribute("aria-busy")).toBe("false");
 
-    fireEvent.click(refresh);
-    const refreshing = screen.getByRole("button", { name: "刷新中" });
-    expect(refreshing.hasAttribute("disabled")).toBe(true);
+    fireEvent.click(screen.getByRole("button", { name: "触发页面刷新" }));
+    await waitFor(() => expect(page?.getAttribute("aria-busy")).toBe("true"));
     expect(screen.getByText("我的项目")).not.toBeNull();
-    expect(page?.getAttribute("aria-busy")).toBe("true");
 
     await act(async () => resolveRefresh(summary({ my_projects: 7 })));
-    await waitFor(() => expect(screen.getByRole("button", { name: "刷新数据" }).hasAttribute("disabled")).toBe(false));
-    expect(page?.getAttribute("aria-busy")).toBe("false");
+    await waitFor(() => expect(page?.getAttribute("aria-busy")).toBe("false"));
+    expect(routerMocks.refresh).toHaveBeenCalledTimes(1);
   });
 
   it("刷新失败时保留已成功数据并显示可重试提示", async () => {
@@ -235,13 +272,20 @@ describe("DashboardPage 刷新状态", () => {
       .mockResolvedValueOnce(summary())
       .mockRejectedValueOnce(new Error("服务暂不可用"));
 
-    render(<DashboardPage />);
-    const refresh = await screen.findByRole("button", { name: "刷新数据" });
+    render(
+      <PageRefreshProvider>
+        <RefreshProbe />
+        <DashboardPage />
+      </PageRefreshProvider>,
+    );
+    await screen.findByTestId("dashboard-zone-readouts");
 
-    fireEvent.click(refresh);
+    fireEvent.click(screen.getByRole("button", { name: "触发页面刷新" }));
     const alert = await screen.findByRole("alert");
     expect(alert.textContent).toContain("数据刷新失败，以下为上次成功数据。服务暂不可用");
+    expect(screen.getByTestId("refresh-error").textContent).toBe("服务暂不可用");
     expect(screen.getByText("我的项目")).not.toBeNull();
     expect(screen.getByRole("button", { name: "重试" })).not.toBeNull();
+    expect(routerMocks.refresh).not.toHaveBeenCalled();
   });
 });

@@ -43,9 +43,9 @@
 
 .commandHeader[data-page-header="true"] {
   align-items: flex-end;
-  margin-bottom: 20px;
-  padding: 0 0 16px;
-  border-bottom-color: color-mix(in srgb, var(--dash-cyan) 24%, var(--dash-line));
+  margin-bottom: 16px;
+  padding: 0;
+  border-bottom: 0;
 }
 
 .commandHeader :global([data-page-header-filters="true"]) {
@@ -59,29 +59,6 @@
   align-items: center;
   padding-left: 0;
   border-left: 0;
-}
-
-.headerState {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  color: var(--dash-dim);
-  font-family: var(--font-mono);
-  font-size: 10px;
-  letter-spacing: 0.08em;
-  white-space: nowrap;
-}
-
-.headerState i {
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: var(--dash-lime);
-  box-shadow: 0 0 9px color-mix(in srgb, var(--dash-lime) 75%, transparent);
-}
-
-.dashboard[aria-busy="true"] .headerState i {
-  animation: liveStatePulse var(--av-dur-shimmer) var(--av-ease-standard) infinite;
 }
 
 .headerButton,
@@ -506,11 +483,10 @@
 }
 
 @media (max-width: 767px) {
-  .commandHeader[data-page-header="true"] { display: block; padding-bottom: 16px; }
-  .commandHeader :global([data-page-header-actions="true"]) { margin-top: 16px; padding: 14px 0 0; border-top: 1px solid var(--dash-line-soft); border-left: 0; }
+  .commandHeader[data-page-header="true"] { display: block; padding-bottom: 0; }
+  .commandHeader :global([data-page-header-actions="true"]) { margin-top: 12px; padding: 0; border-top: 0; border-left: 0; }
   .headerButton,
   .approvalButton { min-height: 44px; }
-  .headerState { margin-right: auto; }
   .readoutRail { gap: 10px; }
   .zoneHeader { padding: 15px 14px 13px; }
   .zoneHeader h2 { font-size: 16px; }
@@ -529,11 +505,6 @@
   .readoutRail { grid-template-columns: minmax(0, 1fr); }
 }
 
-:global(:root[data-theme="light"]) .headerState i {
-  background: var(--dash-success);
-  box-shadow: none;
-}
-
 :global(:root[data-theme="light"]) .logNode {
   box-shadow: none;
 }
@@ -546,25 +517,12 @@
   border-color: var(--action-border);
 }
 
-@keyframes liveStatePulse {
-  0%,
-  100% {
-    opacity: 0.55;
-    transform: scale(0.86);
-  }
-  50% {
-    opacity: 1;
-    transform: scale(1.25);
-  }
-}
-
 @keyframes subjectFillIn {
   from { transform: scaleX(0); }
   to { transform: scaleX(var(--subject-progress)); }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .dashboard[aria-busy="true"] .headerState i,
   .subjectFill { animation: none; }
   .headerButton,
   .approvalButton,
