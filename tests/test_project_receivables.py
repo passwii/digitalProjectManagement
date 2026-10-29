@@ -65,11 +65,11 @@ def scope_user(client, db, username, modules=()):
     故「非参与人」边界用例必须用零模块用户，不能借用默认回落的存量账号。
     直接写库建号：为建号登录一次会推进 admin 的 session_version，让用例此前的令牌失效。
     """
-    from api.core.security import hash_password
     from api.models import UserModule
+    from tests.support import hash_test_password
 
     with db() as session:
-        user = User(username=username, pwd_hash=hash_password("abc12345"),
+        user = User(username=username, pwd_hash=hash_test_password("abc12345"),
                     real_name=username, must_change_pwd=False, modules_assigned=True)
         session.add(user)
         session.flush()

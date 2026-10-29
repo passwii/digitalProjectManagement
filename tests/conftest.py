@@ -45,8 +45,8 @@ else:
     os.environ["DATABASE_URL"] = TEST_DATABASE_URL
 
 from api.core.database import Base, get_db  # noqa: E402
-from api.core.security import hash_password  # noqa: E402
 from api.main import app  # noqa: E402
+from tests.support import hash_test_password  # noqa: E402
 
 
 def _make_schema_engine(schema: str):
@@ -106,7 +106,7 @@ def db():
         def mk(username: str, password: str, roles: list[str], *, is_super_admin: bool = False):
             user = User(
                 username=username,
-                pwd_hash=hash_password(password),
+                pwd_hash=hash_test_password(password),
                 real_name=username,
                 dept_id=dept.id,
                 is_super_admin=is_super_admin,

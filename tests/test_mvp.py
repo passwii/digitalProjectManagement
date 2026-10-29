@@ -41,11 +41,11 @@ def _scope_user(client, db, username, modules, pwd="abc12345"):
     直接写库建号（不走 `/admin/users`）：创建接口需要超级管理员令牌，而为建号再登录
     一次会推进 admin 的 `session_version`，让用例先前拿到的管理员令牌当场失效。
     """
-    from api.core.security import hash_password
     from api.models import User, UserModule
+    from tests.support import hash_test_password
 
     with db() as session:
-        u = User(username=username, pwd_hash=hash_password(pwd), real_name=username,
+        u = User(username=username, pwd_hash=hash_test_password(pwd), real_name=username,
                  must_change_pwd=False, modules_assigned=True)
         session.add(u)
         session.flush()
@@ -487,15 +487,16 @@ def test_paging_and_visibility(client, db):
 
 def mkuser_in_other_dept(db, username, pwd, roles, dept_name="外部部门"):
     """在另一个部门建用户（用于验证「全局范围只属于管理员」）。返回 (user_id, dept_id)。"""
-    from api.core.security import hash_password as _hp
     from api.models import Department, Role, User, UserRole
+    from tests.support import hash_test_password
     S = db()
     d = S.query(Department).filter_by(name=dept_name).first()
     if not d:
         d = Department(name=dept_name)
         S.add(d)
         S.flush()
-    u = User(username=username, pwd_hash=_hp(pwd), real_name=username, dept_id=d.id)
+    u = User(username=username, pwd_hash=hash_test_password(pwd),
+             real_name=username, dept_id=d.id)
     S.add(u)
     S.flush()
     for c in roles:
@@ -519,8 +520,8 @@ def test_admin_audit_log_operator_names_and_export_columns(client, db):
     """审计日志展示姓名，姓名为空回落账号，未知操作人回落可读 ID。"""
     from openpyxl import load_workbook
 
-    from api.core.security import hash_password
     from api.models import AuditLog, User
+    from tests.support import hash_test_password
 
     ha = login(client, "admin")
     S = db()
@@ -529,7 +530,7 @@ def test_admin_audit_log_operator_names_and_export_columns(client, db):
         admin.real_name = "张审计"
         blank = User(
             username="blank-account",
-            pwd_hash=hash_password("blank123456"),
+            pwd_hash=hash_test_password("blank123456"),
             real_name="",
             dept_id=admin.dept_id,
         )
