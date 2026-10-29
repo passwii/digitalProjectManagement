@@ -168,3 +168,76 @@ def test_other_project_changes_break_the_auto_save_chain(client, db):
     listed = description_changes(client, headers, project["id"])
     assert len(listed) == 2
     assert [row["new"] for row in listed] == ["第一段，第二段", "第一段"]
+
+
+def test_historical_chain_uses_adjacent_gaps_not_total_duration(client, db):
+    headers = login(client, "pm")
+    project = create_project(client, headers)
+    now = app_now()
+
+    session = db()
+    try:
+        user_id = session.query(User.id).filter(User.username == "pm").scalar()
+        session.add_all(
+            [
+                ProjectChange(
+                    project_id=project["id"],
+                    field="description",
+                    old="",
+                    new="第一段",
+                    by_id=user_id,
+                    at=now - timedelta(minutes=40),
+                ),
+                ProjectChange(
+                    project_id=project["id"],
+                    field="description",
+                    old="第一段",
+                    new="第一段，第二段",
+                    by_id=user_id,
+                    at=now - timedelta(minutes=20),
+                ),
+                ProjectChange(
+                    project_id=project["id"],
+                    field="description",
+                    old="第一段，第二段",
+                    new="第一段，第二段，第三段",
+                    by_id=user_id,
+                    at=now,
+                ),
+            ]
+        )
+        session.commit()
+    finally:
+        session.close()
+
+    listed = description_changes(client, headers, project["id"])
+    assert len(listed) == 1
+    assert listed[0]["new"] == "第一段，第二段，第三段"
+
+
+def test_pending_change_in_same_patch_breaks_auto_save_chain(client, db):
+    headers = login(client, "pm")
+    project = create_project(client, headers)
+
+    first = client.patch(
+        f"/api/v1/projects/{project['id']}",
+        headers=headers,
+        json={"description": "第一段"},
+    )
+    assert first.status_code == 200, first.text
+
+    # SessionLocal 关闭 autoflush：name 的留痕必须对 description 的合并判断可见，
+    # 结果不能依赖请求 JSON 中字段的先后顺序。
+    second = client.patch(
+        f"/api/v1/projects/{project['id']}",
+        headers=headers,
+        json={
+            "name": "简介自动保存留痕（改名）",
+            "description": "第一段，第二段",
+        },
+    )
+    assert second.status_code == 200, second.text
+
+    listed = description_changes(client, headers, project["id"])
+    assert len(listed) == 2
+    assert [row["new"] for row in listed] == ["第一段，第二段", "第一段"]

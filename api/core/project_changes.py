@@ -44,6 +44,7 @@ class ProjectChangeEntry:
     new: str
     by_id: int | None
     at: datetime | None
+    chain_started_at: datetime | None
 
 
 def _continues_auto_save(
@@ -54,9 +55,9 @@ def _continues_auto_save(
         return False
     if newer.by_id != older.by_id or newer.old != older.new:
         return False
-    if newer.at is None or older.at is None:
+    if newer.chain_started_at is None or older.at is None:
         return False
-    gap = newer.at - older.at
+    gap = newer.chain_started_at - older.at
     return timedelta(0) <= gap <= AUTO_SAVE_MERGE_WINDOW
 
 
@@ -71,10 +72,15 @@ def coalesce_project_changes(rows: Iterable[ProjectChange]) -> list[ProjectChang
             new=row.new or "",
             by_id=row.by_id,
             at=row.at,
+            chain_started_at=row.at,
         )
         if entries and _continues_auto_save(entries[-1], current):
             # 输入来自倒序结果：保留最新的 new/at，向前延伸 old。
-            entries[-1] = replace(entries[-1], old=current.old)
+            entries[-1] = replace(
+                entries[-1],
+                old=current.old,
+                chain_started_at=current.chain_started_at,
+            )
         else:
             entries.append(current)
     return entries
@@ -96,6 +102,8 @@ def record_project_change(
     old = old or ""
 
     if field == AUTO_SAVE_FIELD:
+        # SessionLocal 关闭了 autoflush；先让同一请求中更早的字段留痕可见。
+        db.flush()
         previous = (
             db.query(ProjectChange)
             .filter_by(project_id=project_id)
@@ -110,6 +118,7 @@ def record_project_change(
                 new=previous.new or "",
                 by_id=previous.by_id,
                 at=previous.at,
+                chain_started_at=previous.at,
             )
             current_entry = ProjectChangeEntry(
                 id=None,
@@ -118,6 +127,7 @@ def record_project_change(
                 new=new,
                 by_id=user_id,
                 at=current_at,
+                chain_started_at=current_at,
             )
             if _continues_auto_save(current_entry, previous_entry):
                 previous.new = new
