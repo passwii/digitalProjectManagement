@@ -123,6 +123,7 @@ docker rm -f pm-test-pg
 - **迁移链**：`tests/test_migration_revision_ids.py`（revision id 长度/唯一性/链完整）；迁移升降级在随机临时 schema 上验证。
 - **契约字段**：请求/响应字段、时间格式、分页与筛选语义。
 - **对象存储**：默认本地临时暂存，不触网；需要验证 R2 行为时用 `monkeypatch` 局部覆盖。
+- **测试账号密码哈希**：直接写库的 fixture 用户使用 `tests.support.hash_test_password`（bcrypt cost 4）；通过 API 创建的用户仍走生产 `hash_password`。登录验证始终使用生产 `verify_password`，不要为了“真实感”把 fixture 改回生产 cost。
 
 ### 4.4 数据库卫生
 

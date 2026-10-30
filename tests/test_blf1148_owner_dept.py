@@ -3,14 +3,14 @@ from test_mvp import items, login, login_raw, mkproject
 
 
 def _mkuser(db, username: str, real_name: str):
-    from api.core.security import hash_password
     from api.models import Department, User
+    from tests.support import hash_test_password
 
     session = db()
     try:
         dept = session.query(Department).filter_by(name="综合部").first()
         assert dept is not None
-        user = User(username=username, pwd_hash=hash_password("x1234567"),
+        user = User(username=username, pwd_hash=hash_test_password("x1234567"),
                     real_name=real_name, dept_id=dept.id)
         session.add(user)
         session.commit()

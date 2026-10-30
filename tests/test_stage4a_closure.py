@@ -40,11 +40,11 @@ def items(r):
 
 def scope_user(client, db, username, modules=()):
     """建一个显式分配指定模块的普通用户并登录（见 test_mvp._scope_user 的说明）。"""
-    from api.core.security import hash_password
     from api.models import User, UserModule
+    from tests.support import hash_test_password
 
     with db() as session:
-        user = User(username=username, pwd_hash=hash_password("abc12345"),
+        user = User(username=username, pwd_hash=hash_test_password("abc12345"),
                     real_name=username, must_change_pwd=False, modules_assigned=True)
         session.add(user)
         session.flush()
