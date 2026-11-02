@@ -6,6 +6,10 @@ const shellCss = readFileSync(resolve(process.cwd(), "components/ui/Shell.module
 const globalsCss = readFileSync(resolve(process.cwd(), "app/globals.css"), "utf8");
 const DESIGN_SYSTEM_SELECTOR = '.shell[data-console-shell="true"]';
 const LIGHT_SELECTOR = `:global(:root[data-theme="light"]) ${DESIGN_SYSTEM_SELECTOR}`;
+const ACTIVE_NAV_SELECTOR = `${DESIGN_SYSTEM_SELECTOR} .navActive`;
+const TITLE_MARK_SELECTOR = `${DESIGN_SYSTEM_SELECTOR} .topTitleMark`;
+const NARROW_LAYOUT_MEDIA_SELECTOR = "@media (max-width: 900px)";
+const INSET_HIGHLIGHT_DECLARATION = "box-shadow: inset 0 1px 0 var(--highlight-inset);";
 const REQUIRED_THEME_ROLES = [
   "action",
   "todo",
@@ -51,6 +55,32 @@ function declarations(selector: string) {
   return Object.fromEntries(
     Array.from(shellCss.slice(start, end).matchAll(/--([\w-]+):\s*([^;]+);/g), ([, name, value]) => [name, value.trim()]),
   ) as Record<string, string>;
+}
+
+function cssBlock(source: string, selector: string): string | null {
+  const marker = `${selector} {`;
+  let start = source.indexOf(marker);
+  while (start >= 0) {
+    const lineStart = source.lastIndexOf("\n", start - 1) + 1;
+    if (source.slice(lineStart, start).trim() === "") break;
+    start = source.indexOf(marker, start + marker.length);
+  }
+  if (start < 0) return null;
+
+  const openingBrace = start + marker.length - 1;
+  let depth = 0;
+  for (let index = openingBrace; index < source.length; index += 1) {
+    if (source[index] === "{") depth += 1;
+    if (source[index] === "}") {
+      depth -= 1;
+      if (depth === 0) return source.slice(start, index + 1);
+    }
+  }
+  return null;
+}
+
+function hasInsetHighlight(source: string, selector: string): boolean {
+  return cssBlock(source, selector)?.includes(INSET_HIGHLIGHT_DECLARATION) ?? false;
 }
 
 function resolveToken(name: string, values: Record<string, string>): string {
@@ -106,10 +136,22 @@ describe("authenticated workbench theme tokens", () => {
   it("defines and uses a scoped inset highlight for shell accents", () => {
     const dark = declarations(DESIGN_SYSTEM_SELECTOR);
     const light = declarations(LIGHT_SELECTOR);
+    const narrowLayoutStart = shellCss.indexOf(`${NARROW_LAYOUT_MEDIA_SELECTOR} {`);
+    expect(narrowLayoutStart, "Missing narrow-layout media block").toBeGreaterThanOrEqual(0);
+    const narrowLayout = cssBlock(shellCss, NARROW_LAYOUT_MEDIA_SELECTOR);
+    const titleMarkBlock = cssBlock(shellCss, TITLE_MARK_SELECTOR);
 
     expect(dark["highlight-inset"]).toBe("rgba(237, 237, 237, 0.12)");
     expect(light["highlight-inset"]).toBe("rgba(241, 244, 245, 0.12)");
-    expect(shellCss.match(/box-shadow: inset 0 1px 0 var\(--highlight-inset\);/g)).toHaveLength(3);
+    expect(hasInsetHighlight(shellCss.slice(0, narrowLayoutStart), ACTIVE_NAV_SELECTOR)).toBe(true);
+    expect(hasInsetHighlight(shellCss, TITLE_MARK_SELECTOR)).toBe(true);
+    expect(hasInsetHighlight(narrowLayout ?? "", ACTIVE_NAV_SELECTOR)).toBe(true);
+
+    expect(titleMarkBlock).not.toBeNull();
+    const changedTitleMarkBlock = titleMarkBlock!.replace("var(--highlight-inset)", "var(--missing-highlight)");
+    expect(changedTitleMarkBlock).not.toBe(titleMarkBlock);
+    const changedShellCss = shellCss.replace(titleMarkBlock!, changedTitleMarkBlock);
+    expect(hasInsetHighlight(changedShellCss, TITLE_MARK_SELECTOR)).toBe(false);
   });
 
   it("keeps dark workbench text, navigation, focus, and primary action readable", () => {
@@ -117,6 +159,7 @@ describe("authenticated workbench theme tokens", () => {
 
     expect(contrast(resolveToken("ink", dark), resolveToken("bg", dark))).toBeGreaterThanOrEqual(4.5);
     expect(contrast(resolveToken("nav-ink", dark), resolveToken("nav-bg", dark))).toBeGreaterThanOrEqual(4.5);
+    expect(contrast(resolveToken("done", dark), resolveToken("card", dark))).toBeGreaterThanOrEqual(4.5);
     expect(contrast(resolveToken("focus-ring", dark), resolveToken("card", dark))).toBeGreaterThanOrEqual(3);
     expect(contrast(resolveToken("on-action", dark), resolveToken("action", dark))).toBeGreaterThanOrEqual(4.5);
   });
@@ -131,6 +174,7 @@ describe("authenticated workbench theme tokens", () => {
     expect(light["data-mint"]).toBe("#16846e");
     expect(contrast(resolveToken("ink", light), resolveToken("bg", light))).toBeGreaterThanOrEqual(4.5);
     expect(contrast(resolveToken("nav-ink", light), resolveToken("nav-bg", light))).toBeGreaterThanOrEqual(4.5);
+    expect(contrast(resolveToken("done", light), resolveToken("card", light))).toBeGreaterThanOrEqual(4.5);
     expect(contrast(resolveToken("focus-ring", light), resolveToken("card", light))).toBeGreaterThanOrEqual(3);
     expect(contrast(resolveToken("on-action", light), resolveToken("action", light))).toBeGreaterThanOrEqual(4.5);
   });
