@@ -45,9 +45,11 @@ Local Docker build status: the configured OrbStack daemon is not running at `/Us
 
 ### Task 3: Update and deliver PR #193
 
-**Files:** Modify PR #193 description and add this plan to `docs/superpowers/plans/`.
+**Files:** Modify `web/app/globals.css`, `web/lib/workbenchThemeTokens.vitest.test.ts`, PR #193 description, and this plan.
 
-- [ ] Commit the Node 26 runtime and documentation changes with the repository's Chinese Conventional Commit format; push the existing PR branch.
+- [x] Resolve the current-head Codex P2 by excluding `aria-invalid="true"` inputs and textareas from normal/focus overrides, with a regression guard.
+- [x] Commit the Node 26 runtime and documentation changes with the repository's Chinese Conventional Commit format.
+- [ ] Push the Node 26 commit and the review-fix commit on the existing PR branch.
 - [ ] Update PR #193 with Node 26 verification results and confirm both checks correspond to the new HEAD SHA.
 - [ ] Review the current-head PR summary, reviews, inline comments, and conversation; merge only when the required review is clean and both CI checks pass.
 - [ ] Squash merge PR #193, then execute `python3 scripts/deploy_vps.py` once and confirm the deployment result.

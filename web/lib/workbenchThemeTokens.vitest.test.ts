@@ -206,6 +206,25 @@ describe("authenticated workbench theme tokens", () => {
     expect(primary).not.toContain("background: var(--action);");
   });
 
+  it("preserves danger styling for invalid workbench fields", () => {
+    const sharedControlsStart = globalsCss.indexOf("/* Shared controls use the stable marker");
+    const sharedControlsEnd = globalsCss.indexOf('[data-console-shell="true"] input:disabled', sharedControlsStart);
+    expect(sharedControlsStart).toBeGreaterThanOrEqual(0);
+    expect(sharedControlsEnd).toBeGreaterThan(sharedControlsStart);
+
+    const sharedControlSelectors = globalsCss.slice(sharedControlsStart, sharedControlsEnd);
+    const selectors = sharedControlSelectors.split("\n");
+    const inputSelectors = selectors.filter((selector) => selector.includes(" input:not("));
+    const textareaSelectors = selectors.filter((selector) => selector.includes(" textarea:not([aria-invalid=\"true\"])"));
+
+    expect(inputSelectors).toHaveLength(2);
+    expect(textareaSelectors).toHaveLength(2);
+    expect(inputSelectors.every((selector) => selector.includes(':not([aria-invalid="true"])'))).toBe(true);
+    expect(textareaSelectors.every((selector) => selector.includes(':not([aria-invalid="true"])'))).toBe(true);
+    expect(globalsCss).toContain('.field input[aria-invalid="true"]');
+    expect(globalsCss).toContain('.field textarea[aria-invalid="true"]');
+  });
+
   it("keeps the workbench skip link inside the scoped console theme", () => {
     const consoleShell = dashboardLayout.indexOf('data-console-shell="true"');
     const shellOpeningEnd = dashboardLayout.indexOf(">", consoleShell);

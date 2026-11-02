@@ -2444,8 +2444,8 @@ th.num {
 }
 
 /* Shared controls use the stable marker because the shell class is CSS-Module hashed. */
-[data-console-shell="true"] input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]):not([aria-hidden="true"]),
-[data-console-shell="true"] textarea,
+[data-console-shell="true"] input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]):not([aria-hidden="true"]):not([aria-invalid="true"]),
+[data-console-shell="true"] textarea:not([aria-invalid="true"]),
 [data-console-shell="true"] select {
  border-radius: var(--radius-control);
  border-color: var(--control-border);
@@ -2460,8 +2460,8 @@ th.num {
  border-radius: var(--radius-control);
 }
 
-[data-console-shell="true"] input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]):not([aria-hidden="true"]):focus,
-[data-console-shell="true"] textarea:focus,
+[data-console-shell="true"] input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]):not([aria-hidden="true"]):not([aria-invalid="true"]):focus,
+[data-console-shell="true"] textarea:not([aria-invalid="true"]):focus,
 [data-console-shell="true"] select:focus {
  border-color: var(--focus-ring);
  box-shadow: 0 0 0 2px var(--brand-soft), inset 0 1px 0 var(--highlight-inset);
