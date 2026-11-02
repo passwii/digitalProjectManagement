@@ -16,3 +16,8 @@
 .danger { background: var(--danger-bg); color: var(--danger); border-color: var(--line-danger); }
 .done { background: var(--done-bg); color: var(--done); border-color: var(--line-done); }
 @media (prefers-reduced-motion: reduce) { .badge { transition: none; } }
+
+:global([data-console-shell="true"]) .badge {
+  border-radius: var(--radius-badge);
+  box-shadow: inset 0 1px 0 var(--highlight-inset);
+}

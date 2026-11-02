@@ -147,3 +147,24 @@
  font-size: 12.5px;
  font-weight: 650;
 }
+
+:global([data-console-shell="true"]) .note,
+:global([data-console-shell="true"]) .account,
+:global([data-console-shell="true"]) .retry button {
+ border-color: var(--control-border);
+ border-radius: var(--radius-control);
+ box-shadow: inset 0 1px 0 var(--highlight-inset);
+}
+:global([data-console-shell="true"]) .note {
+ background: var(--card-lift);
+}
+:global([data-console-shell="true"]) .chip {
+ border-color: var(--control-border);
+ border-radius: var(--radius-control);
+ box-shadow: inset 0 1px 0 var(--highlight-inset);
+}
+:global([data-console-shell="true"]) .chip[aria-pressed="true"] {
+ border-color: var(--line-blue);
+ background: var(--brand-soft);
+ color: var(--brand);
+}

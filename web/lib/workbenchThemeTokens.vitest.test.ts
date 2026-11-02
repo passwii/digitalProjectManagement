@@ -161,6 +161,7 @@ describe("authenticated workbench theme tokens", () => {
     expect(contrast(resolveToken("nav-ink", dark), resolveToken("nav-bg", dark))).toBeGreaterThanOrEqual(4.5);
     expect(contrast(resolveToken("done", dark), resolveToken("card", dark))).toBeGreaterThanOrEqual(4.5);
     expect(contrast(resolveToken("focus-ring", dark), resolveToken("card", dark))).toBeGreaterThanOrEqual(3);
+    expect(contrast(resolveToken("on-brand", dark), resolveToken("brand", dark))).toBeGreaterThanOrEqual(4.5);
     expect(contrast(resolveToken("on-action", dark), resolveToken("action", dark))).toBeGreaterThanOrEqual(4.5);
   });
 
@@ -176,7 +177,22 @@ describe("authenticated workbench theme tokens", () => {
     expect(contrast(resolveToken("nav-ink", light), resolveToken("nav-bg", light))).toBeGreaterThanOrEqual(4.5);
     expect(contrast(resolveToken("done", light), resolveToken("card", light))).toBeGreaterThanOrEqual(4.5);
     expect(contrast(resolveToken("focus-ring", light), resolveToken("card", light))).toBeGreaterThanOrEqual(3);
+    expect(contrast(resolveToken("on-brand", light), resolveToken("brand", light))).toBeGreaterThanOrEqual(4.5);
     expect(contrast(resolveToken("on-action", light), resolveToken("action", light))).toBeGreaterThanOrEqual(4.5);
+  });
+
+  it("scopes global workbench rules by the stable shell attribute", () => {
+    expect(globalsCss).toContain('[data-console-shell="true"] .card');
+    expect(globalsCss.includes('.shell[data-console-shell="true"]')).toBe(false);
+  });
+
+  it("uses blue for workbench primary actions and mint for its positive role", () => {
+    const primary = cssBlock(globalsCss, '[data-console-shell="true"] .btn-primary');
+
+    expect(primary).not.toBeNull();
+    expect(primary).toContain("background: var(--brand);");
+    expect(primary).toContain("color: var(--on-brand);");
+    expect(primary).not.toContain("background: var(--action);");
   });
 
   it("leaves root tokens available to the isolated login and demo surfaces", () => {

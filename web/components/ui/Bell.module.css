@@ -114,3 +114,21 @@
   .item { min-height: var(--m-tap); }
 }
 @media (prefers-reduced-motion: reduce) { .panel { animation: none; } }
+
+:global([data-console-shell="true"]) .bell {
+  border-color: var(--line);
+  border-radius: var(--radius-control);
+  box-shadow: inset 0 1px 0 var(--highlight-inset);
+}
+:global([data-console-shell="true"]) .bell:hover {
+  border-color: var(--control-border);
+  background: var(--card-lift);
+}
+:global([data-console-shell="true"]) .panel {
+  border-color: var(--control-border);
+  box-shadow: var(--shadow-float), inset 0 1px 0 var(--highlight-inset);
+}
+:global([data-console-shell="true"]) .head {
+  background: var(--card-lift);
+  box-shadow: inset 0 1px 0 var(--highlight-inset);
+}

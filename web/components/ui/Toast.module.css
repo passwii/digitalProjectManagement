@@ -76,3 +76,19 @@
     margin: -10px -10px 0 0;
   }
 }
+
+:global([data-console-shell="true"]) .toast {
+  border-color: var(--control-border);
+  box-shadow: var(--shadow-float), inset 0 1px 0 var(--highlight-inset);
+}
+:global([data-console-shell="true"]) .dismiss {
+  border-color: var(--line);
+}
+:global([data-console-shell="true"]) .dismiss:hover {
+  border-color: var(--control-border);
+  background: var(--card-lift);
+  color: var(--ink);
+}
+:global([data-console-shell="true"]) .ok { border-color: var(--line-done); }
+:global([data-console-shell="true"]) .err { border-color: var(--line-danger); }
+:global([data-console-shell="true"]) .info { border-color: var(--line-blue); }
