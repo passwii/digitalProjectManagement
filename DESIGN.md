@@ -100,6 +100,11 @@ typography:
     fontSize: "14px"
     fontWeight: 400
     lineHeight: 1.5
+  primary-button:
+    fontFamily: '"Noto Sans SC", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", system-ui, sans-serif'
+    fontSize: "14px"
+    fontWeight: 650
+    lineHeight: 1
   page-title:
     fontFamily: '"Noto Sans SC", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", system-ui, sans-serif'
     fontSize: "clamp(22px, 2.25vw, 28px)"
@@ -136,14 +141,14 @@ components:
   button-primary-dark:
     backgroundColor: "{colors.dark-signal}"
     textColor: "{colors.dark-on-signal}"
-    typography: "{typography.body}"
+    typography: "{typography.primary-button}"
     rounded: "{rounded.control}"
     padding: "0 16px"
     height: "38px"
   button-primary-light:
     backgroundColor: "{colors.light-signal}"
     textColor: "{colors.light-on-signal}"
-    typography: "{typography.body}"
+    typography: "{typography.primary-button}"
     rounded: "{rounded.control}"
     padding: "0 16px"
     height: "38px"

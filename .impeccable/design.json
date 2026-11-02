@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-11-02T17:55:32+08:00",
+  "generatedAt": "2026-11-02T18:18:46+08:00",
   "title": "Design System: 数科云办公",
   "extensions": {
     "colorMeta": {
@@ -470,6 +470,10 @@
         "displayName": "正文",
         "purpose": "工作台基础中文无衬线文字。"
       },
+      "primary-button": {
+        "displayName": "主要按钮",
+        "purpose": "共享主要按钮的中文无衬线字族、字号、字重与行高。"
+      },
       "page-title": {
         "displayName": "页面标题",
         "purpose": "当前页的一级标题。"
@@ -598,7 +602,7 @@
       "kind": "button",
       "description": "深色工作区的蓝色主要操作，包含悬停、焦点、按下和禁用状态。",
       "html": "<button class=\"ds-btn-primary-dark\" type=\"button\">保存更改</button>",
-      "css": ".ds-btn-primary-dark { display:inline-flex; align-items:center; justify-content:center; gap:6px; height:38px; padding:0 16px; border:1px solid #6aa9ff; border-radius:10px; background:#6aa9ff; color:#101820; font:650 14px/1 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif; white-space:nowrap; box-shadow:inset 0 1px 0 rgba(237,237,237,.12); transition:background 160ms ease-out,border-color 160ms ease-out,transform 90ms ease-out; } .ds-btn-primary-dark:hover { background:#8bbcff; border-color:#8bbcff; } .ds-btn-primary-dark:focus-visible { outline:2px solid #7fc6ff; outline-offset:1px; box-shadow:0 0 0 3px rgba(106,169,255,.12),inset 0 1px 0 rgba(237,237,237,.12); } .ds-btn-primary-dark:active { transform:translateY(1px); } .ds-btn-primary-dark:disabled { border-color:rgba(237,237,237,.12); background:#24272a; color:#85858b; cursor:not-allowed; }",
+      "css": ".ds-btn-primary-dark { display:inline-flex; align-items:center; justify-content:center; gap:6px; height:38px; padding:0 16px; border:1px solid #6aa9ff; border-radius:10px; background:#6aa9ff; color:#101820; font:650 14px/1 'Noto Sans SC', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', system-ui, sans-serif; white-space:nowrap; box-shadow:inset 0 1px 0 rgba(237,237,237,.12); transition:background 160ms ease-out,border-color 160ms ease-out,transform 90ms ease-out; } .ds-btn-primary-dark:hover { background:#8bbcff; border-color:#8bbcff; } .ds-btn-primary-dark:focus-visible { outline:2px solid #7fc6ff; outline-offset:1px; box-shadow:0 0 0 3px rgba(106,169,255,.12),inset 0 1px 0 rgba(237,237,237,.12); } .ds-btn-primary-dark:active { transform:translateY(1px); } .ds-btn-primary-dark:disabled { border-color:rgba(237,237,237,.12); background:#24272a; color:#85858b; cursor:not-allowed; }",
       "refersTo": "button-primary-dark"
     },
     {
@@ -606,7 +610,7 @@
       "kind": "button",
       "description": "浅色工作区的蓝色主要操作，使用高对比前景和主题化焦点环。",
       "html": "<button class=\"ds-btn-primary-light\" type=\"button\">保存更改</button>",
-      "css": ".ds-btn-primary-light { display:inline-flex; align-items:center; justify-content:center; gap:6px; height:38px; padding:0 16px; border:1px solid #286ca4; border-radius:10px; background:#286ca4; color:#fff; font:650 14px/1 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif; white-space:nowrap; box-shadow:inset 0 1px 0 rgba(241,244,245,.12); transition:background 160ms ease-out,border-color 160ms ease-out,transform 90ms ease-out; } .ds-btn-primary-light:hover { background:#1e5d90; border-color:#1e5d90; } .ds-btn-primary-light:focus-visible { outline:2px solid #176b9f; outline-offset:1px; box-shadow:0 0 0 3px rgba(40,108,164,.1),inset 0 1px 0 rgba(241,244,245,.12); } .ds-btn-primary-light:active { transform:translateY(1px); } .ds-btn-primary-light:disabled { border-color:rgba(40,54,62,.16); background:#e4e9ec; color:#63717a; cursor:not-allowed; }",
+      "css": ".ds-btn-primary-light { display:inline-flex; align-items:center; justify-content:center; gap:6px; height:38px; padding:0 16px; border:1px solid #286ca4; border-radius:10px; background:#286ca4; color:#fff; font:650 14px/1 'Noto Sans SC', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', system-ui, sans-serif; white-space:nowrap; box-shadow:inset 0 1px 0 rgba(241,244,245,.12); transition:background 160ms ease-out,border-color 160ms ease-out,transform 90ms ease-out; } .ds-btn-primary-light:hover { background:#1e5d90; border-color:#1e5d90; } .ds-btn-primary-light:focus-visible { outline:2px solid #176b9f; outline-offset:1px; box-shadow:0 0 0 3px rgba(40,108,164,.1),inset 0 1px 0 rgba(241,244,245,.12); } .ds-btn-primary-light:active { transform:translateY(1px); } .ds-btn-primary-light:disabled { border-color:rgba(40,54,62,.16); background:#e4e9ec; color:#63717a; cursor:not-allowed; }",
       "refersTo": "button-primary-light"
     },
     {
@@ -614,7 +618,7 @@
       "kind": "button",
       "description": "深色工作区中的次级操作，以控件边界和 raised 表面显示悬停状态。",
       "html": "<button class=\"ds-btn-ghost-dark\" type=\"button\">取消</button>",
-      "css": ".ds-btn-ghost-dark { display:inline-flex; align-items:center; justify-content:center; gap:6px; height:38px; padding:0 13px; border:1px solid rgba(237,237,237,.28); border-radius:10px; background:#191a1c; color:#ededed; font:400 14px/1.5 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif; white-space:nowrap; box-shadow:inset 0 1px 0 rgba(237,237,237,.12); transition:color 160ms ease-out,border-color 160ms ease-out,background 160ms ease-out; } .ds-btn-ghost-dark:hover { border-color:rgba(237,237,237,.28); background:#24272a; color:#ededed; } .ds-btn-ghost-dark:focus-visible { outline:2px solid #7fc6ff; outline-offset:1px; box-shadow:0 0 0 3px rgba(106,169,255,.12),inset 0 1px 0 rgba(237,237,237,.12); } .ds-btn-ghost-dark:active { transform:translateY(1px); }",
+      "css": ".ds-btn-ghost-dark { display:inline-flex; align-items:center; justify-content:center; gap:6px; height:38px; padding:0 13px; border:1px solid rgba(237,237,237,.28); border-radius:10px; background:#191a1c; color:#ededed; font:400 14px/1.5 'Noto Sans SC', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', system-ui, sans-serif; white-space:nowrap; box-shadow:inset 0 1px 0 rgba(237,237,237,.12); transition:color 160ms ease-out,border-color 160ms ease-out,background 160ms ease-out; } .ds-btn-ghost-dark:hover { border-color:rgba(237,237,237,.28); background:#24272a; color:#ededed; } .ds-btn-ghost-dark:focus-visible { outline:2px solid #7fc6ff; outline-offset:1px; box-shadow:0 0 0 3px rgba(106,169,255,.12),inset 0 1px 0 rgba(237,237,237,.12); } .ds-btn-ghost-dark:active { transform:translateY(1px); }",
       "refersTo": "button-ghost-dark"
     },
     {
@@ -622,7 +626,7 @@
       "kind": "button",
       "description": "浅色工作区中的次级操作，使用中性控件边界和 raised hover 表面。",
       "html": "<button class=\"ds-btn-ghost-light\" type=\"button\">取消</button>",
-      "css": ".ds-btn-ghost-light { display:inline-flex; align-items:center; justify-content:center; gap:6px; height:38px; padding:0 13px; border:1px solid #8d9da5; border-radius:10px; background:#fbfcfd; color:#1d252a; font:400 14px/1.5 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif; white-space:nowrap; box-shadow:inset 0 1px 0 rgba(241,244,245,.12); transition:color 160ms ease-out,border-color 160ms ease-out,background 160ms ease-out; } .ds-btn-ghost-light:hover { border-color:#8d9da5; background:#e4e9ec; color:#1d252a; } .ds-btn-ghost-light:focus-visible { outline:2px solid #176b9f; outline-offset:1px; box-shadow:0 0 0 3px rgba(40,108,164,.1),inset 0 1px 0 rgba(241,244,245,.12); } .ds-btn-ghost-light:active { transform:translateY(1px); }",
+      "css": ".ds-btn-ghost-light { display:inline-flex; align-items:center; justify-content:center; gap:6px; height:38px; padding:0 13px; border:1px solid #8d9da5; border-radius:10px; background:#fbfcfd; color:#1d252a; font:400 14px/1.5 'Noto Sans SC', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', system-ui, sans-serif; white-space:nowrap; box-shadow:inset 0 1px 0 rgba(241,244,245,.12); transition:color 160ms ease-out,border-color 160ms ease-out,background 160ms ease-out; } .ds-btn-ghost-light:hover { border-color:#8d9da5; background:#e4e9ec; color:#1d252a; } .ds-btn-ghost-light:focus-visible { outline:2px solid #176b9f; outline-offset:1px; box-shadow:0 0 0 3px rgba(40,108,164,.1),inset 0 1px 0 rgba(241,244,245,.12); } .ds-btn-ghost-light:active { transform:translateY(1px); }",
       "refersTo": "button-ghost-light"
     },
     {
@@ -630,7 +634,7 @@
       "kind": "input",
       "description": "深色主题的单行字段，焦点边界和内沿高光保持可辨。",
       "html": "<label class=\"ds-field-dark\">项目名称<input class=\"ds-input-dark\" type=\"text\" value=\"北区交付计划\" /></label>",
-      "css": ".ds-field-dark { display:grid; gap:5px; color:#a1a1a6; font:400 13px/1.5 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif; } .ds-input-dark { width:100%; height:38px; padding:0 11px; border:1px solid rgba(237,237,237,.28); border-radius:10px; background:#191a1c; color:#ededed; font:400 14px/1.5 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif; box-shadow:inset 0 1px 0 rgba(237,237,237,.12); transition:border-color 160ms ease-out,box-shadow 160ms ease-out; } .ds-input-dark:focus { border-color:#7fc6ff; box-shadow:0 0 0 2px rgba(106,169,255,.12),inset 0 1px 0 rgba(237,237,237,.12); outline:none; }",
+      "css": ".ds-field-dark { display:grid; gap:5px; color:#a1a1a6; font:400 13px/1.5 'Noto Sans SC', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', system-ui, sans-serif; } .ds-input-dark { width:100%; height:38px; padding:0 11px; border:1px solid rgba(237,237,237,.28); border-radius:10px; background:#191a1c; color:#ededed; font:400 14px/1.5 'Noto Sans SC', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', system-ui, sans-serif; box-shadow:inset 0 1px 0 rgba(237,237,237,.12); transition:border-color 160ms ease-out,box-shadow 160ms ease-out; } .ds-input-dark:focus { border-color:#7fc6ff; box-shadow:0 0 0 2px rgba(106,169,255,.12),inset 0 1px 0 rgba(237,237,237,.12); outline:none; }",
       "refersTo": "input-dark"
     },
     {
@@ -638,7 +642,7 @@
       "kind": "input",
       "description": "浅色主题的单行字段，使用深蓝焦点信号和独立控件边界。",
       "html": "<label class=\"ds-field-light\">项目名称<input class=\"ds-input-light\" type=\"text\" value=\"北区交付计划\" /></label>",
-      "css": ".ds-field-light { display:grid; gap:5px; color:#53616a; font:400 13px/1.5 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif; } .ds-input-light { width:100%; height:38px; padding:0 11px; border:1px solid #8d9da5; border-radius:10px; background:#fbfcfd; color:#1d252a; font:400 14px/1.5 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif; box-shadow:inset 0 1px 0 rgba(241,244,245,.12); transition:border-color 160ms ease-out,box-shadow 160ms ease-out; } .ds-input-light:focus { border-color:#176b9f; box-shadow:0 0 0 2px rgba(40,108,164,.1),inset 0 1px 0 rgba(241,244,245,.12); outline:none; }",
+      "css": ".ds-field-light { display:grid; gap:5px; color:#53616a; font:400 13px/1.5 'Noto Sans SC', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', system-ui, sans-serif; } .ds-input-light { width:100%; height:38px; padding:0 11px; border:1px solid #8d9da5; border-radius:10px; background:#fbfcfd; color:#1d252a; font:400 14px/1.5 'Noto Sans SC', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', system-ui, sans-serif; box-shadow:inset 0 1px 0 rgba(241,244,245,.12); transition:border-color 160ms ease-out,box-shadow 160ms ease-out; } .ds-input-light:focus { border-color:#176b9f; box-shadow:0 0 0 2px rgba(40,108,164,.1),inset 0 1px 0 rgba(241,244,245,.12); outline:none; }",
       "refersTo": "input-light"
     },
     {
@@ -646,7 +650,7 @@
       "kind": "card",
       "description": "深色工作区的普通内容面，以边界和内沿高光托住信息。",
       "html": "<article class=\"ds-card-dark\"><h2>项目进展</h2><p>关键节点与交付状态</p></article>",
-      "css": ".ds-card-dark { padding:20px; border:1px solid rgba(237,237,237,.12); border-radius:12px; background:#191a1c; color:#ededed; box-shadow:inset 0 1px 0 rgba(237,237,237,.12); } .ds-card-dark h2 { margin:0 0 8px; font:700 15px/1.35 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif; } .ds-card-dark p { margin:0; color:#a1a1a6; font:400 14px/1.5 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif; }",
+      "css": ".ds-card-dark { padding:20px; border:1px solid rgba(237,237,237,.12); border-radius:12px; background:#191a1c; color:#ededed; box-shadow:inset 0 1px 0 rgba(237,237,237,.12); } .ds-card-dark h2 { margin:0 0 8px; font:700 15px/1.35 'Noto Sans SC', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', system-ui, sans-serif; } .ds-card-dark p { margin:0; color:#a1a1a6; font:400 14px/1.5 'Noto Sans SC', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', system-ui, sans-serif; }",
       "refersTo": "card-dark"
     },
     {
@@ -654,7 +658,7 @@
       "kind": "card",
       "description": "浅色工作区的平实内容面，层级来自主题边界和抬高表面。",
       "html": "<article class=\"ds-card-light\"><h2>项目进展</h2><p>关键节点与交付状态</p></article>",
-      "css": ".ds-card-light { padding:20px; border:1px solid rgba(40,54,62,.16); border-radius:12px; background:#fbfcfd; color:#1d252a; box-shadow:inset 0 1px 0 rgba(241,244,245,.12); } .ds-card-light h2 { margin:0 0 8px; font:700 15px/1.35 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif; } .ds-card-light p { margin:0; color:#53616a; font:400 14px/1.5 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif; }",
+      "css": ".ds-card-light { padding:20px; border:1px solid rgba(40,54,62,.16); border-radius:12px; background:#fbfcfd; color:#1d252a; box-shadow:inset 0 1px 0 rgba(241,244,245,.12); } .ds-card-light h2 { margin:0 0 8px; font:700 15px/1.35 'Noto Sans SC', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', system-ui, sans-serif; } .ds-card-light p { margin:0; color:#53616a; font:400 14px/1.5 'Noto Sans SC', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', system-ui, sans-serif; }",
       "refersTo": "card-light"
     },
     {
@@ -662,7 +666,7 @@
       "kind": "nav",
       "description": "侧栏当前项在深浅主题中使用相同语义，并保留各自的边缘处理。",
       "html": "<div class=\"ds-nav-pair\"><nav class=\"ds-nav-dark\" aria-label=\"深色导航示例\"><a class=\"ds-nav-item ds-nav-dark-active\" href=\"#projects-dark\" aria-current=\"page\">项目台账</a></nav><nav class=\"ds-nav-light\" aria-label=\"浅色导航示例\"><a class=\"ds-nav-item ds-nav-light-active\" href=\"#projects-light\" aria-current=\"page\">项目台账</a></nav></div>",
-      "css": ".ds-nav-pair { display:flex; flex-wrap:wrap; gap:12px; } .ds-nav-dark,.ds-nav-light { display:grid; gap:4px; width:220px; padding:14px 10px; } .ds-nav-dark { background:#111214; } .ds-nav-light { background:#20262b; } .ds-nav-item { position:relative; min-height:42px; display:flex; align-items:center; padding:0 12px; border:1px solid transparent; border-radius:6px; color:#a1a1a6; font:500 14px/1.4 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif; text-decoration:none; } .ds-nav-dark-active { border-color:rgba(106,169,255,.5); background:rgba(106,169,255,.13); color:#ededed; box-shadow:inset 0 1px 0 rgba(237,237,237,.12); } .ds-nav-light-active { border-color:rgba(130,187,255,.52); background:rgba(106,169,255,.18); color:#fff; box-shadow:inset 0 1px 0 rgba(241,244,245,.12); } .ds-nav-light-active::before { position:absolute; inset:7px auto 7px 0; width:2px; background:#82bbff; content:''; } .ds-nav-item:focus-visible { outline:2px solid #7fc6ff; outline-offset:-2px; } @media (max-width:480px) { .ds-nav-pair { flex-direction:column; } }"
+      "css": ".ds-nav-pair { display:flex; flex-wrap:wrap; gap:12px; } .ds-nav-dark,.ds-nav-light { display:grid; gap:4px; width:220px; padding:14px 10px; } .ds-nav-dark { background:#111214; } .ds-nav-light { background:#20262b; } .ds-nav-item { position:relative; min-height:42px; display:flex; align-items:center; padding:0 12px; border:1px solid transparent; border-radius:6px; color:#a1a1a6; font:500 14px/1.4 'Noto Sans SC', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', system-ui, sans-serif; text-decoration:none; } .ds-nav-dark-active { border-color:rgba(106,169,255,.5); background:rgba(106,169,255,.13); color:#ededed; box-shadow:inset 0 1px 0 rgba(237,237,237,.12); } .ds-nav-light-active { border-color:rgba(130,187,255,.52); background:rgba(106,169,255,.18); color:#fff; box-shadow:inset 0 1px 0 rgba(241,244,245,.12); } .ds-nav-light-active::before { position:absolute; inset:7px auto 7px 0; width:2px; background:#82bbff; content:''; } .ds-nav-item:focus-visible { outline:2px solid #7fc6ff; outline-offset:-2px; } @media (max-width:480px) { .ds-nav-pair { flex-direction:column; } }"
     },
     {
       "name": "Status Badge",
@@ -677,7 +681,7 @@
       "kind": "custom",
       "description": "总览指标卡以中性表面、顶部语义色条和醒目的数据值建立扫描顺序。",
       "html": "<article class=\"ds-readout\"><div class=\"ds-readout-head\"><span>我的项目</span><i></i></div><strong>24</strong><small>进行中 18</small></article>",
-      "css": ".ds-readout { --signal:#6aa9ff; position:relative; display:grid; grid-template-rows:auto auto 1fr; min-height:140px; padding:16px; border:1px solid rgba(237,237,237,.12); border-radius:12px; background:#191a1c; color:#ededed; box-shadow:inset 0 1px 0 rgba(237,237,237,.12); transition:border-color 160ms ease-out,background 160ms ease-out; } .ds-readout::before { position:absolute; top:0; right:0; left:0; height:2px; background:var(--signal); content:''; } .ds-readout:hover { border-color:color-mix(in srgb,#6aa9ff 44%,rgba(237,237,237,.12)); background:#24272a; } .ds-readout-head { display:flex; align-items:center; justify-content:space-between; color:#a1a1a6; font:500 12px/1.5 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif; } .ds-readout-head i { width:7px; height:7px; border:1px solid rgba(106,169,255,.64); border-radius:50%; background:rgba(106,169,255,.22); } .ds-readout strong { margin-top:12px; color:#6aa9ff; font:700 clamp(30px,2.35vw,40px)/1.05 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif; font-variant-numeric:tabular-nums; } .ds-readout small { align-self:end; margin-top:12px; color:#85858b; font:400 12px/1.5 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif; }",
+      "css": ".ds-readout { --signal:#6aa9ff; position:relative; display:grid; grid-template-rows:auto auto 1fr; min-height:140px; padding:16px; border:1px solid rgba(237,237,237,.12); border-radius:12px; background:#191a1c; color:#ededed; box-shadow:inset 0 1px 0 rgba(237,237,237,.12); transition:border-color 160ms ease-out,background 160ms ease-out; } .ds-readout::before { position:absolute; top:0; right:0; left:0; height:2px; background:var(--signal); content:''; } .ds-readout:hover { border-color:color-mix(in srgb,#6aa9ff 44%,rgba(237,237,237,.12)); background:#24272a; } .ds-readout-head { display:flex; align-items:center; justify-content:space-between; color:#a1a1a6; font:500 12px/1.5 'Noto Sans SC', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', system-ui, sans-serif; } .ds-readout-head i { width:7px; height:7px; border:1px solid rgba(106,169,255,.64); border-radius:50%; background:rgba(106,169,255,.22); } .ds-readout strong { margin-top:12px; color:#6aa9ff; font:700 clamp(30px,2.35vw,40px)/1.05 'Noto Sans SC', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', system-ui, sans-serif; font-variant-numeric:tabular-nums; } .ds-readout small { align-self:end; margin-top:12px; color:#85858b; font:400 12px/1.5 'Noto Sans SC', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', system-ui, sans-serif; }",
       "refersTo": "dashboard-readout-dark"
     }
   ],
