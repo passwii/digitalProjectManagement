@@ -6,6 +6,42 @@ const shellCss = readFileSync(resolve(process.cwd(), "components/ui/Shell.module
 const globalsCss = readFileSync(resolve(process.cwd(), "app/globals.css"), "utf8");
 const DESIGN_SYSTEM_SELECTOR = '.shell[data-console-shell="true"]';
 const LIGHT_SELECTOR = `:global(:root[data-theme="light"]) ${DESIGN_SYSTEM_SELECTOR}`;
+const REQUIRED_THEME_ROLES = [
+  "action",
+  "todo",
+  "doing",
+  "warn",
+  "danger",
+  "done",
+  "paused",
+  "line",
+  "nav-bg",
+  "nav-ink",
+  "nav-muted",
+  "nav-border",
+  "nav-hover-bg",
+  "nav-active-bg",
+  "nav-active-border",
+  "nav-active-ink",
+  "nav-active-accent",
+  "nav-badge-border",
+  "nav-shadow",
+  "data-mint",
+  "data-amber",
+  "data-rose",
+  "data-violet",
+  "data-blue",
+  "data-magenta",
+  "data-aqua",
+  "data-lemon",
+  "data-green",
+] as const;
+const REQUIRED_RADII = {
+  "radius-control": "10px",
+  "radius-badge": "6px",
+  radius: "12px",
+  "radius-sheet": "18px",
+} as const;
 
 function declarations(selector: string) {
   const start = shellCss.indexOf(`${selector} {`);
@@ -52,6 +88,28 @@ describe("authenticated workbench theme tokens", () => {
     expect(dark["data-rose"]).toBe("#e984b8");
     expect(dark.warn).toBe("#f2c65c");
     expect(dark.danger).toBe("#f17e78");
+  });
+
+  it("defines semantic status, action, line, navigation, data, and radius roles in both themes", () => {
+    for (const selector of [DESIGN_SYSTEM_SELECTOR, LIGHT_SELECTOR]) {
+      const theme = declarations(selector);
+
+      for (const role of REQUIRED_THEME_ROLES) {
+        expect(theme[role], `Missing token --${role} in ${selector}`).toBeTruthy();
+      }
+      for (const [radius, value] of Object.entries(REQUIRED_RADII)) {
+        expect(theme[radius], `Missing or incorrect token --${radius} in ${selector}`).toBe(value);
+      }
+    }
+  });
+
+  it("defines and uses a scoped inset highlight for shell accents", () => {
+    const dark = declarations(DESIGN_SYSTEM_SELECTOR);
+    const light = declarations(LIGHT_SELECTOR);
+
+    expect(dark["highlight-inset"]).toBe("rgba(237, 237, 237, 0.12)");
+    expect(light["highlight-inset"]).toBe("rgba(241, 244, 245, 0.12)");
+    expect(shellCss.match(/box-shadow: inset 0 1px 0 var\(--highlight-inset\);/g)).toHaveLength(3);
   });
 
   it("keeps dark workbench text, navigation, focus, and primary action readable", () => {

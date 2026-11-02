@@ -282,6 +282,7 @@
   --brand: #6aa9ff;
   --brand-hover: #8bbcff;
   --brand-soft: rgba(106, 169, 255, 0.12);
+  --highlight-inset: rgba(237, 237, 237, 0.12);
   --action: #59cdb0;
   --action-hover: #78dcc4;
   --on-action: #10201c;
@@ -368,6 +369,7 @@
   --brand: #286ca4;
   --brand-hover: #1e5d90;
   --brand-soft: rgba(40, 108, 164, 0.1);
+  --highlight-inset: rgba(241, 244, 245, 0.12);
   --action: #16846e;
   --action-hover: #126f5d;
   --on-action: #ffffff;
@@ -477,11 +479,14 @@
 .shell[data-console-shell="true"] .navActive {
   border: 1px solid var(--nav-active-border);
   border-radius: var(--radius-badge);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  box-shadow: inset 0 1px 0 var(--highlight-inset);
 }
 
 .shell[data-console-shell="true"] .navLink.active svg {
   color: var(--brand);
+}
+.shell[data-console-shell="true"] .topTitleMark {
+  box-shadow: inset 0 1px 0 var(--highlight-inset);
 }
 
 .shell[data-console-shell="true"] .main,
@@ -566,7 +571,6 @@
   height: 8px;
   border: 1px solid var(--brand);
   background: var(--brand-soft);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18);
 }
 :global(:root[data-theme="light"]) .shell[data-console-shell="true"] .topTitleMark {
   box-shadow: none;
@@ -755,7 +759,7 @@
     padding: 0 12px;
   }
   .collapsed .navLink .label { display: inline; }
-  .navActive { box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12); }
+  .shell[data-console-shell="true"] .navActive { box-shadow: inset 0 1px 0 var(--highlight-inset); }
   .navGroupLabel,
   .navError { display: none; }
   .topbar {
