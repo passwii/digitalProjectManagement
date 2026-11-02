@@ -1,0 +1,85 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+import { describe, expect, it } from "vitest";
+
+const shellCss = readFileSync(resolve(process.cwd(), "components/ui/Shell.module.css"), "utf8");
+const globalsCss = readFileSync(resolve(process.cwd(), "app/globals.css"), "utf8");
+const DESIGN_SYSTEM_SELECTOR = '.shell[data-console-shell="true"]';
+const LIGHT_SELECTOR = `:global(:root[data-theme="light"]) ${DESIGN_SYSTEM_SELECTOR}`;
+
+function declarations(selector: string) {
+  const start = shellCss.indexOf(`${selector} {`);
+  expect(start, `Missing scoped theme block: ${selector}`).toBeGreaterThanOrEqual(0);
+  const end = shellCss.indexOf("\n}", start);
+  expect(end, `Unclosed scoped theme block: ${selector}`).toBeGreaterThan(start);
+  return Object.fromEntries(
+    Array.from(shellCss.slice(start, end).matchAll(/--([\w-]+):\s*([^;]+);/g), ([, name, value]) => [name, value.trim()]),
+  ) as Record<string, string>;
+}
+
+function resolveToken(name: string, values: Record<string, string>): string {
+  const value = values[name];
+  expect(value, `Missing token --${name}`).toBeTruthy();
+  const ref = value.match(/^var\(--([\w-]+)\)$/);
+  return ref ? resolveToken(ref[1], values) : value;
+}
+
+function luminance(color: string) {
+  const match = color.match(/^#([\da-f]{6})$/i);
+  expect(match, `Expected a six-digit hex token, received ${color}`).toBeTruthy();
+  const channels = [0, 2, 4].map((index) => {
+    const value = parseInt(match![1].slice(index, index + 2), 16) / 255;
+    return value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
+  });
+  return channels[0] * 0.2126 + channels[1] * 0.7152 + channels[2] * 0.0722;
+}
+
+function contrast(foreground: string, background: string) {
+  const [lighter, darker] = [luminance(foreground), luminance(background)].sort((a, b) => b - a);
+  return (lighter + 0.05) / (darker + 0.05);
+}
+
+describe("authenticated workbench theme tokens", () => {
+  it("scopes the graphite palette to the console shell and assigns saturated data roles", () => {
+    const dark = declarations(DESIGN_SYSTEM_SELECTOR);
+
+    expect(dark.bg).toBe("#141516");
+    expect(dark.card).toBe("#191a1c");
+    expect(dark["card-lift"]).toBe("#24272a");
+    expect(dark.brand).toBe("#6aa9ff");
+    expect(dark["data-mint"]).toBe("#59cdb0");
+    expect(dark["data-amber"]).toBe("#f2c65c");
+    expect(dark["data-rose"]).toBe("#e984b8");
+    expect(dark.warn).toBe("#f2c65c");
+    expect(dark.danger).toBe("#f17e78");
+  });
+
+  it("keeps dark workbench text, navigation, focus, and primary action readable", () => {
+    const dark = declarations(DESIGN_SYSTEM_SELECTOR);
+
+    expect(contrast(resolveToken("ink", dark), resolveToken("bg", dark))).toBeGreaterThanOrEqual(4.5);
+    expect(contrast(resolveToken("nav-ink", dark), resolveToken("nav-bg", dark))).toBeGreaterThanOrEqual(4.5);
+    expect(contrast(resolveToken("focus-ring", dark), resolveToken("card", dark))).toBeGreaterThanOrEqual(3);
+    expect(contrast(resolveToken("on-action", dark), resolveToken("action", dark))).toBeGreaterThanOrEqual(4.5);
+  });
+
+  it("keeps the light workbench palette equivalent and readable", () => {
+    const light = declarations(LIGHT_SELECTOR);
+
+    expect(light.bg).toBe("#eef2f3");
+    expect(light.card).toBe("#fbfcfd");
+    expect(light["card-lift"]).toBe("#e4e9ec");
+    expect(light.brand).toBe("#286ca4");
+    expect(light["data-mint"]).toBe("#16846e");
+    expect(contrast(resolveToken("ink", light), resolveToken("bg", light))).toBeGreaterThanOrEqual(4.5);
+    expect(contrast(resolveToken("nav-ink", light), resolveToken("nav-bg", light))).toBeGreaterThanOrEqual(4.5);
+    expect(contrast(resolveToken("focus-ring", light), resolveToken("card", light))).toBeGreaterThanOrEqual(3);
+    expect(contrast(resolveToken("on-action", light), resolveToken("action", light))).toBeGreaterThanOrEqual(4.5);
+  });
+
+  it("leaves root tokens available to the isolated login and demo surfaces", () => {
+    expect(globalsCss).toContain(":root[data-theme=\"light\"] {");
+    expect(globalsCss).toContain("--bg: #07131f;");
+    expect(globalsCss).toContain("--nav-bg: #142f40;");
+  });
+});
