@@ -80,3 +80,13 @@
 .card[data-tone="danger"] .value {
  color: var(--danger);
 }
+
+:global([data-console-shell="true"]) .card {
+ border-color: var(--control-border);
+ border-radius: var(--radius-control);
+ box-shadow: inset 0 1px 0 var(--highlight-inset);
+}
+:global([data-console-shell="true"]) .card:hover {
+ border-color: var(--control-border);
+ background: var(--card-lift);
+}

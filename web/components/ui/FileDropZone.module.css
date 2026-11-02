@@ -237,3 +237,35 @@
   .size { display: none; }
   .zone { min-height: 72px; padding: 12px; }
 }
+
+:global([data-console-shell="true"]) .zone {
+  border-color: var(--control-border);
+  background: var(--card);
+  box-shadow: inset 0 1px 0 var(--highlight-inset);
+}
+:global([data-console-shell="true"]) .zone:hover:not(.dragging) {
+  border-color: var(--control-border);
+  background: var(--card-lift);
+}
+:global([data-console-shell="true"]) .zone.dragging {
+  border-color: var(--brand);
+  background: var(--brand-soft);
+  box-shadow: 0 0 0 3px var(--brand-soft);
+}
+:global([data-console-shell="true"]) .button {
+  border-radius: var(--radius-control);
+  box-shadow: inset 0 1px 0 var(--highlight-inset);
+}
+:global([data-console-shell="true"]) .retry {
+  border-radius: var(--radius-control);
+}
+:global([data-console-shell="true"]) .button.disabled {
+  border-color: var(--line);
+  background: var(--card-lift);
+  color: var(--ink-3);
+  opacity: 1;
+}
+:global([data-console-shell="true"]) .list {
+  border-color: var(--control-border);
+  box-shadow: inset 0 1px 0 var(--highlight-inset);
+}

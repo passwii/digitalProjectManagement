@@ -35,8 +35,9 @@ function tokensOf(classValue: string): Set<string> {
   return new Set(classValue.split(/[\s$`{}?:()[\],"']+/).filter(Boolean));
 }
 
-/** 手写递归而不是 `readdirSync(..., { recursive: true })`：后者的 `parentPath`
- *  要 Node 20.12+ 才有，CI 只钉了 `node-version: "20"`，不吃这个假设。 */
+/** 手写递归而不是 `readdirSync(..., { recursive: true })`：当初 CI 只钉
+ *  `node-version: "20"`，而 `parentPath` 要 Node 20.12+ 才有，不吃这个版本假设。
+ *  现在 CI 钉 `"26"`，该约束已不成立，但写法保持不变。 */
 function sourceFiles(relativeDir: string): string[] {
   const found: string[] = [];
   for (const entry of readdirSync(resolve(process.cwd(), relativeDir), { withFileTypes: true })) {

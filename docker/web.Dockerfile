@@ -7,7 +7,7 @@
 #   .next 224MB（其中 214MB 是 .next/cache —— 构建缓存对运行毫无用处）
 # 每轮部署还会把上一代留成 955MB 的悬空镜像，代价被乘了两次。
 # 拆完运行段只剩 base + 被 trace 的 node_modules + static + public。
-FROM node:20-alpine AS builder
+FROM node:26-alpine AS builder
 
 WORKDIR /app
 
@@ -28,7 +28,7 @@ RUN npm run build
 
 # 运行段。`next build` 已经把 trace 到的 node_modules 放进 .next/standalone，
 # 但 `.next/static` 和 `public` 按官方文档必须手工搬进去，漏了就是白屏 + 404。
-FROM node:20-alpine AS runner
+FROM node:26-alpine AS runner
 
 WORKDIR /app
 

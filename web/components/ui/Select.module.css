@@ -136,3 +136,37 @@
   .trigger,
   .chevron { transition: none; }
 }
+
+:global([data-console-shell="true"]) .console {
+  --select-radius: var(--radius-control);
+}
+:global([data-console-shell="true"]) .console.trigger,
+:global([data-console-shell="true"]) .console.listbox {
+  border-color: var(--control-border);
+  box-shadow: inset 0 1px 0 var(--highlight-inset);
+}
+:global([data-console-shell="true"]) .console.trigger[aria-invalid="true"] {
+ border-color: var(--select-danger);
+}
+:global([data-console-shell="true"]) .console.trigger[aria-invalid="true"]:focus-visible {
+ border-color: var(--select-danger);
+ outline-color: var(--select-danger);
+ box-shadow: 0 0 0 3px var(--select-danger-bg), inset 0 1px 0 var(--highlight-inset);
+}
+:global([data-console-shell="true"]) .console.listbox {
+  box-shadow: var(--select-shadow), inset 0 1px 0 var(--highlight-inset);
+}
+:global([data-console-shell="true"]) .console.trigger:hover:not(:disabled):not([aria-invalid="true"]) {
+  border-color: var(--control-border);
+  background: var(--card-lift);
+}
+:global([data-console-shell="true"]) .console.trigger:focus-visible {
+  border-color: var(--focus-ring);
+  outline-color: var(--focus-ring);
+  box-shadow: 0 0 0 3px var(--select-active-bg), inset 0 1px 0 var(--highlight-inset);
+}
+:global([data-console-shell="true"]) .console .option:hover:not(.optionDisabled),
+:global([data-console-shell="true"]) .console .option.active:not(.optionDisabled) {
+  background: var(--select-active-bg);
+  color: var(--select-accent);
+}

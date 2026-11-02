@@ -180,3 +180,28 @@
  padding: 8px 14px;
  touch-action: manipulation;
 }
+
+:global([data-console-shell="true"]) .card {
+ border-color: var(--line);
+ border-radius: var(--radius);
+ box-shadow: var(--shadow-card), inset 0 1px 0 var(--highlight-inset);
+}
+:global([data-console-shell="true"]) .card.clickable:hover {
+ border-color: var(--control-border);
+ background: var(--card-lift);
+}
+:global([data-console-shell="true"]) .card.hit {
+ border-color: var(--line-blue);
+ background: var(--brand-soft);
+ box-shadow: inset 0 1px 0 var(--highlight-inset);
+}
+@media (max-width: 767px) {
+ :global([data-console-shell="true"]) :global(.detail-section) .card {
+  padding: 12px 0;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+ }
+}

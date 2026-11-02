@@ -1,488 +1,468 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-10-04T03:05:09Z",
+  "generatedAt": "2026-11-02T18:18:46+08:00",
   "title": "Design System: 数科云办公",
   "extensions": {
     "colorMeta": {
       "dark-canvas": {
         "role": "neutral",
         "displayName": "Dark Canvas",
-        "canonical": "#07131f",
-        "tonalRamp": [
-          "#030c17",
-          "#162330",
-          "#2e3c4a",
-          "#485766",
-          "#647383",
-          "#8191a1",
-          "#a0b0c1",
-          "#dff1ff"
-        ]
+        "canonical": "#141516"
       },
       "dark-surface": {
         "role": "neutral",
-        "displayName": "Deep Surface",
-        "canonical": "#0d1d2c",
-        "tonalRamp": [
-          "#010c1a",
-          "#132332",
-          "#2b3c4d",
-          "#455769",
-          "#617486",
-          "#7e92a5",
-          "#9cb1c5",
-          "#dcf1ff"
-        ]
+        "displayName": "Dark Surface",
+        "canonical": "#191a1c"
+      },
+      "dark-surface-raised": {
+        "role": "neutral",
+        "displayName": "Dark Surface Raised",
+        "canonical": "#24272a"
       },
       "dark-rail": {
         "role": "neutral",
-        "displayName": "Midnight Rail",
-        "canonical": "#081622",
-        "tonalRamp": [
-          "#020c17",
-          "#152330",
-          "#2d3c4a",
-          "#475766",
-          "#637483",
-          "#8092a2",
-          "#9eb0c1",
-          "#def1ff"
-        ]
+        "displayName": "Dark Rail",
+        "canonical": "#111214"
       },
       "dark-ink": {
         "role": "neutral",
-        "displayName": "Cool White Ink",
-        "canonical": "#eaf9fb",
-        "tonalRamp": [
-          "#040d0e",
-          "#192425",
-          "#313d3f",
-          "#4b585a",
-          "#677476",
-          "#849294",
-          "#a3b1b3",
-          "#e3f2f4"
-        ]
+        "displayName": "Dark Ink",
+        "canonical": "#ededed"
       },
       "dark-ink-secondary": {
         "role": "neutral",
-        "displayName": "Mist Secondary Ink",
-        "canonical": "rgba(201, 227, 235, 0.72)",
-        "tonalRamp": [
-          "#000e13",
-          "#10252b",
-          "#293e45",
-          "#435a60",
-          "#5f767d",
-          "#7c949b",
-          "#9ab3bb",
-          "#daf4fc"
-        ]
+        "displayName": "Dark Ink Secondary",
+        "canonical": "#a1a1a6"
       },
       "dark-ink-muted": {
         "role": "neutral",
-        "displayName": "Mist Muted Ink",
-        "canonical": "rgba(201, 227, 235, 0.48)",
-        "tonalRamp": [
-          "#000e13",
-          "#10252b",
-          "#293e45",
-          "#435a60",
-          "#5f767d",
-          "#7c949b",
-          "#9ab3bb",
-          "#daf4fc"
-        ]
+        "displayName": "Dark Ink Muted",
+        "canonical": "#85858b"
       },
       "dark-divider": {
         "role": "neutral",
-        "displayName": "Blue Grey Divider",
-        "canonical": "rgba(146, 189, 210, 0.22)",
-        "tonalRamp": [
-          "#000e1d",
-          "#002636",
-          "#164051",
-          "#335b6e",
-          "#4f788b",
-          "#6c96aa",
-          "#8ab5ca",
-          "#caf6ff"
-        ]
+        "displayName": "Dark Divider",
+        "canonical": "rgba(237, 237, 237, 0.12)"
+      },
+      "dark-divider-soft": {
+        "role": "neutral",
+        "displayName": "Dark Divider Soft",
+        "canonical": "rgba(237, 237, 237, 0.075)"
+      },
+      "dark-highlight-inset": {
+        "role": "neutral",
+        "displayName": "Dark Highlight Inset",
+        "canonical": "rgba(237, 237, 237, 0.12)"
       },
       "dark-signal": {
         "role": "primary",
-        "displayName": "Signal Cyan",
-        "canonical": "#6cf3ff",
-        "tonalRamp": [
-          "#001421",
-          "#002e3a",
-          "#004a56",
-          "#006672",
-          "#008490",
-          "#00a3af",
-          "#2fc3cf",
-          "#81ffff"
-        ]
+        "displayName": "Dark Signal",
+        "canonical": "#6aa9ff"
+      },
+      "dark-signal-hover": {
+        "role": "primary",
+        "displayName": "Dark Signal Hover",
+        "canonical": "#8bbcff"
+      },
+      "dark-signal-soft": {
+        "role": "primary",
+        "displayName": "Dark Signal Soft",
+        "canonical": "rgba(106, 169, 255, 0.12)"
+      },
+      "dark-focus": {
+        "role": "primary",
+        "displayName": "Dark Focus",
+        "canonical": "#7fc6ff"
       },
       "dark-action": {
+        "role": "secondary",
+        "displayName": "Dark Action",
+        "canonical": "#59cdb0"
+      },
+      "dark-action-hover": {
+        "role": "secondary",
+        "displayName": "Dark Action Hover",
+        "canonical": "#78dcc4"
+      },
+      "dark-on-action": {
+        "role": "secondary",
+        "displayName": "Dark On Action",
+        "canonical": "#10201c"
+      },
+      "dark-on-signal": {
         "role": "primary",
-        "displayName": "Action Lime",
-        "canonical": "#c6ff72",
-        "tonalRamp": [
-          "#001200",
-          "#032c00",
-          "#1d4800",
-          "#376500",
-          "#528300",
-          "#6fa200",
-          "#8dc22c",
-          "#ccff78"
-        ]
+        "displayName": "Dark On Signal",
+        "canonical": "#101820"
+      },
+      "dark-on-danger": {
+        "role": "secondary",
+        "displayName": "Dark On Danger",
+        "canonical": "#211211"
       },
       "dark-warning": {
         "role": "secondary",
-        "displayName": "Amber Warning",
-        "canonical": "#ffc46b",
-        "tonalRamp": [
-          "#250000",
-          "#410f00",
-          "#5e2c00",
-          "#7c4800",
-          "#9b6500",
-          "#bb8321",
-          "#dba247",
-          "#ffe38a"
-        ]
+        "displayName": "Dark Warning",
+        "canonical": "#f2c65c"
+      },
+      "dark-warning-soft": {
+        "role": "secondary",
+        "displayName": "Dark Warning Soft",
+        "canonical": "rgba(242, 198, 92, 0.12)"
       },
       "dark-danger": {
         "role": "secondary",
-        "displayName": "Coral Danger",
-        "canonical": "#ff9a6a",
-        "tonalRamp": [
-          "#300000",
-          "#4f0000",
-          "#6f1400",
-          "#8f3400",
-          "#b05320",
-          "#d27141",
-          "#f49060",
-          "#ffd19f"
-        ]
+        "displayName": "Dark Danger",
+        "canonical": "#f17e78"
+      },
+      "dark-danger-soft": {
+        "role": "secondary",
+        "displayName": "Dark Danger Soft",
+        "canonical": "rgba(241, 126, 120, 0.12)"
       },
       "dark-success": {
         "role": "secondary",
-        "displayName": "Lime Success",
-        "canonical": "#c6ff72",
-        "tonalRamp": [
-          "#001200",
-          "#032c00",
-          "#1d4800",
-          "#376500",
-          "#528300",
-          "#6fa200",
-          "#8dc22c",
-          "#ccff78"
-        ]
+        "displayName": "Dark Success",
+        "canonical": "#61d2a0"
       },
-      "dark-neutral-state": {
+      "dark-success-soft": {
+        "role": "secondary",
+        "displayName": "Dark Success Soft",
+        "canonical": "rgba(97, 210, 160, 0.12)"
+      },
+      "dark-neutral": {
         "role": "neutral",
-        "displayName": "Paused Blue Grey",
-        "canonical": "#9cb4c4",
-        "tonalRamp": [
-          "#000d18",
-          "#102430",
-          "#293d4b",
-          "#435867",
-          "#5f7584",
-          "#7c93a2",
-          "#9ab2c2",
-          "#d9f3ff"
-        ]
+        "displayName": "Dark Neutral",
+        "canonical": "#a1a1a6"
+      },
+      "dark-neutral-soft": {
+        "role": "neutral",
+        "displayName": "Dark Neutral Soft",
+        "canonical": "rgba(161, 161, 166, 0.1)"
+      },
+      "dark-control-border": {
+        "role": "neutral",
+        "displayName": "Dark Control Border",
+        "canonical": "rgba(237, 237, 237, 0.28)"
+      },
+      "dark-nav-border": {
+        "role": "neutral",
+        "displayName": "Dark Nav Border",
+        "canonical": "rgba(237, 237, 237, 0.16)"
+      },
+      "dark-nav-hover": {
+        "role": "neutral",
+        "displayName": "Dark Nav Hover",
+        "canonical": "rgba(255, 255, 255, 0.055)"
+      },
+      "dark-nav-active-bg": {
+        "role": "primary",
+        "displayName": "Dark Nav Active Bg",
+        "canonical": "rgba(106, 169, 255, 0.13)"
+      },
+      "dark-nav-active-border": {
+        "role": "primary",
+        "displayName": "Dark Nav Active Border",
+        "canonical": "rgba(106, 169, 255, 0.5)"
+      },
+      "dark-nav-active-ink": {
+        "role": "neutral",
+        "displayName": "Dark Nav Active Ink",
+        "canonical": "#ededed"
+      },
+      "dark-line-signal": {
+        "role": "primary",
+        "displayName": "Dark Line Signal",
+        "canonical": "rgba(106, 169, 255, 0.46)"
+      },
+      "dark-line-warning": {
+        "role": "secondary",
+        "displayName": "Dark Line Warning",
+        "canonical": "rgba(242, 198, 92, 0.5)"
+      },
+      "dark-line-danger": {
+        "role": "secondary",
+        "displayName": "Dark Line Danger",
+        "canonical": "rgba(241, 126, 120, 0.5)"
+      },
+      "dark-line-success": {
+        "role": "secondary",
+        "displayName": "Dark Line Success",
+        "canonical": "rgba(97, 210, 160, 0.48)"
+      },
+      "dark-data-mint": {
+        "role": "tertiary",
+        "displayName": "Dark Data Mint",
+        "canonical": "#59cdb0"
+      },
+      "dark-data-amber": {
+        "role": "tertiary",
+        "displayName": "Dark Data Amber",
+        "canonical": "#f2c65c"
+      },
+      "dark-data-rose": {
+        "role": "tertiary",
+        "displayName": "Dark Data Rose",
+        "canonical": "#e984b8"
       },
       "dark-data-violet": {
         "role": "tertiary",
-        "displayName": "Data Violet",
-        "canonical": "#bda6ff",
-        "tonalRamp": [
-          "#140039",
-          "#290656",
-          "#412674",
-          "#5c4393",
-          "#7860b3",
-          "#957ed4",
-          "#b49df5",
-          "#f5deff"
-        ]
+        "displayName": "Dark Data Violet",
+        "canonical": "#ad9cff"
+      },
+      "dark-data-blue": {
+        "role": "tertiary",
+        "displayName": "Dark Data Blue",
+        "canonical": "#6aa9ff"
+      },
+      "dark-data-magenta": {
+        "role": "tertiary",
+        "displayName": "Dark Data Magenta",
+        "canonical": "#e984b8"
+      },
+      "dark-data-aqua": {
+        "role": "tertiary",
+        "displayName": "Dark Data Aqua",
+        "canonical": "#58dccb"
+      },
+      "dark-data-lemon": {
+        "role": "tertiary",
+        "displayName": "Dark Data Lemon",
+        "canonical": "#c6ff72"
+      },
+      "dark-data-green": {
+        "role": "tertiary",
+        "displayName": "Dark Data Green",
+        "canonical": "#59cdb0"
       },
       "light-canvas": {
         "role": "neutral",
-        "displayName": "Mineral Daylight Canvas",
-        "canonical": "#f6f7f5",
-        "tonalRamp": [
-          "#262a22",
-          "#404739",
-          "#59634f",
-          "#737f66",
-          "#8c9980",
-          "#a6b09c",
-          "#c7cdc1",
-          "#f0f1ee"
-        ]
+        "displayName": "Light Canvas",
+        "canonical": "#eef2f3"
       },
       "light-surface": {
         "role": "neutral",
-        "displayName": "White Content Surface",
-        "canonical": "#ffffff",
-        "tonalRamp": [
-          "#262626",
-          "#404040",
-          "#595959",
-          "#737373",
-          "#8c8c8c",
-          "#a6a6a6",
-          "#c7c7c7",
-          "#f0f0f0"
-        ]
+        "displayName": "Light Surface",
+        "canonical": "#fbfcfd"
       },
-      "light-raised": {
+      "light-surface-raised": {
         "role": "neutral",
-        "displayName": "Raised Mineral Surface",
-        "canonical": "#f0f2ee",
-        "tonalRamp": [
-          "#262b21",
-          "#404837",
-          "#59654d",
-          "#738263",
-          "#8c9c7d",
-          "#a6b29a",
-          "#c7cebf",
-          "#f0f2ee"
-        ]
+        "displayName": "Light Surface Raised",
+        "canonical": "#e4e9ec"
       },
       "light-rail": {
         "role": "neutral",
-        "displayName": "Mineral Navigation Rail",
-        "canonical": "#f0f2ee",
-        "tonalRamp": [
-          "#262b21",
-          "#404837",
-          "#59654d",
-          "#738263",
-          "#8c9c7d",
-          "#a6b29a",
-          "#c7cebf",
-          "#f0f2ee"
-        ]
+        "displayName": "Light Rail",
+        "canonical": "#20262b"
       },
       "light-ink": {
         "role": "neutral",
-        "displayName": "Graphite Ink",
-        "canonical": "#252724",
-        "tonalRamp": [
-          "#262825",
-          "#3f423d",
-          "#585d56",
-          "#71776e",
-          "#8b9188",
-          "#a5a9a2",
-          "#c6c9c5",
-          "#eff0ef"
-        ]
+        "displayName": "Light Ink",
+        "canonical": "#1d252a"
       },
       "light-ink-secondary": {
         "role": "neutral",
-        "displayName": "Secondary Graphite Ink",
-        "canonical": "#565c55",
-        "tonalRamp": [
-          "#252825",
-          "#3e423d",
-          "#575d56",
-          "#70776e",
-          "#899188",
-          "#a3a9a2",
-          "#c5c9c5",
-          "#eff0ef"
-        ]
+        "displayName": "Light Ink Secondary",
+        "canonical": "#53616a"
       },
       "light-ink-muted": {
         "role": "neutral",
-        "displayName": "Muted Graphite Ink",
-        "canonical": "#646d62",
-        "tonalRamp": [
-          "#252824",
-          "#3e433c",
-          "#565e55",
-          "#6f796d",
-          "#889286",
-          "#a3aaa1",
-          "#c5cac4",
-          "#eff1ef"
-        ]
+        "displayName": "Light Ink Muted",
+        "canonical": "#63717a"
       },
       "light-divider": {
         "role": "neutral",
-        "displayName": "Mineral Divider",
-        "canonical": "#dde1d9",
-        "tonalRamp": [
-          "#262b22",
-          "#404738",
-          "#59644f",
-          "#738065",
-          "#8c9a7f",
-          "#a6b09b",
-          "#c7cec0",
-          "#f0f2ee"
-        ]
+        "displayName": "Light Divider",
+        "canonical": "rgba(40, 54, 62, 0.16)"
+      },
+      "light-divider-soft": {
+        "role": "neutral",
+        "displayName": "Light Divider Soft",
+        "canonical": "rgba(40, 54, 62, 0.09)"
+      },
+      "light-highlight-inset": {
+        "role": "neutral",
+        "displayName": "Light Highlight Inset",
+        "canonical": "rgba(241, 244, 245, 0.12)"
       },
       "light-signal": {
         "role": "primary",
-        "displayName": "Deep Blue Signal",
-        "canonical": "#245e7a",
-        "tonalRamp": [
-          "#112e3b",
-          "#1d4c62",
-          "#296a8a",
-          "#3489b1",
-          "#4ea2cb",
-          "#75b7d6",
-          "#a8d2e5",
-          "#e7f3f8"
-        ]
+        "displayName": "Light Signal",
+        "canonical": "#286ca4"
+      },
+      "light-signal-hover": {
+        "role": "primary",
+        "displayName": "Light Signal Hover",
+        "canonical": "#1e5d90"
+      },
+      "light-signal-soft": {
+        "role": "primary",
+        "displayName": "Light Signal Soft",
+        "canonical": "rgba(40, 108, 164, 0.1)"
+      },
+      "light-focus": {
+        "role": "primary",
+        "displayName": "Light Focus",
+        "canonical": "#176b9f"
       },
       "light-action": {
+        "role": "secondary",
+        "displayName": "Light Action",
+        "canonical": "#16846e"
+      },
+      "light-action-hover": {
+        "role": "secondary",
+        "displayName": "Light Action Hover",
+        "canonical": "#126f5d"
+      },
+      "light-on-action": {
+        "role": "secondary",
+        "displayName": "Light On Action",
+        "canonical": "#ffffff"
+      },
+      "light-on-signal": {
         "role": "primary",
-        "displayName": "Sage Lime Action",
-        "canonical": "#cadb9a",
-        "tonalRamp": [
-          "#2f3814",
-          "#4e5e22",
-          "#6d842f",
-          "#8da93c",
-          "#a6c356",
-          "#bad07b",
-          "#d4e2ac",
-          "#f3f7e8"
-        ]
+        "displayName": "Light On Signal",
+        "canonical": "#ffffff"
+      },
+      "light-on-danger": {
+        "role": "secondary",
+        "displayName": "Light On Danger",
+        "canonical": "#ffffff"
       },
       "light-warning": {
         "role": "secondary",
-        "displayName": "Warm Ochre Warning",
-        "canonical": "#805515",
-        "tonalRamp": [
-          "#422c0b",
-          "#6e4912",
-          "#996619",
-          "#c58320",
-          "#df9c3a",
-          "#e6b266",
-          "#efcf9f",
-          "#fbf2e5"
-        ]
+        "displayName": "Light Warning",
+        "canonical": "#8b6428"
+      },
+      "light-warning-soft": {
+        "role": "secondary",
+        "displayName": "Light Warning Soft",
+        "canonical": "rgba(139, 100, 40, 0.1)"
       },
       "light-danger": {
         "role": "secondary",
-        "displayName": "Muted Coral Danger",
-        "canonical": "#ac3e36",
-        "tonalRamp": [
-          "#3a1512",
-          "#61231e",
-          "#88312b",
-          "#af3f37",
-          "#c85850",
-          "#d47d77",
-          "#e4aeaa",
-          "#f8e9e8"
-        ]
+        "displayName": "Light Danger",
+        "canonical": "#a04e48"
+      },
+      "light-danger-soft": {
+        "role": "secondary",
+        "displayName": "Light Danger Soft",
+        "canonical": "rgba(160, 78, 72, 0.1)"
       },
       "light-success": {
         "role": "secondary",
-        "displayName": "Forest Success",
-        "canonical": "#356344",
-        "tonalRamp": [
-          "#1b3222",
-          "#2c5339",
-          "#3e7450",
-          "#509567",
-          "#6aaf80",
-          "#8bc19c",
-          "#b6d8c1",
-          "#ebf4ee"
-        ]
+        "displayName": "Light Success",
+        "canonical": "#28764f"
       },
-      "light-neutral-state": {
+      "light-success-soft": {
+        "role": "secondary",
+        "displayName": "Light Success Soft",
+        "canonical": "rgba(53, 139, 101, 0.1)"
+      },
+      "light-neutral": {
         "role": "neutral",
-        "displayName": "Neutral Graphite State",
-        "canonical": "#646d62",
-        "tonalRamp": [
-          "#252824",
-          "#3e433c",
-          "#565e55",
-          "#6f796d",
-          "#889286",
-          "#a3aaa1",
-          "#c5cac4",
-          "#eff1ef"
-        ]
+        "displayName": "Light Neutral",
+        "canonical": "#5f6e75"
       },
-      "light-data-violet": {
-        "role": "tertiary",
-        "displayName": "Iris Data Violet",
-        "canonical": "#6d4cc2",
-        "tonalRamp": [
-          "#1e1339",
-          "#32205f",
-          "#462d85",
-          "#5a3aab",
-          "#7354c5",
-          "#927ad2",
-          "#bbabe2",
-          "#ece8f7"
-        ]
+      "light-neutral-soft": {
+        "role": "neutral",
+        "displayName": "Light Neutral Soft",
+        "canonical": "rgba(95, 110, 117, 0.1)"
       },
       "light-control-border": {
         "role": "neutral",
-        "displayName": "Control Border",
-        "canonical": "#7d8579",
-        "tonalRamp": [
-          "#262824",
-          "#3f433d",
-          "#585d55",
-          "#71786d",
-          "#8a9287",
-          "#a4aaa2",
-          "#c6cac4",
-          "#eff0ef"
-        ]
+        "displayName": "Light Control Border",
+        "canonical": "#8d9da5"
       },
-      "light-action-border": {
+      "light-nav-border": {
         "role": "neutral",
-        "displayName": "Action Border",
-        "canonical": "#708044",
-        "tonalRamp": [
-          "#2c321b",
-          "#49532c",
-          "#66753e",
-          "#839650",
-          "#9daf69",
-          "#b2c18a",
-          "#cfd8b6",
-          "#f2f4eb"
-        ]
+        "displayName": "Light Nav Border",
+        "canonical": "rgba(241, 244, 245, 0.16)"
+      },
+      "light-nav-hover": {
+        "role": "neutral",
+        "displayName": "Light Nav Hover",
+        "canonical": "rgba(255, 255, 255, 0.07)"
+      },
+      "light-nav-active-bg": {
+        "role": "primary",
+        "displayName": "Light Nav Active Bg",
+        "canonical": "rgba(106, 169, 255, 0.18)"
+      },
+      "light-nav-active-border": {
+        "role": "primary",
+        "displayName": "Light Nav Active Border",
+        "canonical": "rgba(130, 187, 255, 0.52)"
+      },
+      "light-nav-active-ink": {
+        "role": "neutral",
+        "displayName": "Light Nav Active Ink",
+        "canonical": "#ffffff"
+      },
+      "light-line-signal": {
+        "role": "primary",
+        "displayName": "Light Line Signal",
+        "canonical": "rgba(40, 108, 164, 0.4)"
+      },
+      "light-line-warning": {
+        "role": "secondary",
+        "displayName": "Light Line Warning",
+        "canonical": "rgba(139, 100, 40, 0.4)"
+      },
+      "light-line-danger": {
+        "role": "secondary",
+        "displayName": "Light Line Danger",
+        "canonical": "rgba(160, 78, 72, 0.4)"
+      },
+      "light-line-success": {
+        "role": "secondary",
+        "displayName": "Light Line Success",
+        "canonical": "rgba(53, 139, 101, 0.4)"
+      },
+      "light-data-mint": {
+        "role": "tertiary",
+        "displayName": "Light Data Mint",
+        "canonical": "#16846e"
+      },
+      "light-data-amber": {
+        "role": "tertiary",
+        "displayName": "Light Data Amber",
+        "canonical": "#976b18"
+      },
+      "light-data-rose": {
+        "role": "tertiary",
+        "displayName": "Light Data Rose",
+        "canonical": "#a03b73"
+      },
+      "light-data-violet": {
+        "role": "tertiary",
+        "displayName": "Light Data Violet",
+        "canonical": "#6d4cc2"
+      },
+      "light-data-blue": {
+        "role": "tertiary",
+        "displayName": "Light Data Blue",
+        "canonical": "#286ca4"
+      },
+      "light-data-magenta": {
+        "role": "tertiary",
+        "displayName": "Light Data Magenta",
+        "canonical": "#a03b73"
+      },
+      "light-data-aqua": {
+        "role": "tertiary",
+        "displayName": "Light Data Aqua",
+        "canonical": "#17795f"
+      },
+      "light-data-lemon": {
+        "role": "tertiary",
+        "displayName": "Light Data Lemon",
+        "canonical": "#5f7a1f"
       },
       "light-data-green": {
-        "role": "neutral",
-        "displayName": "Data Green",
-        "canonical": "#587839",
-        "tonalRamp": [
-          "#263419",
-          "#3f5629",
-          "#597939",
-          "#729c4a",
-          "#8cb563",
-          "#a5c686",
-          "#c7dbb3",
-          "#f0f5ea"
-        ]
+        "role": "tertiary",
+        "displayName": "Light Data Green",
+        "canonical": "#16846e"
       }
     },
     "typographyMeta": {
@@ -490,94 +470,107 @@
         "displayName": "正文",
         "purpose": "工作台基础中文无衬线文字。"
       },
+      "primary-button": {
+        "displayName": "主要按钮",
+        "purpose": "共享主要按钮的中文无衬线字族、字号、字重与行高。"
+      },
       "page-title": {
         "displayName": "页面标题",
-        "purpose": "当前页面的一级标题。"
+        "purpose": "当前页的一级标题。"
       },
       "section-title": {
         "displayName": "区段标题",
-        "purpose": "内容区、卡片和表格分组标题。"
+        "purpose": "工作区分组标题。"
+      },
+      "dashboard-section-title": {
+        "displayName": "总览区块标题",
+        "purpose": "总览页主要数据区块标题。"
       },
       "brand": {
         "displayName": "品牌中文黑体",
-        "purpose": "工作台品牌标识的中文无衬线字族。"
+        "purpose": "工作台品牌名称。"
       },
       "label": {
         "displayName": "字段标签",
-        "purpose": "表单字段名称和简短控件标签。"
+        "purpose": "表单字段与简短控件标签。"
       },
       "data": {
         "displayName": "数据等宽字",
-        "purpose": "项目编号、时间戳及需逐位比较的数据。"
+        "purpose": "编号、时间及逐位比较的数据。"
       }
     },
     "shadows": [
       {
-        "name": "card-dark",
-        "value": "0 16px 40px rgba(0, 0, 0, 0.14)",
-        "purpose": "Existing dark theme card elevation."
+        "name": "workbench-edge-highlight",
+        "value": "inset 0 1px 0 var(--highlight-inset)",
+        "purpose": "普通工作台卡片、总览面板和控件的内沿高光，不承担浮起层级。"
       },
       {
-        "name": "card-light",
-        "value": "none",
-        "purpose": "Light fixed content surfaces remain flat; hierarchy comes from neutral tonal separation and borders."
+        "name": "floating-dark",
+        "value": "0 18px 48px rgba(0, 0, 0, 0.42), 0 1px 0 rgba(255, 255, 255, 0.07) inset",
+        "purpose": "深色主题下的菜单和对话框浮层。"
       },
       {
-        "name": "float-light",
-        "value": "0 8px 24px rgba(37, 39, 36, .12)",
-        "purpose": "Light theme floating menus and dialogs."
+        "name": "floating-light",
+        "value": "0 18px 44px rgba(30, 45, 52, 0.18)",
+        "purpose": "浅色主题下的菜单和对话框浮层。"
+      },
+      {
+        "name": "drawer-dark",
+        "value": "-16px 0 36px rgba(0, 0, 0, 0.32)",
+        "purpose": "深色主题下抽屉与工作区的分离。"
       },
       {
         "name": "drawer-light",
-        "value": "-16px 0 36px rgba(37, 39, 36, .16)",
-        "purpose": "Light theme drawer separation."
+        "value": "-16px 0 36px rgba(30, 45, 52, 0.16)",
+        "purpose": "浅色主题下抽屉与工作区的分离。"
       },
       {
-        "name": "float-dark",
-        "value": "0 30px 90px rgba(0, 0, 0, 0.32), 0 0 0 1px rgba(108, 243, 255, 0.08)",
-        "purpose": "Existing dark theme floating layers."
+        "name": "navigation-dark",
+        "value": "0 1px 0 rgba(255, 255, 255, 0.1)",
+        "purpose": "深色导航框架的细边缘。"
       }
     ],
     "motion": [
       {
-        "name": "console",
-        "value": "140ms ease-out",
-        "purpose": "常规控件的短状态反馈。"
+        "name": "instant",
+        "value": "90ms",
+        "purpose": "按下、焦点和短促控件反馈。"
       },
       {
-        "name": "fast",
+        "name": "quick",
         "value": "160ms",
-        "purpose": "紧凑的导航与控件状态变化。"
+        "purpose": "hover、边界与普通控件状态变化。"
       },
       {
         "name": "base",
-        "value": "220ms",
-        "purpose": "较明显的面板和组件状态过渡。"
+        "value": "300ms",
+        "purpose": "面板和较明显的组件过渡。"
       },
       {
-        "name": "number",
-        "value": "420ms",
-        "purpose": "数值变化反馈。"
+        "name": "slow",
+        "value": "600ms",
+        "purpose": "总览入场、数值和图表过渡。"
       },
       {
-        "name": "chart",
-        "value": "500ms",
-        "purpose": "图表状态更新。"
-      },
-      {
-        "name": "ease-console",
+        "name": "ease-standard",
         "value": "cubic-bezier(0.2, 0.72, 0.2, 1)",
-        "purpose": "主控制台交互的缓出曲线。"
+        "purpose": "常规状态和位置变化。"
       },
       {
-        "name": "sidebar-collapse",
-        "value": "240ms cubic-bezier(0.16, 1, 0.3, 1)",
-        "purpose": "桌面侧栏与工作区同步收起或展开，减少动态效果偏好下缩短至 1ms。"
+        "name": "ease-enter",
+        "value": "cubic-bezier(0.16, 1, 0.3, 1)",
+        "purpose": "元素入场。"
       },
       {
-        "name": "sidebar-label",
-        "value": "150ms opacity, 180ms transform",
-        "purpose": "品牌和导航标签随侧栏状态渐隐/显现，减少动态效果偏好下缩短至 1ms。"
+        "name": "ease-exit",
+        "value": "cubic-bezier(0.4, 0, 1, 1)",
+        "purpose": "元素退场。"
+      },
+      {
+        "name": "theme-transition",
+        "value": "680ms",
+        "purpose": "深浅主题切换过场。"
       }
     ],
     "breakpoints": [
@@ -586,20 +579,20 @@
         "value": "900px"
       },
       {
-        "name": "tablet",
+        "name": "phone-shell",
         "value": "767px"
+      },
+      {
+        "name": "dashboard-two-column",
+        "value": "1180px"
+      },
+      {
+        "name": "dashboard-phone-density",
+        "value": "640px"
       },
       {
         "name": "small-mobile",
         "value": "520px"
-      },
-      {
-        "name": "sidebar-compact-start",
-        "value": "901px"
-      },
-      {
-        "name": "sidebar-compact-end",
-        "value": "1180px"
       }
     ]
   },
@@ -607,127 +600,131 @@
     {
       "name": "Primary Button · Dark",
       "kind": "button",
-      "refersTo": "button-primary-dark",
-      "description": "酸橙填充的主要行动按钮，深色主题使用深色前景。",
+      "description": "深色工作区的蓝色主要操作，包含悬停、焦点、按下和禁用状态。",
       "html": "<button class=\"ds-btn-primary-dark\" type=\"button\">保存更改</button>",
-      "css": ".ds-btn-primary-dark { display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 38px; padding: 0 16px; border: 1px solid #c6ff72; border-radius: 0; background: #c6ff72; color: #07131f; font: 650 14px/1 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif; white-space: nowrap; transition: background 140ms ease-out, border-color 140ms ease-out, transform 140ms ease-out; } .ds-btn-primary-dark:hover { background: #d9ff9b; border-color: #d9ff9b; } .ds-btn-primary-dark:focus-visible { outline: 2px solid #6cf3ff; outline-offset: 2px; } .ds-btn-primary-dark:active { transform: translateY(1px); }"
+      "css": ".ds-btn-primary-dark { display:inline-flex; align-items:center; justify-content:center; gap:6px; height:38px; padding:0 16px; border:1px solid #6aa9ff; border-radius:10px; background:#6aa9ff; color:#101820; font:650 14px/1 'Noto Sans SC', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', system-ui, sans-serif; white-space:nowrap; box-shadow:inset 0 1px 0 rgba(237,237,237,.12); transition:background 160ms ease-out,border-color 160ms ease-out,transform 90ms ease-out; } .ds-btn-primary-dark:hover { background:#8bbcff; border-color:#8bbcff; } .ds-btn-primary-dark:focus-visible { outline:2px solid #7fc6ff; outline-offset:1px; box-shadow:0 0 0 3px rgba(106,169,255,.12),inset 0 1px 0 rgba(237,237,237,.12); } .ds-btn-primary-dark:active { transform:translateY(1px); } .ds-btn-primary-dark:disabled { border-color:rgba(237,237,237,.12); background:#24272a; color:#85858b; cursor:not-allowed; }",
+      "refersTo": "button-primary-dark"
     },
     {
       "name": "Primary Button · Light",
       "kind": "button",
-      "refersTo": "button-primary-light",
-      "description": "浅色工作面上的酸橙行动按钮，维持深色文字和清楚边界。",
+      "description": "浅色工作区的蓝色主要操作，使用高对比前景和主题化焦点环。",
       "html": "<button class=\"ds-btn-primary-light\" type=\"button\">保存更改</button>",
-      "css": ".ds-btn-primary-light { display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 38px; padding: 0 16px; border: 1px solid #708044; border-radius: 0; background: #cadb9a; color: #25321b; font: 650 14px/1 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif; white-space: nowrap; transition: background 140ms ease-out, border-color 140ms ease-out, transform 140ms ease-out; } .ds-btn-primary-light:hover { background: #bfd187; border-color: #708044; } .ds-btn-primary-light:focus-visible { outline: 2px solid #245e7a; outline-offset: 2px; } .ds-btn-primary-light:active { transform: translateY(1px); }"
+      "css": ".ds-btn-primary-light { display:inline-flex; align-items:center; justify-content:center; gap:6px; height:38px; padding:0 16px; border:1px solid #286ca4; border-radius:10px; background:#286ca4; color:#fff; font:650 14px/1 'Noto Sans SC', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', system-ui, sans-serif; white-space:nowrap; box-shadow:inset 0 1px 0 rgba(241,244,245,.12); transition:background 160ms ease-out,border-color 160ms ease-out,transform 90ms ease-out; } .ds-btn-primary-light:hover { background:#1e5d90; border-color:#1e5d90; } .ds-btn-primary-light:focus-visible { outline:2px solid #176b9f; outline-offset:1px; box-shadow:0 0 0 3px rgba(40,108,164,.1),inset 0 1px 0 rgba(241,244,245,.12); } .ds-btn-primary-light:active { transform:translateY(1px); } .ds-btn-primary-light:disabled { border-color:rgba(40,54,62,.16); background:#e4e9ec; color:#63717a; cursor:not-allowed; }",
+      "refersTo": "button-primary-light"
     },
     {
       "name": "Ghost Button · Dark",
       "kind": "button",
-      "refersTo": "button-ghost-dark",
-      "description": "深色模式下使用深色表面与细边界的次级操作。",
+      "description": "深色工作区中的次级操作，以控件边界和 raised 表面显示悬停状态。",
       "html": "<button class=\"ds-btn-ghost-dark\" type=\"button\">取消</button>",
-      "css": ".ds-btn-ghost-dark { display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 38px; padding: 0 13px; border: 1px solid rgba(146, 189, 210, .22); border-radius: 0; background: #0d1d2c; color: #eaf9fb; font: 400 14px/1.5 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif; white-space: nowrap; transition: color 140ms ease-out, border-color 140ms ease-out, background 140ms ease-out; } .ds-btn-ghost-dark:hover { border-color: #6cf3ff; color: #6cf3ff; } .ds-btn-ghost-dark:focus-visible { outline: 2px solid #6cf3ff; outline-offset: 2px; } .ds-btn-ghost-dark:active { transform: translateY(1px); }"
+      "css": ".ds-btn-ghost-dark { display:inline-flex; align-items:center; justify-content:center; gap:6px; height:38px; padding:0 13px; border:1px solid rgba(237,237,237,.28); border-radius:10px; background:#191a1c; color:#ededed; font:400 14px/1.5 'Noto Sans SC', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', system-ui, sans-serif; white-space:nowrap; box-shadow:inset 0 1px 0 rgba(237,237,237,.12); transition:color 160ms ease-out,border-color 160ms ease-out,background 160ms ease-out; } .ds-btn-ghost-dark:hover { border-color:rgba(237,237,237,.28); background:#24272a; color:#ededed; } .ds-btn-ghost-dark:focus-visible { outline:2px solid #7fc6ff; outline-offset:1px; box-shadow:0 0 0 3px rgba(106,169,255,.12),inset 0 1px 0 rgba(237,237,237,.12); } .ds-btn-ghost-dark:active { transform:translateY(1px); }",
+      "refersTo": "button-ghost-dark"
     },
     {
       "name": "Ghost Button · Light",
       "kind": "button",
-      "refersTo": "button-ghost-light",
-      "description": "浅色模式下使用白色表面与细边界的次级操作。",
+      "description": "浅色工作区中的次级操作，使用中性控件边界和 raised hover 表面。",
       "html": "<button class=\"ds-btn-ghost-light\" type=\"button\">取消</button>",
-      "css": ".ds-btn-ghost-light { display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 38px; padding: 0 13px; border: 1px solid #dde1d9; border-radius: 0; background: #fff; color: #252724; font: 400 14px/1.5 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif; white-space: nowrap; transition: color 140ms ease-out, border-color 140ms ease-out, background 140ms ease-out; } .ds-btn-ghost-light:hover { border-color: #245e7a; color: #245e7a; } .ds-btn-ghost-light:focus-visible { outline: 2px solid #245e7a; outline-offset: 2px; } .ds-btn-ghost-light:active { transform: translateY(1px); }"
+      "css": ".ds-btn-ghost-light { display:inline-flex; align-items:center; justify-content:center; gap:6px; height:38px; padding:0 13px; border:1px solid #8d9da5; border-radius:10px; background:#fbfcfd; color:#1d252a; font:400 14px/1.5 'Noto Sans SC', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', system-ui, sans-serif; white-space:nowrap; box-shadow:inset 0 1px 0 rgba(241,244,245,.12); transition:color 160ms ease-out,border-color 160ms ease-out,background 160ms ease-out; } .ds-btn-ghost-light:hover { border-color:#8d9da5; background:#e4e9ec; color:#1d252a; } .ds-btn-ghost-light:focus-visible { outline:2px solid #176b9f; outline-offset:1px; box-shadow:0 0 0 3px rgba(40,108,164,.1),inset 0 1px 0 rgba(241,244,245,.12); } .ds-btn-ghost-light:active { transform:translateY(1px); }",
+      "refersTo": "button-ghost-light"
     },
     {
       "name": "Input · Dark",
       "kind": "input",
-      "refersTo": "input-dark",
-      "description": "深色表面上的方角单行输入，焦点使用主题信号色。",
+      "description": "深色主题的单行字段，焦点边界和内沿高光保持可辨。",
       "html": "<label class=\"ds-field-dark\">项目名称<input class=\"ds-input-dark\" type=\"text\" value=\"北区交付计划\" /></label>",
-      "css": ".ds-field-dark { display: grid; gap: 5px; color: rgba(201, 227, 235, .72); font: 400 13px/1.5 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif; } .ds-input-dark { width: 100%; height: 38px; padding: 0 11px; border: 1px solid rgba(146, 189, 210, .22); border-radius: 0; background: #0d1d2c; color: #eaf9fb; font: 400 14px/1.5 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif; transition: border-color 140ms ease-out, box-shadow 140ms ease-out; } .ds-input-dark:focus { border-color: #6cf3ff; box-shadow: 0 0 0 2px rgba(108, 243, 255, .08); outline: none; }"
+      "css": ".ds-field-dark { display:grid; gap:5px; color:#a1a1a6; font:400 13px/1.5 'Noto Sans SC', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', system-ui, sans-serif; } .ds-input-dark { width:100%; height:38px; padding:0 11px; border:1px solid rgba(237,237,237,.28); border-radius:10px; background:#191a1c; color:#ededed; font:400 14px/1.5 'Noto Sans SC', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', system-ui, sans-serif; box-shadow:inset 0 1px 0 rgba(237,237,237,.12); transition:border-color 160ms ease-out,box-shadow 160ms ease-out; } .ds-input-dark:focus { border-color:#7fc6ff; box-shadow:0 0 0 2px rgba(106,169,255,.12),inset 0 1px 0 rgba(237,237,237,.12); outline:none; }",
+      "refersTo": "input-dark"
     },
     {
       "name": "Input · Light",
       "kind": "input",
-      "refersTo": "input-light",
-      "description": "浅色工作面上的方角单行输入，焦点使用深青色边界。",
+      "description": "浅色主题的单行字段，使用深蓝焦点信号和独立控件边界。",
       "html": "<label class=\"ds-field-light\">项目名称<input class=\"ds-input-light\" type=\"text\" value=\"北区交付计划\" /></label>",
-      "css": ".ds-field-light { display: grid; gap: 5px; color: #565c55; font: 400 13px/1.5 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif; } .ds-input-light { width: 100%; height: 38px; padding: 0 11px; border: 1px solid #dde1d9; border-radius: 0; background: #fff; color: #252724; font: 400 14px/1.5 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif; transition: border-color 140ms ease-out, box-shadow 140ms ease-out; } .ds-input-light:focus { border-color: #245e7a; box-shadow: 0 0 0 2px #e8eff3; outline: none; }"
+      "css": ".ds-field-light { display:grid; gap:5px; color:#53616a; font:400 13px/1.5 'Noto Sans SC', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', system-ui, sans-serif; } .ds-input-light { width:100%; height:38px; padding:0 11px; border:1px solid #8d9da5; border-radius:10px; background:#fbfcfd; color:#1d252a; font:400 14px/1.5 'Noto Sans SC', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', system-ui, sans-serif; box-shadow:inset 0 1px 0 rgba(241,244,245,.12); transition:border-color 160ms ease-out,box-shadow 160ms ease-out; } .ds-input-light:focus { border-color:#176b9f; box-shadow:0 0 0 2px rgba(40,108,164,.1),inset 0 1px 0 rgba(241,244,245,.12); outline:none; }",
+      "refersTo": "input-light"
+    },
+    {
+      "name": "Workbench Card · Dark",
+      "kind": "card",
+      "description": "深色工作区的普通内容面，以边界和内沿高光托住信息。",
+      "html": "<article class=\"ds-card-dark\"><h2>项目进展</h2><p>关键节点与交付状态</p></article>",
+      "css": ".ds-card-dark { padding:20px; border:1px solid rgba(237,237,237,.12); border-radius:12px; background:#191a1c; color:#ededed; box-shadow:inset 0 1px 0 rgba(237,237,237,.12); } .ds-card-dark h2 { margin:0 0 8px; font:700 15px/1.35 'Noto Sans SC', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', system-ui, sans-serif; } .ds-card-dark p { margin:0; color:#a1a1a6; font:400 14px/1.5 'Noto Sans SC', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', system-ui, sans-serif; }",
+      "refersTo": "card-dark"
+    },
+    {
+      "name": "Workbench Card · Light",
+      "kind": "card",
+      "description": "浅色工作区的平实内容面，层级来自主题边界和抬高表面。",
+      "html": "<article class=\"ds-card-light\"><h2>项目进展</h2><p>关键节点与交付状态</p></article>",
+      "css": ".ds-card-light { padding:20px; border:1px solid rgba(40,54,62,.16); border-radius:12px; background:#fbfcfd; color:#1d252a; box-shadow:inset 0 1px 0 rgba(241,244,245,.12); } .ds-card-light h2 { margin:0 0 8px; font:700 15px/1.35 'Noto Sans SC', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', system-ui, sans-serif; } .ds-card-light p { margin:0; color:#53616a; font:400 14px/1.5 'Noto Sans SC', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', system-ui, sans-serif; }",
+      "refersTo": "card-light"
     },
     {
       "name": "Console Navigation · Theme Pair",
       "kind": "nav",
-      "description": "主题成对对照的侧栏入口，深色和浅色的导航状态维持相同语义。",
-      "html": "<div class=\"ds-nav-pair\"><nav class=\"ds-nav-dark\" aria-label=\"深色导航示例\"><a class=\"ds-nav-item-dark\" href=\"#dashboard-dark\">工作台</a><a class=\"ds-nav-item-dark ds-nav-item-dark-active\" href=\"#projects-dark\" aria-current=\"page\">项目台账</a></nav><nav class=\"ds-nav-light\" aria-label=\"浅色导航示例\"><a class=\"ds-nav-item-light\" href=\"#dashboard-light\">工作台</a><a class=\"ds-nav-item-light ds-nav-item-light-active\" href=\"#projects-light\" aria-current=\"page\">项目台账</a></nav></div>",
-      "css": ".ds-nav-pair { display: flex; flex-wrap: wrap; gap: 12px; } .ds-nav-dark, .ds-nav-light { display: grid; gap: 4px; width: 220px; padding: 14px 10px; } .ds-nav-dark { border-right: 1px solid rgba(255, 255, 255, .08); background: #081622; } .ds-nav-light { border-right: 1px solid rgba(33, 83, 104, .14); background: #f0f2ee; } .ds-nav-item-dark, .ds-nav-item-light { min-height: 42px; display: flex; align-items: center; padding: 0 12px; border-radius: 0; font: 500 14px/1.4 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif; text-decoration: none; } .ds-nav-item-dark { color: rgba(231, 239, 252, .72); } .ds-nav-item-light { color: #565c55; } .ds-nav-item-dark:hover, .ds-nav-item-dark-active { background: rgba(108, 243, 255, .06); color: #eaf2ff; } .ds-nav-item-light:hover, .ds-nav-item-light-active { background: #e8eff3; color: #252724; } .ds-nav-item-dark-active { box-shadow: inset 2px 0 #6cf3ff; } .ds-nav-item-light-active { box-shadow: inset 2px 0 #245e7a; } .ds-nav-item-dark:focus-visible { outline: 2px solid #6cf3ff; outline-offset: -2px; } .ds-nav-item-light:focus-visible { outline: 2px solid #245e7a; outline-offset: -2px; } @media (max-width: 480px) { .ds-nav-pair { flex-direction: column; } }"
-    },
-    {
-      "name": "Card · Dark",
-      "kind": "card",
-      "refersTo": "card-dark",
-      "description": "深色主题的直角内容面板，使用细边界和轻量层级。",
-      "html": "<article class=\"ds-card-dark\"><h2>项目进展</h2><p>关键节点与交付状态</p></article>",
-      "css": ".ds-card-dark { padding: 20px; border: 1px solid rgba(146, 189, 210, .22); border-radius: 0; background: #0d1d2c; color: #eaf9fb; box-shadow: 0 16px 40px rgba(0, 0, 0, .14); } .ds-card-dark h2 { margin: 0 0 8px; font: 700 15px/1.35 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif; } .ds-card-dark p { margin: 0; color: rgba(201, 227, 235, .72); font: 400 14px/1.5 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif; }"
-    },
-    {
-      "name": "Card · Light",
-      "kind": "card",
-      "refersTo": "card-light",
-      "description": "浅色主题的直角白色内容面板，层级来自边界和柔和阴影。",
-      "html": "<article class=\"ds-card-light\"><h2>项目进展</h2><p>关键节点与交付状态</p></article>",
-      "css": ".ds-card-light { padding: 20px; border: 1px solid #dde1d9; border-radius: 0; background: #fff; color: #252724; box-shadow: none; } .ds-card-light h2 { margin: 0 0 8px; font: 700 15px/1.35 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif; } .ds-card-light p { margin: 0; color: #565c55; font: 400 14px/1.5 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif; }"
+      "description": "侧栏当前项在深浅主题中使用相同语义，并保留各自的边缘处理。",
+      "html": "<div class=\"ds-nav-pair\"><nav class=\"ds-nav-dark\" aria-label=\"深色导航示例\"><a class=\"ds-nav-item ds-nav-dark-active\" href=\"#projects-dark\" aria-current=\"page\">项目台账</a></nav><nav class=\"ds-nav-light\" aria-label=\"浅色导航示例\"><a class=\"ds-nav-item ds-nav-light-active\" href=\"#projects-light\" aria-current=\"page\">项目台账</a></nav></div>",
+      "css": ".ds-nav-pair { display:flex; flex-wrap:wrap; gap:12px; } .ds-nav-dark,.ds-nav-light { display:grid; gap:4px; width:220px; padding:14px 10px; } .ds-nav-dark { background:#111214; } .ds-nav-light { background:#20262b; } .ds-nav-item { position:relative; min-height:42px; display:flex; align-items:center; padding:0 12px; border:1px solid transparent; border-radius:6px; color:#a1a1a6; font:500 14px/1.4 'Noto Sans SC', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', system-ui, sans-serif; text-decoration:none; } .ds-nav-dark-active { border-color:rgba(106,169,255,.5); background:rgba(106,169,255,.13); color:#ededed; box-shadow:inset 0 1px 0 rgba(237,237,237,.12); } .ds-nav-light-active { border-color:rgba(130,187,255,.52); background:rgba(106,169,255,.18); color:#fff; box-shadow:inset 0 1px 0 rgba(241,244,245,.12); } .ds-nav-light-active::before { position:absolute; inset:7px auto 7px 0; width:2px; background:#82bbff; content:''; } .ds-nav-item:focus-visible { outline:2px solid #7fc6ff; outline-offset:-2px; } @media (max-width:480px) { .ds-nav-pair { flex-direction:column; } }"
     },
     {
       "name": "Status Badge",
       "kind": "chip",
-      "description": "紧凑的小圆角状态徽标，文字、小圆点和语义色共同表达状态。",
-      "html": "<span class=\"ds-badge\">进行中</span>",
-      "css": ".ds-badge { display: inline-flex; align-items: center; height: 22px; padding: 0 8px; border: 1px solid rgba(0, 110, 134, .34); border-radius: 11px; background: #e8eff3; color: #245e7a; font: 500 12px/1 'JetBrains Mono', 'IBM Plex Mono', Menlo, Consolas, monospace; white-space: nowrap; transition: background 120ms ease-out, border-color 120ms ease-out; } .ds-badge::before { width: 4px; height: 4px; margin-right: 5px; border-radius: 50%; background: currentColor; content: ''; opacity: .72; } .ds-badge:focus-visible { outline: 2px solid #245e7a; outline-offset: 2px; } @media (prefers-reduced-motion: reduce) { .ds-badge { transition: none; } }"
+      "description": "短文字与状态色、细边界和圆点共同表达状态。",
+      "html": "<span class=\"ds-badge\">待处理</span>",
+      "css": ".ds-badge { display:inline-flex; align-items:center; height:22px; padding:0 8px; border:1px solid rgba(237,237,237,.12); border-radius:6px; background:rgba(161,161,166,.1); color:#a1a1a6; box-shadow:inset 0 1px 0 rgba(237,237,237,.12); font:500 12px/1 'JetBrains Mono', 'IBM Plex Mono', Menlo, Consolas, monospace; white-space:nowrap; } .ds-badge::before { width:4px; height:4px; margin-right:5px; border-radius:50%; background:currentColor; content:''; opacity:.72; } .ds-badge:focus-visible { outline:2px solid #7fc6ff; outline-offset:2px; }",
+      "refersTo": "badge-dark"
+    },
+    {
+      "name": "Dashboard Readout",
+      "kind": "custom",
+      "description": "总览指标卡以中性表面、顶部语义色条和醒目的数据值建立扫描顺序。",
+      "html": "<article class=\"ds-readout\"><div class=\"ds-readout-head\"><span>我的项目</span><i></i></div><strong>24</strong><small>进行中 18</small></article>",
+      "css": ".ds-readout { --signal:#6aa9ff; position:relative; display:grid; grid-template-rows:auto auto 1fr; min-height:140px; padding:16px; border:1px solid rgba(237,237,237,.12); border-radius:12px; background:#191a1c; color:#ededed; box-shadow:inset 0 1px 0 rgba(237,237,237,.12); transition:border-color 160ms ease-out,background 160ms ease-out; } .ds-readout::before { position:absolute; top:0; right:0; left:0; height:2px; background:var(--signal); content:''; } .ds-readout:hover { border-color:color-mix(in srgb,#6aa9ff 44%,rgba(237,237,237,.12)); background:#24272a; } .ds-readout-head { display:flex; align-items:center; justify-content:space-between; color:#a1a1a6; font:500 12px/1.5 'Noto Sans SC', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', system-ui, sans-serif; } .ds-readout-head i { width:7px; height:7px; border:1px solid rgba(106,169,255,.64); border-radius:50%; background:rgba(106,169,255,.22); } .ds-readout strong { margin-top:12px; color:#6aa9ff; font:700 clamp(30px,2.35vw,40px)/1.05 'Noto Sans SC', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', system-ui, sans-serif; font-variant-numeric:tabular-nums; } .ds-readout small { align-self:end; margin-top:12px; color:#85858b; font:400 12px/1.5 'Noto Sans SC', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', system-ui, sans-serif; }",
+      "refersTo": "dashboard-readout-dark"
     }
   ],
   "narrative": {
-    "northStar": "信号日光台（Signal Daylight Console）",
-    "overview": "数科云办公是一套供团队治理项目、推进执行并核对交付事实的工作台。视觉语言以清晰的工作面和可读的数据为先：深海军蓝承载暗色工作环境，矿物灰白构成浅色工作面；深蓝标记信息路径和当前焦点，低饱和鼠尾草酸橙只用于浅色行动背景，完成状态与数据绿各自独立。深浅主题共享同一组语义职责与版式，不是两套互不相干的皮肤。\n\n界面以黑体中文、紧凑的操作型信息层级、直角边界和克制的阴影建立控制台感。项目列表、表格、审批和浮层必须清楚地区分画布、内容表面、导航和状态。主题由根节点的 data-theme 驱动；新工作台界面应消费语义颜色，而不是复制某个主题下的硬编码颜色。",
+    "northStar": "Graphite Workbench",
+    "overview": "数科云办公是一套供团队治理项目、推进执行并核对交付事实的工作台。已登录工作区以石墨色表面、清楚的亮边和紧凑的信息层级组织项目、审批与交付数据。蓝色承担主要交互信号；薄荷色表达正向状态与数据，琥珀、珊瑚和玫瑰色只在对应的风险、失败或系列语境中出现。深浅主题共享语义职责和布局结构。\n\n这套主题由认证工作区外壳上的稳定标记启用，页面和共享控件消费相同语义变量。`/login` 保留独立的深海科幻身份视觉，`/spark` 保留隔离演示产品的暗色界面，`/stream-monitor` 保留独立的数据演示配色、动效和局部尺寸体系；这些表面都不继承石墨工作台的配色。",
     "keyCharacteristics": [
-      "深浅双主题共用语义职责；切换主题不改变信息层级或布局。",
-      "深色以深海军蓝为底，浅色以矿物灰白分层；深蓝信号与行动酸橙各司其职。",
-      "中文无衬线为主，等宽字只用于编号、时间及测量数据。",
-      "以直角、细边界和留白分组；浅色固定表面平实，浮层才使用柔和阴影。"
+      "深浅主题共用相同的状态和交互职责。",
+      "蓝色负责主要操作、焦点、链接与选择；薄荷色负责正向状态和数据。",
+      "中文无衬线用于界面信息，等宽字用于编号、时间和逐位比较的数据。",
+      "面板以边界和内沿高光建立层级，阴影留给真实浮层。"
     ],
     "rules": [
       {
-        "name": "The Two-Theme Parity Rule",
-        "body": "主题切换只替换语义颜色，不反转组件职责；同一控件在两种主题下都必须保有相同的重点、可读性和状态表达。",
-        "section": "colors"
-      },
-      {
-        "name": "The Signal / Action Rule",
-        "body": "深蓝负责“看哪里、当前在哪里”；酸橙只为浅色主要行动提供背景。完成状态和数据使用独立绿色语义，不要把角色混为装饰色。",
+        "name": "The Signal / Positive Rule",
+        "body": "蓝色回答“看哪里、现在操作什么”；薄荷色回答“哪些状态已完成或表现正向”。警告、危险和中性角色保持独立，不把数据颜色当成装饰。",
         "section": "colors"
       },
       {
         "name": "The One Sans Rule",
-        "body": "工作台标题、正文、字段和按钮保持同一中文无衬线家族；品牌字标可沿用独立的 `--font-brand` 黑体栈，不要为单个页面插入衬线展示字或新的品牌字体。",
+        "body": "工作台标题、正文、字段和按钮保持同一中文无衬线家族；不为单个页面插入衬线展示字或新的品牌字体。",
         "section": "typography"
       },
       {
-        "name": "The Surface-First Rule",
-        "body": "默认保持工作区内容平实；只在真实浮层使用阴影，普通分组优先使用间距、不同中性色表面和细边界。",
+        "name": "The Edge-Led Surface Rule",
+        "body": "普通内容面保持贴合工作区；边界和内沿高光负责结构，阴影只表示真实浮起的浮层。",
         "section": "elevation"
       }
     ],
     "dos": [
-      "Do 让主工作台的新颜色来自根级语义 token，并同时确认深色和浅色映射。",
-      "Do 让深色酸橙承担主要行动/完成角色；浅色酸橙只承担行动背景，完成文字与数据绿各用独立 token，深蓝承担信息信号。",
+      "Do 让认证工作区消费外壳范围内的语义 token，并同时维护深色和浅色角色。",
+      "Do 用蓝色表达主要操作、焦点、链接和选择；用薄荷色表达正向状态和数据。",
       "Do 为警告、危险、完成和中性状态同时提供文字或形状提示。",
-      "Do 延续中文黑体、表格密度、直角控件和现有移动导航结构。",
+      "Do 延续中文黑体、表格密度、边界高光和现有移动导航结构。",
       "Do 在深浅主题中检查表格、输入、浮层、焦点环、禁用态和状态徽标的对比度。",
       "Do 把独立演示和登录界面视为有边界的视觉例外，并在扩展其体验时保持自己的局部系统。"
     ],
     "donts": [
-      "Don't 把深色背景或白色文本硬编码进需要跟随工作台主题的组件。",
-      "Don't 将青色与酸橙互换职责，或用高饱和色大面积填充工作区。",
+      "Don't 在需要跟随工作台主题的组件中硬编码表面、文字或状态颜色。",
+      "Don't 互换蓝色交互信号与薄荷色正向语义，或用高饱和色大面积填充工作区。",
       "Don't 用颜色单独传达状态、错误、选中或可操作性。",
-      "Don't 将整套工作台改成统一圆角卡片，或在卡片内部再堆叠无层级意义的卡片。",
-      "Don't 把 `/login` 或 `/spark` 的专属配色未经转换就复制到主工作台。",
+      "Don't 给普通面板叠加宽泛外阴影，或在卡片内部继续堆叠无层级意义的卡片。",
+      "Don't 把 `/login`、`/spark` 或 `/stream-monitor` 的专属配色复制到主工作台。",
       "Don't 让动效、阴影或装饰性发光削弱表格扫描、表单操作和键盘导航。"
     ]
   }

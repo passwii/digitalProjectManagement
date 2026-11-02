@@ -205,3 +205,17 @@
   .dot,
   .option.selected::after { animation: none; }
 }
+
+:global([data-console-shell="true"]) .picker {
+  border-top-color: var(--line);
+}
+:global([data-console-shell="true"]) .thumb {
+  border-color: var(--line-blue);
+  box-shadow: inset 0 1px 0 var(--highlight-inset);
+}
+:global([data-console-shell="true"]) .option:not(.selected):hover {
+  background: var(--card-lift);
+}
+:global([data-console-shell="true"]) .option:focus-visible {
+  outline-color: var(--focus-ring);
+}

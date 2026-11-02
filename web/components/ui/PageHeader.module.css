@@ -172,3 +172,11 @@
   }
   .actions > * { flex: 1 1 auto; }
 }
+
+:global([data-console-shell="true"]) .pageHeader {
+  border-bottom-color: var(--line);
+  box-shadow: inset 0 -1px 0 var(--highlight-inset);
+}
+:global([data-console-shell="true"]) .actions {
+  border-left-color: var(--line);
+}

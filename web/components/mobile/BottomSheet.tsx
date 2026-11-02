@@ -3,6 +3,7 @@
 import { createPortal } from "react-dom";
 import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { useReducedMotion } from "framer-motion";
+import { getWorkbenchPortalContainer } from "@/lib/workbenchPortalContainer";
 import {
   MODAL_BODY_ATTR,
   MODAL_CLOSE_ATTR,
@@ -108,6 +109,6 @@ export default function BottomSheet({
         </div>
       </div>
     </div>,
-    document.body,
+    getWorkbenchPortalContainer(),
   );
 }

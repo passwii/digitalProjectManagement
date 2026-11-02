@@ -64,7 +64,7 @@ npm run lint
 npm run build                       # 组件/页面的类型错误只有它能兜住
 ```
 
-Node 版本：CI 固定 **20**（`.github/workflows/web.yml`，与 `docker/web.Dockerfile` 的 `node:20-alpine` 对齐）。本机用更高版本通常也能跑，但以 CI 的 20 为准。
+Node 版本：CI 固定 **26**（`.github/workflows/web.yml`，与 `docker/web.Dockerfile` 的 `node:26-alpine` 对齐）。本机建议同样用 26，以 CI 的 26 为准。
 
 ### 3.3 必须覆盖什么
 

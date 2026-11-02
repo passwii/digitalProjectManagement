@@ -62,3 +62,8 @@
   .pagination { display: none; }
   .tableFrame { display: block; overflow: visible; }
 }
+
+:global([data-console-shell="true"]) .tableFrame {
+  border-radius: var(--radius);
+  box-shadow: inset 0 1px 0 var(--highlight-inset);
+}

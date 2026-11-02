@@ -1,74 +1,113 @@
 ---
 name: 数科云办公
-description: 企业项目运营工作台的深浅双主题视觉规范
+description: 石墨色项目运营工作台：清晰边界、可靠状态、稳定交付
 colors:
-  dark-canvas: "#07131f"
-  dark-surface: "#0d1d2c"
-  dark-rail: "#081622"
-  dark-ink: "#eaf9fb"
-  dark-ink-secondary: "rgba(201, 227, 235, 0.72)"
-  dark-ink-muted: "rgba(201, 227, 235, 0.48)"
-  dark-divider: "rgba(146, 189, 210, 0.22)"
-  dark-signal: "#6cf3ff"
-  dark-action: "#c6ff72"
-  dark-warning: "#ffc46b"
-  dark-danger: "#ff9a6a"
-  dark-success: "#c6ff72"
-  dark-neutral-state: "#9cb4c4"
-  dark-data-violet: "#bda6ff"
-  dark-data-blue: "#7db4ff"
-  dark-data-magenta: "#ff8fc7"
-  dark-data-aqua: "#5ef0c8"
+  dark-canvas: "#141516"
+  dark-surface: "#191a1c"
+  dark-surface-raised: "#24272a"
+  dark-rail: "#111214"
+  dark-ink: "#ededed"
+  dark-ink-secondary: "#a1a1a6"
+  dark-ink-muted: "#85858b"
+  dark-divider: "rgba(237, 237, 237, 0.12)"
+  dark-divider-soft: "rgba(237, 237, 237, 0.075)"
+  dark-highlight-inset: "rgba(237, 237, 237, 0.12)"
+  dark-signal: "#6aa9ff"
+  dark-signal-hover: "#8bbcff"
+  dark-signal-soft: "rgba(106, 169, 255, 0.12)"
+  dark-focus: "#7fc6ff"
+  dark-action: "#59cdb0"
+  dark-action-hover: "#78dcc4"
+  dark-on-action: "#10201c"
+  dark-on-signal: "#101820"
+  dark-on-danger: "#211211"
+  dark-warning: "#f2c65c"
+  dark-warning-soft: "rgba(242, 198, 92, 0.12)"
+  dark-danger: "#f17e78"
+  dark-danger-soft: "rgba(241, 126, 120, 0.12)"
+  dark-success: "#61d2a0"
+  dark-success-soft: "rgba(97, 210, 160, 0.12)"
+  dark-neutral: "#a1a1a6"
+  dark-neutral-soft: "rgba(161, 161, 166, 0.1)"
+  dark-control-border: "rgba(237, 237, 237, 0.28)"
+  dark-nav-border: "rgba(237, 237, 237, 0.16)"
+  dark-nav-hover: "rgba(255, 255, 255, 0.055)"
+  dark-nav-active-bg: "rgba(106, 169, 255, 0.13)"
+  dark-nav-active-border: "rgba(106, 169, 255, 0.5)"
+  dark-nav-active-ink: "#ededed"
+  dark-line-signal: "rgba(106, 169, 255, 0.46)"
+  dark-line-warning: "rgba(242, 198, 92, 0.5)"
+  dark-line-danger: "rgba(241, 126, 120, 0.5)"
+  dark-line-success: "rgba(97, 210, 160, 0.48)"
+  dark-data-mint: "#59cdb0"
+  dark-data-amber: "#f2c65c"
+  dark-data-rose: "#e984b8"
+  dark-data-violet: "#ad9cff"
+  dark-data-blue: "#6aa9ff"
+  dark-data-magenta: "#e984b8"
+  dark-data-aqua: "#58dccb"
   dark-data-lemon: "#c6ff72"
-  dark-surface-raised: "#13293c"
-  dark-series-cyan: "#6cf3ff"
-  dark-series-blue: "#7db4ff"
-  dark-series-violet: "#bda6ff"
-  dark-series-magenta: "#ff8fc7"
-  dark-series-coral: "#ff9a6a"
-  dark-series-amber: "#ffc46b"
-  dark-series-lemon: "#c6ff72"
-  dark-series-aqua: "#5ef0c8"
-  light-canvas: "#f1f5f7"
-  light-surface: "#ffffff"
-  light-raised: "#e8eef2"
-  light-rail: "#142f40"
-  light-ink: "#1c2c38"
-  light-ink-secondary: "#526575"
-  light-ink-muted: "#5e707d"
-  light-divider: "#d8e1e7"
-  light-signal: "#17617d"
-  light-action: "#c6df7b"
-  light-warning: "#805518"
-  light-danger: "#a23e39"
-  light-success: "#356b4b"
-  light-neutral-state: "#5e707d"
+  dark-data-green: "#59cdb0"
+  light-canvas: "#eef2f3"
+  light-surface: "#fbfcfd"
+  light-surface-raised: "#e4e9ec"
+  light-rail: "#20262b"
+  light-ink: "#1d252a"
+  light-ink-secondary: "#53616a"
+  light-ink-muted: "#63717a"
+  light-divider: "rgba(40, 54, 62, 0.16)"
+  light-divider-soft: "rgba(40, 54, 62, 0.09)"
+  light-highlight-inset: "rgba(241, 244, 245, 0.12)"
+  light-signal: "#286ca4"
+  light-signal-hover: "#1e5d90"
+  light-signal-soft: "rgba(40, 108, 164, 0.1)"
+  light-focus: "#176b9f"
+  light-action: "#16846e"
+  light-action-hover: "#126f5d"
+  light-on-action: "#ffffff"
+  light-on-signal: "#ffffff"
+  light-on-danger: "#ffffff"
+  light-warning: "#8b6428"
+  light-warning-soft: "rgba(139, 100, 40, 0.1)"
+  light-danger: "#a04e48"
+  light-danger-soft: "rgba(160, 78, 72, 0.1)"
+  light-success: "#28764f"
+  light-success-soft: "rgba(53, 139, 101, 0.1)"
+  light-neutral: "#5f6e75"
+  light-neutral-soft: "rgba(95, 110, 117, 0.1)"
+  light-control-border: "#8d9da5"
+  light-nav-border: "rgba(241, 244, 245, 0.16)"
+  light-nav-hover: "rgba(255, 255, 255, 0.07)"
+  light-nav-active-bg: "rgba(106, 169, 255, 0.18)"
+  light-nav-active-border: "rgba(130, 187, 255, 0.52)"
+  light-nav-active-ink: "#ffffff"
+  light-line-signal: "rgba(40, 108, 164, 0.4)"
+  light-line-warning: "rgba(139, 100, 40, 0.4)"
+  light-line-danger: "rgba(160, 78, 72, 0.4)"
+  light-line-success: "rgba(53, 139, 101, 0.4)"
+  light-data-mint: "#16846e"
+  light-data-amber: "#976b18"
+  light-data-rose: "#a03b73"
   light-data-violet: "#6d4cc2"
-  light-data-blue: "#2f5fbf"
+  light-data-blue: "#286ca4"
   light-data-magenta: "#a03b73"
   light-data-aqua: "#17795f"
   light-data-lemon: "#5f7a1f"
-  light-surface-raised: "#f3f7f9"
-  light-series-cyan: "#17617d"
-  light-series-blue: "#2f5fbf"
-  light-series-violet: "#6d4cc2"
-  light-series-magenta: "#a03b73"
-  light-series-coral: "#a23e39"
-  light-series-amber: "#805518"
-  light-series-lemon: "#5f7a1f"
-  light-series-aqua: "#17795f"
-  light-control-border: "#82939e"
-  light-action-border: "#adc95d"
-  light-data-green: "#587839"
+  light-data-green: "#16846e"
 typography:
   body:
     fontFamily: '"Noto Sans SC", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", system-ui, sans-serif'
     fontSize: "14px"
     fontWeight: 400
     lineHeight: 1.5
+  primary-button:
+    fontFamily: '"Noto Sans SC", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", system-ui, sans-serif'
+    fontSize: "14px"
+    fontWeight: 650
+    lineHeight: 1
   page-title:
-    fontFamily: '"Noto Sans SC", "Source Han Sans SC", "PingFang SC", "HarmonyOS Sans SC", "Microsoft YaHei", system-ui, sans-serif'
-    fontSize: "22px"
+    fontFamily: '"Noto Sans SC", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", system-ui, sans-serif'
+    fontSize: "clamp(22px, 2.25vw, 28px)"
     fontWeight: 700
     lineHeight: 1.3
     letterSpacing: "0.01em"
@@ -76,8 +115,16 @@ typography:
     fontFamily: '"Noto Sans SC", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", system-ui, sans-serif'
     fontSize: "15px"
     fontWeight: 700
+  dashboard-section-title:
+    fontFamily: '"Noto Sans SC", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", system-ui, sans-serif'
+    fontSize: "16px"
+    fontWeight: 700
+    letterSpacing: "-0.02em"
   brand:
     fontFamily: '"Noto Sans SC", "Source Han Sans SC", "PingFang SC", "HarmonyOS Sans SC", "Microsoft YaHei", "Hiragino Sans GB", system-ui, sans-serif'
+    fontSize: "16px"
+    fontWeight: 700
+    letterSpacing: "0.06em"
   label:
     fontFamily: '"Noto Sans SC", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", system-ui, sans-serif'
     fontSize: "13px"
@@ -86,196 +133,195 @@ typography:
     fontFamily: '"JetBrains Mono", "IBM Plex Mono", Menlo, Consolas, monospace'
 rounded:
   square: "0px"
-  badge: "11px"
-  pill: "999px"
+  badge: "6px"
+  control: "10px"
+  panel: "12px"
   mobile-sheet: "18px"
 components:
   button-primary-dark:
-    backgroundColor: "{colors.dark-action}"
-    textColor: "{colors.dark-canvas}"
-    rounded: "{rounded.square}"
+    backgroundColor: "{colors.dark-signal}"
+    textColor: "{colors.dark-on-signal}"
+    typography: "{typography.primary-button}"
+    rounded: "{rounded.control}"
     padding: "0 16px"
     height: "38px"
   button-primary-light:
-    backgroundColor: "{colors.light-action}"
-    textColor: "{colors.light-ink}"
-    rounded: "{rounded.square}"
+    backgroundColor: "{colors.light-signal}"
+    textColor: "{colors.light-on-signal}"
+    typography: "{typography.primary-button}"
+    rounded: "{rounded.control}"
     padding: "0 16px"
     height: "38px"
   button-ghost-dark:
     backgroundColor: "{colors.dark-surface}"
     textColor: "{colors.dark-ink}"
-    rounded: "{rounded.square}"
+    typography: "{typography.body}"
+    rounded: "{rounded.control}"
     padding: "0 13px"
     height: "38px"
   button-ghost-light:
     backgroundColor: "{colors.light-surface}"
     textColor: "{colors.light-ink}"
-    rounded: "{rounded.square}"
+    typography: "{typography.body}"
+    rounded: "{rounded.control}"
     padding: "0 13px"
     height: "38px"
   input-dark:
     backgroundColor: "{colors.dark-surface}"
     textColor: "{colors.dark-ink}"
-    rounded: "{rounded.square}"
+    typography: "{typography.body}"
+    rounded: "{rounded.control}"
     padding: "0 11px"
     height: "38px"
   input-light:
     backgroundColor: "{colors.light-surface}"
     textColor: "{colors.light-ink}"
-    rounded: "{rounded.square}"
+    typography: "{typography.body}"
+    rounded: "{rounded.control}"
     padding: "0 11px"
     height: "38px"
   card-dark:
     backgroundColor: "{colors.dark-surface}"
     textColor: "{colors.dark-ink}"
-    rounded: "{rounded.square}"
+    rounded: "{rounded.panel}"
     padding: "20px"
   card-light:
     backgroundColor: "{colors.light-surface}"
     textColor: "{colors.light-ink}"
-    rounded: "{rounded.square}"
+    rounded: "{rounded.panel}"
     padding: "20px"
   badge-dark:
-    textColor: "{colors.dark-ink}"
+    textColor: "{colors.dark-neutral}"
     rounded: "{rounded.badge}"
     padding: "0 8px"
     height: "22px"
   badge-light:
-    textColor: "{colors.light-ink}"
+    textColor: "{colors.light-neutral}"
     rounded: "{rounded.badge}"
     padding: "0 8px"
     height: "22px"
+  dashboard-readout-dark:
+    backgroundColor: "{colors.dark-surface}"
+    textColor: "{colors.dark-ink}"
+    rounded: "{rounded.panel}"
+    padding: "16px"
+  dashboard-readout-light:
+    backgroundColor: "{colors.light-surface}"
+    textColor: "{colors.light-ink}"
+    rounded: "{rounded.panel}"
+    padding: "16px"
 ---
 
 # Design System: 数科云办公
 
-## Review and Polish Direction
-
-当前前端进入「系统化 Review 与设计基线固化」阶段，为后续可能进行的一轮较大打磨做准备。本轮以评审为先：先盘点既有界面与共享模式，记录有证据的不一致与质量缺口，再固化可复用的设计基线，最后才考虑改动全站视觉。后续打磨可以演进界面，但必须保留产品事实、工作流程、权限边界，以及既有的移动端与无障碍约定。`/login` 与 `/spark` 等独立视觉区域按本规范记录的例外处理，不把它们的专属样式静默并入已登录工作台。
-
-
 ## Overview
 
-**Creative North Star: “雾白与深海蓝（Mist & Deep-Sea Console）”**
+**Creative North Star: “Graphite Workbench”**
 
-数科云办公是一套供团队治理项目、推进执行并核对交付事实的工作台。视觉语言以清晰的工作面和可读的数据为先：深海军蓝承载暗色工作环境，冷白与蓝灰构成浅色工作面；青色标记信息路径和当前焦点，酸橙色只标记可执行动作与完成状态。深浅主题共享同一组语义职责与版式，不是两套互不相干的皮肤。
+数科云办公是一套供团队治理项目、推进执行并核对交付事实的工作台。已登录工作区以石墨色表面、清楚的亮边和紧凑的信息层级组织项目、审批与交付数据。蓝色承担主要交互信号；薄荷色表达正向状态与数据，琥珀、珊瑚和玫瑰色只在对应的风险、失败或系列语境中出现。深浅主题共享语义职责和布局结构。
 
-界面以黑体中文、紧凑的操作型信息层级、直角边界和克制的阴影建立控制台感。浅色以冷调雾白画布和白色内容面建立清晰工作区，深海蓝侧栏与白色顶栏保持明确的导航 / 工作区分层；信号青承载信息路径，柔和青柠只强调主要行动。项目列表、表格、审批和浮层必须清楚地区分画布、内容表面、导航和状态。主题由根节点的 `data-theme` 驱动；新工作台界面应消费语义颜色，而不是复制某个主题下的硬编码颜色。
+这套主题由认证工作区外壳上的稳定标记启用，页面和共享控件消费相同语义变量。`/login` 保留独立的深海科幻身份视觉，`/spark` 保留隔离演示产品的暗色界面，`/stream-monitor` 保留独立的数据演示配色、动效和局部尺寸体系；这些表面都不继承石墨工作台的配色。
 
 **Key Characteristics:**
-- 深浅双主题共用语义色职责，切换不改变信息层级或布局。
-- 冷调深蓝 / 冷白基底，青色链路信号与酸橙执行色各司其职。
-- 中文无衬线为主，等宽字只用于编号、时间及测量数据。
-- 以直角、细边界和留白分组，不靠圆角卡片堆叠层级。
-
-本规范描述主工作台（`/dashboard` 及其已登录工作区）的共用视觉系统。`/login` 保留独立的科幻深色身份视觉；`/spark` 是隔离的演示产品界面，保留自己的暗色颜色体系。两者的专属样式不应被当作主工作台的新主题 token。
-
-`/stream-monitor`（智能音视频平台）同样是隔离的演示产品界面，保留自己的局部控件尺寸体系（见下文「演示站点的控件尺寸基线」）：它按数据密度定档，不并入主工作台的 38px 按钮基线，但沿用本规范的颜色语义、焦点环、直角与 1px 边界。
+- 深浅主题共用相同的状态和交互职责。
+- 蓝色负责主要操作、焦点、链接与选择；薄荷色负责正向状态和数据。
+- 中文无衬线用于界面信息，等宽字用于编号、时间和逐位比较的数据。
+- 面板以边界和内沿高光建立层级，阴影留给真实浮层。
 
 ## Colors
 
-调色板以状态明确、主题等价为原则。前置 YAML 中的颜色 token 对应 `web/app/globals.css` 的 `:root` 深色默认值和 `:root[data-theme="light"]` 覆盖值；切换主题时按语义角色换色，不改变控件含义。
+石墨中性色构成工作面，亮蓝色定位当前操作，状态色和数据色按含义使用。
 
 ### Primary
-- **信号青**：深色使用 `dark-signal`，浅色使用 `light-signal`。用于链接、焦点、选择边界和内容区信息路径；深海蓝导航使用柔和青柠作为当前入口信号，以满足深色表面上的可读性。
-- **执行酸橙**：深色使用 `dark-action`，浅色使用 `light-action`。浅色只用于主要行动按钮背景；完成状态使用 `light-success`，绿色数据系列使用 `light-data-green`，不可将行动底色作为前景文字。
+- **工作信号蓝**：`dark-signal` / `light-signal` 用于主操作、链接、焦点和选择；已登录工作台的主要按钮明确使用蓝色。
 
 ### Secondary
-- **警告琥珀**：使用 `dark-warning` / `light-warning` 表示需注意但尚未阻断的事项。
-- **错误珊瑚**：使用 `dark-danger` / `light-danger` 表示失败、危险或需纠正的事项。
-- **完成绿**：使用 `dark-success` / `light-success` 表示已完成状态；浅色绿数据系列使用 `light-data-green`，与行动按钮底色分开。
+- **正向薄荷色**：`dark-action` / `light-action` 与对应的完成语义用于正向状态和数据。主要按钮沿用工作台的蓝色交互规则，不把薄荷色当作通用主按钮底色。
+- **状态色**：警告、危险、完成和中性状态分别消费 `dark-*` / `light-*` 对应角色，并配合文字、图标或形状表达。
 
 ### Tertiary
-- **数据紫**：使用 `dark-data-violet` / `light-data-violet` 作为图表或多系列数据的辅助区分色；不替代主交互信号。
+- **数据系列色**：`dark-data-*` / `light-data-*` 角色区分图表和工作台数据；仅在数据或状态语义清楚时使用。
 
 ### Neutral
-- **工作区画布**：`dark-canvas` / `light-canvas` 是页面底层。
-- **内容表面**：`dark-surface` / `light-surface` 用于表单、卡片、表格和弹窗主体。
-- **抬高表面**：浅色用 `light-raised` 表示表头、工具区和次级面；深色对应 `--th-bg` 的半透明内容表面。
-- **导航表面**：使用 `dark-rail` / `light-rail`，浅色主工作区沿用深海蓝导航框架，深色使用深海军蓝；文字和状态另用 `--nav-ink`、`--nav-muted`、`--nav-active-ink`、`--nav-active-accent` 语义 token。
-- **文字与分隔线**：主文字、次级文字、弱文字和分隔分别映射到对应主题的 ink 与 divider token；浅色内容区使用 `light-divider`，需要更明确边界的控件使用 `light-control-border`。浅色按钮边缘使用 `light-action-border`；弱文字不承担唯一状态或操作信息。
-- **中性状态**：使用 `dark-neutral-state` / `light-neutral-state` 表示待处理、暂停等非活动状态。
+- **石墨工作面**：`dark-canvas` / `light-canvas` 承载页面；`dark-surface` / `light-surface` 与 `dark-surface-raised` / `light-surface-raised` 区分内容面和表头、工具区等抬高面。
+- **导航与文字**：`dark-rail` / `light-rail` 保持导航框架；主文字、次级文字、弱文字、分隔线和控件边界使用对应主题的中性色。
+- **边缘信号**：细分隔线、状态边界和内沿高光都来自命名色角色，不在局部组件中复制颜色字面量。
 
-**The Two-Theme Parity Rule.** 主题切换只替换语义颜色，不反转组件职责；同一控件在两种主题下都必须保有相同的重点、可读性和状态表达。
-
-**The Signal / Action Rule.** 内容区信号青负责“看哪里”，导航当前入口使用高对比文字与青柠色标记，酸橙行动色负责“现在可以做什么”；完成状态使用独立成功绿。不要把这些职责混为装饰色。
+**The Signal / Positive Rule.** 蓝色回答“看哪里、现在操作什么”；薄荷色回答“哪些状态已完成或表现正向”。警告、危险和中性角色保持独立，不把数据颜色当成装饰。
 
 ## Typography
 
-**Display Font:** 工作台不使用独立展示字体；页面标题沿用正文黑体栈。
+**Display Font:** 工作台不设独立展示字体，页面标题沿用界面中文无衬线字族。
 
-**Body Font:** Noto Sans SC，回退至 PingFang SC、Hiragino Sans GB、Microsoft YaHei 与 system-ui。
+**Body Font:** 使用 `body` 字体角色，覆盖常见中文桌面和移动系统。
+**Label/Mono Font:** `label` 使用同一中文无衬线家族；`data` 为等宽数字字族。
 
-**Label/Mono Font:** JetBrains Mono，回退至 IBM Plex Mono、Menlo、Consolas。
-
-**Character:** 中文界面采用清晰、稳定的无衬线层级。等宽字体用于确实需要对齐或测量的数据，不用来伪装科技感。
+**Character:** 字体优先保证中文界面、表格和控件在高密度工作中的快速辨认。品牌字标沿用同一黑体方向，等宽字只用于确实需要对齐或测量的数据。
 
 ### Hierarchy
-- **页面标题**（700，22px，1.3 行高）：当前页面主标题，左对齐并与页面主体信息保持紧密关联。
-- **区段标题**（700，15px）：卡片、列表区和内容区域的标题；依靠字重和间距建立层次。
-- **正文**（400，14px，1.5 行高）：表单、表格与大部分工作台文字的基准样式。
-- **字段标签**（13px）：表单字段说明使用稳定的正文黑体，不以 placeholder 代替标签。
-- **数据**（等宽字体）：项目编号、时间戳及确需逐位比较的数值；普通中文标签不使用等宽字体。
+- **页面标题**：使用 `page-title`，作为当前页的一级锚点。
+- **区段标题**：通用内容分组使用 `section-title`；总览区块使用 `dashboard-section-title`。
+- **正文与字段**：正文、字段名和辅助说明按 `body` 与 `label` 角色分配；placeholder 不代替字段名。
+- **数据**：项目编号、时间戳、金额和需要逐位比较的读数使用 `data` 字族，并启用等宽数字对齐。
 
-**The One Sans Rule.** 工作台标题、正文、字段和按钮保持同一中文无衬线家族；品牌字标可沿用独立的 `--font-brand` 黑体栈，不要为单个页面插入衬线展示字或新的品牌字体。
+**The One Sans Rule.** 工作台标题、正文、字段和按钮保持同一中文无衬线家族；不为单个页面插入衬线展示字或新的品牌字体。
 
 ## Layout
 
-工作台采用固定侧栏加可伸缩内容区的控制台布局。桌面侧栏宽 252px，收起时 76px；901–1180px 使用 220px 紧凑侧栏。顶栏桌面基准高度 75px，侧栏品牌区与之共用高度令牌。内容最大宽度 1760px，桌面使用约 28px 起始内边距并随宽度调整。
+桌面采用固定侧栏与可伸缩工作区。侧栏展开宽度为 252px、收起为 76px；901–1180px 时展开宽度收至 220px。侧栏品牌区与顶栏共用高度基准：桌面为 75px，紧凑桌面为 71px。内容最大宽度 1760px，桌面内容边距随视口扩展；901–1180px 使用较窄边距，900px 以下改为紧凑上下文导航。
 
-信息密度以任务扫描和表格可读性为目标：常规数据行高 44px，表头行高 40px；列表保留真实列关系，过窄时优先横向滚动，不把关键字段挤成难读的多行内容。
+总览页以任务扫描为主：关键指标在宽屏排成四列，窄于 1180px 后变成两列并在手机上保持两列；项目航迹与介入队列在 900px 以下堆叠，支出趋势和科目构成也切换为单列。指标间距为 12px，主要工作区间距为 20px，图表区间距为 24px。文字不靠压小来适配窄屏；项目名、状态、进度和日期保留各自的对齐关系。
 
-在 900px 及以下，导航进入窄屏横向排列，主内容改用更紧凑的边距；在 767px 及以下，侧栏退出、底部 Dock 接管主要导航。移动顶栏高度 52px，Dock 内容高度 58px，最小触控目标 44px，并预留设备安全区。断点属于结构变化，不以缩小数据文字来取代布局适配。
+900px 以下导航改为横向滚动，顶栏进入紧凑形态；767px 以下侧栏退出，由固定底部 Dock 承接主要导航。手机顶栏为 52px，Dock 内容为 58px，交互目标至少 44px，并预留设备安全区。横向滚动容器承接宽表格，避免页面整体溢出。
 
 ## Elevation & Depth
 
-系统采用“边界为主、阴影为辅”的深度表达。浅色主工作区用矿物灰白画布、白色内容面、灰绿 raised surface 和细分隔线区分层级；固定卡片保持平实（`--shadow-card: none`），避免高密度列表出现无必要的漂浮感。浮动菜单、Dialog、Drawer 使用柔和中性色阴影（`--shadow-float` / `--shadow-drawer`），遮罩降低背景干扰。深色保留各自的卡片与浮层阴影。不要给每个数据面板都加浮起效果。
+石墨工作区以细边界、抬高表面和 inset 顶边高光建立层次。普通卡片和总览面板不使用宽泛的外投影；总览的指标卡、项目行和介入项以边缘、状态色条和轻量 hover 底色区分。菜单、对话框和抽屉才使用柔和外阴影。浅色主题保留同样的边界结构，在中性工作面之间建立层次。
 
-**The Surface-First Rule.** 默认保持工作区内容平实；只在真实浮层或需要区分的容器边缘使用阴影，普通分组优先使用间距和细边界。
+**The Edge-Led Surface Rule.** 普通内容面保持贴合工作区；边界和内沿高光负责结构，阴影只表示真实浮起的浮层。
 
 ## Shapes
 
-主工作区采用方正、精密的直角几何：主要按钮、表格、输入框、卡片、菜单及多数导航容器使用 0px 圆角。状态 Badge 使用轻微圆角（11px）；头像和状态圆点为圆形，底部移动抽屉顶部保留专用 18px 圆角。药丸形只用于既有胶囊型状态或圆点，不推广到普通控件。
-
-边界通常为 1px，并由 `--line`、`--line-soft`、`--line-blue` 及状态边界变量提供。不要把所有轮廓都加粗；当前选中态主要通过青色、浅色底和位置表达。
+工作台使用有控制的圆角尺度：面板、交互控件、紧凑徽标和移动抽屉分别消费 frontmatter 中的对应 `rounded` 角色。工作台表格、告警行和装饰标记保留直边；常规边界为细线。聚焦、选中或状态变化通过亮边、内沿高光、颜色和文字共同表现，不依靠整块发光。
 
 ## Components
 
 ### Buttons
-按钮采用方正、紧凑的工作台形态，标签单行显示。
-- **Primary:** 深色用酸橙填充；浅色用柔和青柠 `light-action`，以 `light-action-border` 收边并搭配深色前景。行动底色不用于正文或小图标；hover 使用稍深的行动底色。高度 38px，水平内边距 16px。
-- **Secondary / Ghost:** 使用内容表面、细边框和主文字；高度 38px，水平内边距 13px。悬停时以信号青强化边界与文字，不增加发光装饰。
-- **Hover / Focus:** 鼠标 hover 显示边界或背景状态；键盘焦点使用全局可见焦点环。按下反馈轻微，不改变周边布局。
-- **Disabled:** 降低对比并明确禁止态，不只靠颜色暗示。
+按钮保持紧凑、单行并带有清楚的边缘反馈。
+- **Primary:** 深浅主题均以蓝色承载主要操作，前景色按主题配对；尺寸与留白遵循 `button-primary-dark` / `button-primary-light`。
+- **Secondary / Ghost:** 使用内容表面、控件边界与主文字；尺寸与留白遵循 `button-ghost-dark` / `button-ghost-light`。
+- **Hover / Focus:** hover 强化信号边界或表面；键盘焦点显示蓝色环和柔和 halo；按下只产生轻微位移。
+- **Disabled:** 使用 raised 表面、弱文字和清晰的禁用行为，不以透明度作为唯一提示。
 
 ### Chips
-状态标签为紧凑的等宽短标签，使用浅色状态底、文字与边界共同表达待处理、进行中、警告、危险和完成状态。状态名称或图标必须与颜色并存；不要仅靠色相传达业务状态。
+状态芯片与徽标采用紧凑的短标签形态，通过文字、状态色和细边界共同表达待处理、进行中、警告、危险或完成。
 
 ### Status Badge
-小圆角状态徽标（22px 高）以主题对应的低饱和状态底、文字和细边界表达待处理、进行中、警告、危险和完成状态。深色与浅色使用不同的前景、背景和边界映射，状态角色保持不变。
+工作台徽标使用 `badge-dark` / `badge-light` 的圆角、尺寸和留白。状态底色、前景、边界和可读状态名称共同传达含义；不能只靠色相区分状态。
 
 ### Cards / Containers
-- **Corner Style:** 主工作区使用直角边界。
-- **Background:** 内容容器使用当前主题的 surface token；工具条或表头可用次级 surface。
-- **Shadow Strategy:** 普通卡片遵循 Elevation & Depth，只有需与内容层区分的层才使用阴影。
-- **Border:** 以 1px 语义边界分组；信息区域避免卡片内再套卡片。
-- **Internal Padding:** 通用卡片的观察值为 20px；按既有组件的任务密度保留更紧凑的局部内边距。
+- **Corner Style:** 面板使用 `panel` 圆角角色，表面按当前主题选择 surface 或 raised。
+- **Shadow Strategy:** 普通面板仅使用内沿顶边高光；只有菜单、对话框和抽屉使用外阴影。
+- **Border:** 以一像素语义边界围合内容；表头、面板头或 hover 可提升一层表面，不在面板内继续堆叠装饰卡片。
+- **Internal Padding:** 通用卡片和总览指标卡分别遵循 `card-dark` / `card-light` 与 `dashboard-readout-dark` / `dashboard-readout-light`，区块头和数据区按任务密度调整。
 
 ### Inputs / Fields
-输入框使用当前主题内容表面、主文字、细边界、方角和 38px 基准高度，水平内边距 11px。焦点时切换到信号青边界并显示清楚的焦点环；placeholder 使用次级文字且不可代替字段标签。禁用态改用次级表面与弱文字，错误态使用错误色并提供可读错误说明。
+单行输入、选择框和多行文本框使用主题化表面、明确控件边界和 `input-dark` / `input-light` 规格。焦点变为蓝色边界并保留可见环，错误焦点使用危险色 halo。禁用字段使用 raised 背景和弱文字。
 
 ### Navigation
-桌面侧栏与顶栏共享导航语义色；默认入口低对比，当前入口用信号青、当前底色和图标共同识别。移动端由底部 Dock 承接导航，当前项仍以同一信号色标示。菜单与导航保持方角、细边界和键盘可见焦点。
+桌面侧栏与顶栏共享深色导航框架；当前入口以蓝色底、细轮廓和图标信号定位。浅色主题保留深色导航框架与清晰的当前项提示。900px 以下导航横向滚动，767px 以下由底部 Dock 接管；键盘焦点始终可见。
 
 ### Tables
-表格按任务数据密度排布，使用固定基准行高、简洁表头、细分隔线和横向滚动容器。hover 行可用主题化的轻底色反馈；通知定位或命中行需保留可见且持久的选择信号，不可只依赖 hover。
+业务表格保持密度和列关系：常规数据行 44px、表头 40px，窄屏优先在表格容器内横向滚动。行 hover 使用轻底色；持久选择或定位状态必须有可见信号，不能只依赖 hover。
 
 ### Overlays
-菜单、Dialog、Drawer、Toast 和移动 BottomSheet 使用全局语义颜色，因此 Portal 渲染时也跟随根节点主题。遮罩、焦点、标题边界和危险操作在两种模式下都应清楚可辨。减少动效偏好下禁用非必要过渡。
+Dialog、Drawer、Confirm、Select listbox、BottomSheet 和安装提示在认证工作区存在时挂载到工作区外壳内，以便继承主题；独立登录与演示界面仍使用自己的挂载和颜色边界。遮罩、焦点、危险操作和 reduced-motion 行为在深浅主题中保持可辨。
+
+### Dashboard Readouts and Work Queues
+总览指标卡用顶部细色条、按语义着色的数值和中性内容面组织读取顺序。项目航迹和介入队列以细分隔、左侧状态信号、进度轨道和等宽元数据维持纵向扫描；不添加循环装饰、渐变洗色或宽泛卡片阴影。颜色只用于明确的数据或状态角色。
 
 ### 演示站点的控件尺寸基线
-主工作台的按钮与输入框用 38px 基线（见上）。但 `/spark` 与 `/stream-monitor` 是隔离的演示产品界面，数据密度更高，控件更紧凑 —— 它们**不**并入 38px 基线，而是各自定档。规则相同：
+主工作台的按钮与输入框遵循 frontmatter 中记录的共享基线。`/spark` 与 `/stream-monitor` 是隔离的演示产品界面，数据密度更高，控件更紧凑 —— 它们**不**并入主工作台基线，而是各自定档。规则相同：
 
 - **同一层级内的交互控件高度必须一致**，不允许同一排里出现 30 / 34 / 36 三种高度；
 - **图标按钮是正方形**（宽 = 高），文字按钮按内容宽度 —— 不用内边距把图标按钮撑成非正方形；
@@ -527,17 +573,17 @@ components:
 ## Do's and Don'ts
 
 ### Do:
-- **Do** 让主工作台的新颜色来自根级语义 token，并同时确认深色和浅色映射。
-- **Do** 让酸橙只承担主操作或完成语义，让青色承担链接、导航和焦点信号。
+- **Do** 让认证工作区消费外壳范围内的语义 token，并同时维护深色和浅色角色。
+- **Do** 用蓝色表达主要操作、焦点、链接和选择；用薄荷色表达正向状态和数据。
 - **Do** 为警告、危险、完成和中性状态同时提供文字或形状提示。
-- **Do** 延续中文黑体、表格密度、直角控件和现有移动导航结构。
+- **Do** 延续中文黑体、表格密度、边界高光和现有移动导航结构。
 - **Do** 在深浅主题中检查表格、输入、浮层、焦点环、禁用态和状态徽标的对比度。
 - **Do** 把独立演示和登录界面视为有边界的视觉例外，并在扩展其体验时保持自己的局部系统。
 
 ### Don't:
-- **Don't** 把深色背景或白色文本硬编码进需要跟随工作台主题的组件。
-- **Don't** 将青色与酸橙互换职责，或用高饱和色大面积填充工作区。
+- **Don't** 在需要跟随工作台主题的组件中硬编码表面、文字或状态颜色。
+- **Don't** 互换蓝色交互信号与薄荷色正向语义，或用高饱和色大面积填充工作区。
 - **Don't** 用颜色单独传达状态、错误、选中或可操作性。
-- **Don't** 将整套工作台改成统一圆角卡片，或在卡片内部再堆叠无层级意义的卡片。
-- **Don't** 把 `/login` 或 `/spark` 的专属配色未经转换就复制到主工作台。
+- **Don't** 给普通面板叠加宽泛外阴影，或在卡片内部继续堆叠无层级意义的卡片。
+- **Don't** 把 `/login`、`/spark` 或 `/stream-monitor` 的专属配色复制到主工作台。
 - **Don't** 让动效、阴影或装饰性发光削弱表格扫描、表单操作和键盘导航。

@@ -2,7 +2,9 @@
 
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { siteIdentityFor, type SiteIdentity } from "@/lib/siteIdentity";
+import { getWorkbenchPortalContainer } from "@/lib/workbenchPortalContainer";
 import s from "./InstallPrompt.module.css";
 
 type BeforeInstallPromptEvent = Event & {
@@ -198,6 +200,7 @@ export default function InstallPrompt() {
   const eventIsCurrent =
     prompt.event !== null && prompt.manifest === site.manifest;
   if (!isIosDevice && !eventIsCurrent) return null;
+  const portalContainer = getWorkbenchPortalContainer();
 
   function dismiss() {
     window.localStorage.setItem(DISMISS_KEY, String(Date.now()));
@@ -235,7 +238,7 @@ export default function InstallPrompt() {
     if (choice.outcome === "accepted") setPrompt((prev) => ({ ...prev, visible: false }));
   }
 
-  return (
+  return createPortal(
     <aside className={s.prompt} role="dialog" aria-label={`安装${site.name}`}>
       <div className={s.icon} aria-hidden="true">
         {site.shortName.slice(0, 1)}
@@ -259,6 +262,7 @@ export default function InstallPrompt() {
       >
         <span aria-hidden="true">×</span>
       </button>
-    </aside>
+    </aside>,
+    portalContainer,
   );
 }

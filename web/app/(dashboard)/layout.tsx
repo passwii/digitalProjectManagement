@@ -474,13 +474,13 @@ function DashboardShell({ children, modal }: { children: React.ReactNode; modal?
   return (
     <>
     <PageTitleContext.Provider value={registerPageTitle}>
-      <a className="skip-link" href="#main-content">跳到主要内容</a>
       <div
         className={`${s.shell} ${collapsed ? s.collapsed : ""}`}
         data-console-shell="true"
         data-console-route={pathname}
         data-dashboard-shell={pathname === "/dashboard" ? "true" : undefined}
       >
+      <a className="skip-link" href="#main-content">跳到主要内容</a>
       <aside className={s.sidebar} data-shell="sidebar">
         <div className={s.ws} data-testid="sidebar-brand">
           <div className={`${s.wsName} ${collapsed ? s.wsNameCollapsed : ""}`} title="数科云办公">

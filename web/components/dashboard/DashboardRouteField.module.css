@@ -10,15 +10,12 @@
 }
 
 .route {
-  --route-signal: var(--dash-cyan);
+  --route-signal: var(--dash-blue);
   position: relative;
   min-width: 0;
-  padding: 13px 20px 14px 22px;
-  background: linear-gradient(
-    90deg,
-    color-mix(in srgb, var(--route-signal) 8%, transparent),
-    transparent 38%
-  );
+  padding: 16px 20px;
+  background: transparent;
+  box-shadow: inset 0 1px 0 var(--highlight-inset);
   animation: routeIn var(--av-dur-slow) var(--av-ease-enter) both;
   animation-delay: var(--route-delay);
   transition: background var(--av-dur-quick) var(--av-ease-standard);
@@ -26,21 +23,18 @@
 
 .route::before {
   position: absolute;
-  top: 11px;
-  bottom: 11px;
+  top: 12px;
+  bottom: 12px;
   left: 0;
-  width: 2px;
+  width: 1px;
   content: "";
   background: var(--route-signal);
-  box-shadow: 0 0 12px color-mix(in srgb, var(--route-signal) 38%, transparent);
   animation: routeSignalIn var(--av-dur-slow) var(--av-ease-enter) both;
   animation-delay: var(--route-delay);
 }
 
 .route:hover {
-  background:
-    linear-gradient(90deg, color-mix(in srgb, var(--route-signal) 12%, transparent), transparent 44%),
-    var(--row-hover);
+  background: var(--row-hover);
 }
 
 .route + .route { border-top: 1px solid var(--dash-line-soft); }
@@ -92,16 +86,15 @@
   display: inline-flex;
   align-items: center;
   flex: none;
-  gap: 6px;
+  gap: 4px;
   min-height: 22px;
-  padding: 0 7px;
-  border: 1px solid color-mix(in srgb, var(--route-signal) 34%, transparent);
+  padding: 0 8px;
+  border: 1px solid color-mix(in srgb, var(--route-signal) 56%, var(--dash-line));
   border-radius: var(--radius-sm);
   background: color-mix(in srgb, var(--route-signal) 9%, transparent);
   color: var(--route-signal);
-  font-family: var(--font-mono);
-  font-size: 10px;
-  letter-spacing: 0.08em;
+  font-family: var(--font-body);
+  font-size: 11px;
 }
 
 .state i {
@@ -109,18 +102,12 @@
   height: 5px;
   border-radius: 50%;
   background: currentColor;
-  box-shadow: 0 0 9px currentColor;
-}
-
-:global(:root[data-theme="light"]) .state i,
-:global(:root[data-theme="light"]) .trackFill {
-  box-shadow: none;
 }
 
 .trackLine {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   margin-top: 8px;
 }
 
@@ -130,19 +117,15 @@
   flex: 1;
   height: 6px;
   overflow: hidden;
-  background: var(--dash-line-soft);
+  background: var(--dash-surface-raised);
+  border: 1px solid var(--dash-line-soft);
 }
 
 .trackFill {
   display: block;
   width: 100%;
   height: 100%;
-  background: linear-gradient(
-    90deg,
-    color-mix(in srgb, var(--route-signal) 66%, transparent),
-    var(--route-signal)
-  );
-  box-shadow: 0 0 10px color-mix(in srgb, var(--route-signal) 36%, transparent);
+  background: var(--route-signal);
   transform: scaleX(var(--route-progress));
   transform-origin: left center;
   animation: routeFillIn var(--av-dur-slow) var(--av-ease-enter) both;
@@ -162,11 +145,11 @@
 .meta {
   display: flex;
   flex-wrap: wrap;
-  gap: 14px;
-  margin-top: 7px;
+  gap: 12px;
+  margin-top: 8px;
   color: var(--dash-dim);
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: 11px;
 }
 
 .meta b {
@@ -188,6 +171,7 @@
   border: 0;
   border-top: 1px solid var(--dash-line-soft);
   background: transparent;
+  box-shadow: inset 0 1px 0 var(--highlight-inset);
   color: var(--dash-muted);
   font-family: var(--font-mono);
   font-size: 10px;
@@ -198,10 +182,10 @@
 .expand:hover,
 .expand:focus-visible {
   background: var(--row-hover);
-  color: var(--dash-cyan);
+  color: var(--dash-blue);
 }
 
-.expand:focus-visible { outline: 2px solid var(--dash-cyan); outline-offset: -2px; }
+.expand:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: -2px; }
 
 .expandIcon {
   width: 7px;
@@ -216,7 +200,7 @@
 .expandIconOpen { transform: translateY(2px) rotate(225deg); }
 
 .empty :global(.empty) {
-  padding: 36px 10px 42px;
+  padding: 32px 8px 40px;
   color: var(--dash-muted);
 }
 
@@ -227,7 +211,7 @@
 }
 
 .empty :global(.empty .art span) { background: var(--dash-line) !important; }
-.empty :global(.empty .art .c2) { background: var(--dash-cyan) !important; border-color: var(--dash-cyan); }
+.empty :global(.empty .art .c2) { background: var(--dash-blue) !important; border-color: var(--dash-blue); }
 .empty :global(.empty .title) { color: var(--dash-ink); }
 .empty :global(.empty .hint) { color: var(--dash-dim); }
 
@@ -259,11 +243,11 @@
 }
 
 @media (max-width: 640px) {
-  .route { padding: 14px 14px 14px 16px; }
-  .routeHead { gap: 10px; }
+  .route { padding: 16px 12px; }
+  .routeHead { gap: 12px; }
   .name { font-size: 14px; }
-  .meta { gap: 10px; font-size: 9px; }
-  .expand { min-height: 44px; padding: 0 14px; }
+  .meta { gap: 8px; font-size: 10px; }
+  .expand { min-height: 44px; padding: 0 12px; }
 }
 
 @media (prefers-reduced-motion: reduce) {

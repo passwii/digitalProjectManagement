@@ -26,10 +26,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # 与 docker/web.Dockerfile 里的 node:20-alpine 对齐，避免本地和 CI 行为漂移。
+      # 与 docker/web.Dockerfile 里的 node:26-alpine 对齐，避免本地和 CI 行为漂移。
       - uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "26"
           cache: npm
           cache-dependency-path: web/package-lock.json
 

@@ -36,7 +36,7 @@
 
 ## 2. 常用命令
 
-前端（`web/`，CI 固定 Node 20）：
+前端（`web/`，CI 固定 Node 26）：
 
 ```bash
 cd web
@@ -78,7 +78,7 @@ python3 scripts/deploy_vps.py        # 由人决定时机；合并 PR 不会自�
 
 | Workflow / 检查名 | 文件 | 触发 | 做什么 |
 | --- | --- | --- | --- |
-| `web` / **`web · 测试`** | `web.yml` | 所有 PR、push `main` | Node 20 → `npm ci` → `npm test` → `npm run build` |
+| `web` / **`web · 测试`** | `web.yml` | 所有 PR、push `main` | Node 26 → `npm ci` → `npm test` → `npm run build` |
 | `api` / **`api · 测试`** | `api.yml` | PR 改到 `api/**`、`tests/**`、`docker/api.Dockerfile`、`api.yml` 本身；push `main` | postgres:18 服务 + Python 3.14 → `pip install -r api/requirements.txt` → `pytest tests -q` |
 
 读法：

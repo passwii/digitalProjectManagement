@@ -36,3 +36,17 @@
 .actions a, .actions button { width: auto; }
 
 .skelWrap { padding: 4px 0; }
+
+:global([data-console-shell="true"]) .wrap {
+  border-color: var(--line);
+  box-shadow: var(--shadow-card), inset 0 1px 0 var(--highlight-inset);
+}
+:global([data-console-shell="true"]) .wrap::before {
+  background: var(--highlight-inset);
+  opacity: 1;
+}
+:global([data-console-shell="true"]) .icon {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+  box-shadow: inset 0 1px 0 var(--highlight-inset);
+}

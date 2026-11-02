@@ -1,5 +1,10 @@
 .paymentMobile {
   display: none;
+  margin-top: 12px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  background: var(--card-lift);
+  box-shadow: inset 0 1px 0 var(--highlight-inset);
 }
 
 @media (max-width: 767px) {
