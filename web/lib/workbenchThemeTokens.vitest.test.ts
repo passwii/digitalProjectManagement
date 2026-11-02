@@ -186,6 +186,16 @@ describe("authenticated workbench theme tokens", () => {
     expect(globalsCss.includes('.shell[data-console-shell="true"]')).toBe(false);
   });
 
+  it("keeps shared workbench cards edge-first without an outer shadow", () => {
+    const sharedCardRule = globalsCss.match(
+      /\[data-console-shell="true"\]\s+\.card,\s*\[data-console-shell="true"\]\s+\.doc-shell\s*\{[^}]*\}/,
+    )?.[0] ?? null;
+
+    expect(sharedCardRule).not.toBeNull();
+    expect(sharedCardRule).not.toContain("var(--shadow-card)");
+    expect(sharedCardRule).toContain("box-shadow: inset 0 1px 0 var(--highlight-inset);");
+  });
+
   it("uses blue for workbench primary actions and mint for its positive role", () => {
     const primary = cssBlock(globalsCss, '[data-console-shell="true"] .btn-primary');
 
