@@ -155,12 +155,12 @@
         "canonical": "rgba(255, 255, 255, 0.055)"
       },
       "dark-nav-active-bg": {
-        "role": "neutral",
+        "role": "primary",
         "displayName": "Dark Nav Active Bg",
         "canonical": "rgba(106, 169, 255, 0.13)"
       },
       "dark-nav-active-border": {
-        "role": "neutral",
+        "role": "primary",
         "displayName": "Dark Nav Active Border",
         "canonical": "rgba(106, 169, 255, 0.5)"
       },
@@ -385,12 +385,12 @@
         "canonical": "rgba(255, 255, 255, 0.07)"
       },
       "light-nav-active-bg": {
-        "role": "neutral",
+        "role": "primary",
         "displayName": "Light Nav Active Bg",
         "canonical": "rgba(106, 169, 255, 0.18)"
       },
       "light-nav-active-border": {
-        "role": "neutral",
+        "role": "primary",
         "displayName": "Light Nav Active Border",
         "canonical": "rgba(130, 187, 255, 0.52)"
       },

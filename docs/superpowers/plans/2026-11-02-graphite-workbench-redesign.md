@@ -61,7 +61,7 @@
 **Files:** Modify shared sections of `web/app/globals.css`; modify the shared UI, mobile, theme, PWA, and auth CSS files listed under Files and Ownership.
 
 - [x] Give buttons, inputs, selects, table frames, page headers, pagination, badges, cards, dialogs, drawers, empty/error states, and toasts stronger neutral borders with visible inset highlights.
-- [ ] Keep ordinary bordered cards edge-led by removing their broad outer shadow; retain soft elevation for floating overlays.
+- [x] Keep ordinary bordered cards edge-led by removing their broad outer shadow; retain soft elevation for floating overlays.
 - [x] Use saturated semantic edges only for focus, selection, status, warnings, danger, and success; keep hover and disabled states legible in both themes.
 - [x] Preserve current interaction dimensions and keyboard behavior; use `var(--av-*)` for motion and the reduced-motion behavior already present.
 - [x] Resolve the portal boundary for Dialog, Drawer, Confirm, Select listbox, BottomSheet, and the install prompt: mount inside `.shell[data-console-shell="true"]` when it exists so the scoped workbench tokens apply, and fall back to `document.body` on `/login`, `/spark`, and `/stream-monitor`. Keep `PullToRefresh` scroll behavior unchanged.
@@ -81,24 +81,24 @@
 
 **Files:** Modify the feature CSS files listed under Files and Ownership.
 
-- [ ] Carry the same edge, surface, state, table, and field language through assets, finance, project receivables, changelog, and the date-picker development surface.
-- [ ] Keep business tables dense and aligned; keep financial amounts right-aligned; use status hues consistently; maintain attachment, import, destructive-confirmation, and loading/error states.
-- [ ] Remove local hard-coded color drift where the workbench semantic tokens cover the same role.
-- [ ] Check that the shared primitives cover `/projects`, `/opportunities`, `/partners`, `/contacts`, `/progress`, `/costs`, `/approvals`, `/reports`, `/admin`, and the intercepted credential-update flow; keep their existing route-specific table, form, drawer, dialog, and permission behavior.
+- [x] Carry the same edge, surface, state, table, and field language through assets, finance, project receivables, changelog, and the date-picker development surface.
+- [x] Keep business tables dense and aligned; keep financial amounts right-aligned; use status hues consistently; maintain attachment, import, destructive-confirmation, and loading/error states.
+- [x] Remove local hard-coded color drift where the workbench semantic tokens cover the same role.
+- [x] Check that the shared primitives cover `/projects`, `/opportunities`, `/partners`, `/contacts`, `/progress`, `/costs`, `/approvals`, `/reports`, `/admin`, and the intercepted credential-update flow; keep their existing route-specific table, form, drawer, dialog, and permission behavior.
 
 ### Task 6: Update and synchronize Impeccable design artifacts
 
 **Files:** Update `DESIGN.md`; regenerate `.impeccable/design.json` using the installed Impeccable `document` workflow.
 
-- [ ] Document the approved graphite console world, its semantic color roles, typography, spacing, rounded controls, edge highlights, elevation and responsive rules.
-- [ ] Keep isolated `/login`, `/spark`, and `/stream-monitor` surface notes distinct from the authenticated workbench palette.
-- [ ] Run `impeccable doctor --json`; confirm the stale-sidecar finding is gone and report any remaining version or truth-drift finding accurately.
+- [x] Document the approved graphite console world, its semantic color roles, typography, spacing, rounded controls, edge highlights, elevation and responsive rules.
+- [x] Keep isolated `/login`, `/spark`, and `/stream-monitor` surface notes distinct from the authenticated workbench palette.
+- [x] Run `impeccable doctor --json`; confirm the stale-sidecar finding is gone and report any remaining version or truth-drift finding accurately.
 
 ### Task 7: Verify the complete workbench
 
 **Files:** No new production files unless a concrete defect is found.
 
-- [ ] Run `cd web && npm test` and `cd web && npm run build` per `TESTING.md`.
-- [ ] Run the Impeccable detector once over the changed workbench UI targets and resolve actionable findings.
-- [ ] Inspect desktop, tablet, and mobile Dashboard; check both themes, manager/member variation, loading/empty/error/permission states, focus visibility, chart contrast, and horizontal overflow.
-- [ ] Review the final diff for unintended changes to login, Spark, Stream Monitor, API, routing, or business behavior.
+- [x] Run `cd web && npm test` and `cd web && npm run build` per `TESTING.md`.
+- [x] Run the Impeccable detector once over the changed workbench UI targets and resolve actionable findings.
+- [x] Inspect desktop, tablet, and mobile Dashboard; check both themes, manager/member variation, loading/empty/error/permission states, focus visibility, chart contrast, and horizontal overflow.
+- [x] Review the final diff for unintended changes to login, Spark, Stream Monitor, API, routing, or business behavior.

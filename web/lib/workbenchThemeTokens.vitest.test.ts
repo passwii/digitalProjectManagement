@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 
 const shellCss = readFileSync(resolve(process.cwd(), "components/ui/Shell.module.css"), "utf8");
 const globalsCss = readFileSync(resolve(process.cwd(), "app/globals.css"), "utf8");
+const dashboardLayout = readFileSync(resolve(process.cwd(), "app/(dashboard)/layout.tsx"), "utf8");
 const DESIGN_SYSTEM_SELECTOR = '.shell[data-console-shell="true"]';
 const LIGHT_SELECTOR = `:global(:root[data-theme="light"]) ${DESIGN_SYSTEM_SELECTOR}`;
 const ACTIVE_NAV_SELECTOR = `${DESIGN_SYSTEM_SELECTOR} .navActive`;
@@ -203,6 +204,17 @@ describe("authenticated workbench theme tokens", () => {
     expect(primary).toContain("background: var(--brand);");
     expect(primary).toContain("color: var(--on-brand);");
     expect(primary).not.toContain("background: var(--action);");
+  });
+
+  it("keeps the workbench skip link inside the scoped console theme", () => {
+    const consoleShell = dashboardLayout.indexOf('data-console-shell="true"');
+    const shellOpeningEnd = dashboardLayout.indexOf(">", consoleShell);
+    const skipLink = dashboardLayout.indexOf('className="skip-link"');
+    const sidebar = dashboardLayout.indexOf('<aside className={s.sidebar}', shellOpeningEnd);
+
+    expect(consoleShell).toBeGreaterThanOrEqual(0);
+    expect(skipLink).toBeGreaterThan(shellOpeningEnd);
+    expect(skipLink).toBeLessThan(sidebar);
   });
 
   it("leaves root tokens available to the isolated login and demo surfaces", () => {
