@@ -15,6 +15,7 @@ import {
   type ReactNode,
 } from "react";
 import { createPortal } from "react-dom";
+import { getWorkbenchPortalContainer } from "@/lib/workbenchPortalContainer";
 import styles from "./Select.module.css";
 
 export type SelectProps = {
@@ -349,7 +350,7 @@ export default function Select({
             </div>
           ))}
         </div>,
-        document.body,
+        getWorkbenchPortalContainer(),
       )}
     </span>
   );

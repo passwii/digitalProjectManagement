@@ -12,6 +12,7 @@ import {
 } from "react";
 import { AnimatePresence, m, useReducedMotion } from "framer-motion";
 import { AV_EASE, AV_MOTION } from "@/lib/av/motion";
+import { getWorkbenchPortalContainer } from "@/lib/workbenchPortalContainer";
 import {
   MODAL_BODY_ATTR,
   MODAL_CLOSE_ATTR,
@@ -363,7 +364,7 @@ export function Dialog({
         </m.div>
       )}
     </AnimatePresence>,
-    document.body,
+    getWorkbenchPortalContainer(),
   );
 }
 
@@ -473,7 +474,7 @@ export function Drawer({
         </m.div>
       )}
     </AnimatePresence>,
-    document.body,
+    getWorkbenchPortalContainer(),
   );
 }
 
@@ -599,6 +600,6 @@ export function Confirm({
         </m.div>
       )}
     </AnimatePresence>,
-    document.body,
+    getWorkbenchPortalContainer(),
   );
 }
