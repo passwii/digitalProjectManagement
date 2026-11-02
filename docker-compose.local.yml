@@ -46,7 +46,7 @@ services:
 
   web:
     build: !reset null
-    image: node:20-alpine
+    image: node:26-alpine
     working_dir: /app
     environment:
       NEXT_PUBLIC_API_BASE: http://localhost:8001/api/v1
