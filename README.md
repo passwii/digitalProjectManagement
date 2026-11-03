@@ -588,7 +588,7 @@ CORS_ORIGINS=https://pm.example.com
 
 #### 7.1.2 GitHub Actions 部署
 
-`.github/workflows/deploy-vps.yml` 在 `main` 更新后运行，也支持从 Actions 页面手动重跑 `main`。PR 分支不会部署。GitHub-hosted runner 通过 SSH 调用 `scripts/deploy_vps.py`；脚本会在 VPS 上快进拉取 `origin/main`、构建并启动 Docker Compose，再检查 API 与 Web 健康状态。本机网络不参与部署链路。
+`.github/workflows/container-images.yml` 在 PR 改动容器构建相关文件时，分别构建 API 与 Web 镜像，不推送、不连接 VPS。合并到 `main` 后，`.github/workflows/deploy-vps.yml` 在 GitHub-hosted runner 上构建两个生产镜像并推送到 GHCR；deploy job 使用 build 输出的不可变 digest，通过 SSH 调用 `scripts/deploy_vps.py`。VPS 快进拉取 `origin/main` 上的 Compose 配置，执行 `docker compose pull` 和 `docker compose up -d --no-build`，再检查 API 与 Web 健康状态。VPS 不再安装 npm/Python 依赖或执行 Docker build，但仍需要访问 GitHub 与 GHCR。
 
 在 GitHub 仓库设置中创建 `production` environment，并将允许部署的分支限制为 `main`。在该 environment 下配置以下 secrets：
 
@@ -597,7 +597,24 @@ CORS_ORIGINS=https://pm.example.com
 | `VPS_SSH_PRIVATE_KEY` | VPS 部署 SSH 私钥。脚本使用 `BatchMode=yes`，因此密钥必须无口令、能非交互认证。当前部署脚本以 `root` 登录，须使用专门用于此部署的密钥，并按 root 凭据保护。 |
 | `VPS_SSH_KNOWN_HOSTS` | 两个 VPS 地址对应的 OpenSSH `known_hosts` 公钥行：`145.79.143.98` 与 `2a0e:97c0:3f0:1::2cba`。提交前应从可信渠道核对主机指纹。 |
 
-Workflow 会拒绝缺少 secrets 或缺少任一主机密钥的运行，并启用 `StrictHostKeyChecking`。VPS 仍需能从 `origin` 拉取 `main`，且能访问构建所需的容器镜像与依赖源。若 workflow 失败，日志会指出 SSH 连通性、Git 拉取、Compose 构建或健康检查中的失败阶段。可在本机手动执行 `python3 scripts/deploy_vps.py` 作为排障入口。
+在仓库 Actions variables 中设置 `PM_DOMAIN`，值只写生产域名，例如 `oa.example.com`；它必须与 VPS `/opt/pm/.env` 的 `PM_DOMAIN` 相同。Web 镜像在 Actions 构建时将 `https://${PM_DOMAIN}/api/v1` 编译进产物，部署脚本会在拉取代码和操作容器前把 Actions 的域名与 VPS `.env` 对比，并检查 `NEXT_PUBLIC_API_BASE` 与域名一致。
+
+镜像 package 名为小写的 `ghcr.io/<owner>/<repository>-api` 与 `ghcr.io/<owner>/<repository>-web`。Build job 用 `GITHUB_TOKEN` 推送，deploy job 用同一个 workflow token 临时拉取；相应 job 权限分别限制为 `packages: write` 和 `packages: read`。如果这些 package 已预先创建，需在 GHCR package settings 中授予当前 repository 的 Actions 访问权限。token 通过 SSH stdin 传递，VPS 使用临时 Docker 配置并在拉取后清理，不需长期 PAT。
+
+Workflow 会拒绝缺少 SSH secrets、主机密钥或 `PM_DOMAIN` 的发布，并启用 `StrictHostKeyChecking`。VPS 仍需从 `origin` 拉取 `main`，也需访问 GHCR；它不再需要访问 PyPI/npm。镜像按 `github.sha` 打 tag，部署使用 registry digest；Actions 的手动 dispatch 可在 `main` 上同时填入 `api_image` 与 `web_image` digest 回滚，缺任一项会失败。应用回滚不会撤销已执行的数据库 migration，migration 仍须遵守向后兼容约定。
+
+首次发布前确认 VPS Docker 架构为 `amd64`（workflow 当前构建 `linux/amd64`）、Compose 版本支持 `!reset`，且磁盘空间覆盖遗留本地构建镜像/BuildKit 缓存、两个新镜像和一个本地回滚版本。本次自动回收只处理两个新 GHCR package 中超过当前版与上一版的 digest，不会碰旧的 `pm-web` 镜像、其他栈或全局 BuildKit cache；需要回收旧产物时先在 VPS 检查容器使用情况，再按具体旧镜像处理。可在本机手动部署已发布的镜像排障：
+
+```bash
+GHCR_USERNAME='<github-user>' GHCR_TOKEN='<短时读取令牌>' \
+python3 scripts/deploy_vps.py \
+  --api-image 'ghcr.io/passwii/digitalprojectmanagement-api@sha256:<api-digest>' \
+  --web-image 'ghcr.io/passwii/digitalprojectmanagement-web@sha256:<web-digest>' \
+  --expected-revision '<40 位 main commit SHA>' \
+  --expected-domain '<VPS 上配置的 PM_DOMAIN>'
+```
+
+优先从 Actions 使用手动回滚入口；本机命令仅供需要复现部署问题时使用。
 
 ### 7.2 `[目标]`
 

@@ -117,7 +117,13 @@ class PwaHttpsEntryTest(unittest.TestCase):
             build_remote_script,
         )
 
-        script = build_remote_script()
+        script = build_remote_script(
+            "ghcr.io/passwii/digitalprojectmanagement-api@sha256:" + "a" * 64,
+            "ghcr.io/passwii/digitalprojectmanagement-web@sha256:" + "b" * 64,
+            "c" * 40,
+            "pm.example.com",
+            "deploy-bot",
+        )
         for name, _ in REQUIRED_ENV_CHECKS:
             self.assertIn(f'check_env "{name}"', script)
         # 校验必须早于容器操作。

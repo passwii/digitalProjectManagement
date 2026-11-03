@@ -4,7 +4,7 @@
 >
 > 新建会话、接新任务、回到旧任务，第一步都是同步到最新的 `origin/main` —— `git fetch origin --prune` 后 `git rebase origin/main`（或在 `main` 上 `git pull --ff-only`），确认当前分支已包含最新 `origin/main`，再读文档、改代码、跑测试。不要在落后的基线上开工：PR 平白冲突、改到别人已经重写的代码，基本都是漏了这一步；本地有未提交改动先 `git stash`，不要用 `git reset --hard` 硬覆盖，拉取失败（网络、认证、冲突）也要先解决再往下做。
 
-> **新 worktree 初始化后建立 CodeGraph 索引。** 完成上方的 `origin/main` 同步后，立即在该 worktree 的仓库根目录运行 `codegraph init -i`。
+> **CodeGraph 自动初始化。** 完成上方的 `origin/main` 同步后，运行 `codegraph status .`；若状态为 `Not initialized`，立即在仓库根目录运行 `codegraph init -i`，不询问用户。新 worktree 也执行同一检查与初始化。
 
 本文件是本仓库**协作与交付规则的入口**。测试怎么写、怎么跑、什么时候算通过，细则全在 **`TESTING.md`**；本文件只做摘要与指向，不重复定义。
 
@@ -56,17 +56,22 @@ pytest tests -q                      # 需要 TEST_DATABASE_URL，见 TESTING.md
 cd api && alembic upgrade head       # 用 DATABASE_URL
 ```
 
-部署：合并到 `main` 后由 `.github/workflows/deploy-vps.yml` 自动触发；也可在 GitHub Actions 中手动重跑 `main`。PR 分支不会部署。`production` environment 需配置部署 SSH 凭据。
+部署：合并到 `main` 后由 `.github/workflows/deploy-vps.yml` 自动构建并推送 API/Web 镜像到 GHCR，再 SSH 到 VPS 拉取 digest 镜像并检查健康状态；也可在 GitHub Actions 手动重跑 `main` 或指定两份 digest 回滚。PR 分支不会部署。`production` environment 需配置部署 SSH 凭据。
 
 ```bash
-python3 scripts/deploy_vps.py        # 本机手动部署/故障排查入口
+GHCR_USERNAME='<github-user>' GHCR_TOKEN='<short-lived token>' \
+python3 scripts/deploy_vps.py \
+  --api-image 'ghcr.io/passwii/digitalprojectmanagement-api@sha256:<api-digest>' \
+  --web-image 'ghcr.io/passwii/digitalprojectmanagement-web@sha256:<web-digest>' \
+  --expected-revision '<40 位 commit SHA>' \
+  --expected-domain '<VPS 上配置的 PM_DOMAIN>'
 ```
 
 ## 3. 测试规则（摘要）
 
 完整规则见 **`TESTING.md`**，这里只列不可协商的几条：
 
-- **本地只跑单元/组件测试**（前端 `web/` 下 `npm test`，后端定向 `pytest` 用例）；**全量与集成测试交给 GitHub Actions** 的 `web` / `api` 两条 workflow。
+- **本地只跑单元/组件测试**（前端 `web/` 下 `npm test`，后端定向 `pytest` 用例）；**全量与集成测试交给 GitHub Actions** 的 `web` / `api` workflow，容器构建路径同时看 `container-images`。
 - 前端有 **两套 runner**，命名决定归谁：`lib/**/*.test.ts` → `node:test`；`lib/**/*.vitest.test.ts(x)` → `vitest`。放错位置等于没写测试（`vitest` 的 include 只覆盖 `web/lib/`）。
 - **跳过 ≠ 通过**：后端缺 `TEST_DATABASE_URL` 时依赖数据库的用例会 `skip`，本地"绿"没有意义；结论以 `api` workflow 为准。
 - 新增行为必须带用例；修 bug 先写能复现的失败用例。改权限、状态机、迁移、公共 schema 时，用例是硬要求，不是加分项。
@@ -74,17 +79,18 @@ python3 scripts/deploy_vps.py        # 本机手动部署/故障排查入口
 
 ## 4. CI 现状（真实存在的门禁）
 
-仓库有两条 CI workflow 和一条部署 workflow，都在 `.github/workflows/`：
+仓库有三条 CI workflow 和一条部署 workflow，都在 `.github/workflows/`：
 
 | Workflow / 检查名 | 文件 | 触发 | 做什么 |
 | --- | --- | --- | --- |
 | `web` / **`web · 测试`** | `web.yml` | 所有 PR、push `main` | Node 26 → `npm ci` → `npm test` → `npm run build` |
 | `api` / **`api · 测试`** | `api.yml` | PR 改到 `api/**`、`tests/**`、`docker/api.Dockerfile`、`api.yml` 本身；push `main` | postgres:18 服务 + Python 3.14 → `pip install -r api/requirements.txt` → `pytest tests -q` |
-| `deploy-vps` | `deploy-vps.yml` | push `main`、手动 dispatch（仅 `main`） | `production` environment SSH → `scripts/deploy_vps.py` → Compose 构建与服务健康检查 |
+| `container-images` | `container-images.yml` | PR 改动容器构建相关路径 | GitHub-hosted runner 分别构建 API/Web 镜像，不推送、不连接 VPS |
+| `deploy-vps` | `deploy-vps.yml` | push `main`、手动 dispatch（仅 `main`） | Actions 构建并推送 GHCR digest → `production` environment SSH → VPS `docker compose pull` / `up --no-build` → 服务健康检查 |
 
 读法：
 
-- 合并门禁 = **当前 HEAD 上相关那条检查成功**。前端/文档改动看 `web · 测试`；后端改动看 `api · 测试`；两者都改就都要。
+- 合并门禁 = **当前 HEAD 上相关检查成功**。前端/文档改动看 `web · 测试`；后端改动看 `api · 测试`；Dockerfile、构建上下文或生产 Compose 改动还要看 `container-images`；前后端都改就相关检查都要。
 - `api` 有 path 过滤，纯前端 PR 里**不会出现** `api` job —— 这是设计，不是漏跑。但改动跨到接口契约（前端按新字段取值、改请求结构）时必须人工确认后端是否已合入。
 - **本仓库没有 Vercel**。`deploy-vps.yml` 是合并后的发布动作，不是 PR 合并门禁；PR 阶段仍以当前 HEAD 上相关 CI 检查和语义复核为准。不要等待 Vercel deployment 状态。
 - CI 绿只是必要条件，不是充分条件：见 §5 与 `TESTING.md` §6。

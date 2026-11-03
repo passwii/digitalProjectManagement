@@ -1,7 +1,8 @@
 # VPS 生产覆盖配置：宿主机 Caddy(HTTPS 443) + web 3001 + api 8001。
 # 使用：
 #   docker compose -f docker-compose.yml -f docker-compose.prod.yml \
-#     up -d --build
+#     pull && docker compose -f docker-compose.yml -f docker-compose.prod.yml \
+#     up -d --no-build
 #
 # APP_SECRET 和可选的 DATABASE_URL 从 /opt/pm/.env 注入，不提交到 Git。
 #
@@ -55,6 +56,8 @@
 services:
   api:
     restart: unless-stopped
+    build: !reset null
+    image: "${API_IMAGE:?API_IMAGE must be set}"
     ports:
       # 收回本机：宿主机 Caddy 反代到 8001，公网不需要直连 API。
       # 表达式与基础文件**完全一致**（见文件头「为什么 ports 用同一个插值
@@ -72,20 +75,8 @@ services:
 
   web:
     restart: unless-stopped
-    build:
-      args:
-        # 构建期编进前端产物的 API 基址。**必须与宿主机 Caddy 域名同源**，
-        # 浏览器请求由 Caddy 按 /api/* 转发给 API 容器。
-        #
-        # ⚠️ build.args 按 key 合并、**后一个文件赢**，所以这里同名 key 直接
-        #    覆盖基础文件的值即可（不需要 !override）。
-        #    但 .env 的优先级**高于** compose 文件里的 ${VAR:-default}：
-        #    .env 里若写着 NEXT_PUBLIC_API_BASE=http://127.0.0.1:8001/api/v1，
-        #    插值出来的就是这个 localhost 值，prod 的默认值根本不生效。
-        #    → 生产必须在 /opt/pm/.env 里把 NEXT_PUBLIC_API_BASE 改成
-        #      https://<域名>（或删掉这一行，让默认值生效）。
-        NEXT_PUBLIC_API_BASE: >-
-          ${NEXT_PUBLIC_API_BASE:-https://${PM_DOMAIN}/api/v1}
+    build: !reset null
+    image: "${WEB_IMAGE:?WEB_IMAGE must be set}"
     ports:
       # 收回本机：公网 HTTPS 由宿主机 Caddy 提供。表达式同基础文件（见文件头）。
       - "${PM_HOST_BIND:-0.0.0.0}:3001:3001"
