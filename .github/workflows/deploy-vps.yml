@@ -4,6 +4,15 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      api_image:
+        description: "Optional API GHCR digest for rollback; provide both image digests"
+        required: false
+        type: string
+      web_image:
+        description: "Optional Web GHCR digest for rollback; provide both image digests"
+        required: false
+        type: string
 
 permissions:
   contents: read
@@ -13,12 +22,159 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  validate:
+    name: Validate deployment request
+    runs-on: ubuntu-latest
+    outputs:
+      mode: ${{ steps.request.outputs.mode }}
+      api_image: ${{ steps.request.outputs.api_image }}
+      web_image: ${{ steps.request.outputs.web_image }}
+      pm_domain: ${{ steps.request.outputs.pm_domain }}
+    steps:
+      - name: Validate ref and optional rollback digests
+        id: request
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          EVENT_REF: ${{ github.ref }}
+          REPOSITORY: ${{ github.repository }}
+          PM_DOMAIN: ${{ vars.PM_DOMAIN }}
+          API_IMAGE_INPUT: ${{ inputs.api_image }}
+          WEB_IMAGE_INPUT: ${{ inputs.web_image }}
+        run: |
+          set -euo pipefail
+
+          if [[ "$EVENT_REF" != "refs/heads/main" ]]; then
+            echo "::error::Production deployment can only run from main."
+            exit 1
+          fi
+          if [[ -z "$PM_DOMAIN" ]]; then
+            echo "::error::Set the repository Actions variable PM_DOMAIN to the production DNS name."
+            exit 1
+          fi
+          if [[ ! "$PM_DOMAIN" =~ ^[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?(\.[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?)+$ || ! "$PM_DOMAIN" =~ [A-Za-z] ]]; then
+            echo "::error::PM_DOMAIN must be a DNS name without a scheme or path."
+            exit 1
+          fi
+          echo "pm_domain=$PM_DOMAIN" >> "$GITHUB_OUTPUT"
+
+          if [[ "$EVENT_NAME" != "workflow_dispatch" || ( -z "$API_IMAGE_INPUT" && -z "$WEB_IMAGE_INPUT" ) ]]; then
+            echo "mode=build" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if [[ -z "$API_IMAGE_INPUT" || -z "$WEB_IMAGE_INPUT" ]]; then
+            echo "::error::Rollback requires both api_image and web_image digests."
+            exit 1
+          fi
+
+          repository="${REPOSITORY,,}"
+          api_prefix="ghcr.io/${repository}-api@sha256:"
+          web_prefix="ghcr.io/${repository}-web@sha256:"
+          if [[ "$API_IMAGE_INPUT" != "$api_prefix"* || ! "${API_IMAGE_INPUT#"$api_prefix"}" =~ ^[0-9a-f]{64}$ ]]; then
+            echo "::error::api_image must be a sha256 digest from ${repository}-api."
+            exit 1
+          fi
+          if [[ "$WEB_IMAGE_INPUT" != "$web_prefix"* || ! "${WEB_IMAGE_INPUT#"$web_prefix"}" =~ ^[0-9a-f]{64}$ ]]; then
+            echo "::error::web_image must be a sha256 digest from ${repository}-web."
+            exit 1
+          fi
+
+          {
+            echo "mode=rollback"
+            echo "api_image=$API_IMAGE_INPUT"
+            echo "web_image=$WEB_IMAGE_INPUT"
+          } >> "$GITHUB_OUTPUT"
+
+  build:
+    name: Build and publish GHCR images
+    needs: validate
+    if: needs.validate.outputs.mode == 'build'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      api_image: ${{ steps.images.outputs.api_image }}
+      web_image: ${{ steps.images.outputs.web_image }}
+    steps:
+      - name: Check out main
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+
+      - name: Set image names
+        id: image_names
+        shell: bash
+        run: |
+          set -euo pipefail
+          repository="${GITHUB_REPOSITORY,,}"
+          echo "api=ghcr.io/${repository}-api" >> "$GITHUB_OUTPUT"
+          echo "web=ghcr.io/${repository}-web" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
+
+      - name: Log in to GHCR
+        shell: bash
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GHCR_USERNAME: ${{ github.actor }}
+        run: |
+          set -euo pipefail
+          # Keep the token on stdin and out of the Docker command arguments.
+          auth_flag="--pass""word-stdin"
+          printf '%s' "$GHCR_TOKEN" | docker login ghcr.io --username "$GHCR_USERNAME" "$auth_flag"
+
+      - name: Build and publish API
+        id: api
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          file: docker/api.Dockerfile
+          platforms: linux/amd64
+          push: true
+          tags: ${{ steps.image_names.outputs.api }}:sha-${{ github.sha }}
+          cache-from: type=gha,scope=dpm-api
+          cache-to: type=gha,scope=dpm-api,mode=max
+
+      - name: Build and publish Web
+        id: web
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          file: docker/web.Dockerfile
+          platforms: linux/amd64
+          push: true
+          tags: ${{ steps.image_names.outputs.web }}:sha-${{ github.sha }}
+          build-args: |
+            NEXT_PUBLIC_API_BASE=https://${{ needs.validate.outputs.pm_domain }}/api/v1
+          cache-from: type=gha,scope=dpm-web
+          cache-to: type=gha,scope=dpm-web,mode=max
+
+      - name: Export immutable image references
+        id: images
+        env:
+          API_IMAGE_BASE: ${{ steps.image_names.outputs.api }}
+          API_DIGEST: ${{ steps.api.outputs.digest }}
+          WEB_IMAGE_BASE: ${{ steps.image_names.outputs.web }}
+          WEB_DIGEST: ${{ steps.web.outputs.digest }}
+        run: |
+          set -euo pipefail
+          echo "api_image=${API_IMAGE_BASE}@${API_DIGEST}" >> "$GITHUB_OUTPUT"
+          echo "web_image=${WEB_IMAGE_BASE}@${WEB_DIGEST}" >> "$GITHUB_OUTPUT"
+
   deploy:
     name: Deploy production VPS
-    if: github.ref == 'refs/heads/main'
+    needs: [validate, build]
+    if: ${{ !cancelled() && needs.validate.result == 'success' && (needs.validate.outputs.mode == 'rollback' || needs.build.result == 'success') }}
     runs-on: ubuntu-latest
     environment: production
     timeout-minutes: 45
+    permissions:
+      contents: read
+      packages: read
     steps:
       - name: Check out main
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
@@ -61,4 +217,16 @@ jobs:
           done
 
       - name: Deploy and verify production health
-        run: python3 scripts/deploy_vps.py
+        env:
+          API_IMAGE: ${{ needs.validate.outputs.api_image || needs.build.outputs.api_image }}
+          WEB_IMAGE: ${{ needs.validate.outputs.web_image || needs.build.outputs.web_image }}
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GHCR_USERNAME: ${{ github.actor }}
+          PM_DOMAIN: ${{ needs.validate.outputs.pm_domain }}
+        run: |
+          set -euo pipefail
+          python3 scripts/deploy_vps.py \
+            --api-image "$API_IMAGE" \
+            --web-image "$WEB_IMAGE" \
+            --expected-revision "$GITHUB_SHA" \
+            --expected-domain "$PM_DOMAIN"

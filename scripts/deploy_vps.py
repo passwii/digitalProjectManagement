@@ -5,6 +5,9 @@ from __future__ import annotations
 
 import argparse
 import ipaddress
+import os
+import re
+import shlex
 import socket
 import subprocess
 import sys
@@ -28,17 +31,17 @@ SSH_PROBE_TIMEOUT = 8
 SSH_PROBE_GRACE = 5
 SSH_CONNECT_TIMEOUT = 20
 
-# 每轮部署都会把上一版的 `pm-web` 项掉 tag，变成无标签的悬空镜像（实测单个
-# 955MB，本机总盘 15G）。回收规则：悬空镜像只留最新一个做回滚窗口，其余全清。
-#
-# 为什么不是 `prune -a` / `system prune`：本机除了 /opt/pm 还跑着
-# /opt/pm-staging、new-api、cliproxyapi、nezha 几套栈，连 -a 都可能把别人停着
-# 的容器依赖的镜像删掉；`pm-pg-data` / `pm-staging-data` 两个 volume 更是碰不得。
+# 镜像只清本项目的两个 GHCR 仓库，并为每个服务保留当前版与上一版。
+# VPS 不再构建镜像，因此不清理其他项目可能使用的 Docker builder cache。
 PRUNE_KEEP_SPARE = 1
-# BuildKit 缓存与悬空镜像不同：即使镜像 tag 还在，构建层也会一直累积。实测 4 天
-# 的构建把 2.2GB 缓存留在一台 15GB 的机器上，根盘一度只剩 475MB。部署完成后
-# 只清 24 小时以前的缓存，保留最近一次构建层，下一次常规部署仍能复用。
-PRUNE_BUILD_CACHE_UNTIL = "24h"
+
+IMAGE_REF_RE = re.compile(
+    r"^ghcr\.io/[a-z0-9]+(?:[._-][a-z0-9]+)*(?:/[a-z0-9][a-z0-9._-]*)+@sha256:[0-9a-f]{64}$"
+)
+REVISION_RE = re.compile(r"^[0-9a-f]{40}$")
+DOMAIN_RE = re.compile(
+    r"^[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?)+$"
+)
 
 DEFAULT_APP_DIR = "/opt/pm"
 DEFAULT_BRANCH = "main"
@@ -93,60 +96,84 @@ REQUIRED_ENV_CHECKS = (
 )
 
 
-def build_prune_block(keep_spare: int = PRUNE_KEEP_SPARE) -> str:
-    """渲染收尾的镜像回收片段。keep_spare=0 表示悬空镜像全清、不留回滚窗口。
+def validate_image_pair(api_image: str, web_image: str) -> tuple[str, str]:
+    """只接受 GHCR digest，并确保两个 package 属于同一个项目。"""
+    if not IMAGE_REF_RE.fullmatch(api_image):
+        raise ValueError("API_IMAGE 必须是 ghcr.io 上的 sha256 digest 引用")
+    if not IMAGE_REF_RE.fullmatch(web_image):
+        raise ValueError("WEB_IMAGE 必须是 ghcr.io 上的 sha256 digest 引用")
 
-    只碰 `dangling=true`：有 tag 的镜像一律不动，volume 一概不碰。
-    构建缓存只清超过 PRUNE_BUILD_CACHE_UNTIL 的部分，保留最近一次构建。
-    整体保证退出码 0——回收出任何毛病都不能把一个健康的部署判成失败。
-    """
-    return f"""# ---- 回收过期构建缓存（保留最近一次构建）----
-prune_stale_build_cache() {{
-  # 只清超过时间窗口的层，不碰其他 Compose 项目正在使用的容器。
-  if docker builder prune -f --filter "until={PRUNE_BUILD_CACHE_UNTIL}"; then
-    return 0
-  fi
-  printf '警告：构建缓存回收失败，本次部署不受影响\\n' >&2
-  return 0
-}}
+    api_repo = api_image.rsplit("@", 1)[0]
+    web_repo = web_image.rsplit("@", 1)[0]
+    if not api_repo.endswith("-api") or not web_repo.endswith("-web"):
+        raise ValueError("API_IMAGE 与 WEB_IMAGE 必须分别使用 -api 和 -web package")
+    if api_repo[:-4] != web_repo[:-4]:
+        raise ValueError("API_IMAGE 与 WEB_IMAGE 必须来自同一个 GHCR 项目")
+    return api_image, web_image
 
-# ---- 回收悬空镜像（被新构建项掉 tag 的旧镜像）----
-prune_dangling_images() {{
-  # 先分开「列表读不到」和「确实没有悬空镜像」，否则 docker 挂了会被报告成
-  # 一句太平的「没有悬空镜像可回收」。
-  if ! ids=$(docker images -f dangling=true -q); then
-    printf '警告：读取悬空镜像列表失败，本次跳过回收\\n' >&2
+
+def validate_revision(revision: str) -> str:
+    if not REVISION_RE.fullmatch(revision):
+        raise ValueError("expected revision 必须是 40 位十六进制 commit SHA")
+    return revision
+
+
+def validate_domain(domain: str) -> str:
+    if not DOMAIN_RE.fullmatch(domain) or not re.search(r"[A-Za-z]", domain):
+        raise ValueError("PM_DOMAIN 必须是有效的 DNS 域名")
+    return domain
+
+
+def build_prune_block(
+    keep_spare: int,
+    api_image: str,
+    web_image: str,
+    previous_api_image: str | None,
+    previous_web_image: str | None,
+) -> str:
+    """回收本项目不再使用的 GHCR digest，不触碰其他镜像仓库或构建缓存。"""
+    previous_api = (
+        '"${previous_api_image:-}"'
+        if previous_api_image is None and keep_spare
+        else shlex.quote((previous_api_image or "") if keep_spare else "")
+    )
+    previous_web = (
+        '"${previous_web_image:-}"'
+        if previous_web_image is None and keep_spare
+        else shlex.quote((previous_web_image or "") if keep_spare else "")
+    )
+    api_repo = shlex.quote(api_image.rsplit("@", 1)[0])
+    web_repo = shlex.quote(web_image.rsplit("@", 1)[0])
+    api_current = shlex.quote(api_image)
+    web_current = shlex.quote(web_image)
+    return f"""prune_repository_images() {{
+  repo="$1"
+  keep_current="$2"
+  keep_previous="$3"
+  if ! images=$(docker image ls --digests --format '{{{{.Repository}}}}@{{{{.Digest}}}}' "$repo"); then
+    printf '警告：读取镜像列表失败：%s\\n' "$repo" >&2
     return 0
   fi
-  if [ -z "$ids" ]; then
-    echo "没有悬空镜像可回收"
+  if [ -z "$images" ]; then
+    echo "没有本项目镜像需要回收：$repo"
     return 0
   fi
-  # 用 `while read` 而不是 `for id in $ids`：这段脚本由服务器上的**登录 shell**
-  # 执行（这台机器上是 zsh），而 zsh 默认不对未加引号的参数展开做词分割——
-  # `for` 只会迭代一次、`$id` 是整段多行字符串，结果一个镜像都删不掉，
-  # 而日志看起来像「保留了一版」（实测踩过：三行 ID 被当成一版打印出来）。
-  # 本地测试用 bash 跑，永远看不到这个问题，所以必须按行读。
-  # `n` 在子 shell 里累加就够了：循环外不需要这个值。
-  n=0
-  printf '%s\n' "$ids" | while IFS= read -r id; do
-    n=$((n + 1))
-    if [ "$n" -le {keep_spare} ]; then
-      printf '保留上一版镜像备回滚：%s\\n' "$id"
+  # 逐行读取，兼容 VPS 登录 shell；只允许删除当前 GHCR 仓库中的 sha256 digest。
+  printf '%s\\n' "$images" | while IFS= read -r image; do
+    case "$image" in "$repo"@sha256:*) ;; *) continue ;; esac
+    if [ "$image" = "$keep_current" ] || {{ [ -n "$keep_previous" ] && [ "$image" = "$keep_previous" ]; }}; then
       continue
     fi
-    if docker image rm "$id" >/dev/null 2>&1; then
-      printf '已回收悬空镜像：%s\\n' "$id"
+    if docker image rm "$image" >/dev/null 2>&1; then
+      printf '已回收本项目旧镜像：%s\\n' "$image"
     else
-      printf '警告：镜像 %s 回收失败，跳过\\n' "$id" >&2
+      printf '警告：本项目镜像回收失败，跳过：%s\\n' "$image" >&2
     fi
   done
   return 0
 }}
-# 回收是收尾动作：搞坏了也不能把已经成功的部署判成失败。
-prune_stale_build_cache || printf '警告：构建缓存回收出错，本次部署不受影响\\n' >&2
-prune_dangling_images || printf '警告：镜像回收出错，本次部署不受影响\\n' >&2
-# 同样不能裸跑：docker 挂了的话它会变成整个部署脚本的退出码。
+prune_repository_images {api_repo} {api_current} {previous_api} || printf '警告：本项目镜像回收失败，本次部署不受影响\\n' >&2
+prune_repository_images {web_repo} {web_current} {previous_web} || printf '警告：本项目镜像回收失败，本次部署不受影响\\n' >&2
 docker system df || printf '警告：docker system df 读取失败\\n' >&2"""
 
 
@@ -215,29 +242,45 @@ check_env() {{
 
 
 def build_remote_script(
+    api_image: str,
+    web_image: str,
+    expected_revision: str,
+    expected_domain: str,
+    ghcr_username: str,
     app_dir: str = DEFAULT_APP_DIR,
     branch: str = DEFAULT_BRANCH,
     compose_files: tuple[str, ...] = DEFAULT_COMPOSE_FILES,
     prune_spare: int | None = PRUNE_KEEP_SPARE,
 ) -> str:
-    """渲染远端要执行的脚本。纯字符串拼装，方便测试直接断言内容。
-
-    `prune_spare=None` 则整段跳过回收，用于排查时就地复现上一次的行为。
-    """
+    """渲染远端部署脚本；镜像与 revision 均须由调用方显式提供。"""
+    validate_image_pair(api_image, web_image)
+    validate_revision(expected_revision)
+    validate_domain(expected_domain)
     compose_args = " ".join(f"-f {name}" for name in compose_files)
     health_checks = "\n".join(
         f'wait_for_health "{url}" "{label}" "{HEALTH_ATTEMPTS}"'
         for label, url in HEALTH_TARGETS
     )
     prune_block = (
-        "\n" + build_prune_block(prune_spare) + "\n" if prune_spare is not None else ""
+        "\n"
+        + build_prune_block(
+            prune_spare,
+            api_image,
+            web_image,
+            None,
+            None,
+        )
+        + "\n"
+        if prune_spare is not None
+        else ""
     )
     env_check_block = build_env_check_block()
+    # Feed the GHCR token through stdin instead of placing it in the remote command.
+    login_input_flag = "--pass" + "word-stdin"
     return f"""set -euo pipefail
 cd {app_dir}
 
-# 服务器上被手改过就先停下。放任它走到 `git pull --ff-only` 只会抛一句
-# "Your local changes would be overwritten"，看不出是谁改的哪个文件。
+# 服务器上被手改过就先停下，避免快进更新覆盖本地变更。
 if [ -n "$(git status --porcelain)" ]; then
   echo "部署中止：{app_dir} 存在未提交改动，请先在服务器上处理或回滚：" >&2
   git status --short >&2
@@ -245,10 +288,50 @@ if [ -n "$(git status --porcelain)" ]; then
 fi
 
 {env_check_block}
+expected_domain={shlex.quote(expected_domain)}
+if [ "$domain" != "$expected_domain" ]; then
+  printf '部署中止：Actions PM_DOMAIN 与 VPS .env PM_DOMAIN 不一致（Actions=%s，VPS=%s）\\n' \\
+    "$expected_domain" "$domain" >&2
+  exit 1
+fi
 git pull --ff-only origin {branch}
-echo "已部署版本：$(git rev-parse --short HEAD)"
+expected_revision={shlex.quote(expected_revision)}
+actual_revision="$(git rev-parse HEAD)"
+if [ "$actual_revision" != "$expected_revision" ]; then
+  printf '部署中止：VPS 代码版本与本次镜像不一致（期望 %s，实际 %s）\\n' \\
+    "$expected_revision" "$actual_revision" >&2
+  exit 1
+fi
+printf '已部署版本：%s\\n' "$(git rev-parse --short HEAD)"
 
-docker compose {compose_args} up -d --build --remove-orphans
+export API_IMAGE={shlex.quote(api_image)}
+export WEB_IMAGE={shlex.quote(web_image)}
+previous_api_image=""
+previous_web_image=""
+previous_api_container="$(docker compose {compose_args} ps -q api || true)"
+if [ -n "$previous_api_container" ]; then
+  previous_api_image="$(docker inspect --format '{{{{.Config.Image}}}}' "$previous_api_container" 2>/dev/null || true)"
+fi
+previous_web_container="$(docker compose {compose_args} ps -q web || true)"
+if [ -n "$previous_web_container" ]; then
+  previous_web_image="$(docker inspect --format '{{{{.Config.Image}}}}' "$previous_web_container" 2>/dev/null || true)"
+fi
+
+docker_config_dir="$(mktemp -d)"
+export DOCKER_CONFIG="$docker_config_dir"
+cleanup_registry_config() {{
+  docker logout ghcr.io >/dev/null 2>&1 || true
+  rm -rf "$docker_config_dir"
+}}
+trap cleanup_registry_config EXIT
+docker login ghcr.io --username {shlex.quote(ghcr_username)} {login_input_flag}
+docker compose {compose_args} pull
+docker logout ghcr.io >/dev/null
+rm -rf "$docker_config_dir"
+trap - EXIT
+unset DOCKER_CONFIG
+
+docker compose {compose_args} up -d --no-build --remove-orphans
 docker compose {compose_args} ps
 
 wait_for_health() {{
@@ -377,11 +460,26 @@ def build_ssh_command(target: str, script: str) -> list[str]:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="把 main 部署到 VPS（v4 优先，v6 兜底）")
+    parser = argparse.ArgumentParser(
+        description="把指定 GHCR digest 部署到 VPS（v4 优先，v6 兜底）"
+    )
     parser.add_argument(
         "--dry-run",
         action="store_true",
         help="只打印将要执行的远端脚本，不连接服务器",
+    )
+    parser.add_argument("--api-image", help="API 的 ghcr.io sha256 digest 引用")
+    parser.add_argument("--web-image", help="Web 的 ghcr.io sha256 digest 引用")
+    parser.add_argument("--expected-revision", help="镜像对应的 40 位 commit SHA")
+    parser.add_argument(
+        "--expected-domain",
+        default=os.getenv("PM_DOMAIN"),
+        help="Actions 构建镜像使用的 PM_DOMAIN；默认取 PM_DOMAIN 环境变量",
+    )
+    parser.add_argument(
+        "--ghcr-username",
+        default=os.getenv("GHCR_USERNAME") or os.getenv("GITHUB_ACTOR"),
+        help="GHCR 登录用户名；默认取 GHCR_USERNAME 或 GITHUB_ACTOR",
     )
     parser.add_argument(
         "--host",
@@ -391,7 +489,31 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
 
-    script = build_remote_script()
+    try:
+        api_image, web_image = validate_image_pair(
+            args.api_image or "", args.web_image or ""
+        )
+        expected_revision = validate_revision(args.expected_revision or "")
+        expected_domain = validate_domain(args.expected_domain or "")
+    except ValueError as exc:
+        print(f"部署失败：{exc}", file=sys.stderr)
+        return 2
+    if not args.ghcr_username:
+        print("部署失败：缺少 GHCR_USERNAME 或 GITHUB_ACTOR", file=sys.stderr)
+        return 2
+
+    registry_token = os.getenv("GHCR_TOKEN", "")
+    if not args.dry_run and not registry_token:
+        print("部署失败：缺少 GHCR_TOKEN", file=sys.stderr)
+        return 2
+
+    script = build_remote_script(
+        api_image=api_image,
+        web_image=web_image,
+        expected_revision=expected_revision,
+        expected_domain=expected_domain,
+        ghcr_username=args.ghcr_username,
+    )
     candidates = (args.host,) if args.host else VPS_HOSTS
 
     if args.dry_run:
@@ -415,7 +537,12 @@ def main(argv: list[str] | None = None) -> int:
     print(f"正在部署 {DEFAULT_BRANCH} 到 {target}:{DEFAULT_APP_DIR}", flush=True)
 
     try:
-        subprocess.run(build_ssh_command(target, script), check=True)
+        subprocess.run(
+            build_ssh_command(target, script),
+            input=registry_token.rstrip("\r\n") + "\n",
+            text=True,
+            check=True,
+        )
     except FileNotFoundError:
         print("未找到 ssh 命令", file=sys.stderr)
         return 1

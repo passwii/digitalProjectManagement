@@ -1,0 +1,81 @@
+name: container-images
+
+on:
+  pull_request:
+    paths:
+      - ".dockerignore"
+      - "api/**"
+      - "docker/**"
+      - "docker-compose.yml"
+      - "docker-compose.prod.yml"
+      - "scripts/**"
+      - "web/**"
+      - ".github/workflows/container-images.yml"
+      - ".github/workflows/deploy-vps.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: container-images-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build API and Web images (no push)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Check out pull request
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+
+      - name: Validate production Compose merge
+        env:
+          API_IMAGE: ghcr.io/compose-check/digitalprojectmanagement-api@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+          WEB_IMAGE: ghcr.io/compose-check/digitalprojectmanagement-web@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+          APP_SECRET: compose-check
+          DATABASE_URL: postgresql+psycopg://ci@127.0.0.1/app
+          PM_DOMAIN: build.invalid
+          PM_HOST_BIND: 127.0.0.1
+          API_PORT_BIND: 127.0.0.1
+          CORS_ORIGINS: https://build.invalid
+        run: |
+          set -euo pipefail
+          docker compose -f docker-compose.yml -f docker-compose.prod.yml config --format json \
+            | python3 -c '
+          import json
+          import sys
+
+          services = json.load(sys.stdin)["services"]
+          expected = {
+              "api": "ghcr.io/compose-check/digitalprojectmanagement-api@sha256:" + "a" * 64,
+              "web": "ghcr.io/compose-check/digitalprojectmanagement-web@sha256:" + "b" * 64,
+          }
+          for name, image in expected.items():
+              service = services[name]
+              assert service["image"] == image, (name, service.get("image"))
+              assert "build" not in service, f"{name} still has a production build section"
+          '
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
+
+      - name: Build API image
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          file: docker/api.Dockerfile
+          platforms: linux/amd64
+          push: false
+
+      - name: Build Web image
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          file: docker/web.Dockerfile
+          platforms: linux/amd64
+          push: false
+          build-args: |
+            NEXT_PUBLIC_API_BASE=https://build.invalid/api/v1

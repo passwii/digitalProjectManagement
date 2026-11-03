@@ -154,6 +154,7 @@ node scripts/av-monitor-motion.mjs  http://127.0.0.1:3001 artifacts/blf1425
 | --- | --- | --- |
 | `web/**`（页面、组件、样式、动效、`lib/`） | **`web · 测试`** | 含 `npm test` + `npm run build` |
 | `api/**`、`tests/**`、`docker/api.Dockerfile` | **`api · 测试`** | 全量 pytest + 真实 PG |
+| `.dockerignore`、`api/**`、`web/**`、`docker/**`、`scripts/**`、`docker-compose.yml`、`docker-compose.prod.yml`、`container-images.yml`、`deploy-vps.yml` | **`container-images`** | PR 上检查生产 Compose 合并结果并构建 API/Web 镜像，不推送、不部署 |
 | 前后端都改、或改了接口契约 | 两条都要 | 契约变更要在 PR 里点明 |
 | `docs/**`、`AGENTS.md`、`TESTING.md`、`artifacts/**` | **`web · 测试`** | `web.yml` 对所有 PR 触发，纯文档 PR 也会跑；`api` 不会跑 |
 | 部署 workflow | **不是 PR 合并门禁** | `main` 更新后由 `deploy-vps.yml` 部署；也可手动 dispatch `main` |
@@ -163,9 +164,11 @@ node scripts/av-monitor-motion.mjs  http://127.0.0.1:3001 artifacts/blf1425
 - Vercel 部署状态（仓库没有配置 Vercel）；PR 合并检查不等待生产部署状态
 - Lighthouse、Playwright/浏览器 E2E workflow（不存在）
 
-要求"等 Vercel 成功"只会让 PR 永久卡在"无法确认"。PR 合并门禁就是上面两条 CI 检查；部署 workflow 只在代码进入 `main` 后运行，不为 PR 分支部署。
+要求"等 Vercel 成功"只会让 PR 永久卡在"无法确认"。PR 合并门禁由本次改动路径对应的 CI 检查组成，包括容器构建路径对应的 `container-images`；部署 workflow 只在代码进入 `main` 后运行，不为 PR 分支部署。
 
-`deploy-vps.yml` 使用 GitHub `production` environment 中的 `VPS_SSH_PRIVATE_KEY` 和 `VPS_SSH_KNOWN_HOSTS`。该 workflow 将 SSH 主机密钥校验设为严格模式，并只接受 `main` 作为部署 ref。VPS 端仍执行 `git pull origin main` 和 Docker Compose 构建，所以 VPS 需要访问 GitHub 及镜像/依赖源；本机网络不参与该路径。
+`deploy-vps.yml` 使用 GitHub `production` environment 中的 `VPS_SSH_PRIVATE_KEY` 和 `VPS_SSH_KNOWN_HOSTS`，并读取仓库 Actions variable `PM_DOMAIN` 作为 Web 镜像构建期 API 域名。部署脚本会在 `git pull` 和容器操作前将该值与 VPS `.env` 的 `PM_DOMAIN` 比较。workflow 严格校验 SSH 主机密钥，只接受 `main` 作为部署 ref。build job 有 `packages: write`，deploy job 只有 `packages: read`；GHCR packages 必须允许该 repository 的 `GITHUB_TOKEN` 访问。VPS 仍执行 `git pull origin main` 更新 Compose 配置，但只运行 `docker compose pull` 与 `up --no-build`，不再构建镜像，也不需要访问 npm/PyPI；它仍需访问 GitHub 与 GHCR。
+
+主线 workflow 用 commit SHA 标记镜像，并将 GHCR digest 交给 deploy job。`workflow_dispatch` 可同时指定 API/Web digest 回滚；输入必须属于当前 repository 的两个 package。回滚部署使用当前 `main` 的 Compose 配置，不会撤销数据库 migration。
 
 几条容易搞错的细节：
 

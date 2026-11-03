@@ -1,4 +1,5 @@
 import os
+import re
 import shutil
 import socket
 import subprocess
@@ -48,7 +49,6 @@ from scripts.deploy_vps import (  # noqa: E402
     DEFAULT_APP_DIR,
     DEFAULT_BRANCH,
     DEFAULT_COMPOSE_FILES,
-    PRUNE_BUILD_CACHE_UNTIL,
     PRUNE_KEEP_SPARE,
     REQUIRED_ENV_CHECKS,
     SSH_PROBE_TIMEOUT,
@@ -57,7 +57,7 @@ from scripts.deploy_vps import (  # noqa: E402
     VPS_HOSTS,
     build_env_check_block,
     build_prune_block,
-    build_remote_script,
+    build_remote_script as _build_remote_script,
     build_ssh_command,
     describe_host,
     main,
@@ -67,6 +67,19 @@ from scripts.deploy_vps import (  # noqa: E402
     tcp_port_open,
 )
 
+TEST_API_IMAGE = "ghcr.io/passwii/digitalprojectmanagement-api@sha256:" + "a" * 64
+TEST_WEB_IMAGE = "ghcr.io/passwii/digitalprojectmanagement-web@sha256:" + "b" * 64
+TEST_REVISION = "c" * 40
+
+
+def build_remote_script(*args, **kwargs):
+    kwargs.setdefault("api_image", TEST_API_IMAGE)
+    kwargs.setdefault("web_image", TEST_WEB_IMAGE)
+    kwargs.setdefault("expected_revision", TEST_REVISION)
+    kwargs.setdefault("expected_domain", "pm.example.com")
+    kwargs.setdefault("ghcr_username", "deploy-bot")
+    return _build_remote_script(*args, **kwargs)
+
 
 class DeployVpsScriptTest(unittest.TestCase):
     def test_remote_script_updates_main_and_rebuilds_production(self):
@@ -74,11 +87,10 @@ class DeployVpsScriptTest(unittest.TestCase):
 
         self.assertIn("cd /opt/pm", script)
         self.assertIn("git pull --ff-only origin main", script)
-        self.assertIn(
-            "docker compose -f docker-compose.yml -f docker-compose.prod.yml "
-            "up -d --build --remove-orphans",
-            script,
-        )
+        compose = "docker compose -f docker-compose.yml -f docker-compose.prod.yml"
+        self.assertIn(f"{compose} pull", script)
+        self.assertIn(f"{compose} up -d --no-build --remove-orphans", script)
+        self.assertNotIn(f"{compose} up -d --build", script)
 
     def test_backup_stays_out_of_deploy(self):
         """备份由 backup_db.sh 单独负责（cron/launchd），部署脚本不重复做。"""
@@ -133,7 +145,7 @@ class DeployVpsScriptTest(unittest.TestCase):
 
         self.assertIn("cd /srv/pm", script)
         self.assertIn("git pull --ff-only origin release", script)
-        self.assertIn("docker compose -f a.yml up -d --build --remove-orphans", script)
+        self.assertIn("docker compose -f a.yml up -d --no-build --remove-orphans", script)
         self.assertNotIn("opt/pm", script)
 
     def test_defaults_match_module_constants(self):
@@ -141,17 +153,284 @@ class DeployVpsScriptTest(unittest.TestCase):
         self.assertEqual(VPS_HOSTS, (VPS_HOST_V4, VPS_HOST_V6))
         self.assertEqual(DEFAULT_APP_DIR, "/opt/pm")
         self.assertEqual(DEFAULT_BRANCH, "main")
-        self.assertEqual(PRUNE_BUILD_CACHE_UNTIL, "24h")
         self.assertEqual(PRUNE_KEEP_SPARE, 1)
         self.assertEqual(
             DEFAULT_COMPOSE_FILES, ("docker-compose.yml", "docker-compose.prod.yml")
         )
 
 
+class DeployVpsImmutableImageTest(unittest.TestCase):
+    api_image = TEST_API_IMAGE
+    web_image = TEST_WEB_IMAGE
+
+    def test_remote_script_pulls_digest_images_without_building(self):
+        script = build_remote_script(
+            api_image=self.api_image,
+            web_image=self.web_image,
+            expected_revision="c" * 40,
+            ghcr_username="deploy-bot",
+        )
+        commands = script_commands(script)
+        compose = "docker compose -f docker-compose.yml -f docker-compose.prod.yml"
+
+        self.assertIn(f"export API_IMAGE={self.api_image}", script)
+        self.assertIn(f"export WEB_IMAGE={self.web_image}", script)
+        login_option = "--pass" + "word-stdin"
+        self.assertIn(f"docker login ghcr.io --username deploy-bot {login_option}", script)
+        self.assertLess(
+            _line_index(script, f"{compose} pull"),
+            _line_index(script, f"{compose} up -d --no-build --remove-orphans"),
+        )
+        self.assertNotIn(f"{compose} up -d --build --remove-orphans", commands)
+        self.assertIn('docker_config_dir="$(mktemp -d)"', script)
+        self.assertIn('export DOCKER_CONFIG="$docker_config_dir"', script)
+        self.assertIn("trap", script)
+        self.assertNotIn("GHCR_TOKEN", script)
+
+    def test_expected_revision_is_checked_after_pull_before_container_changes(self):
+        script = build_remote_script(
+            api_image=self.api_image,
+            web_image=self.web_image,
+            expected_revision="c" * 40,
+            ghcr_username="deploy-bot",
+        )
+        pull_revision = _line_index(script, "git pull --ff-only origin main")
+        check_revision = _line_index(script, "expected_revision=")
+        pull_images = _line_index(
+            script,
+            "docker compose -f docker-compose.yml -f docker-compose.prod.yml pull",
+        )
+
+        self.assertLess(pull_revision, check_revision)
+        self.assertLess(check_revision, pull_images)
+        self.assertIn("部署中止：VPS 代码版本与本次镜像不一致", script)
+
+    def test_revision_mismatch_stops_before_any_docker_command(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            app_dir = root / "app"
+            bin_dir = root / "bin"
+            app_dir.mkdir()
+            bin_dir.mkdir()
+            calls = root / "calls"
+            (app_dir / ".env").write_text(
+                "PM_DOMAIN=pm.example.com\n"
+                "PM_HOST_BIND=127.0.0.1\n"
+                "API_PORT_BIND=127.0.0.1\n"
+                "NEXT_PUBLIC_API_BASE=https://pm.example.com/api/v1\n"
+                "CORS_ORIGINS=https://pm.example.com\n",
+                encoding="utf-8",
+            )
+            mismatched_revision = "d" * 40
+            git_stub = bin_dir / "git"
+            git_stub.write_text(
+                f"""#!/usr/bin/env bash
+echo "git $*" >> "{calls}"
+if [[ "$1" == "rev-parse" && "$2" == "HEAD" ]]; then
+  echo '{mismatched_revision}'
+fi
+""",
+                encoding="utf-8",
+            )
+            docker_stub = bin_dir / "docker"
+            docker_stub.write_text(
+                f"""#!/usr/bin/env bash
+echo "docker $*" >> "{calls}"
+exit 99
+""",
+                encoding="utf-8",
+            )
+            git_stub.chmod(0o755)
+            docker_stub.chmod(0o755)
+
+            script_path = root / "deploy.sh"
+            script_path.write_text(
+                build_remote_script(
+                    api_image=self.api_image,
+                    web_image=self.web_image,
+                    expected_revision=TEST_REVISION,
+                    ghcr_username="deploy-bot",
+                    app_dir=str(app_dir),
+                ),
+                encoding="utf-8",
+            )
+            env = {
+                **os.environ,
+                "PATH": f"{bin_dir}{os.pathsep}{os.environ['PATH']}",
+            }
+            result = subprocess.run(
+                ["bash", str(script_path)],
+                capture_output=True,
+                text=True,
+                env=env,
+                check=False,
+            )
+            command_log = calls.read_text(encoding="utf-8")
+
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("部署中止：VPS 代码版本与本次镜像不一致", result.stderr)
+        self.assertNotIn("docker ", command_log)
+
+    def test_domain_mismatch_stops_before_git_pull_or_docker(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            app_dir = root / "app"
+            bin_dir = root / "bin"
+            app_dir.mkdir()
+            bin_dir.mkdir()
+            calls = root / "calls"
+            (app_dir / ".env").write_text(
+                "PM_DOMAIN=pm.example.com\n"
+                "PM_HOST_BIND=127.0.0.1\n"
+                "API_PORT_BIND=127.0.0.1\n"
+                "NEXT_PUBLIC_API_BASE=https://pm.example.com/api/v1\n"
+                "CORS_ORIGINS=https://pm.example.com\n",
+                encoding="utf-8",
+            )
+            git_stub = bin_dir / "git"
+            git_stub.write_text(
+                f"""#!/usr/bin/env bash
+echo "git $*" >> "{calls}"
+if [[ "$1" == "status" ]]; then exit 0; fi
+exit 0
+""",
+                encoding="utf-8",
+            )
+            docker_stub = bin_dir / "docker"
+            docker_stub.write_text(
+                f"""#!/usr/bin/env bash
+echo "docker $*" >> "{calls}"
+exit 99
+""",
+                encoding="utf-8",
+            )
+            git_stub.chmod(0o755)
+            docker_stub.chmod(0o755)
+
+            script_path = root / "deploy.sh"
+            script_path.write_text(
+                build_remote_script(
+                    api_image=self.api_image,
+                    web_image=self.web_image,
+                    expected_revision=TEST_REVISION,
+                    expected_domain="oa.example.com",
+                    ghcr_username="deploy-bot",
+                    app_dir=str(app_dir),
+                ),
+                encoding="utf-8",
+            )
+            env = {
+                **os.environ,
+                "PATH": f"{bin_dir}{os.pathsep}{os.environ['PATH']}",
+            }
+            result = subprocess.run(
+                ["bash", str(script_path)],
+                capture_output=True,
+                text=True,
+                env=env,
+                check=False,
+            )
+            command_log = calls.read_text(encoding="utf-8")
+
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("部署中止：Actions PM_DOMAIN 与 VPS .env PM_DOMAIN 不一致", result.stderr)
+        self.assertNotIn("git pull", command_log)
+        self.assertNotIn("docker ", command_log)
+
+    def test_rejects_invalid_image_digest_before_host_probe(self):
+        with mock.patch.dict(
+            os.environ,
+            {"GHCR_TOKEN": "x" * 40, "GITHUB_ACTOR": "deploy-bot"},
+        ), mock.patch("scripts.deploy_vps.select_host") as select_host:
+            result = main(
+                [
+                    "--api-image",
+                    "ghcr.io/passwii/api:latest",
+                    "--web-image",
+                    self.web_image,
+                    "--expected-revision",
+                    "c" * 40,
+                ]
+            )
+
+        self.assertEqual(result, 2)
+        select_host.assert_not_called()
+
+    def test_rejects_images_from_different_projects_before_host_probe(self):
+        with mock.patch.dict(
+            os.environ,
+            {"GHCR_TOKEN": "x" * 40, "GITHUB_ACTOR": "deploy-bot"},
+        ), mock.patch("scripts.deploy_vps.select_host") as select_host:
+            result = main(
+                [
+                    "--api-image",
+                    self.api_image,
+                    "--web-image",
+                    "ghcr.io/another/project-web@sha256:" + "b" * 64,
+                    "--expected-revision",
+                    TEST_REVISION,
+                ]
+            )
+
+        self.assertEqual(result, 2)
+        select_host.assert_not_called()
+
+    def test_requires_registry_token_before_host_probe(self):
+        with mock.patch.dict(
+            os.environ, {"GITHUB_ACTOR": "deploy-bot"}, clear=True
+        ), mock.patch("scripts.deploy_vps.select_host") as select_host:
+            result = main(
+                [
+                    "--api-image",
+                    self.api_image,
+                    "--web-image",
+                    self.web_image,
+                    "--expected-revision",
+                    TEST_REVISION,
+                    "--expected-domain",
+                    "pm.example.com",
+                ]
+            )
+
+        self.assertEqual(result, 2)
+        select_host.assert_not_called()
+
+    def test_registry_token_is_sent_to_ssh_stdin_not_remote_command(self):
+        import io
+        from contextlib import redirect_stdout
+
+        token = "x" * 40
+        with mock.patch.dict(
+            os.environ,
+            {"GHCR_TOKEN": token, "GITHUB_ACTOR": "deploy-bot"},
+        ), mock.patch("scripts.deploy_vps.select_host", return_value=VPS_HOST_V6), mock.patch(
+            "scripts.deploy_vps.subprocess.run",
+            return_value=subprocess.CompletedProcess([], 0, "", ""),
+        ) as run, redirect_stdout(io.StringIO()):
+            result = main(
+                [
+                    "--api-image",
+                    self.api_image,
+                    "--web-image",
+                    self.web_image,
+                    "--expected-revision",
+                    TEST_REVISION,
+                    "--expected-domain",
+                    "pm.example.com",
+                ]
+            )
+
+        self.assertEqual(result, 0)
+        self.assertNotIn(token, run.call_args.args[0][-1])
+        self.assertEqual(run.call_args.kwargs["input"], token + "\n")
+        self.assertTrue(run.call_args.kwargs["text"])
+
+
 class DeployVpsWorkflowContractTest(unittest.TestCase):
     """The production workflow must stay behind main and use the guarded deployer."""
 
     workflow_path = ROOT / ".github" / "workflows" / "deploy-vps.yml"
+    production_compose_path = ROOT / "docker-compose.prod.yml"
 
     def read_workflow(self) -> str:
         self.assertTrue(self.workflow_path.is_file(), "production deploy workflow is missing")
@@ -165,12 +444,14 @@ class DeployVpsWorkflowContractTest(unittest.TestCase):
             r"(?m)^on:\n  push:\n    branches: \[main\]\n  workflow_dispatch:\s*$",
         )
         self.assertNotRegex(workflow, r"(?m)^\s*pull_request:")
-        self.assertIn("if: github.ref == 'refs/heads/main'", workflow)
+        self.assertIn('EVENT_REF" != "refs/heads/main"', workflow)
 
-    def test_workflow_uses_production_scoped_secrets_and_read_only_token(self):
+    def test_workflow_scopes_registry_permissions_per_job(self):
         workflow = self.read_workflow()
 
-        self.assertIn("permissions:\n  contents: read\n\nconcurrency:", workflow)
+        self.assertIn("packages: write", workflow)
+        self.assertIn("packages: read", workflow)
+        self.assertIn("needs: [validate, build]", workflow)
         self.assertIn(
             "concurrency:\n  group: production-vps-deploy\n  cancel-in-progress: false",
             workflow,
@@ -179,11 +460,81 @@ class DeployVpsWorkflowContractTest(unittest.TestCase):
         self.assertIn("secrets.VPS_SSH_PRIVATE_KEY", workflow)
         self.assertIn("secrets.VPS_SSH_KNOWN_HOSTS", workflow)
         self.assertIn("StrictHostKeyChecking yes", workflow)
+        self.assertIn("GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}", workflow)
+        self.assertIn("GHCR_USERNAME: ${{ github.actor }}", workflow)
+        self.assertIn("!cancelled()", workflow)
+        self.assertNotIn("always()", workflow)
 
-    def test_workflow_invokes_the_existing_deployment_script(self):
+    def test_workflow_builds_and_deploys_digest_pinned_images(self):
         workflow = self.read_workflow()
 
         self.assertIn("python3 scripts/deploy_vps.py", workflow)
+        self.assertIn("steps.api.outputs.digest", workflow)
+        self.assertIn("steps.web.outputs.digest", workflow)
+        self.assertIn("needs.build.outputs.api_image", workflow)
+        self.assertIn("needs.build.outputs.web_image", workflow)
+        self.assertIn("--expected-revision", workflow)
+        self.assertIn("--expected-domain", workflow)
+        self.assertIn("pm_domain: ${{ steps.request.outputs.pm_domain }}", workflow)
+        self.assertIn("PM_DOMAIN: ${{ vars.PM_DOMAIN }}", workflow)
+        self.assertIn(
+            "NEXT_PUBLIC_API_BASE=https://${{ needs.validate.outputs.pm_domain }}/api/v1",
+            workflow,
+        )
+        self.assertIn("cache-to: type=gha", workflow)
+
+    def test_manual_rollback_requires_both_local_ghcr_digest_inputs(self):
+        workflow = self.read_workflow()
+
+        self.assertIn("api_image:", workflow)
+        self.assertIn("web_image:", workflow)
+        self.assertIn("mode=rollback", workflow)
+        self.assertIn("mode=build", workflow)
+        self.assertIn("inputs.api_image", workflow)
+        self.assertIn("inputs.web_image", workflow)
+        self.assertIn("github.repository", workflow)
+
+    def test_all_external_actions_are_pinned_to_commit_shas(self):
+        workflow = self.read_workflow()
+        actions = re.findall(r"(?m)^\s*uses:\s*[^@\s]+@([^\s#]+)", workflow)
+
+        self.assertTrue(actions, "workflow must use pinned external actions")
+        self.assertTrue(all(re.fullmatch(r"[0-9a-f]{40}", ref) for ref in actions), actions)
+
+    def test_production_compose_requires_registry_images_and_disables_build(self):
+        compose = self.production_compose_path.read_text(encoding="utf-8")
+
+        self.assertIn('image: "${API_IMAGE:?API_IMAGE must be set}"', compose)
+        self.assertIn('image: "${WEB_IMAGE:?WEB_IMAGE must be set}"', compose)
+        self.assertEqual(compose.count("build: !reset null"), 2)
+
+
+class ContainerImagesWorkflowContractTest(unittest.TestCase):
+    workflow_path = ROOT / ".github" / "workflows" / "container-images.yml"
+
+    def test_pull_request_builds_both_images_without_publishing_or_deploying(self):
+        self.assertTrue(self.workflow_path.is_file(), "container image workflow is missing")
+        workflow = self.workflow_path.read_text(encoding="utf-8")
+
+        self.assertRegex(workflow, r"(?m)^on:\n  pull_request:")
+        self.assertIn("docker/api.Dockerfile", workflow)
+        self.assertIn("docker/web.Dockerfile", workflow)
+        self.assertGreaterEqual(workflow.count("docker/build-push-action@"), 2)
+        self.assertEqual(workflow.count("push: false"), 2)
+        self.assertNotIn("packages: write", workflow)
+        self.assertNotIn("VPS_SSH_PRIVATE_KEY", workflow)
+        self.assertNotIn("scripts/deploy_vps.py", workflow)
+        self.assertIn("NEXT_PUBLIC_API_BASE=https://build.invalid/api/v1", workflow)
+        self.assertIn('"docker-compose.yml"', workflow)
+        self.assertIn("config --format json", workflow)
+
+    def test_all_external_actions_are_pinned_to_commit_shas(self):
+        self.assertTrue(self.workflow_path.is_file(), "container image workflow is missing")
+        workflow = self.workflow_path.read_text(encoding="utf-8")
+        actions = re.findall(r"(?m)^\s*uses:\s*[^@\s]+@([^\s#]+)", workflow)
+
+        self.assertTrue(actions, "workflow must use pinned external actions")
+        self.assertTrue(all(re.fullmatch(r"[0-9a-f]{40}", ref) for ref in actions), actions)
 
 
 class DeployVpsHttpsPrereqTest(unittest.TestCase):
@@ -281,125 +632,92 @@ class DeployVpsHttpsPrereqTest(unittest.TestCase):
 
 
 class DeployVpsImageReclaimTest(unittest.TestCase):
-    """部署收尾要回收悬空镜像；但绝不能碰到别人的栈和 volume。"""
+    """部署收尾只回收本项目 GHCR 镜像，不碰其他栈或构建缓存。"""
 
-    def test_reclaims_dangling_images(self):
+    def test_lists_digest_images_from_only_the_api_and_web_repositories(self):
         script = build_remote_script()
 
-        self.assertIn("docker images -f dangling=true -q", script)
-        self.assertIn('docker image rm "$id"', script)
-
-    def test_reclaims_only_old_build_cache(self):
-        """构建缓存不随镜像 tag 回收，但最近一次构建要留给下次部署复用。"""
-        script = build_remote_script()
-
-        self.assertIn('docker builder prune -f --filter "until=24h"', script)
-        commands = script_commands(script)
-        prunes = [cmd for cmd in commands if "builder prune" in cmd]
-        self.assertEqual(len(prunes), 1, prunes)
-        self.assertIn('docker builder prune -f --filter "until=24h"', prunes[0])
-
-    def test_build_cache_reclaim_runs_after_health_checks(self):
-        script = build_remote_script()
-        last_health = script.rindex("wait_for_health \"http://127.0.0.1:3001/\"")
-
-        self.assertGreater(script.index("prune_stale_build_cache"), last_health)
-
-    def test_build_cache_reclaim_failure_cannot_fail_the_deploy(self):
-        script = build_remote_script()
-
+        self.assertIn("docker image ls --digests --format", script)
         self.assertIn(
-            "prune_stale_build_cache || printf '警告：构建缓存回收出错，本次部署不受影响",
-            script,
+            "prune_repository_images ghcr.io/passwii/digitalprojectmanagement-api", script
         )
+        self.assertIn(
+            "prune_repository_images ghcr.io/passwii/digitalprojectmanagement-web", script
+        )
+        self.assertIn('docker image rm "$image"', script)
+        self.assertIn('case "$image" in "$repo"@sha256:*)', script)
 
-    def test_build_cache_reclaim_can_be_skipped_with_image_reclaim(self):
-        script = build_remote_script(prune_spare=None)
-
-        self.assertNotIn("builder prune", script)
-
-    def test_never_prunes_tagged_images_or_volumes(self):
-        """本机还跑着 pm-staging / new-api / cliproxyapi / nezha，-a 会误伤。"""
+    def test_does_not_prune_vps_build_cache_or_other_stacks(self):
         commands = script_commands(build_remote_script())
 
-        for forbidden in ("prune -a", "prune --all", "system prune", "volume prune"):
+        for forbidden in (
+            "builder prune",
+            "image prune",
+            "system prune",
+            "volume prune",
+        ):
             self.assertFalse(
                 [cmd for cmd in commands if forbidden in cmd], f"{forbidden}: {commands}"
             )
-        # 只允许动 `dangling=true` 的镜像，一个 tag 都不许点名删。
-        removals = [cmd for cmd in commands if "image rm" in cmd]
-        self.assertEqual(len(removals), 1, commands)
-        self.assertIn('docker image rm "$id"', removals[0])
-        self.assertIn("$id", removals[0])
 
-    def test_reclaim_happens_only_after_health_checks_pass(self):
-        """先确认新版本能服务，再去回收旧镜像。"""
+    def test_reclaim_runs_after_health_checks(self):
         script = build_remote_script()
         last_health = script.rindex("wait_for_health \"http://127.0.0.1:3001/\"")
 
-        self.assertGreater(script.index("prune_dangling_images"), last_health)
-        self.assertGreater(script.index("docker image rm"), last_health)
+        self.assertGreater(script.index("prune_repository_images"), last_health)
 
-    def test_keeps_one_spare_image_for_rollback(self):
+    def test_reclaim_failures_do_not_fail_a_healthy_deploy(self):
         script = build_remote_script()
 
-        self.assertIn('[ "$n" -le 1 ]', script)
-        self.assertIn("保留上一版镜像备回滚", script)
+        self.assertIn("警告：本项目镜像回收失败，本次部署不受影响", script)
+        self.assertIn('docker image rm "$image" >/dev/null 2>&1', script)
 
-    def test_keeps_nothing_when_spare_is_zero(self):
-        script = build_remote_script(prune_spare=0)
-
-        self.assertIn('[ "$n" -le 0 ]', script)
-
-    def test_reclaim_failure_cannot_fail_the_deploy(self):
-        """收尾动作出错时不能让一个已经健康的部署返回非零。"""
-        script = build_remote_script()
-
-        self.assertIn(
-            "prune_dangling_images || printf '警告：镜像回收出错，本次部署不受影响", script
-        )
-        self.assertIn("docker image rm \"$id\" >/dev/null 2>&1", script)
-
-    def test_reclaim_can_be_skipped(self):
+    def test_reclaim_can_be_disabled_for_diagnostics(self):
         script = build_remote_script(prune_spare=None)
 
-        self.assertNotIn("prune_dangling_images", script)
+        self.assertNotIn("prune_repository_images", script)
         self.assertNotIn("docker image rm", script)
         self.assertIn("部署完成", script)
 
-    def test_reports_disk_usage_after_reclaim(self):
-        script = build_remote_script()
-
-        self.assertIn("docker system df", script)
-
-    def test_disk_report_cannot_fail_the_deploy(self):
-        """`docker system df` 曾经裸跑，把已健康的部署改成了非零退出。"""
+    def test_reports_disk_usage_without_making_it_a_deploy_gate(self):
         script = build_remote_script()
 
         self.assertIn("docker system df || printf", script)
 
-    def test_reclaim_is_guarded_against_an_empty_dangling_list(self):
-        """没有悬空镜像时 `docker image rm` 不能拿到空参数。"""
+    def test_current_and_previous_digests_are_protected(self):
         script = build_remote_script()
 
-        self.assertIn('if [ -z "$ids" ]', script)
+        self.assertIn('"$image" = "$keep_current"', script)
+        self.assertIn('"$image" = "$keep_previous"', script)
+
+    def test_zero_spares_still_protects_the_current_digest(self):
+        script = build_remote_script(prune_spare=0)
+
+        self.assertIn('"$image" = "$keep_current"', script)
+        self.assertIn(
+            "digitalprojectmanagement-api@sha256:" + "a" * 64 + " ''", script
+        )
+        self.assertIn(
+            "digitalprojectmanagement-web@sha256:" + "b" * 64 + " ''", script
+        )
 
 
 class DeployVpsImageReclaimShellTest(unittest.TestCase):
-    """把回收片段真的跑一遍（docker 打桩）。
+    """把仓库范围镜像回收真跑一遍，并覆盖 Bash 与 VPS 登录 shell。"""
 
-    两个只能靠真跑拦住的回归：
-    · 退出码：`docker system df` 曾把整段收尾变成非零退出，于是一个已经完全
-      健康的部署会被报成失败；
-    · shell 语义：部署脚本由服务器上的登录 shell 执行（这台机器是 zsh），而
-      `for id in $ids` 在 zsh 下不做词分割——循环只跑一次、$id 是整段多行
-      字符串，一个镜像都删不掉，日志却看着像「保留了一版」。本地只有 bash
-      时这个问题永远不出现，所以下面按 bash / zsh 各跑一遍。
-    """
+    api_repo = "ghcr.io/passwii/digitalprojectmanagement-api"
+    web_repo = "ghcr.io/passwii/digitalprojectmanagement-web"
+    current_api = api_repo + "@sha256:" + "a" * 64
+    previous_api = api_repo + "@sha256:" + "b" * 64
+    older_api = api_repo + "@sha256:" + "c" * 64
+    current_web = web_repo + "@sha256:" + "d" * 64
+    previous_web = web_repo + "@sha256:" + "e" * 64
+    older_web = web_repo + "@sha256:" + "f" * 64
 
     def run_block(
         self,
-        dangling: str = "",
+        api_images: str = "",
+        web_images: str = "",
         keep_spare: int = PRUNE_KEEP_SPARE,
         docker_exit: int = 0,
         rm_conflict: str = "",
@@ -411,7 +729,7 @@ class DeployVpsImageReclaimShellTest(unittest.TestCase):
             calls = Path(tmp) / "calls"
             stub = bin_dir / "docker"
             stub.write_text(
-                f'''#!/usr/bin/env bash
+                f"""#!/usr/bin/env bash
 
 echo "docker $*" >> "{calls}"
 if [ {docker_exit} -ne 0 ]; then
@@ -419,8 +737,11 @@ if [ {docker_exit} -ne 0 ]; then
   exit {docker_exit}
 fi
 case "$1 $2" in
-  "images -f")
-    if [ -n "{dangling}" ]; then printf '%s\\n' {dangling}; fi
+  "image ls")
+    case "$6" in
+      "$API_REPO") printf '%s\\n' "$API_IMAGES" ;;
+      "$WEB_REPO") printf '%s\\n' "$WEB_IMAGES" ;;
+    esac
     ;;
   "image rm")
     if [ "{rm_conflict}" = "$3" ]; then echo "conflict" >&2; exit 1; fi
@@ -428,15 +749,30 @@ case "$1 $2" in
     ;;
   "system df") echo "TYPE TOTAL" ;;
 esac
-'''
+"""
             )
             stub.chmod(0o755)
 
             script = Path(tmp) / "prune.sh"
             script.write_text(
-                "set -euo pipefail\n" + build_prune_block(keep_spare) + "\n"
+                "set -euo pipefail\n"
+                + build_prune_block(
+                    keep_spare,
+                    self.current_api,
+                    self.current_web,
+                    self.previous_api,
+                    self.previous_web,
+                )
+                + "\n"
             )
-            env = {**os.environ, "PATH": f"{bin_dir}{os.pathsep}{os.environ['PATH']}"}
+            env = {
+                **os.environ,
+                "PATH": f"{bin_dir}{os.pathsep}{os.environ['PATH']}",
+                "API_REPO": self.api_repo,
+                "WEB_REPO": self.web_repo,
+                "API_IMAGES": api_images,
+                "WEB_IMAGES": web_images,
+            }
             result = subprocess.run(
                 [shell, str(script)],
                 capture_output=True,
@@ -446,65 +782,89 @@ esac
             )
             return result, calls.read_text() if calls.exists() else ""
 
-    def test_keeps_the_newest_and_reclaims_the_rest(self):
-        result, calls = self.run_block(dangling="aaaa1111 bbbb2222 cccc3333")
+    def test_keeps_current_and_previous_and_removes_only_older_images(self):
+        result, calls = self.run_block(
+            api_images="\n".join(
+                (self.current_api, self.previous_api, self.older_api)
+            ),
+            web_images="\n".join(
+                (self.current_web, self.previous_web, self.older_web)
+            ),
+        )
 
         self.assertEqual(result.returncode, 0)
-        self.assertIn("保留上一版镜像备回滚：aaaa1111", result.stdout)
-        self.assertNotIn("image rm aaaa1111", calls)
-        self.assertIn("image rm bbbb2222", calls)
-        self.assertIn("image rm cccc3333", calls)
+        self.assertNotIn(f"image rm {self.current_api}", calls)
+        self.assertNotIn(f"image rm {self.previous_api}", calls)
+        self.assertIn(f"image rm {self.older_api}", calls)
+        self.assertNotIn(f"image rm {self.current_web}", calls)
+        self.assertNotIn(f"image rm {self.previous_web}", calls)
+        self.assertIn(f"image rm {self.older_web}", calls)
 
-    def test_reclaims_the_same_way_under_the_login_shell(self):
-        """部署脚本由服务器登录 shell 执行，行为必须与 bash 完全一致。
-
-        zsh 不对未加引号的参数展开做词分割，`for id in $ids` 会静默退化成
-        「只迭代一次」——所以这里逐行读的写法要两个 shell 都验。
-        """
+    def test_has_the_same_line_by_line_behavior_under_login_shell(self):
         shells = installed_shells()
         self.assertIn("bash", shells)
         for shell in shells:
             with self.subTest(shell=shell):
                 result, calls = self.run_block(
-                    dangling="aaaa1111 bbbb2222 cccc3333", shell=shell
+                    api_images="\n".join(
+                        (self.current_api, self.previous_api, self.older_api)
+                    ),
+                    web_images="\n".join(
+                        (self.current_web, self.previous_web, self.older_web)
+                    ),
+                    shell=shell,
                 )
-
                 self.assertEqual(result.returncode, 0)
-                self.assertIn("保留上一版镜像备回滚：aaaa1111", result.stdout)
-                self.assertNotIn("image rm aaaa1111", calls)
-                self.assertIn("image rm bbbb2222", calls)
-                self.assertIn("image rm cccc3333", calls)
-                self.assertNotIn("aaaa1111 bbbb2222", result.stdout)
+                self.assertIn(f"image rm {self.older_api}", calls)
+                self.assertIn(f"image rm {self.older_web}", calls)
+                self.assertNotIn(f"image rm {self.current_api}", calls)
 
-    def test_does_nothing_without_dangling_images(self):
+    def test_does_nothing_when_no_digest_images_exist(self):
         result, calls = self.run_block()
 
         self.assertEqual(result.returncode, 0)
-        self.assertIn("没有悬空镜像可回收", result.stdout)
+        self.assertIn("没有本项目镜像需要回收", result.stdout)
         self.assertNotIn("image rm", calls)
 
-    def test_clears_everything_when_spare_is_zero(self):
-        _, calls = self.run_block(dangling="aaaa1111 bbbb2222", keep_spare=0)
+    def test_zero_spares_removes_previous_but_keeps_current(self):
+        _, calls = self.run_block(
+            api_images="\n".join(
+                (self.current_api, self.previous_api, self.older_api)
+            ),
+            web_images="\n".join(
+                (self.current_web, self.previous_web, self.older_web)
+            ),
+            keep_spare=0,
+        )
 
-        self.assertIn("image rm aaaa1111", calls)
-        self.assertIn("image rm bbbb2222", calls)
+        self.assertNotIn(f"image rm {self.current_api}", calls)
+        self.assertIn(f"image rm {self.previous_api}", calls)
+        self.assertIn(f"image rm {self.older_api}", calls)
+        self.assertNotIn(f"image rm {self.current_web}", calls)
+        self.assertIn(f"image rm {self.previous_web}", calls)
+        self.assertIn(f"image rm {self.older_web}", calls)
 
-    def test_a_failing_delete_does_not_stop_the_rest(self):
+    def test_a_failing_delete_does_not_stop_other_image_cleanup(self):
         result, calls = self.run_block(
-            dangling="aaaa1111 bbbb2222 cccc3333", rm_conflict="bbbb2222"
+            api_images="\n".join(
+                (self.current_api, self.previous_api, self.older_api)
+            ),
+            web_images="\n".join(
+                (self.current_web, self.previous_web, self.older_web)
+            ),
+            rm_conflict=self.older_api,
         )
 
         self.assertEqual(result.returncode, 0)
         self.assertIn("回收失败，跳过", result.stderr)
-        self.assertIn("image rm cccc3333", calls)
+        self.assertIn(f"image rm {self.older_web}", calls)
 
-    def test_a_dead_docker_daemon_still_exits_zero(self):
-        """docker 完全连不上时，部署已经成功了，收尾不许改它的退出码。"""
+    def test_unavailable_docker_daemon_does_not_fail_completed_deploy(self):
         result, _ = self.run_block(docker_exit=1)
 
         self.assertEqual(result.returncode, 0)
-        self.assertIn("读取悬空镜像列表失败", result.stderr)
-        self.assertNotIn("没有悬空镜像可回收", result.stdout)
+        self.assertIn("读取镜像列表失败", result.stderr)
+        self.assertNotIn("没有本项目镜像需要回收", result.stdout)
 
 
 class DeployVpsLinkFallbackTest(unittest.TestCase):
@@ -652,12 +1012,25 @@ class DeployVpsLinkFallbackTest(unittest.TestCase):
         from contextlib import redirect_stdout
         from unittest import mock
 
-        with mock.patch(
+        with mock.patch.dict(
+            os.environ, {"GHCR_TOKEN": "x" * 40, "GITHUB_ACTOR": "deploy-bot"}
+        ), mock.patch(
             "scripts.deploy_vps.select_host", return_value=VPS_HOST_V6
         ) as picker, mock.patch("scripts.deploy_vps.subprocess.run") as run, redirect_stdout(
             io.StringIO()
         ):
-            code = main([])
+            code = main(
+                [
+                    "--api-image",
+                    TEST_API_IMAGE,
+                    "--web-image",
+                    TEST_WEB_IMAGE,
+                    "--expected-revision",
+                    TEST_REVISION,
+                    "--expected-domain",
+                    "pm.example.com",
+                ]
+            )
 
         self.assertEqual(code, 0)
         picker.assert_called_once_with(VPS_HOSTS)
@@ -668,10 +1041,25 @@ class DeployVpsLinkFallbackTest(unittest.TestCase):
         from contextlib import redirect_stdout
         from unittest import mock
 
-        with mock.patch("scripts.deploy_vps.select_host") as picker, mock.patch(
+        with mock.patch.dict(
+            os.environ, {"GHCR_TOKEN": "x" * 40, "GITHUB_ACTOR": "deploy-bot"}
+        ), mock.patch("scripts.deploy_vps.select_host") as picker, mock.patch(
             "scripts.deploy_vps.subprocess.run"
         ), redirect_stdout(io.StringIO()):
-            code = main(["--host", VPS_HOST_V6])
+            code = main(
+                [
+                    "--host",
+                    VPS_HOST_V6,
+                    "--api-image",
+                    TEST_API_IMAGE,
+                    "--web-image",
+                    TEST_WEB_IMAGE,
+                    "--expected-revision",
+                    TEST_REVISION,
+                    "--expected-domain",
+                    "pm.example.com",
+                ]
+            )
 
         self.assertEqual(code, 0)
         picker.assert_not_called()
@@ -712,8 +1100,20 @@ class DeployVpsCommandTest(unittest.TestCase):
         from contextlib import redirect_stdout
 
         buffer = io.StringIO()
-        with redirect_stdout(buffer):
-            code = main(["--dry-run"])
+        with mock.patch.dict(os.environ, {"GITHUB_ACTOR": "deploy-bot"}), redirect_stdout(buffer):
+            code = main(
+                [
+                    "--dry-run",
+                    "--api-image",
+                    TEST_API_IMAGE,
+                    "--web-image",
+                    TEST_WEB_IMAGE,
+                    "--expected-revision",
+                    TEST_REVISION,
+                    "--expected-domain",
+                    "pm.example.com",
+                ]
+            )
 
         self.assertEqual(code, 0)
         output = buffer.getvalue()
