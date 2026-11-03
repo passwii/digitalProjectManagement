@@ -156,15 +156,16 @@ node scripts/av-monitor-motion.mjs  http://127.0.0.1:3001 artifacts/blf1425
 | `api/**`、`tests/**`、`docker/api.Dockerfile` | **`api · 测试`** | 全量 pytest + 真实 PG |
 | 前后端都改、或改了接口契约 | 两条都要 | 契约变更要在 PR 里点明 |
 | `docs/**`、`AGENTS.md`、`TESTING.md`、`artifacts/**` | **`web · 测试`** | `web.yml` 对所有 PR 触发，纯文档 PR 也会跑；`api` 不会跑 |
-| 部署 | 无 CI 门禁 | 合并后由人执行 `scripts/deploy_vps.py` |
+| 部署 workflow | **不是 PR 合并门禁** | `main` 更新后由 `deploy-vps.yml` 部署；也可手动 dispatch `main` |
 
 **这个仓库不存在的检查，不要等：**
 
-- Vercel / 任何 deployment 状态（仓库里没有 Vercel 项目，历史记录为空是正常的，不是失败）
-- `deploy-vps.yml` 之类的部署 workflow（不存在）
+- Vercel 部署状态（仓库没有配置 Vercel）；PR 合并检查不等待生产部署状态
 - Lighthouse、Playwright/浏览器 E2E workflow（不存在）
 
-要求"等 Vercel 成功"只会让 PR 永久卡在"无法确认"。门禁就是上面两条检查。
+要求"等 Vercel 成功"只会让 PR 永久卡在"无法确认"。PR 合并门禁就是上面两条 CI 检查；部署 workflow 只在代码进入 `main` 后运行，不为 PR 分支部署。
+
+`deploy-vps.yml` 使用 GitHub `production` environment 中的 `VPS_SSH_PRIVATE_KEY` 和 `VPS_SSH_KNOWN_HOSTS`。该 workflow 将 SSH 主机密钥校验设为严格模式，并只接受 `main` 作为部署 ref。VPS 端仍执行 `git pull origin main` 和 Docker Compose 构建，所以 VPS 需要访问 GitHub 及镜像/依赖源；本机网络不参与该路径。
 
 几条容易搞错的细节：
 

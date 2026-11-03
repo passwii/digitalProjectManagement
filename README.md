@@ -586,6 +586,19 @@ CORS_ORIGINS=https://pm.example.com
 > ⚠️ `.env` 的优先级**高于** compose 文件里的 `${VAR:-default}`。`.env` 里若留着
 > `NEXT_PUBLIC_API_BASE=http://127.0.0.1:8001/api/v1`，compose 的默认值根本不生效。
 
+#### 7.1.2 GitHub Actions 部署
+
+`.github/workflows/deploy-vps.yml` 在 `main` 更新后运行，也支持从 Actions 页面手动重跑 `main`。PR 分支不会部署。GitHub-hosted runner 通过 SSH 调用 `scripts/deploy_vps.py`；脚本会在 VPS 上快进拉取 `origin/main`、构建并启动 Docker Compose，再检查 API 与 Web 健康状态。本机网络不参与部署链路。
+
+在 GitHub 仓库设置中创建 `production` environment，并将允许部署的分支限制为 `main`。在该 environment 下配置以下 secrets：
+
+| Secret | 内容 |
+| --- | --- |
+| `VPS_SSH_PRIVATE_KEY` | VPS 部署 SSH 私钥。脚本使用 `BatchMode=yes`，因此密钥必须无口令、能非交互认证。当前部署脚本以 `root` 登录，须使用专门用于此部署的密钥，并按 root 凭据保护。 |
+| `VPS_SSH_KNOWN_HOSTS` | 两个 VPS 地址对应的 OpenSSH `known_hosts` 公钥行：`145.79.143.98` 与 `2a0e:97c0:3f0:1::2cba`。提交前应从可信渠道核对主机指纹。 |
+
+Workflow 会拒绝缺少 secrets 或缺少任一主机密钥的运行，并启用 `StrictHostKeyChecking`。VPS 仍需能从 `origin` 拉取 `main`，且能访问构建所需的容器镜像与依赖源。若 workflow 失败，日志会指出 SSH 连通性、Git 拉取、Compose 构建或健康检查中的失败阶段。可在本机手动执行 `python3 scripts/deploy_vps.py` 作为排障入口。
+
 ### 7.2 `[目标]`
 
 ```mermaid

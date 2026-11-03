@@ -148,6 +148,44 @@ class DeployVpsScriptTest(unittest.TestCase):
         )
 
 
+class DeployVpsWorkflowContractTest(unittest.TestCase):
+    """The production workflow must stay behind main and use the guarded deployer."""
+
+    workflow_path = ROOT / ".github" / "workflows" / "deploy-vps.yml"
+
+    def read_workflow(self) -> str:
+        self.assertTrue(self.workflow_path.is_file(), "production deploy workflow is missing")
+        return self.workflow_path.read_text(encoding="utf-8")
+
+    def test_workflow_runs_only_for_main_updates_or_manual_dispatch(self):
+        workflow = self.read_workflow()
+
+        self.assertRegex(
+            workflow,
+            r"(?m)^on:\n  push:\n    branches: \[main\]\n  workflow_dispatch:\s*$",
+        )
+        self.assertNotRegex(workflow, r"(?m)^\s*pull_request:")
+        self.assertIn("if: github.ref == 'refs/heads/main'", workflow)
+
+    def test_workflow_uses_production_scoped_secrets_and_read_only_token(self):
+        workflow = self.read_workflow()
+
+        self.assertIn("permissions:\n  contents: read\n\nconcurrency:", workflow)
+        self.assertIn(
+            "concurrency:\n  group: production-vps-deploy\n  cancel-in-progress: false",
+            workflow,
+        )
+        self.assertIn("environment: production", workflow)
+        self.assertIn("secrets.VPS_SSH_PRIVATE_KEY", workflow)
+        self.assertIn("secrets.VPS_SSH_KNOWN_HOSTS", workflow)
+        self.assertIn("StrictHostKeyChecking yes", workflow)
+
+    def test_workflow_invokes_the_existing_deployment_script(self):
+        workflow = self.read_workflow()
+
+        self.assertIn("python3 scripts/deploy_vps.py", workflow)
+
+
 class DeployVpsHttpsPrereqTest(unittest.TestCase):
     """HTTPS 前置校验（BLF-1400）。
 
