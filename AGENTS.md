@@ -56,10 +56,10 @@ pytest tests -q                      # 需要 TEST_DATABASE_URL，见 TESTING.md
 cd api && alembic upgrade head       # 用 DATABASE_URL
 ```
 
-部署：**人工执行**，不是 CI。
+部署：合并到 `main` 后由 `.github/workflows/deploy-vps.yml` 自动触发；也可在 GitHub Actions 中手动重跑 `main`。PR 分支不会部署。`production` environment 需配置部署 SSH 凭据。
 
 ```bash
-python3 scripts/deploy_vps.py        # 由人决定时机；合并 PR 不会自动部署
+python3 scripts/deploy_vps.py        # 本机手动部署/故障排查入口
 ```
 
 ## 3. 测试规则（摘要）
@@ -74,18 +74,19 @@ python3 scripts/deploy_vps.py        # 由人决定时机；合并 PR 不会自�
 
 ## 4. CI 现状（真实存在的门禁）
 
-仓库只有两条 workflow，都在 `.github/workflows/`：
+仓库有两条 CI workflow 和一条部署 workflow，都在 `.github/workflows/`：
 
 | Workflow / 检查名 | 文件 | 触发 | 做什么 |
 | --- | --- | --- | --- |
 | `web` / **`web · 测试`** | `web.yml` | 所有 PR、push `main` | Node 26 → `npm ci` → `npm test` → `npm run build` |
 | `api` / **`api · 测试`** | `api.yml` | PR 改到 `api/**`、`tests/**`、`docker/api.Dockerfile`、`api.yml` 本身；push `main` | postgres:18 服务 + Python 3.14 → `pip install -r api/requirements.txt` → `pytest tests -q` |
+| `deploy-vps` | `deploy-vps.yml` | push `main`、手动 dispatch（仅 `main`） | `production` environment SSH → `scripts/deploy_vps.py` → Compose 构建与服务健康检查 |
 
 读法：
 
 - 合并门禁 = **当前 HEAD 上相关那条检查成功**。前端/文档改动看 `web · 测试`；后端改动看 `api · 测试`；两者都改就都要。
 - `api` 有 path 过滤，纯前端 PR 里**不会出现** `api` job —— 这是设计，不是漏跑。但改动跨到接口契约（前端按新字段取值、改请求结构）时必须人工确认后端是否已合入。
-- **本仓库没有 Vercel，也没有任何部署类 workflow**。不要拿"Vercel 部署检查 / deployment 记录"当门禁，也不要等它 —— 这类要求在别的仓库成立，套到这里只会永远"无法确认"，把 PR 卡死。部署是合并之后由人跑 `scripts/deploy_vps.py`。
+- **本仓库没有 Vercel**。`deploy-vps.yml` 是合并后的发布动作，不是 PR 合并门禁；PR 阶段仍以当前 HEAD 上相关 CI 检查和语义复核为准。不要等待 Vercel deployment 状态。
 - CI 绿只是必要条件，不是充分条件：见 §5 与 `TESTING.md` §6。
 
 ## 5. PR 把关（Codex-first）

@@ -1,0 +1,64 @@
+name: deploy-vps
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-vps-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy production VPS
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 45
+    steps:
+      - name: Check out main
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+
+      - name: Configure pinned SSH access
+        shell: bash
+        env:
+          VPS_SSH_PRIVATE_KEY: ${{ secrets.VPS_SSH_PRIVATE_KEY }}
+          VPS_SSH_KNOWN_HOSTS: ${{ secrets.VPS_SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+
+          if [[ -z "$VPS_SSH_PRIVATE_KEY" || -z "$VPS_SSH_KNOWN_HOSTS" ]]; then
+            echo "::error::Configure VPS_SSH_PRIVATE_KEY and VPS_SSH_KNOWN_HOSTS in the production environment."
+            exit 1
+          fi
+
+          install -d -m 700 "$HOME/.ssh"
+          printf '%s\n' "$VPS_SSH_PRIVATE_KEY" > "$HOME/.ssh/id_deploy"
+          printf '%s\n' "$VPS_SSH_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
+          chmod 600 "$HOME/.ssh/id_deploy" "$HOME/.ssh/known_hosts"
+
+          cat > "$HOME/.ssh/config" <<'SSH_CONFIG'
+          Host 145.79.143.98 2a0e:97c0:3f0:1::2cba
+            User root
+            IdentityFile ~/.ssh/id_deploy
+            IdentitiesOnly yes
+            StrictHostKeyChecking yes
+            UserKnownHostsFile ~/.ssh/known_hosts
+          SSH_CONFIG
+          chmod 600 "$HOME/.ssh/config"
+
+          for host in 145.79.143.98 2a0e:97c0:3f0:1::2cba; do
+            if ! ssh-keygen -F "$host" -f "$HOME/.ssh/known_hosts" >/dev/null; then
+              echo "::error::VPS_SSH_KNOWN_HOSTS has no pinned host key for $host."
+              exit 1
+            fi
+          done
+
+      - name: Deploy and verify production health
+        run: python3 scripts/deploy_vps.py
