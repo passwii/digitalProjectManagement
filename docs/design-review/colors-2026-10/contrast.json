@@ -1,0 +1,2768 @@
+{
+ "text": [
+  {
+   "palette": "current",
+   "mode": "dark",
+   "label": "正文 / 画布",
+   "a": "#eaf9fb",
+   "b": "#07131f",
+   "ratio": 17.33,
+   "ok": true
+  },
+  {
+   "palette": "current",
+   "mode": "dark",
+   "label": "正文 / 卡片",
+   "a": "#eaf9fb",
+   "b": "#0d1d2c",
+   "ratio": 15.82,
+   "ok": true
+  },
+  {
+   "palette": "current",
+   "mode": "dark",
+   "label": "次级文字 / 画布",
+   "a": "#93a9b2",
+   "b": "#07131f",
+   "ratio": 7.63,
+   "ok": true
+  },
+  {
+   "palette": "current",
+   "mode": "dark",
+   "label": "弱文字 / 画布",
+   "a": "#647781",
+   "b": "#07131f",
+   "ratio": 4.01,
+   "ok": false
+  },
+  {
+   "palette": "current",
+   "mode": "dark",
+   "label": "链接 / 画布",
+   "a": "#6cf3ff",
+   "b": "#07131f",
+   "ratio": 14.17,
+   "ok": true
+  },
+  {
+   "palette": "current",
+   "mode": "dark",
+   "label": "链接 / 卡片",
+   "a": "#6cf3ff",
+   "b": "#0d1d2c",
+   "ratio": 12.94,
+   "ok": true
+  },
+  {
+   "palette": "current",
+   "mode": "dark",
+   "label": "按钮文字 / 按钮",
+   "a": "#07131f",
+   "b": "#c6ff72",
+   "ratio": 16,
+   "ok": true
+  },
+  {
+   "palette": "current",
+   "mode": "dark",
+   "label": "按钮文字 / 悬停态",
+   "a": "#07131f",
+   "b": "#d9ff9b",
+   "ratio": 16.69,
+   "ok": true
+  },
+  {
+   "palette": "current",
+   "mode": "dark",
+   "label": "进行中徽标",
+   "a": "#6cf3ff",
+   "b": "#1c3f4e",
+   "ratio": 8.5,
+   "ok": true
+  },
+  {
+   "palette": "current",
+   "mode": "dark",
+   "label": "完成徽标",
+   "a": "#c6ff72",
+   "b": "#2b4137",
+   "ratio": 9.38,
+   "ok": true
+  },
+  {
+   "palette": "current",
+   "mode": "dark",
+   "label": "警告徽标",
+   "a": "#ffc46b",
+   "b": "#343836",
+   "ratio": 7.57,
+   "ok": true
+  },
+  {
+   "palette": "current",
+   "mode": "dark",
+   "label": "危险徽标",
+   "a": "#ff9a6a",
+   "b": "#343136",
+   "ratio": 6.15,
+   "ok": true
+  },
+  {
+   "palette": "current",
+   "mode": "dark",
+   "label": "中性徽标",
+   "a": "#9cb4c4",
+   "b": "#1e2f3e",
+   "ratio": 6.36,
+   "ok": true
+  },
+  {
+   "palette": "current",
+   "mode": "dark",
+   "label": "导航文字 / 侧栏",
+   "a": "#eaf2ff",
+   "b": "#081622",
+   "ratio": 16.24,
+   "ok": true
+  },
+  {
+   "palette": "current",
+   "mode": "dark",
+   "label": "导航弱文字 / 侧栏",
+   "a": "#a3b3c0",
+   "b": "#081622",
+   "ratio": 8.51,
+   "ok": true
+  },
+  {
+   "palette": "current",
+   "mode": "dark",
+   "label": "导航文字 / 当前项底",
+   "a": "#eaf2ff",
+   "b": "#102b3a",
+   "ratio": 13.05,
+   "ok": true
+  },
+  {
+   "palette": "current",
+   "mode": "light",
+   "label": "正文 / 画布",
+   "a": "#1c2c38",
+   "b": "#f1f5f7",
+   "ratio": 13.05,
+   "ok": true
+  },
+  {
+   "palette": "current",
+   "mode": "light",
+   "label": "正文 / 卡片",
+   "a": "#1c2c38",
+   "b": "#ffffff",
+   "ratio": 14.32,
+   "ok": true
+  },
+  {
+   "palette": "current",
+   "mode": "light",
+   "label": "次级文字 / 画布",
+   "a": "#526575",
+   "b": "#f1f5f7",
+   "ratio": 5.51,
+   "ok": true
+  },
+  {
+   "palette": "current",
+   "mode": "light",
+   "label": "弱文字 / 画布",
+   "a": "#5e707d",
+   "b": "#f1f5f7",
+   "ratio": 4.68,
+   "ok": true
+  },
+  {
+   "palette": "current",
+   "mode": "light",
+   "label": "链接 / 画布",
+   "a": "#17617d",
+   "b": "#f1f5f7",
+   "ratio": 6.29,
+   "ok": true
+  },
+  {
+   "palette": "current",
+   "mode": "light",
+   "label": "链接 / 卡片",
+   "a": "#17617d",
+   "b": "#ffffff",
+   "ratio": 6.9,
+   "ok": true
+  },
+  {
+   "palette": "current",
+   "mode": "light",
+   "label": "按钮文字 / 按钮",
+   "a": "#26351a",
+   "b": "#c6df7b",
+   "ratio": 8.86,
+   "ok": true
+  },
+  {
+   "palette": "current",
+   "mode": "light",
+   "label": "按钮文字 / 悬停态",
+   "a": "#26351a",
+   "b": "#bdd76e",
+   "ratio": 8.16,
+   "ok": true
+  },
+  {
+   "palette": "current",
+   "mode": "light",
+   "label": "进行中徽标",
+   "a": "#17617d",
+   "b": "#e8eff2",
+   "ratio": 5.94,
+   "ok": true
+  },
+  {
+   "palette": "current",
+   "mode": "light",
+   "label": "完成徽标",
+   "a": "#356b4b",
+   "b": "#ebf0ed",
+   "ratio": 5.43,
+   "ok": true
+  },
+  {
+   "palette": "current",
+   "mode": "light",
+   "label": "警告徽标",
+   "a": "#805518",
+   "b": "#f2eee8",
+   "ratio": 5.62,
+   "ok": true
+  },
+  {
+   "palette": "current",
+   "mode": "light",
+   "label": "危险徽标",
+   "a": "#a23e39",
+   "b": "#f6eceb",
+   "ratio": 5.52,
+   "ok": true
+  },
+  {
+   "palette": "current",
+   "mode": "light",
+   "label": "中性徽标",
+   "a": "#5e707d",
+   "b": "#f4f5f6",
+   "ratio": 4.7,
+   "ok": true
+  },
+  {
+   "palette": "current",
+   "mode": "light",
+   "label": "导航文字 / 侧栏",
+   "a": "#f4f8fa",
+   "b": "#142f40",
+   "ratio": 13.01,
+   "ok": true
+  },
+  {
+   "palette": "current",
+   "mode": "light",
+   "label": "导航弱文字 / 侧栏",
+   "a": "#bdcbd3",
+   "b": "#142f40",
+   "ratio": 8.37,
+   "ok": true
+  },
+  {
+   "palette": "current",
+   "mode": "light",
+   "label": "导航文字 / 当前项底",
+   "a": "#f4f8fa",
+   "b": "#244657",
+   "ratio": 9.41,
+   "ok": true
+  },
+  {
+   "palette": "a",
+   "mode": "dark",
+   "label": "正文 / 画布",
+   "a": "#e8e9ec",
+   "b": "#14161a",
+   "ratio": 14.92,
+   "ok": true
+  },
+  {
+   "palette": "a",
+   "mode": "dark",
+   "label": "正文 / 卡片",
+   "a": "#e8e9ec",
+   "b": "#1a1d22",
+   "ratio": 13.92,
+   "ok": true
+  },
+  {
+   "palette": "a",
+   "mode": "dark",
+   "label": "次级文字 / 画布",
+   "a": "#a3a8b2",
+   "b": "#14161a",
+   "ratio": 7.59,
+   "ok": true
+  },
+  {
+   "palette": "a",
+   "mode": "dark",
+   "label": "弱文字 / 画布",
+   "a": "#7d838e",
+   "b": "#14161a",
+   "ratio": 4.75,
+   "ok": true
+  },
+  {
+   "palette": "a",
+   "mode": "dark",
+   "label": "链接 / 画布",
+   "a": "#8ca6f8",
+   "b": "#14161a",
+   "ratio": 7.7,
+   "ok": true
+  },
+  {
+   "palette": "a",
+   "mode": "dark",
+   "label": "链接 / 卡片",
+   "a": "#8ca6f8",
+   "b": "#1a1d22",
+   "ratio": 7.18,
+   "ok": true
+  },
+  {
+   "palette": "a",
+   "mode": "dark",
+   "label": "按钮文字 / 按钮",
+   "a": "#0c0e14",
+   "b": "#5b77e0",
+   "ratio": 4.74,
+   "ok": true
+  },
+  {
+   "palette": "a",
+   "mode": "dark",
+   "label": "按钮文字 / 悬停态",
+   "a": "#0c0e14",
+   "b": "#6e8aed",
+   "ratio": 5.99,
+   "ok": true
+  },
+  {
+   "palette": "a",
+   "mode": "dark",
+   "label": "进行中徽标",
+   "a": "#8ca6f8",
+   "b": "#2c3344",
+   "ratio": 5.36,
+   "ok": true
+  },
+  {
+   "palette": "a",
+   "mode": "dark",
+   "label": "完成徽标",
+   "a": "#58c98a",
+   "b": "#243933",
+   "ratio": 5.93,
+   "ok": true
+  },
+  {
+   "palette": "a",
+   "mode": "dark",
+   "label": "警告徽标",
+   "a": "#e3b15c",
+   "b": "#3a352b",
+   "ratio": 6.21,
+   "ok": true
+  },
+  {
+   "palette": "a",
+   "mode": "dark",
+   "label": "危险徽标",
+   "a": "#f0746b",
+   "b": "#3c2b2e",
+   "ratio": 4.7,
+   "ok": true
+  },
+  {
+   "palette": "a",
+   "mode": "dark",
+   "label": "中性徽标",
+   "a": "#9ba1ac",
+   "b": "#292d33",
+   "ratio": 5.33,
+   "ok": true
+  },
+  {
+   "palette": "a",
+   "mode": "dark",
+   "label": "导航文字 / 侧栏",
+   "a": "#e8e9ec",
+   "b": "#0f1115",
+   "ratio": 15.57,
+   "ok": true
+  },
+  {
+   "palette": "a",
+   "mode": "dark",
+   "label": "导航弱文字 / 侧栏",
+   "a": "#9aa0aa",
+   "b": "#0f1115",
+   "ratio": 7.18,
+   "ok": true
+  },
+  {
+   "palette": "a",
+   "mode": "dark",
+   "label": "导航文字 / 当前项底",
+   "a": "#e8e9ec",
+   "b": "#20263a",
+   "ratio": 12.36,
+   "ok": true
+  },
+  {
+   "palette": "a",
+   "mode": "light",
+   "label": "正文 / 画布",
+   "a": "#191c22",
+   "b": "#f6f7f9",
+   "ratio": 15.92,
+   "ok": true
+  },
+  {
+   "palette": "a",
+   "mode": "light",
+   "label": "正文 / 卡片",
+   "a": "#191c22",
+   "b": "#ffffff",
+   "ratio": 17.07,
+   "ok": true
+  },
+  {
+   "palette": "a",
+   "mode": "light",
+   "label": "次级文字 / 画布",
+   "a": "#545b66",
+   "b": "#f6f7f9",
+   "ratio": 6.39,
+   "ok": true
+  },
+  {
+   "palette": "a",
+   "mode": "light",
+   "label": "弱文字 / 画布",
+   "a": "#6a7280",
+   "b": "#f6f7f9",
+   "ratio": 4.52,
+   "ok": true
+  },
+  {
+   "palette": "a",
+   "mode": "light",
+   "label": "链接 / 画布",
+   "a": "#3d56c4",
+   "b": "#f6f7f9",
+   "ratio": 5.89,
+   "ok": true
+  },
+  {
+   "palette": "a",
+   "mode": "light",
+   "label": "链接 / 卡片",
+   "a": "#3d56c4",
+   "b": "#ffffff",
+   "ratio": 6.31,
+   "ok": true
+  },
+  {
+   "palette": "a",
+   "mode": "light",
+   "label": "按钮文字 / 按钮",
+   "a": "#ffffff",
+   "b": "#3d56c4",
+   "ratio": 6.31,
+   "ok": true
+  },
+  {
+   "palette": "a",
+   "mode": "light",
+   "label": "按钮文字 / 悬停态",
+   "a": "#ffffff",
+   "b": "#2e44a8",
+   "ratio": 8.37,
+   "ok": true
+  },
+  {
+   "palette": "a",
+   "mode": "light",
+   "label": "进行中徽标",
+   "a": "#3d56c4",
+   "b": "#eceef9",
+   "ratio": 5.46,
+   "ok": true
+  },
+  {
+   "palette": "a",
+   "mode": "light",
+   "label": "完成徽标",
+   "a": "#2c7a57",
+   "b": "#eaf2ee",
+   "ratio": 4.58,
+   "ok": true
+  },
+  {
+   "palette": "a",
+   "mode": "light",
+   "label": "警告徽标",
+   "a": "#8a5d12",
+   "b": "#f3efe7",
+   "ratio": 5.01,
+   "ok": true
+  },
+  {
+   "palette": "a",
+   "mode": "light",
+   "label": "危险徽标",
+   "a": "#ae3a34",
+   "b": "#f7ebeb",
+   "ratio": 5.22,
+   "ok": true
+  },
+  {
+   "palette": "a",
+   "mode": "light",
+   "label": "中性徽标",
+   "a": "#5f6773",
+   "b": "#f4f4f5",
+   "ratio": 5.2,
+   "ok": true
+  },
+  {
+   "palette": "a",
+   "mode": "light",
+   "label": "导航文字 / 侧栏",
+   "a": "#eff0f3",
+   "b": "#23272f",
+   "ratio": 13.14,
+   "ok": true
+  },
+  {
+   "palette": "a",
+   "mode": "light",
+   "label": "导航弱文字 / 侧栏",
+   "a": "#a8aeb8",
+   "b": "#23272f",
+   "ratio": 6.71,
+   "ok": true
+  },
+  {
+   "palette": "a",
+   "mode": "light",
+   "label": "导航文字 / 当前项底",
+   "a": "#eff0f3",
+   "b": "#333a47",
+   "ratio": 10.03,
+   "ok": true
+  },
+  {
+   "palette": "b",
+   "mode": "dark",
+   "label": "正文 / 画布",
+   "a": "#e3edef",
+   "b": "#081316",
+   "ratio": 15.81,
+   "ok": true
+  },
+  {
+   "palette": "b",
+   "mode": "dark",
+   "label": "正文 / 卡片",
+   "a": "#e3edef",
+   "b": "#0f1d21",
+   "ratio": 14.47,
+   "ok": true
+  },
+  {
+   "palette": "b",
+   "mode": "dark",
+   "label": "次级文字 / 画布",
+   "a": "#9db0b4",
+   "b": "#081316",
+   "ratio": 8.34,
+   "ok": true
+  },
+  {
+   "palette": "b",
+   "mode": "dark",
+   "label": "弱文字 / 画布",
+   "a": "#74888d",
+   "b": "#081316",
+   "ratio": 5.07,
+   "ok": true
+  },
+  {
+   "palette": "b",
+   "mode": "dark",
+   "label": "链接 / 画布",
+   "a": "#4fc3d1",
+   "b": "#081316",
+   "ratio": 9.02,
+   "ok": true
+  },
+  {
+   "palette": "b",
+   "mode": "dark",
+   "label": "链接 / 卡片",
+   "a": "#4fc3d1",
+   "b": "#0f1d21",
+   "ratio": 8.26,
+   "ok": true
+  },
+  {
+   "palette": "b",
+   "mode": "dark",
+   "label": "按钮文字 / 按钮",
+   "a": "#17211f",
+   "b": "#e8e2d4",
+   "ratio": 12.77,
+   "ok": true
+  },
+  {
+   "palette": "b",
+   "mode": "dark",
+   "label": "按钮文字 / 悬停态",
+   "a": "#17211f",
+   "b": "#f4efe5",
+   "ratio": 14.39,
+   "ok": true
+  },
+  {
+   "palette": "b",
+   "mode": "dark",
+   "label": "进行中徽标",
+   "a": "#4fc3d1",
+   "b": "#19383d",
+   "ratio": 6.01,
+   "ok": true
+  },
+  {
+   "palette": "b",
+   "mode": "dark",
+   "label": "完成徽标",
+   "a": "#55c08c",
+   "b": "#1a3732",
+   "ratio": 5.69,
+   "ok": true
+  },
+  {
+   "palette": "b",
+   "mode": "dark",
+   "label": "警告徽标",
+   "a": "#e0ae5a",
+   "b": "#30342a",
+   "ratio": 6.28,
+   "ok": true
+  },
+  {
+   "palette": "b",
+   "mode": "dark",
+   "label": "危险徽标",
+   "a": "#f0756b",
+   "b": "#332b2d",
+   "ratio": 4.9,
+   "ok": true
+  },
+  {
+   "palette": "b",
+   "mode": "dark",
+   "label": "中性徽标",
+   "a": "#93a6aa",
+   "b": "#1f2d31",
+   "ratio": 5.6,
+   "ok": true
+  },
+  {
+   "palette": "b",
+   "mode": "dark",
+   "label": "导航文字 / 侧栏",
+   "a": "#e3edef",
+   "b": "#061012",
+   "ratio": 16.16,
+   "ok": true
+  },
+  {
+   "palette": "b",
+   "mode": "dark",
+   "label": "导航弱文字 / 侧栏",
+   "a": "#92a6aa",
+   "b": "#061012",
+   "ratio": 7.57,
+   "ok": true
+  },
+  {
+   "palette": "b",
+   "mode": "dark",
+   "label": "导航文字 / 当前项底",
+   "a": "#e3edef",
+   "b": "#0f2a2e",
+   "ratio": 12.67,
+   "ok": true
+  },
+  {
+   "palette": "b",
+   "mode": "light",
+   "label": "正文 / 画布",
+   "a": "#13262b",
+   "b": "#f2f6f6",
+   "ratio": 14.4,
+   "ok": true
+  },
+  {
+   "palette": "b",
+   "mode": "light",
+   "label": "正文 / 卡片",
+   "a": "#13262b",
+   "b": "#ffffff",
+   "ratio": 15.67,
+   "ok": true
+  },
+  {
+   "palette": "b",
+   "mode": "light",
+   "label": "次级文字 / 画布",
+   "a": "#4d646a",
+   "b": "#f2f6f6",
+   "ratio": 5.76,
+   "ok": true
+  },
+  {
+   "palette": "b",
+   "mode": "light",
+   "label": "弱文字 / 画布",
+   "a": "#597075",
+   "b": "#f2f6f6",
+   "ratio": 4.82,
+   "ok": true
+  },
+  {
+   "palette": "b",
+   "mode": "light",
+   "label": "链接 / 画布",
+   "a": "#0e6b79",
+   "b": "#f2f6f6",
+   "ratio": 5.68,
+   "ok": true
+  },
+  {
+   "palette": "b",
+   "mode": "light",
+   "label": "链接 / 卡片",
+   "a": "#0e6b79",
+   "b": "#ffffff",
+   "ratio": 6.18,
+   "ok": true
+  },
+  {
+   "palette": "b",
+   "mode": "light",
+   "label": "按钮文字 / 按钮",
+   "a": "#f7fafa",
+   "b": "#14282d",
+   "ratio": 14.59,
+   "ok": true
+  },
+  {
+   "palette": "b",
+   "mode": "light",
+   "label": "按钮文字 / 悬停态",
+   "a": "#f7fafa",
+   "b": "#1d3a40",
+   "ratio": 11.56,
+   "ok": true
+  },
+  {
+   "palette": "b",
+   "mode": "light",
+   "label": "进行中徽标",
+   "a": "#0e6b79",
+   "b": "#e7f0f2",
+   "ratio": 5.34,
+   "ok": true
+  },
+  {
+   "palette": "b",
+   "mode": "light",
+   "label": "完成徽标",
+   "a": "#256b4c",
+   "b": "#e9f0ed",
+   "ratio": 5.52,
+   "ok": true
+  },
+  {
+   "palette": "b",
+   "mode": "light",
+   "label": "警告徽标",
+   "a": "#7e5514",
+   "b": "#f2eee8",
+   "ratio": 5.68,
+   "ok": true
+  },
+  {
+   "palette": "b",
+   "mode": "light",
+   "label": "危险徽标",
+   "a": "#ab3a34",
+   "b": "#f7ebeb",
+   "ratio": 5.33,
+   "ok": true
+  },
+  {
+   "palette": "b",
+   "mode": "light",
+   "label": "中性徽标",
+   "a": "#5b6e73",
+   "b": "#f4f5f5",
+   "ratio": 4.9,
+   "ok": true
+  },
+  {
+   "palette": "b",
+   "mode": "light",
+   "label": "导航文字 / 侧栏",
+   "a": "#f1f7f7",
+   "b": "#0b2228",
+   "ratio": 15.22,
+   "ok": true
+  },
+  {
+   "palette": "b",
+   "mode": "light",
+   "label": "导航弱文字 / 侧栏",
+   "a": "#a5bcc0",
+   "b": "#0b2228",
+   "ratio": 8.29,
+   "ok": true
+  },
+  {
+   "palette": "b",
+   "mode": "light",
+   "label": "导航文字 / 当前项底",
+   "a": "#f1f7f7",
+   "b": "#14383f",
+   "ratio": 11.63,
+   "ok": true
+  },
+  {
+   "palette": "c",
+   "mode": "dark",
+   "label": "正文 / 画布",
+   "a": "#e9eadf",
+   "b": "#12140f",
+   "ratio": 15.27,
+   "ok": true
+  },
+  {
+   "palette": "c",
+   "mode": "dark",
+   "label": "正文 / 卡片",
+   "a": "#e9eadf",
+   "b": "#1b1d17",
+   "ratio": 14.01,
+   "ok": true
+  },
+  {
+   "palette": "c",
+   "mode": "dark",
+   "label": "次级文字 / 画布",
+   "a": "#a5a79a",
+   "b": "#12140f",
+   "ratio": 7.59,
+   "ok": true
+  },
+  {
+   "palette": "c",
+   "mode": "dark",
+   "label": "弱文字 / 画布",
+   "a": "#878b7c",
+   "b": "#12140f",
+   "ratio": 5.31,
+   "ok": true
+  },
+  {
+   "palette": "c",
+   "mode": "dark",
+   "label": "链接 / 画布",
+   "a": "#5cbd90",
+   "b": "#12140f",
+   "ratio": 8.07,
+   "ok": true
+  },
+  {
+   "palette": "c",
+   "mode": "dark",
+   "label": "链接 / 卡片",
+   "a": "#5cbd90",
+   "b": "#1b1d17",
+   "ratio": 7.4,
+   "ok": true
+  },
+  {
+   "palette": "c",
+   "mode": "dark",
+   "label": "按钮文字 / 按钮",
+   "a": "#1a1206",
+   "b": "#ce9350",
+   "ratio": 6.98,
+   "ok": true
+  },
+  {
+   "palette": "c",
+   "mode": "dark",
+   "label": "按钮文字 / 悬停态",
+   "a": "#1a1206",
+   "b": "#dca463",
+   "ratio": 8.41,
+   "ok": true
+  },
+  {
+   "palette": "c",
+   "mode": "dark",
+   "label": "进行中徽标",
+   "a": "#57b3ab",
+   "b": "#25352f",
+   "ratio": 5.18,
+   "ok": true
+  },
+  {
+   "palette": "c",
+   "mode": "dark",
+   "label": "完成徽标",
+   "a": "#4fa978",
+   "b": "#233327",
+   "ratio": 4.62,
+   "ok": true
+  },
+  {
+   "palette": "c",
+   "mode": "dark",
+   "label": "警告徽标",
+   "a": "#e8c55c",
+   "b": "#3c3822",
+   "ratio": 7.06,
+   "ok": true
+  },
+  {
+   "palette": "c",
+   "mode": "dark",
+   "label": "危险徽标",
+   "a": "#e87c6a",
+   "b": "#3c2c24",
+   "ratio": 4.77,
+   "ok": true
+  },
+  {
+   "palette": "c",
+   "mode": "dark",
+   "label": "中性徽标",
+   "a": "#989b8e",
+   "b": "#2a2c25",
+   "ratio": 4.99,
+   "ok": true
+  },
+  {
+   "palette": "c",
+   "mode": "dark",
+   "label": "导航文字 / 侧栏",
+   "a": "#e9eadf",
+   "b": "#0e100b",
+   "ratio": 15.76,
+   "ok": true
+  },
+  {
+   "palette": "c",
+   "mode": "dark",
+   "label": "导航弱文字 / 侧栏",
+   "a": "#9ca091",
+   "b": "#0e100b",
+   "ratio": 7.15,
+   "ok": true
+  },
+  {
+   "palette": "c",
+   "mode": "dark",
+   "label": "导航文字 / 当前项底",
+   "a": "#e9eadf",
+   "b": "#1e2a22",
+   "ratio": 12.27,
+   "ok": true
+  },
+  {
+   "palette": "c",
+   "mode": "light",
+   "label": "正文 / 画布",
+   "a": "#1e1c15",
+   "b": "#f8f6f0",
+   "ratio": 15.77,
+   "ok": true
+  },
+  {
+   "palette": "c",
+   "mode": "light",
+   "label": "正文 / 卡片",
+   "a": "#1e1c15",
+   "b": "#ffffff",
+   "ratio": 17.04,
+   "ok": true
+  },
+  {
+   "palette": "c",
+   "mode": "light",
+   "label": "次级文字 / 画布",
+   "a": "#575443",
+   "b": "#f8f6f0",
+   "ratio": 7.05,
+   "ok": true
+  },
+  {
+   "palette": "c",
+   "mode": "light",
+   "label": "弱文字 / 画布",
+   "a": "#6f6b5a",
+   "b": "#f8f6f0",
+   "ratio": 4.95,
+   "ok": true
+  },
+  {
+   "palette": "c",
+   "mode": "light",
+   "label": "链接 / 画布",
+   "a": "#1e6b4c",
+   "b": "#f8f6f0",
+   "ratio": 5.96,
+   "ok": true
+  },
+  {
+   "palette": "c",
+   "mode": "light",
+   "label": "链接 / 卡片",
+   "a": "#1e6b4c",
+   "b": "#ffffff",
+   "ratio": 6.44,
+   "ok": true
+  },
+  {
+   "palette": "c",
+   "mode": "light",
+   "label": "按钮文字 / 按钮",
+   "a": "#ffffff",
+   "b": "#8a5c14",
+   "ratio": 5.8,
+   "ok": true
+  },
+  {
+   "palette": "c",
+   "mode": "light",
+   "label": "按钮文字 / 悬停态",
+   "a": "#ffffff",
+   "b": "#744c0e",
+   "ratio": 7.55,
+   "ok": true
+  },
+  {
+   "palette": "c",
+   "mode": "light",
+   "label": "进行中徽标",
+   "a": "#1d7a72",
+   "b": "#e8f2f1",
+   "ratio": 4.51,
+   "ok": true
+  },
+  {
+   "palette": "c",
+   "mode": "light",
+   "label": "完成徽标",
+   "a": "#25694a",
+   "b": "#e9f0ed",
+   "ratio": 5.68,
+   "ok": true
+  },
+  {
+   "palette": "c",
+   "mode": "light",
+   "label": "警告徽标",
+   "a": "#7c6410",
+   "b": "#f2f0e7",
+   "ratio": 4.99,
+   "ok": true
+  },
+  {
+   "palette": "c",
+   "mode": "light",
+   "label": "危险徽标",
+   "a": "#a33a2b",
+   "b": "#f6ebea",
+   "ratio": 5.63,
+   "ok": true
+  },
+  {
+   "palette": "c",
+   "mode": "light",
+   "label": "中性徽标",
+   "a": "#6b6656",
+   "b": "#f5f4f3",
+   "ratio": 5.22,
+   "ok": true
+  },
+  {
+   "palette": "c",
+   "mode": "light",
+   "label": "导航文字 / 侧栏",
+   "a": "#f2f0e6",
+   "b": "#12211a",
+   "ratio": 14.61,
+   "ok": true
+  },
+  {
+   "palette": "c",
+   "mode": "light",
+   "label": "导航弱文字 / 侧栏",
+   "a": "#a9a797",
+   "b": "#12211a",
+   "ratio": 6.88,
+   "ok": true
+  },
+  {
+   "palette": "c",
+   "mode": "light",
+   "label": "导航文字 / 当前项底",
+   "a": "#f2f0e6",
+   "b": "#1d3327",
+   "ratio": 11.82,
+   "ok": true
+  },
+  {
+   "palette": "d",
+   "mode": "dark",
+   "label": "正文 / 画布",
+   "a": "#eaf9fb",
+   "b": "#07131f",
+   "ratio": 17.33,
+   "ok": true
+  },
+  {
+   "palette": "d",
+   "mode": "dark",
+   "label": "正文 / 卡片",
+   "a": "#eaf9fb",
+   "b": "#0d1d2c",
+   "ratio": 15.82,
+   "ok": true
+  },
+  {
+   "palette": "d",
+   "mode": "dark",
+   "label": "次级文字 / 画布",
+   "a": "#a8c2cc",
+   "b": "#07131f",
+   "ratio": 10.03,
+   "ok": true
+  },
+  {
+   "palette": "d",
+   "mode": "dark",
+   "label": "弱文字 / 画布",
+   "a": "#7d949e",
+   "b": "#07131f",
+   "ratio": 5.88,
+   "ok": true
+  },
+  {
+   "palette": "d",
+   "mode": "dark",
+   "label": "链接 / 画布",
+   "a": "#5fe7f5",
+   "b": "#07131f",
+   "ratio": 12.69,
+   "ok": true
+  },
+  {
+   "palette": "d",
+   "mode": "dark",
+   "label": "链接 / 卡片",
+   "a": "#5fe7f5",
+   "b": "#0d1d2c",
+   "ratio": 11.58,
+   "ok": true
+  },
+  {
+   "palette": "d",
+   "mode": "dark",
+   "label": "按钮文字 / 按钮",
+   "a": "#04191d",
+   "b": "#5fe7f5",
+   "ratio": 12.25,
+   "ok": true
+  },
+  {
+   "palette": "d",
+   "mode": "dark",
+   "label": "按钮文字 / 悬停态",
+   "a": "#04191d",
+   "b": "#93effa",
+   "ratio": 13.74,
+   "ok": true
+  },
+  {
+   "palette": "d",
+   "mode": "dark",
+   "label": "进行中徽标",
+   "a": "#5fe7f5",
+   "b": "#1a3d4c",
+   "ratio": 7.84,
+   "ok": true
+  },
+  {
+   "palette": "d",
+   "mode": "dark",
+   "label": "完成徽标",
+   "a": "#6fdca6",
+   "b": "#1d3c40",
+   "ratio": 7.03,
+   "ok": true
+  },
+  {
+   "palette": "d",
+   "mode": "dark",
+   "label": "警告徽标",
+   "a": "#f0bf6a",
+   "b": "#313736",
+   "ratio": 7.15,
+   "ok": true
+  },
+  {
+   "palette": "d",
+   "mode": "dark",
+   "label": "危险徽标",
+   "a": "#f28a72",
+   "b": "#322e37",
+   "ratio": 5.47,
+   "ok": true
+  },
+  {
+   "palette": "d",
+   "mode": "dark",
+   "label": "中性徽标",
+   "a": "#9cb4c4",
+   "b": "#1e2f3e",
+   "ratio": 6.36,
+   "ok": true
+  },
+  {
+   "palette": "d",
+   "mode": "dark",
+   "label": "导航文字 / 侧栏",
+   "a": "#eaf2ff",
+   "b": "#081622",
+   "ratio": 16.24,
+   "ok": true
+  },
+  {
+   "palette": "d",
+   "mode": "dark",
+   "label": "导航弱文字 / 侧栏",
+   "a": "#a3b3c0",
+   "b": "#081622",
+   "ratio": 8.51,
+   "ok": true
+  },
+  {
+   "palette": "d",
+   "mode": "dark",
+   "label": "导航文字 / 当前项底",
+   "a": "#eaf2ff",
+   "b": "#0f2b3a",
+   "ratio": 13.07,
+   "ok": true
+  },
+  {
+   "palette": "d",
+   "mode": "light",
+   "label": "正文 / 画布",
+   "a": "#1c2c38",
+   "b": "#f1f5f7",
+   "ratio": 13.05,
+   "ok": true
+  },
+  {
+   "palette": "d",
+   "mode": "light",
+   "label": "正文 / 卡片",
+   "a": "#1c2c38",
+   "b": "#ffffff",
+   "ratio": 14.32,
+   "ok": true
+  },
+  {
+   "palette": "d",
+   "mode": "light",
+   "label": "次级文字 / 画布",
+   "a": "#4c6068",
+   "b": "#f1f5f7",
+   "ratio": 6.02,
+   "ok": true
+  },
+  {
+   "palette": "d",
+   "mode": "light",
+   "label": "弱文字 / 画布",
+   "a": "#5a6d74",
+   "b": "#f1f5f7",
+   "ratio": 4.94,
+   "ok": true
+  },
+  {
+   "palette": "d",
+   "mode": "light",
+   "label": "链接 / 画布",
+   "a": "#17617d",
+   "b": "#f1f5f7",
+   "ratio": 6.29,
+   "ok": true
+  },
+  {
+   "palette": "d",
+   "mode": "light",
+   "label": "链接 / 卡片",
+   "a": "#17617d",
+   "b": "#ffffff",
+   "ratio": 6.9,
+   "ok": true
+  },
+  {
+   "palette": "d",
+   "mode": "light",
+   "label": "按钮文字 / 按钮",
+   "a": "#ffffff",
+   "b": "#17617d",
+   "ratio": 6.9,
+   "ok": true
+  },
+  {
+   "palette": "d",
+   "mode": "light",
+   "label": "按钮文字 / 悬停态",
+   "a": "#ffffff",
+   "b": "#124d64",
+   "ratio": 9.25,
+   "ok": true
+  },
+  {
+   "palette": "d",
+   "mode": "light",
+   "label": "进行中徽标",
+   "a": "#17617d",
+   "b": "#e8eff2",
+   "ratio": 5.94,
+   "ok": true
+  },
+  {
+   "palette": "d",
+   "mode": "light",
+   "label": "完成徽标",
+   "a": "#2f7a55",
+   "b": "#eaf2ee",
+   "ratio": 4.57,
+   "ok": true
+  },
+  {
+   "palette": "d",
+   "mode": "light",
+   "label": "警告徽标",
+   "a": "#7d5417",
+   "b": "#f2eee8",
+   "ratio": 5.76,
+   "ok": true
+  },
+  {
+   "palette": "d",
+   "mode": "light",
+   "label": "危险徽标",
+   "a": "#9e3a33",
+   "b": "#f5ebeb",
+   "ratio": 5.78,
+   "ok": true
+  },
+  {
+   "palette": "d",
+   "mode": "light",
+   "label": "中性徽标",
+   "a": "#5e707d",
+   "b": "#f4f5f6",
+   "ratio": 4.7,
+   "ok": true
+  },
+  {
+   "palette": "d",
+   "mode": "light",
+   "label": "导航文字 / 侧栏",
+   "a": "#f4f8fa",
+   "b": "#142f40",
+   "ratio": 13.01,
+   "ok": true
+  },
+  {
+   "palette": "d",
+   "mode": "light",
+   "label": "导航弱文字 / 侧栏",
+   "a": "#bdcbd3",
+   "b": "#142f40",
+   "ratio": 8.37,
+   "ok": true
+  },
+  {
+   "palette": "d",
+   "mode": "light",
+   "label": "导航文字 / 当前项底",
+   "a": "#f4f8fa",
+   "b": "#244657",
+   "ratio": 9.41,
+   "ok": true
+  }
+ ],
+ "graphic": [
+  {
+   "palette": "current",
+   "mode": "dark",
+   "label": "控件描边 / 卡片",
+   "a": "#2a4350",
+   "b": "#0d1d2c",
+   "ratio": 1.64,
+   "ok": false
+  },
+  {
+   "palette": "current",
+   "mode": "dark",
+   "label": "控件描边 / 画布",
+   "a": "#2a4350",
+   "b": "#07131f",
+   "ratio": 1.8,
+   "ok": false
+  },
+  {
+   "palette": "current",
+   "mode": "dark",
+   "label": "导航当前项标记",
+   "a": "#6cf3ff",
+   "b": "#102b3a",
+   "ratio": 11.13,
+   "ok": true
+  },
+  {
+   "palette": "current",
+   "mode": "dark",
+   "label": "主按钮底 / 画布",
+   "a": "#c6ff72",
+   "b": "#07131f",
+   "ratio": 16,
+   "ok": true
+  },
+  {
+   "palette": "current",
+   "mode": "dark",
+   "label": "主按钮底 / 卡片",
+   "a": "#c6ff72",
+   "b": "#0d1d2c",
+   "ratio": 14.6,
+   "ok": true
+  },
+  {
+   "palette": "current",
+   "mode": "dark",
+   "label": "图表系列 1",
+   "a": "#6cf3ff",
+   "b": "#0d1d2c",
+   "ratio": 12.94,
+   "ok": true
+  },
+  {
+   "palette": "current",
+   "mode": "dark",
+   "label": "图表系列 2",
+   "a": "#7db4ff",
+   "b": "#0d1d2c",
+   "ratio": 8.01,
+   "ok": true
+  },
+  {
+   "palette": "current",
+   "mode": "dark",
+   "label": "图表系列 3",
+   "a": "#bda6ff",
+   "b": "#0d1d2c",
+   "ratio": 8.19,
+   "ok": true
+  },
+  {
+   "palette": "current",
+   "mode": "dark",
+   "label": "图表系列 4",
+   "a": "#ff8fc7",
+   "b": "#0d1d2c",
+   "ratio": 8.14,
+   "ok": true
+  },
+  {
+   "palette": "current",
+   "mode": "dark",
+   "label": "图表系列 5",
+   "a": "#ff9a6a",
+   "b": "#0d1d2c",
+   "ratio": 8.2,
+   "ok": true
+  },
+  {
+   "palette": "current",
+   "mode": "dark",
+   "label": "图表系列 6",
+   "a": "#ffc46b",
+   "b": "#0d1d2c",
+   "ratio": 10.87,
+   "ok": true
+  },
+  {
+   "palette": "current",
+   "mode": "light",
+   "label": "控件描边 / 卡片",
+   "a": "#82939e",
+   "b": "#ffffff",
+   "ratio": 3.17,
+   "ok": true
+  },
+  {
+   "palette": "current",
+   "mode": "light",
+   "label": "控件描边 / 画布",
+   "a": "#82939e",
+   "b": "#f1f5f7",
+   "ratio": 2.89,
+   "ok": false
+  },
+  {
+   "palette": "current",
+   "mode": "light",
+   "label": "导航当前项标记",
+   "a": "#c6df7b",
+   "b": "#244657",
+   "ratio": 6.82,
+   "ok": true
+  },
+  {
+   "palette": "current",
+   "mode": "light",
+   "label": "主按钮底 / 画布",
+   "a": "#c6df7b",
+   "b": "#f1f5f7",
+   "ratio": 1.34,
+   "ok": false
+  },
+  {
+   "palette": "current",
+   "mode": "light",
+   "label": "主按钮底 / 卡片",
+   "a": "#c6df7b",
+   "b": "#ffffff",
+   "ratio": 1.47,
+   "ok": false
+  },
+  {
+   "palette": "current",
+   "mode": "light",
+   "label": "图表系列 1",
+   "a": "#17617d",
+   "b": "#ffffff",
+   "ratio": 6.9,
+   "ok": true
+  },
+  {
+   "palette": "current",
+   "mode": "light",
+   "label": "图表系列 2",
+   "a": "#2f5fbf",
+   "b": "#ffffff",
+   "ratio": 5.98,
+   "ok": true
+  },
+  {
+   "palette": "current",
+   "mode": "light",
+   "label": "图表系列 3",
+   "a": "#6d4cc2",
+   "b": "#ffffff",
+   "ratio": 6.06,
+   "ok": true
+  },
+  {
+   "palette": "current",
+   "mode": "light",
+   "label": "图表系列 4",
+   "a": "#a03b73",
+   "b": "#ffffff",
+   "ratio": 6.24,
+   "ok": true
+  },
+  {
+   "palette": "current",
+   "mode": "light",
+   "label": "图表系列 5",
+   "a": "#a23e39",
+   "b": "#ffffff",
+   "ratio": 6.39,
+   "ok": true
+  },
+  {
+   "palette": "current",
+   "mode": "light",
+   "label": "图表系列 6",
+   "a": "#805518",
+   "b": "#ffffff",
+   "ratio": 6.5,
+   "ok": true
+  },
+  {
+   "palette": "a",
+   "mode": "dark",
+   "label": "控件描边 / 卡片",
+   "a": "#676b72",
+   "b": "#1a1d22",
+   "ratio": 3.16,
+   "ok": true
+  },
+  {
+   "palette": "a",
+   "mode": "dark",
+   "label": "控件描边 / 画布",
+   "a": "#676b72",
+   "b": "#14161a",
+   "ratio": 3.38,
+   "ok": true
+  },
+  {
+   "palette": "a",
+   "mode": "dark",
+   "label": "导航当前项标记",
+   "a": "#a9bcff",
+   "b": "#20263a",
+   "ratio": 8.09,
+   "ok": true
+  },
+  {
+   "palette": "a",
+   "mode": "dark",
+   "label": "主按钮底 / 画布",
+   "a": "#5b77e0",
+   "b": "#14161a",
+   "ratio": 4.45,
+   "ok": true
+  },
+  {
+   "palette": "a",
+   "mode": "dark",
+   "label": "主按钮底 / 卡片",
+   "a": "#5b77e0",
+   "b": "#1a1d22",
+   "ratio": 4.15,
+   "ok": true
+  },
+  {
+   "palette": "a",
+   "mode": "dark",
+   "label": "图表系列 1",
+   "a": "#8ca6f8",
+   "b": "#1a1d22",
+   "ratio": 7.18,
+   "ok": true
+  },
+  {
+   "palette": "a",
+   "mode": "dark",
+   "label": "图表系列 2",
+   "a": "#57c6d2",
+   "b": "#1a1d22",
+   "ratio": 8.38,
+   "ok": true
+  },
+  {
+   "palette": "a",
+   "mode": "dark",
+   "label": "图表系列 3",
+   "a": "#e88bc4",
+   "b": "#1a1d22",
+   "ratio": 7.18,
+   "ok": true
+  },
+  {
+   "palette": "a",
+   "mode": "dark",
+   "label": "图表系列 4",
+   "a": "#e3b15c",
+   "b": "#1a1d22",
+   "ratio": 8.62,
+   "ok": true
+  },
+  {
+   "palette": "a",
+   "mode": "dark",
+   "label": "图表系列 5",
+   "a": "#58c98a",
+   "b": "#1a1d22",
+   "ratio": 8.16,
+   "ok": true
+  },
+  {
+   "palette": "a",
+   "mode": "dark",
+   "label": "图表系列 6",
+   "a": "#97a3b8",
+   "b": "#1a1d22",
+   "ratio": 6.64,
+   "ok": true
+  },
+  {
+   "palette": "a",
+   "mode": "light",
+   "label": "控件描边 / 卡片",
+   "a": "#878c94",
+   "b": "#ffffff",
+   "ratio": 3.38,
+   "ok": true
+  },
+  {
+   "palette": "a",
+   "mode": "light",
+   "label": "控件描边 / 画布",
+   "a": "#878c94",
+   "b": "#f6f7f9",
+   "ratio": 3.16,
+   "ok": true
+  },
+  {
+   "palette": "a",
+   "mode": "light",
+   "label": "导航当前项标记",
+   "a": "#b3c4ff",
+   "b": "#333a47",
+   "ratio": 6.67,
+   "ok": true
+  },
+  {
+   "palette": "a",
+   "mode": "light",
+   "label": "主按钮底 / 画布",
+   "a": "#3d56c4",
+   "b": "#f6f7f9",
+   "ratio": 5.89,
+   "ok": true
+  },
+  {
+   "palette": "a",
+   "mode": "light",
+   "label": "主按钮底 / 卡片",
+   "a": "#3d56c4",
+   "b": "#ffffff",
+   "ratio": 6.31,
+   "ok": true
+  },
+  {
+   "palette": "a",
+   "mode": "light",
+   "label": "图表系列 1",
+   "a": "#3d56c4",
+   "b": "#ffffff",
+   "ratio": 6.31,
+   "ok": true
+  },
+  {
+   "palette": "a",
+   "mode": "light",
+   "label": "图表系列 2",
+   "a": "#177f8e",
+   "b": "#ffffff",
+   "ratio": 4.71,
+   "ok": true
+  },
+  {
+   "palette": "a",
+   "mode": "light",
+   "label": "图表系列 3",
+   "a": "#a8447c",
+   "b": "#ffffff",
+   "ratio": 5.55,
+   "ok": true
+  },
+  {
+   "palette": "a",
+   "mode": "light",
+   "label": "图表系列 4",
+   "a": "#8a5d12",
+   "b": "#ffffff",
+   "ratio": 5.75,
+   "ok": true
+  },
+  {
+   "palette": "a",
+   "mode": "light",
+   "label": "图表系列 5",
+   "a": "#2c7a57",
+   "b": "#ffffff",
+   "ratio": 5.21,
+   "ok": true
+  },
+  {
+   "palette": "a",
+   "mode": "light",
+   "label": "图表系列 6",
+   "a": "#6b7280",
+   "b": "#ffffff",
+   "ratio": 4.83,
+   "ok": true
+  },
+  {
+   "palette": "b",
+   "mode": "dark",
+   "label": "控件描边 / 卡片",
+   "a": "#5c6d71",
+   "b": "#0f1d21",
+   "ratio": 3.19,
+   "ok": true
+  },
+  {
+   "palette": "b",
+   "mode": "dark",
+   "label": "控件描边 / 画布",
+   "a": "#5c6d71",
+   "b": "#081316",
+   "ratio": 3.48,
+   "ok": true
+  },
+  {
+   "palette": "b",
+   "mode": "dark",
+   "label": "导航当前项标记",
+   "a": "#74d6e1",
+   "b": "#0f2a2e",
+   "ratio": 8.95,
+   "ok": true
+  },
+  {
+   "palette": "b",
+   "mode": "dark",
+   "label": "主按钮底 / 画布",
+   "a": "#e8e2d4",
+   "b": "#081316",
+   "ratio": 14.58,
+   "ok": true
+  },
+  {
+   "palette": "b",
+   "mode": "dark",
+   "label": "主按钮底 / 卡片",
+   "a": "#e8e2d4",
+   "b": "#0f1d21",
+   "ratio": 13.35,
+   "ok": true
+  },
+  {
+   "palette": "b",
+   "mode": "dark",
+   "label": "图表系列 1",
+   "a": "#4fc3d1",
+   "b": "#0f1d21",
+   "ratio": 8.26,
+   "ok": true
+  },
+  {
+   "palette": "b",
+   "mode": "dark",
+   "label": "图表系列 2",
+   "a": "#e0ae5a",
+   "b": "#0f1d21",
+   "ratio": 8.52,
+   "ok": true
+  },
+  {
+   "palette": "b",
+   "mode": "dark",
+   "label": "图表系列 3",
+   "a": "#b79be8",
+   "b": "#0f1d21",
+   "ratio": 7.28,
+   "ok": true
+  },
+  {
+   "palette": "b",
+   "mode": "dark",
+   "label": "图表系列 4",
+   "a": "#e8839e",
+   "b": "#0f1d21",
+   "ratio": 6.71,
+   "ok": true
+  },
+  {
+   "palette": "b",
+   "mode": "dark",
+   "label": "图表系列 5",
+   "a": "#55c08c",
+   "b": "#0f1d21",
+   "ratio": 7.64,
+   "ok": true
+  },
+  {
+   "palette": "b",
+   "mode": "dark",
+   "label": "图表系列 6",
+   "a": "#8fa0a6",
+   "b": "#0f1d21",
+   "ratio": 6.36,
+   "ok": true
+  },
+  {
+   "palette": "b",
+   "mode": "light",
+   "label": "控件描边 / 卡片",
+   "a": "#7d8d92",
+   "b": "#ffffff",
+   "ratio": 3.44,
+   "ok": true
+  },
+  {
+   "palette": "b",
+   "mode": "light",
+   "label": "控件描边 / 画布",
+   "a": "#7d8d92",
+   "b": "#f2f6f6",
+   "ratio": 3.16,
+   "ok": true
+  },
+  {
+   "palette": "b",
+   "mode": "light",
+   "label": "导航当前项标记",
+   "a": "#7fe0e8",
+   "b": "#14383f",
+   "ratio": 8.24,
+   "ok": true
+  },
+  {
+   "palette": "b",
+   "mode": "light",
+   "label": "主按钮底 / 画布",
+   "a": "#14282d",
+   "b": "#f2f6f6",
+   "ratio": 14.07,
+   "ok": true
+  },
+  {
+   "palette": "b",
+   "mode": "light",
+   "label": "主按钮底 / 卡片",
+   "a": "#14282d",
+   "b": "#ffffff",
+   "ratio": 15.32,
+   "ok": true
+  },
+  {
+   "palette": "b",
+   "mode": "light",
+   "label": "图表系列 1",
+   "a": "#0e6b79",
+   "b": "#ffffff",
+   "ratio": 6.18,
+   "ok": true
+  },
+  {
+   "palette": "b",
+   "mode": "light",
+   "label": "图表系列 2",
+   "a": "#9a6b12",
+   "b": "#ffffff",
+   "ratio": 4.68,
+   "ok": true
+  },
+  {
+   "palette": "b",
+   "mode": "light",
+   "label": "图表系列 3",
+   "a": "#6c4ba8",
+   "b": "#ffffff",
+   "ratio": 6.54,
+   "ok": true
+  },
+  {
+   "palette": "b",
+   "mode": "light",
+   "label": "图表系列 4",
+   "a": "#a8446e",
+   "b": "#ffffff",
+   "ratio": 5.65,
+   "ok": true
+  },
+  {
+   "palette": "b",
+   "mode": "light",
+   "label": "图表系列 5",
+   "a": "#256b4c",
+   "b": "#ffffff",
+   "ratio": 6.39,
+   "ok": true
+  },
+  {
+   "palette": "b",
+   "mode": "light",
+   "label": "图表系列 6",
+   "a": "#5b6e73",
+   "b": "#ffffff",
+   "ratio": 5.35,
+   "ok": true
+  },
+  {
+   "palette": "c",
+   "mode": "dark",
+   "label": "控件描边 / 卡片",
+   "a": "#6a6c62",
+   "b": "#1b1d17",
+   "ratio": 3.19,
+   "ok": true
+  },
+  {
+   "palette": "c",
+   "mode": "dark",
+   "label": "控件描边 / 画布",
+   "a": "#6a6c62",
+   "b": "#12140f",
+   "ratio": 3.47,
+   "ok": true
+  },
+  {
+   "palette": "c",
+   "mode": "dark",
+   "label": "导航当前项标记",
+   "a": "#7fd0a8",
+   "b": "#1e2a22",
+   "ratio": 8.15,
+   "ok": true
+  },
+  {
+   "palette": "c",
+   "mode": "dark",
+   "label": "主按钮底 / 画布",
+   "a": "#ce9350",
+   "b": "#12140f",
+   "ratio": 6.99,
+   "ok": true
+  },
+  {
+   "palette": "c",
+   "mode": "dark",
+   "label": "主按钮底 / 卡片",
+   "a": "#ce9350",
+   "b": "#1b1d17",
+   "ratio": 6.41,
+   "ok": true
+  },
+  {
+   "palette": "c",
+   "mode": "dark",
+   "label": "图表系列 1",
+   "a": "#5cbd90",
+   "b": "#1b1d17",
+   "ratio": 7.4,
+   "ok": true
+  },
+  {
+   "palette": "c",
+   "mode": "dark",
+   "label": "图表系列 2",
+   "a": "#e8c55c",
+   "b": "#1b1d17",
+   "ratio": 10.18,
+   "ok": true
+  },
+  {
+   "palette": "c",
+   "mode": "dark",
+   "label": "图表系列 3",
+   "a": "#6fa8b8",
+   "b": "#1b1d17",
+   "ratio": 6.45,
+   "ok": true
+  },
+  {
+   "palette": "c",
+   "mode": "dark",
+   "label": "图表系列 4",
+   "a": "#dd5c4c",
+   "b": "#1b1d17",
+   "ratio": 4.62,
+   "ok": true
+  },
+  {
+   "palette": "c",
+   "mode": "dark",
+   "label": "图表系列 5",
+   "a": "#7fa8d9",
+   "b": "#1b1d17",
+   "ratio": 6.89,
+   "ok": true
+  },
+  {
+   "palette": "c",
+   "mode": "dark",
+   "label": "图表系列 6",
+   "a": "#a99bd8",
+   "b": "#1b1d17",
+   "ratio": 6.78,
+   "ok": true
+  },
+  {
+   "palette": "c",
+   "mode": "light",
+   "label": "控件描边 / 卡片",
+   "a": "#8e8b80",
+   "b": "#ffffff",
+   "ratio": 3.41,
+   "ok": true
+  },
+  {
+   "palette": "c",
+   "mode": "light",
+   "label": "控件描边 / 画布",
+   "a": "#8e8b80",
+   "b": "#f8f6f0",
+   "ratio": 3.16,
+   "ok": true
+  },
+  {
+   "palette": "c",
+   "mode": "light",
+   "label": "导航当前项标记",
+   "a": "#8cd3a8",
+   "b": "#1d3327",
+   "ratio": 7.72,
+   "ok": true
+  },
+  {
+   "palette": "c",
+   "mode": "light",
+   "label": "主按钮底 / 画布",
+   "a": "#8a5c14",
+   "b": "#f8f6f0",
+   "ratio": 5.37,
+   "ok": true
+  },
+  {
+   "palette": "c",
+   "mode": "light",
+   "label": "主按钮底 / 卡片",
+   "a": "#8a5c14",
+   "b": "#ffffff",
+   "ratio": 5.8,
+   "ok": true
+  },
+  {
+   "palette": "c",
+   "mode": "light",
+   "label": "图表系列 1",
+   "a": "#1e6b4c",
+   "b": "#ffffff",
+   "ratio": 6.44,
+   "ok": true
+  },
+  {
+   "palette": "c",
+   "mode": "light",
+   "label": "图表系列 2",
+   "a": "#96700f",
+   "b": "#ffffff",
+   "ratio": 4.54,
+   "ok": true
+  },
+  {
+   "palette": "c",
+   "mode": "light",
+   "label": "图表系列 3",
+   "a": "#2f7f92",
+   "b": "#ffffff",
+   "ratio": 4.59,
+   "ok": true
+  },
+  {
+   "palette": "c",
+   "mode": "light",
+   "label": "图表系列 4",
+   "a": "#a33a2b",
+   "b": "#ffffff",
+   "ratio": 6.57,
+   "ok": true
+  },
+  {
+   "palette": "c",
+   "mode": "light",
+   "label": "图表系列 5",
+   "a": "#2f5f9e",
+   "b": "#ffffff",
+   "ratio": 6.46,
+   "ok": true
+  },
+  {
+   "palette": "c",
+   "mode": "light",
+   "label": "图表系列 6",
+   "a": "#6c4ba8",
+   "b": "#ffffff",
+   "ratio": 6.54,
+   "ok": true
+  },
+  {
+   "palette": "d",
+   "mode": "dark",
+   "label": "控件描边 / 卡片",
+   "a": "#586d79",
+   "b": "#0d1d2c",
+   "ratio": 3.16,
+   "ok": true
+  },
+  {
+   "palette": "d",
+   "mode": "dark",
+   "label": "控件描边 / 画布",
+   "a": "#586d79",
+   "b": "#07131f",
+   "ratio": 3.46,
+   "ok": true
+  },
+  {
+   "palette": "d",
+   "mode": "dark",
+   "label": "导航当前项标记",
+   "a": "#5fe7f5",
+   "b": "#0f2b3a",
+   "ratio": 9.98,
+   "ok": true
+  },
+  {
+   "palette": "d",
+   "mode": "dark",
+   "label": "主按钮底 / 画布",
+   "a": "#5fe7f5",
+   "b": "#07131f",
+   "ratio": 12.69,
+   "ok": true
+  },
+  {
+   "palette": "d",
+   "mode": "dark",
+   "label": "主按钮底 / 卡片",
+   "a": "#5fe7f5",
+   "b": "#0d1d2c",
+   "ratio": 11.58,
+   "ok": true
+  },
+  {
+   "palette": "d",
+   "mode": "dark",
+   "label": "图表系列 1",
+   "a": "#5fe7f5",
+   "b": "#0d1d2c",
+   "ratio": 11.58,
+   "ok": true
+  },
+  {
+   "palette": "d",
+   "mode": "dark",
+   "label": "图表系列 2",
+   "a": "#7db4ff",
+   "b": "#0d1d2c",
+   "ratio": 8.01,
+   "ok": true
+  },
+  {
+   "palette": "d",
+   "mode": "dark",
+   "label": "图表系列 3",
+   "a": "#bda6ff",
+   "b": "#0d1d2c",
+   "ratio": 8.19,
+   "ok": true
+  },
+  {
+   "palette": "d",
+   "mode": "dark",
+   "label": "图表系列 4",
+   "a": "#ff8fc7",
+   "b": "#0d1d2c",
+   "ratio": 8.14,
+   "ok": true
+  },
+  {
+   "palette": "d",
+   "mode": "dark",
+   "label": "图表系列 5",
+   "a": "#ff9a6a",
+   "b": "#0d1d2c",
+   "ratio": 8.2,
+   "ok": true
+  },
+  {
+   "palette": "d",
+   "mode": "dark",
+   "label": "图表系列 6",
+   "a": "#ffc46b",
+   "b": "#0d1d2c",
+   "ratio": 10.87,
+   "ok": true
+  },
+  {
+   "palette": "d",
+   "mode": "light",
+   "label": "控件描边 / 卡片",
+   "a": "#7e8c92",
+   "b": "#ffffff",
+   "ratio": 3.47,
+   "ok": true
+  },
+  {
+   "palette": "d",
+   "mode": "light",
+   "label": "控件描边 / 画布",
+   "a": "#7e8c92",
+   "b": "#f1f5f7",
+   "ratio": 3.16,
+   "ok": true
+  },
+  {
+   "palette": "d",
+   "mode": "light",
+   "label": "导航当前项标记",
+   "a": "#7fe0e8",
+   "b": "#244657",
+   "ratio": 6.57,
+   "ok": true
+  },
+  {
+   "palette": "d",
+   "mode": "light",
+   "label": "主按钮底 / 画布",
+   "a": "#17617d",
+   "b": "#f1f5f7",
+   "ratio": 6.29,
+   "ok": true
+  },
+  {
+   "palette": "d",
+   "mode": "light",
+   "label": "主按钮底 / 卡片",
+   "a": "#17617d",
+   "b": "#ffffff",
+   "ratio": 6.9,
+   "ok": true
+  },
+  {
+   "palette": "d",
+   "mode": "light",
+   "label": "图表系列 1",
+   "a": "#17617d",
+   "b": "#ffffff",
+   "ratio": 6.9,
+   "ok": true
+  },
+  {
+   "palette": "d",
+   "mode": "light",
+   "label": "图表系列 2",
+   "a": "#2f5fbf",
+   "b": "#ffffff",
+   "ratio": 5.98,
+   "ok": true
+  },
+  {
+   "palette": "d",
+   "mode": "light",
+   "label": "图表系列 3",
+   "a": "#6d4cc2",
+   "b": "#ffffff",
+   "ratio": 6.06,
+   "ok": true
+  },
+  {
+   "palette": "d",
+   "mode": "light",
+   "label": "图表系列 4",
+   "a": "#a03b73",
+   "b": "#ffffff",
+   "ratio": 6.24,
+   "ok": true
+  },
+  {
+   "palette": "d",
+   "mode": "light",
+   "label": "图表系列 5",
+   "a": "#a23e39",
+   "b": "#ffffff",
+   "ratio": 6.39,
+   "ok": true
+  },
+  {
+   "palette": "d",
+   "mode": "light",
+   "label": "图表系列 6",
+   "a": "#7d5417",
+   "b": "#ffffff",
+   "ratio": 6.66,
+   "ok": true
+  }
+ ],
+ "meta": {
+  "current:dark": {
+   "bgChroma": 0.03,
+   "brand": {
+    "L": 89.4,
+    "C": 0.118,
+    "H": 203
+   },
+   "action": {
+    "L": 93.3,
+    "C": 0.18,
+    "H": 128
+   },
+   "loudRoles": [
+    "brand",
+    "action",
+    "done",
+    "warn",
+    "danger"
+   ],
+   "seriesMinGap": 30,
+   "surfaces": [
+    18.2,
+    22.5,
+    27.3
+   ]
+  },
+  "current:light": {
+   "bgChroma": 0.005,
+   "brand": {
+    "L": 46.2,
+    "C": 0.082,
+    "H": 229
+   },
+   "action": {
+    "L": 86.3,
+    "C": 0.129,
+    "H": 121
+   },
+   "loudRoles": [
+    "action"
+   ],
+   "seriesMinGap": 30,
+   "surfaces": [
+    96.8,
+    100,
+    94.6
+   ]
+  },
+  "a:dark": {
+   "bgChroma": 0.009,
+   "brand": {
+    "L": 73.9,
+    "C": 0.123,
+    "H": 270
+   },
+   "action": {
+    "L": 60,
+    "C": 0.162,
+    "H": 270
+   },
+   "loudRoles": [
+    "brand",
+    "done",
+    "warn"
+   ],
+   "seriesMinGap": 65,
+   "surfaces": [
+    20,
+    23,
+    26.8
+   ]
+  },
+  "a:light": {
+   "bgChroma": 0.003,
+   "brand": {
+    "L": 49.9,
+    "C": 0.174,
+    "H": 269
+   },
+   "action": {
+    "L": 49.9,
+    "C": 0.174,
+    "H": 269
+   },
+   "loudRoles": [],
+   "seriesMinGap": 59,
+   "surfaces": [
+    97.6,
+    100,
+    95.8
+   ]
+  },
+  "b:dark": {
+   "bgChroma": 0.017,
+   "brand": {
+    "L": 75.7,
+    "C": 0.105,
+    "H": 206
+   },
+   "action": {
+    "L": 91.4,
+    "C": 0.02,
+    "H": 88
+   },
+   "loudRoles": [
+    "brand",
+    "done",
+    "warn"
+   ],
+   "seriesMinGap": 64,
+   "surfaces": [
+    17.8,
+    22,
+    27.1
+   ]
+  },
+  "b:light": {
+   "bgChroma": 0.004,
+   "brand": {
+    "L": 48.5,
+    "C": 0.081,
+    "H": 211
+   },
+   "action": {
+    "L": 26.2,
+    "C": 0.027,
+    "H": 216
+   },
+   "loudRoles": [],
+   "seriesMinGap": 60,
+   "surfaces": [
+    97,
+    100,
+    94.7
+   ]
+  },
+  "c:dark": {
+   "bgChroma": 0.01,
+   "brand": {
+    "L": 72.7,
+    "C": 0.114,
+    "H": 161
+   },
+   "action": {
+    "L": 70.7,
+    "C": 0.11,
+    "H": 68
+   },
+   "loudRoles": [
+    "brand",
+    "warn"
+   ],
+   "seriesMinGap": 42,
+   "surfaces": [
+    18.7,
+    22.6,
+    27.5
+   ]
+  },
+  "c:light": {
+   "bgChroma": 0.008,
+   "brand": {
+    "L": 47.3,
+    "C": 0.09,
+    "H": 162
+   },
+   "action": {
+    "L": 51.3,
+    "C": 0.102,
+    "H": 72
+   },
+   "loudRoles": [],
+   "seriesMinGap": 41,
+   "surfaces": [
+    97.3,
+    100,
+    94.9
+   ]
+  },
+  "d:dark": {
+   "bgChroma": 0.03,
+   "brand": {
+    "L": 85.9,
+    "C": 0.118,
+    "H": 205
+   },
+   "action": {
+    "L": 85.9,
+    "C": 0.118,
+    "H": 205
+   },
+   "loudRoles": [
+    "brand",
+    "action",
+    "done",
+    "warn",
+    "danger"
+   ],
+   "seriesMinGap": 30,
+   "surfaces": [
+    18.2,
+    22.5,
+    28.3
+   ]
+  },
+  "d:light": {
+   "bgChroma": 0.005,
+   "brand": {
+    "L": 46.2,
+    "C": 0.082,
+    "H": 229
+   },
+   "action": {
+    "L": 46.2,
+    "C": 0.082,
+    "H": 229
+   },
+   "loudRoles": [],
+   "seriesMinGap": 30,
+   "surfaces": [
+    96.8,
+    100,
+    94.6
+   ]
+  }
+ },
+ "struct": {
+  "current:dark": {
+   "sharedGroups": [
+    "brand/doing/navActiveAccent",
+    "brandHover/action/done"
+   ],
+   "maxShared": 3,
+   "seriesMinGap": 30,
+   "actionVsBrandHue": 75,
+   "sameActionBrand": false,
+   "fails": 3
+  },
+  "current:light": {
+   "sharedGroups": [
+    "brand/doing",
+    "action/navActiveAccent"
+   ],
+   "maxShared": 2,
+   "seriesMinGap": 30,
+   "actionVsBrandHue": 108,
+   "sameActionBrand": false,
+   "fails": 3
+  },
+  "a:dark": {
+   "sharedGroups": [
+    "brand/doing"
+   ],
+   "maxShared": 2,
+   "seriesMinGap": 65,
+   "actionVsBrandHue": 0,
+   "sameActionBrand": false,
+   "fails": 0
+  },
+  "a:light": {
+   "sharedGroups": [
+    "brand/action/doing",
+    "brandHover/actionHover"
+   ],
+   "maxShared": 3,
+   "seriesMinGap": 59,
+   "actionVsBrandHue": 0,
+   "sameActionBrand": true,
+   "fails": 0
+  },
+  "b:dark": {
+   "sharedGroups": [
+    "brand/doing",
+    "brandHover/navActiveAccent"
+   ],
+   "maxShared": 2,
+   "seriesMinGap": 64,
+   "actionVsBrandHue": 118,
+   "sameActionBrand": false,
+   "fails": 0
+  },
+  "b:light": {
+   "sharedGroups": [
+    "brand/doing"
+   ],
+   "maxShared": 2,
+   "seriesMinGap": 60,
+   "actionVsBrandHue": 5,
+   "sameActionBrand": false,
+   "fails": 0
+  },
+  "c:dark": {
+   "sharedGroups": [
+    "brandHover/navActiveAccent"
+   ],
+   "maxShared": 2,
+   "seriesMinGap": 42,
+   "actionVsBrandHue": 93,
+   "sameActionBrand": false,
+   "fails": 0
+  },
+  "c:light": {
+   "sharedGroups": [],
+   "maxShared": 1,
+   "seriesMinGap": 41,
+   "actionVsBrandHue": 90,
+   "sameActionBrand": false,
+   "fails": 0
+  },
+  "d:dark": {
+   "sharedGroups": [
+    "brand/action/doing/navActiveAccent"
+   ],
+   "maxShared": 4,
+   "seriesMinGap": 30,
+   "actionVsBrandHue": 0,
+   "sameActionBrand": true,
+   "fails": 0
+  },
+  "d:light": {
+   "sharedGroups": [
+    "brand/action/doing",
+    "brandHover/actionHover"
+   ],
+   "maxShared": 3,
+   "seriesMinGap": 30,
+   "actionVsBrandHue": 0,
+   "sameActionBrand": true,
+   "fails": 0
+  }
+ }
+}

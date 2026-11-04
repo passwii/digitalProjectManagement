@@ -1,0 +1,417 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>数科云办公 · 配色升级评审</title>
+<link rel="stylesheet" href="palettes.css">
+<link rel="stylesheet" href="mock.css">
+</head>
+<body data-p="current" data-mode="dark">
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-grid" viewBox="0 0 24 24"><path d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z"/></symbol>
+  <symbol id="i-folder" viewBox="0 0 24 24"><path d="M3 6h5.5l2 2H21v11H3z"/></symbol>
+  <symbol id="i-activity" viewBox="0 0 24 24"><path d="M3 13h4l3-7 4 13 3-6h4"/></symbol>
+  <symbol id="i-yen" viewBox="0 0 24 24"><path d="M7 5l5 6 5-6M12 11v9M8.5 13.5h7M8.5 16.5h7"/></symbol>
+  <symbol id="i-chart" viewBox="0 0 24 24"><path d="M5 19v-6M10 19V8M15 19v-9M20 19V5M3 21h18"/></symbol>
+  <symbol id="i-users" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M3 20c0-3 2.7-5 6-5s6 2 6 5M16 6.5a3 3 0 010 5M18.5 20c0-2-.8-3.7-2.2-4.7"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="M4 4h16v16H4z"/><path d="M8 12l3 3 5-6"/></symbol>
+  <symbol id="i-gear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1"/></symbol>
+  <symbol id="i-bell" viewBox="0 0 24 24"><path d="M6 16V11a6 6 0 0112 0v5l1.5 2h-15z"/><path d="M10 20a2 2 0 004 0"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6"/><path d="M16 16l4 4"/></symbol>
+  <symbol id="i-chev" viewBox="0 0 24 24"><path d="M7 10l5 5 5-5"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="i-dl" viewBox="0 0 24 24"><path d="M12 4v10M8 11l4 4 4-4M4 19h16"/></symbol>
+</svg>
+
+<header class="ui-bar">
+  <div class="ui-brand">
+    <span class="mk">SK</span>
+    <span class="tt">数科云办公 · 配色评审<small>色彩系统升级提案 / 2026-10</small></span>
+  </div>
+  <div class="ui-seg" id="paletteSwitch" role="group" aria-label="配色方案"></div>
+  <div class="ui-spacer"></div>
+  <div class="ui-seg" id="modeSwitch" role="group" aria-label="主题">
+    <button data-mode="dark" aria-pressed="true">深色</button>
+    <button data-mode="light" aria-pressed="false">浅色</button>
+  </div>
+</header>
+
+<main>
+  <section class="intro">
+    <h1>当前这套「青色 + 蓝色」，问题不在选色，在<br>颜色被分配了太多职责</h1>
+    <p class="lede">
+      我把 <b>web/app/globals.css</b> 的深浅两套令牌逐条算了一遍对比度、色相与明度，再对着工作台里实际用到颜色的地方看。
+      结论是：<b>信号青、品牌青、图表主系列、焦点环、链接、选中态全部指向同一个令牌</b>，于是它必须同时“够亮、够醒目、够专业”，结果只能越调越电光；
+      外加荧光青柠当行动色，两个高亮色互相抢戏。审计还量出两件事：深浅两套主题里 <b>8/8 个同名令牌的浅色明度都更低（平均 −30.4pp）</b>，且深色下 8/8 个彩色的 HSL 饱和度都是 100% —— 所以它不是「一套主题的两档」，而是两套皮肤。下面四套方案都按同一套语义职责重排，差别只在「用什么气质承载信号」。
+    </p>
+    <div class="facts">
+      <div class="fact">
+        <div class="num">5 <s>→ 0–3</s></div>
+        <div class="cap">深色下同时处于“高亮档”（L&nbsp;&gt;&nbsp;72 且彩度&nbsp;&gt;&nbsp;0.09）的语义角色数。现状是品牌、行动、完成、警告、危险五个一起亮，界面没有主次；新方案只让必要的角色亮。</div>
+      </div>
+      <div class="fact">
+        <div class="num">30° <s>→ 41–65°</s></div>
+        <div class="cap">图表系列色之间（OKLCH 色相）的最小间距。现状品牌青与数据蓝只差 53°、青与水绿只差 31°，两条线在深色底上几乎分不开 —— 这是“青和蓝搭在一起不好看”的技术原因，不是审美问题。D 保留现有色相，所以这项仍是 30°，它靠拆职责而不是改色相解决。</div>
+      </div>
+      <div class="fact">
+        <div class="num">233 <s>个引用点</s></div>
+        <div class="cap">--brand 在 <code>web/</code> 里的直接引用 117 处 + 经 9 个别名消费 116 处，横跨 30 个文件、9 类语义（链接 / 焦点环 / 输入框边框 / 选中底 / 进度条 / 图表系列 / 导航强调 / 告警三级 / 登录信号）。一个颜色背这么多职责，只能越调越亮。</div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head"><span class="idx">01</span><h2>四套方向</h2><p>点卡片切换下方全部预览</p><div class="line"></div></div>
+    <div class="cards" id="cards"></div>
+  </section>
+
+  <section>
+    <div class="sec-head"><span class="idx">02</span><h2>工作台实景</h2><p id="stageName"></p><div class="line"></div></div>
+    <div class="stage-head">
+      <span class="cur" id="stageCur"></span>
+      <span>项目台账 · 1440×900 桌面基准 · 直角 / 38px 控件 / 44px 行高</span>
+    </div>
+
+    <div class="frame" data-preview>
+      <div class="frame-cap"><span id="frameCapName"></span><span class="mode" id="frameCapMode">DARK</span></div>
+      <div class="app">
+        <aside class="side">
+          <div class="brand"><span class="mark">SK</span><span class="nm">数科云办公</span></div>
+          <div class="nav-sec">工作区</div>
+          <a class="nav-item" href="#"><svg class="ico"><use href="#i-grid"/></svg>工作台</a>
+          <a class="nav-item on" href="#"><svg class="ico"><use href="#i-folder"/></svg>项目台账</a>
+          <a class="nav-item" href="#"><svg class="ico"><use href="#i-activity"/></svg>进度跟踪</a>
+          <a class="nav-item" href="#"><svg class="ico"><use href="#i-yen"/></svg>支出记录</a>
+          <a class="nav-item" href="#"><svg class="ico"><use href="#i-chart"/></svg>支出报表</a>
+          <div class="nav-sec">管理与审批</div>
+          <a class="nav-item" href="#"><svg class="ico"><use href="#i-users"/></svg>通讯录</a>
+          <a class="nav-item" href="#"><svg class="ico"><use href="#i-check"/></svg>审批中心<span class="cnt">3</span></a>
+          <a class="nav-item" href="#"><svg class="ico"><use href="#i-gear"/></svg>系统管理</a>
+          <div class="side-foot">« 收起侧栏</div>
+        </aside>
+
+        <div class="work">
+          <div class="topbar">
+            <span class="crumb">数科云办公&nbsp; / &nbsp;<b>项目台账</b></span>
+            <span class="sp"></span>
+            <span class="date">2026-10-25</span>
+            <span class="ibtn"><svg width="17" height="17"><use href="#i-bell"/></svg><i class="dot"></i></span>
+            <span class="vline"></span>
+            <span class="who"><span class="av">验</span>验收管理员</span>
+          </div>
+
+          <div class="main">
+            <div class="pagehead">
+              <div>
+                <h1>项目台账</h1>
+                <div class="sub">24 个在管项目 · 本月新增 3 个</div>
+              </div>
+              <div class="acts">
+                <button class="btn"><svg width="15" height="15"><use href="#i-dl"/></svg>导出</button>
+                <button class="btn primary"><svg width="15" height="15"><use href="#i-plus"/></svg>新建项目</button>
+              </div>
+            </div>
+
+            <div class="filters">
+              <div class="field search"><svg width="14" height="14"><use href="#i-search"/></svg>搜索名称 / 编号 / 客户</div>
+              <div class="field" style="width:132px">全部状态<span class="chev"><svg width="12" height="12"><use href="#i-chev"/></svg></span></div>
+              <div class="field" style="width:132px">全部负责人<span class="chev"><svg width="12" height="12"><use href="#i-chev"/></svg></span></div>
+              <span class="sp"></span>
+              <div class="chipbar">
+                <button class="chip on">全部 <span class="n">24</span></button>
+                <button class="chip">进行中 <span class="n">11</span></button>
+                <button class="chip">待审批 <span class="n">7</span></button>
+                <button class="chip">已完成 <span class="n">4</span></button>
+              </div>
+            </div>
+
+            <div class="kpis">
+              <div class="kpi">
+                <div class="k">在管项目</div>
+                <div class="v">24<em>个</em></div>
+                <div class="d"><span class="up">▲ 3</span> 较上月</div>
+              </div>
+              <div class="kpi">
+                <div class="k">合同总额</div>
+                <div class="v">8,642<em>万</em></div>
+                <div class="d">本季新增 <span class="up">1,240 万</span></div>
+              </div>
+              <div class="kpi accent">
+                <div class="k">待审批</div>
+                <div class="v">7<em>项</em></div>
+                <div class="d">最久已等待 3 天</div>
+              </div>
+              <div class="kpi risk">
+                <div class="k">逾期风险</div>
+                <div class="v">2<em>项</em></div>
+                <div class="d"><span class="dn">需本周处理</span></div>
+              </div>
+            </div>
+
+            <div class="panel">
+              <div class="panel-head"><h3>项目列表</h3><span class="meta">2026-10-25 更新</span></div>
+              <table class="tbl">
+                <thead>
+                  <tr>
+                    <th style="width:112px">编号</th>
+                    <th>项目名称</th>
+                    <th style="width:84px">负责人</th>
+                    <th style="width:112px">客户</th>
+                    <th style="width:118px;text-align:right">合同金额</th>
+                    <th style="width:150px">预算执行</th>
+                    <th style="width:96px">状态</th>
+                    <th style="width:72px;text-align:right">操作</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td class="id">PJ-2026-0174</td>
+                    <td class="nm">恒宇置业园区弱电改造</td>
+                    <td>陈立</td>
+                    <td class="cust">恒宇置业</td>
+                    <td class="money">1,280,000</td>
+                    <td><div class="prog"><span class="track"><span class="fill" style="width:62%"></span></span><span class="pct">62%</span></div></td>
+                    <td><span class="status doing">进行中</span></td>
+                    <td class="ops"><a class="link" href="#">详情</a></td>
+                  </tr>
+                  <tr>
+                    <td class="id">PJ-2026-0169</td>
+                    <td class="nm">市政数据中台二期</td>
+                    <td>王雪</td>
+                    <td class="cust">数科云</td>
+                    <td class="money">3,460,000</td>
+                    <td><div class="prog"><span class="track"><span class="fill" style="width:38%"></span></span><span class="pct">38%</span></div></td>
+                    <td><span class="status warn">待审批</span></td>
+                    <td class="ops"><a class="link" href="#">详情</a></td>
+                  </tr>
+                  <tr>
+                    <td class="id">PJ-2026-0158</td>
+                    <td class="nm">张江实验室门禁升级</td>
+                    <td>李航</td>
+                    <td class="cust">张江实验室</td>
+                    <td class="money">745,000</td>
+                    <td><div class="prog"><span class="track"><span class="fill" style="width:100%"></span></span><span class="pct">100%</span></div></td>
+                    <td><span class="status done">已完成</span></td>
+                    <td class="ops"><a class="link" href="#">详情</a></td>
+                  </tr>
+                  <tr>
+                    <td class="id">PJ-2026-0142</td>
+                    <td class="nm">华东仓配网络改造</td>
+                    <td>周敏</td>
+                    <td class="cust">顺捷物流</td>
+                    <td class="money">2,190,000</td>
+                    <td><div class="prog"><span class="track"><span class="fill" style="width:71%"></span></span><span class="pct">71%</span></div></td>
+                    <td><span class="status danger">风险</span></td>
+                    <td class="ops"><a class="link" href="#">详情</a></td>
+                  </tr>
+                  <tr>
+                    <td class="id">PJ-2026-0137</td>
+                    <td class="nm">城市照明节能改造</td>
+                    <td>赵启</td>
+                    <td class="cust">城建集团</td>
+                    <td class="money">960,000</td>
+                    <td><div class="prog"><span class="track"><span class="fill" style="width:12%"></span></span><span class="pct">12%</span></div></td>
+                    <td><span class="status todo">已暂停</span></td>
+                    <td class="ops"><a class="link" href="#">详情</a></td>
+                  </tr>
+                </tbody>
+              </table>
+              <div class="pager">
+                <span>共 24 条 · 当前 1–5</span>
+                <span class="pg"><span class="pbtn">‹</span><span class="pbtn on">1</span><span class="pbtn">2</span><span class="pbtn">3</span><span class="pbtn">4</span><span class="pbtn">5</span><span class="pbtn">›</span></span>
+              </div>
+            </div>
+
+            <div class="lower">
+              <div class="panel">
+                <div class="panel-head"><h3>审批待办</h3><span class="meta">3 项待处理</span></div>
+                <div class="approval"><span class="bar"></span><div class="tx"><div class="t1">支出报销 · 恒宇置业园区弱电改造</div><div class="t2">¥18,600 · 陈立 · 2 小时前</div></div><a class="link go" href="#">处理</a></div>
+                <div class="approval"><span class="bar d"></span><div class="tx"><div class="t1">合同变更 · 市政数据中台二期</div><div class="t2">¥246,000 · 王雪 · 6 小时前</div></div><a class="link go" href="#">处理</a></div>
+                <div class="approval"><span class="bar b"></span><div class="tx"><div class="t1">项目立项 · 城市照明节能改造</div><div class="t2">预算 ¥960,000 · 赵启 · 昨天</div></div><a class="link go" href="#">处理</a></div>
+              </div>
+              <div class="panel">
+                <div class="panel-head"><h3>月度支出</h3><span class="meta">单位：万元</span></div>
+                <div class="chart">
+                  <svg viewBox="0 0 446 138" preserveAspectRatio="none" role="img" aria-label="近六个月月度支出">
+                    <line x1="18" y1="120" x2="404" y2="120" stroke="var(--line)" stroke-width="1"/>
+                    <line x1="18" y1="70" x2="404" y2="70" stroke="var(--warn)" stroke-width="1" stroke-dasharray="4 4" opacity=".55"/>
+                    <g fill="var(--series-1)">
+                      <rect x="24" y="57.6" width="34" height="62.4"/>
+                      <rect x="90" y="66.4" width="34" height="53.6"/>
+                      <rect x="156" y="39.8" width="34" height="80.2"/>
+                      <rect x="222" y="48.8" width="34" height="71.2"/>
+                      <rect x="288" y="23.6" width="34" height="96.4"/>
+                      <rect x="354" y="33.8" width="34" height="86.2"/>
+                    </g>
+                    <g fill="var(--ink-3)" font-size="9" font-family="var(--app-mono)">
+                      <text x="41" y="134" text-anchor="middle">5 月</text>
+                      <text x="107" y="134" text-anchor="middle">6 月</text>
+                      <text x="173" y="134" text-anchor="middle">7 月</text>
+                      <text x="239" y="134" text-anchor="middle">8 月</text>
+                      <text x="305" y="134" text-anchor="middle">9 月</text>
+                      <text x="371" y="134" text-anchor="middle">10 月</text>
+                    </g>
+                    <text x="440" y="66" text-anchor="end" fill="var(--warn)" font-size="9" font-family="var(--app-mono)">预算线 460</text>
+                  </svg>
+                </div>
+                <div class="legend"><span><i style="background:var(--series-1)"></i>实际支出</span><span><i style="background:var(--warn)"></i>预算上限</span></div>
+              </div>
+            </div>
+
+            <div class="toast"><span style="color:var(--done)">✓</span><span><b>已保存</b> 3 项预算调整</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="rationale" id="rationale"></div>
+  </section>
+
+  <section>
+    <div class="sec-head"><span class="idx">03</span><h2>组件与状态</h2><p>同一套语义令牌覆盖按钮、输入、徽标、行态、反馈与数据系列</p><div class="line"></div></div>
+    <div class="matrix" data-preview>
+      <div class="mrow">
+        <div class="h">BUTTONS</div>
+        <div class="b">
+          <div class="cell"><button class="btn primary"><svg width="15" height="15"><use href="#i-plus"/></svg>新建项目</button><span class="mlabel">primary · action</span></div>
+          <div class="cell"><button class="btn">次按钮</button><span class="mlabel">secondary · card + 描边</span></div>
+          <div class="cell"><button class="btn quiet">工具栏</button><span class="mlabel">quiet</span></div>
+          <div class="cell"><button class="btn danger">归档</button><span class="mlabel">danger</span></div>
+          <div class="cell"><button class="btn" disabled>禁用</button><span class="mlabel">disabled</span></div>
+          <div class="cell"><button class="btn sq"><svg width="15" height="15"><use href="#i-chev"/></svg></button><span class="mlabel">icon 38×38</span></div>
+        </div>
+      </div>
+      <div class="mrow">
+        <div class="h">STATUS</div>
+        <div class="b">
+          <div class="cell"><span class="status doing">进行中</span><span class="mlabel">signal</span></div>
+          <div class="cell"><span class="status warn">待审批</span><span class="mlabel">warning</span></div>
+          <div class="cell"><span class="status done">已完成</span><span class="mlabel">done</span></div>
+          <div class="cell"><span class="status danger">风险</span><span class="mlabel">danger</span></div>
+          <div class="cell"><span class="status todo">已暂停</span><span class="mlabel">neutral</span></div>
+        </div>
+      </div>
+      <div class="mrow span">
+        <div class="h">INPUTS &amp; FOCUS</div>
+        <div class="b">
+          <div class="cell"><div class="field" style="width:190px">项目名称</div><span class="mlabel">default</span></div>
+          <div class="cell"><div class="field focus" style="width:190px">恒宇置业园区…<span style="margin-left:auto;width:1px;height:16px;background:var(--focus)"></span></div><span class="mlabel">focus · ring = brand</span></div>
+          <div class="cell"><div class="field" style="width:190px;border-color:var(--danger);box-shadow:0 0 0 2px var(--danger-bg)">金额不能为空</div><span class="mlabel">error</span></div>
+          <div class="cell"><div class="field" style="width:190px;color:var(--ink-3);background:var(--card-lift)">不可编辑</div><span class="mlabel">disabled</span></div>
+          <div class="cell"><div class="chipbar"><button class="chip on">全部</button><button class="chip">进行中</button><button class="chip">待审批</button></div><span class="mlabel">segmented</span></div>
+          <div class="cell"><a class="link" href="#">查看合同附件</a><span class="mlabel">link = brand</span></div>
+        </div>
+      </div>
+      <div class="mrow">
+        <div class="h">FEEDBACK</div>
+        <div class="b" style="align-items:stretch;flex-direction:column">
+          <div style="border:1px solid var(--done-line);background:var(--done-bg);color:var(--done);padding:8px 11px;font-size:12px">导入成功 · 12 条记录</div>
+          <div style="border:1px solid var(--warn-line);background:var(--warn-bg);color:var(--warn);padding:8px 11px;font-size:12px">3 个项目预算即将超支</div>
+          <div style="border:1px solid var(--danger-line);background:var(--danger-bg);color:var(--danger);padding:8px 11px;font-size:12px">合同扫描件缺失，无法提交审批</div>
+        </div>
+      </div>
+      <div class="mrow">
+        <div class="h">DATA SERIES</div>
+        <div class="b" style="flex-direction:column;align-items:stretch;gap:8px">
+          <div style="display:flex;gap:3px">
+            <span style="flex:1;height:26px;background:var(--series-1)"></span>
+            <span style="flex:1;height:26px;background:var(--series-2)"></span>
+            <span style="flex:1;height:26px;background:var(--series-3)"></span>
+            <span style="flex:1;height:26px;background:var(--series-4)"></span>
+            <span style="flex:1;height:26px;background:var(--series-5)"></span>
+            <span style="flex:1;height:26px;background:var(--series-6)"></span>
+          </div>
+          <span class="mlabel">series 1–6 · 图表线对卡片底 ≥ 3:1</span>
+          <div class="prog" style="margin-top:4px"><span class="track"><span class="fill" style="width:62%"></span></span><span class="pct">62%</span></div>
+          <span class="mlabel">progress · brand</span>
+        </div>
+      </div>
+      <div class="mrow span">
+        <div class="h">TABLE ROWS</div>
+        <div class="b" style="padding:0;display:block">
+          <table class="tbl">
+            <tbody>
+              <tr><td class="id" style="width:120px">PJ-2026-0174</td><td>默认行</td><td class="cust" style="width:120px">恒宇置业</td><td style="width:110px"><span class="status doing">进行中</span></td></tr>
+              <tr style="background:var(--card-lift)"><td class="id">PJ-2026-0169</td><td>hover 行 · 抬升面</td><td class="cust">数科云</td><td><span class="status warn">待审批</span></td></tr>
+              <tr style="background:var(--brand-soft);box-shadow:inset 2px 0 0 var(--brand)"><td class="id" style="color:var(--brand)">PJ-2026-0158</td><td>选中行 · 信号软底 + 左侧 2px</td><td class="cust">张江实验室</td><td><span class="status done">已完成</span></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head"><span class="idx">04</span><h2>五套方案横评</h2><p>同一组指标，同一套算法；数字不达标的格子标红</p><div class="line"></div></div>
+    <div class="data-wrap">
+      <div class="hd"><h3>结构指标</h3><span>OKLCH 色相 / WCAG 2.1 对比度</span></div>
+      <table class="dt" id="compareTable"></table>
+    </div>
+    <p class="note">
+      读法：D 的「共用 4 个角色」是<b>设计选择</b>而不是缺陷 —— 它整套只留一个强调色，主次靠填充 / 描边 / 文字三种形态区分；
+      其余方案的共用是对同一色值的无意复用（如现状把 <code>--done</code> 直接等于 <code>--action</code>）。
+      两种做法都能成立，区别在于「减色」还是「分职」。
+    </p>
+  </section>
+
+  <section>
+    <div class="sec-head"><span class="idx">05</span><h2>令牌对照</h2><p>当前所选方案的完整取值，可直接对照 <code>globals.css</code> 替换</p><div class="line"></div></div>
+    <div class="tokgrid">
+      <div class="data-wrap">
+        <div class="hd"><h3>深色 · <code>:root</code></h3><span id="tokDarkName"></span></div>
+        <table class="dt" id="tokDark"></table>
+      </div>
+      <div class="data-wrap">
+        <div class="hd"><h3>浅色 · <code>:root[data-theme="light"]</code></h3><span id="tokLightName"></span></div>
+        <table class="dt" id="tokLight"></table>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head"><span class="idx">06</span><h2>对比度实测</h2><p>WCAG 2.1 sRGB 相对亮度；正文 4.5:1，图形/控件边界 3:1</p><div class="line"></div></div>
+    <div class="tokgrid">
+      <div class="data-wrap">
+        <div class="hd"><h3>文字对比度</h3><span id="txthd"></span></div>
+        <table class="dt" id="textTable"></table>
+      </div>
+      <div class="data-wrap">
+        <div class="hd"><h3>图形与控件边界</h3><span id="gfhd"></span></div>
+        <table class="dt" id="graphicTable"></table>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head"><span class="idx">07</span><h2>怎么落地</h2><p>令牌名与现状一致，替换值即可，不需要改组件</p><div class="line"></div></div>
+    <div class="steps">
+      <div class="step">
+        <div class="n">STEP 1</div>
+        <h4>先拆职责，再换色</h4>
+        <p>把 <code>--done</code> 从 <code>--action</code> 里拆出来（现状深色两者都是 <code>#c6ff72</code>），<code>--data-*</code> 与 <code>--brand</code> 解耦，新增 <code>--control-border</code> 深色分支。只这一步就能消掉「完成态和主按钮一个颜色」和输入框看不见边界两个问题。</p>
+      </div>
+      <div class="step">
+        <div class="n">STEP 2</div>
+        <h4>换令牌值（两处）</h4>
+        <p>只改 <code>globals.css</code> 的 <code>:root</code> 与 <code>:root[data-theme="light"]</code> 两块；组件层本来就用 <code>var()</code>，不需要动。守卫 <code>avColorTokens</code> / <code>avSourceGuard</code> 里的色值与对比度断言要一起更新。</p>
+      </div>
+      <div class="step">
+        <div class="n">STEP 3</div>
+        <h4>按截图比对再收</h4>
+        <p>用 <code>scripts/av-acceptance-catalog.mjs</code> 出 1440 / 1280 / 900 / 390 × 深浅两套图，重点是表头、徽标、图表系列与输入框边界；主题切换要逐令牌等价（同一色相，只变明度与彩度）。</p>
+      </div>
+    </div>
+  </section>
+
+  <div class="foot">
+    <span>数科云办公 · 配色评审 · 生成于 2026-10-25 · 令牌真源 docs/design-review/colors-2026-10/tokens.mjs</span>
+    <span>按 1–5 / 或点顶部切换方案 · 所有色值来自同一份令牌，页面里没有手写颜色</span>
+  </div>
+</main>
+
+<script src="data.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
