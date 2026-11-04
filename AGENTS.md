@@ -11,6 +11,7 @@
 - 架构与技术事实：`README.md`（注意区分 `[现状]` 与 `[目标]`，目标态不要当现状实施）
 - 测试细则与合并门禁：`TESTING.md` ← **改代码前先读**
 - 视觉与设计令牌：`DESIGN.md`
+- Spark / 演示站模拟设计：`docs/mock-design.md` ← 新建或扩展演示站前先读
 - 产品定位与用户：`PRODUCT.md`
 
 仓库现实：单仓库（`web/` Next.js 14 + `api/` FastAPI）、PostgreSQL 唯一业务数据源、附件走 Cloudflare R2、部署是 VPS 上的 Docker Compose + 宿主机 Caddy。
@@ -132,7 +133,7 @@ python3 scripts/deploy_vps.py \
 - **软删除**（ADR-007）：所有业务查询必须显式下推软删除条件。
 - **时间口径统一 `Asia/Shanghai`**（README §4.4）：不用本机时区，不写裸 `datetime.now()`。
 - **迁移**：只新增 revision，不改已合入的历史；`tests/test_migration_revision_ids.py` 守迁移链。迁移验证用随机临时 schema，不碰共享库。
-- **前端样式与动效**：颜色只用令牌，时长/缓动只用 `var(--av-*)` 与 `AV_MOTION`，不写毫秒字面量与颜色字面量 —— `web/lib/av/*.vitest.test.ts` 有源码守卫。
+- **前端样式与动效**：颜色、时长与缓动使用所属界面的语义令牌，不写裸色值或裸动效时长。`/stream-monitor` 使用 `var(--av-*)` 与 `AV_MOTION`，并由 `web/lib/av/*.vitest.test.ts` 守卫；Spark 与其他独立演示界面遵循各自的令牌体系及 `docs/mock-design.md`。
 - **前端界面文案**：Avoid unnecessary secondary labels and descriptions. Let the layout do the explaining. 不堆叠多余的二级标签与说明文字，让布局本身完成解释，而不是靠文字补充。
 - **`/stream-monitor` 演示站**：画面用 CSS/SVG 合成，不往 `public/` 加视频/图片素材。
 - **改公共函数 / hook / route / schema 前**先跑 `codegraph callers|impact`（仓库已建索引 `codegraph status .`），确认影响面再改。
