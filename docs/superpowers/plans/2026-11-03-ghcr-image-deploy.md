@@ -16,7 +16,7 @@
 - `GITHUB_TOKEN` 只授予构建所需的 `packages: write` 或部署所需的 `packages: read`；拉取 token 经 SSH stdin 传输，不写入远端脚本、日志或持久化 Docker 配置。
 - VPS 不执行 `docker build`；生产部署使用 `docker compose pull` 和 `docker compose up -d --no-build`。
 - 保留 `/opt/pm/.env`、API Alembic 启动流程、HTTPS 前置检查及 API/Web 健康检查。
-- 镜像回收只针对本项目的两个 GHCR 镜像仓库，保留当前版本和一个本地回滚版本；不执行全局 `docker system prune`，不触碰 volume、旧本地 `pm-web` 镜像、BuildKit cache 或其他 Compose 项目。
+- 镜像回收只针对本项目的两个 GHCR 镜像仓库，保留当前版本和一个本地回滚版本；不执行全局 `docker system prune`，不触碰 volume、旧本地 `pm-web` 镜像或其他 Compose 项目。
 - 不在 PR 或 `main` 上直接部署未合并代码；提交使用中文 Conventional Commits，author 为 `DamonRock <jr.way123@gmail.com>`。
 
 ---
@@ -72,20 +72,20 @@ git commit -m "feat(deploy): 生产 Compose 改为拉取 GHCR 镜像"
 
 - [ ] **Step 1: 先写部署脚本失败测试**
 
-新增测试覆盖：缺少任一镜像引用会拒绝部署；非 `ghcr.io/...@sha256:<64 hex>` 的引用会拒绝部署；远端脚本使用 Docker 从标准输入读取凭据的登录选项，先 `compose pull` 再 `up -d --no-build`；远端脚本不含 token；预期 revision 不匹配时在容器变更前终止；健康检查仍覆盖 API 和 Web；清理只处理传入的两个镜像仓库且不碰 volume 或其他镜像。
+新增测试覆盖：缺少任一镜像引用会拒绝部署；非 `ghcr.io/...@sha256:<64 hex>` 的引用会拒绝部署；远端脚本通过 `docker login --password-stdin` 登录、先 `compose pull` 再 `up -d --no-build`；远端脚本不含 token；预期 revision 或域名不匹配时在容器变更前终止；健康检查仍覆盖 API 和 Web；清理只处理传入的两个镜像仓库且不碰 volume 或其他镜像。
 
 Run: `pytest tests/test_deploy_vps.py -q -k DeployVpsScriptTest`
 Expected: 新增断言失败，既有 HTTPS、健康检查和回收约束测试继续通过。
 
 - [ ] **Step 2: 给 CLI 增加必需的镜像与 revision 参数**
 
-在 `main()` 增加 `--api-image`、`--web-image`、`--expected-revision`、`--expected-domain` 参数。添加纯函数校验两个引用的 GHCR digest 格式、两个 package 属于同一项目、revision 为 40 位十六进制 SHA、domain 为有效 DNS 名称；缺少 `GHCR_TOKEN` 或 `GHCR_USERNAME` 时在探测 SSH 与触碰 VPS 前失败。`--dry-run` 仍输出完整远端脚本，但不输出 token。
+在 `main()` 增加 `--api-image`、`--web-image`、`--expected-revision`、`--expected-domain` 参数。添加纯函数校验两个引用的 GHCR digest 格式，校验 revision 为 40 位十六进制 SHA、domain 为有效 DNS 名称；缺少 `GHCR_TOKEN` 或 `GHCR_USERNAME` 时在探测 SSH 与触碰 VPS 前失败。`--dry-run` 仍输出完整远端脚本，但不输出 token。
 
 - [ ] **Step 3: 改造远端部署脚本**
 
 保留现有脏工作区检查、`.env` HTTPS 前置检查和 `git pull --ff-only origin main`。在拉取前将 `--expected-domain` 与 VPS `.env` 中的 `PM_DOMAIN` 比对；不一致时停止，避免把 API 基址错误的 Web 镜像部署上去。随后拉取代码，并比对 VPS `HEAD` 与 `--expected-revision`；不匹配时在容器操作前停止，避免部署过期 Actions run 的镜像与较新 Compose 配置混搭。
 
-用 `mktemp -d` 创建临时 `DOCKER_CONFIG`，注册 `EXIT` trap 清理目录；执行 `docker login ghcr.io --username <GHCR_USERNAME>` 并从标准输入读取 token，随后 `docker compose ... pull`，退出登录并清理凭据，再执行 `docker compose ... up -d --no-build --remove-orphans`。保留现有 API/Web 探活和失败日志。
+用 `mktemp -d` 创建临时 `DOCKER_CONFIG`，注册 `EXIT` trap 清理目录；执行 `docker login ghcr.io --username <GHCR_USERNAME> --password-stdin`，随后 `docker compose ... pull`，退出登录并清理凭据，再执行 `docker compose ... up -d --no-build --remove-orphans`。保留现有 API/Web 探活和失败日志。
 
 部署成功后只列出 API 与 Web 的目标 GHCR 仓库镜像，保留本次与上一个本地版本，用不带 `--force` 的 `docker image rm` 清理更早的本项目镜像；移除 VPS 上不再使用的 builder cache prune，因为 VPS 将不再构建镜像。清理失败只记警告，不改变已健康部署的结果。
 
@@ -126,7 +126,7 @@ Expected: 新增 workflow 合同测试失败。
 
 - [ ] **Step 3: 为生产 workflow 拆分 build 与 deploy jobs**
 
-validate job 先确认主线 ref 和 `PM_DOMAIN` 非空，再输出 `pm_domain`。build job 只在 `main` push 或 `main` 上的普通手动 dispatch 推送镜像；将 `GITHUB_REPOSITORY` 转为小写，构造 GHCR 的 `-api`、`-web` 两个 package 名；使用 `GITHUB_TOKEN` 登录 GHCR，权限为 `contents: read` 与 `packages: write`；Web build arg 使用 validate job 输出的 `https://${{ needs.validate.outputs.pm_domain }}/api/v1`。镜像 tag 包含完整 commit SHA，并将 build action 输出 digest 作为后续 job output。API/Web build 都启用 BuildKit `type=gha` cache-from/cache-to，避免每次 Actions 构建从头安装依赖。
+validate job 先确认主线 ref 和 `PM_DOMAIN` 非空且为有效 DNS 名称，再输出 `pm_domain`。build job 只在 `main` push 或 `main` 上的普通手动 dispatch 推送镜像；将 `GITHUB_REPOSITORY` 转为小写，构造 GHCR 的 `-api`、`-web` 两个 package 名；使用 `GITHUB_TOKEN` 登录 GHCR，权限为 `contents: read` 与 `packages: write`；Web build arg 使用 validate job 输出的 `https://${{ needs.validate.outputs.pm_domain }}/api/v1`。镜像 tag 包含完整 commit SHA，并将 build action 输出 digest 作为后续 job output。API/Web build 都启用 BuildKit `type=gha` cache-from/cache-to，避免每次 Actions 构建从头安装依赖。
 
 deploy job 只在 build 成功后运行，使用 production environment 中已存在的 SSH secrets，权限限制为 `contents: read` 与 `packages: read`。通过 `GHCR_TOKEN` 环境变量把 `GITHUB_TOKEN` 交给部署脚本，用户名使用 `github.actor`，并将同一个 `PM_DOMAIN` 作为 `--expected-domain` 传入；令牌只经 SSH stdin 到远端。保持严格 host key 校验和现有 `production-vps-deploy` concurrency。
 
@@ -137,7 +137,7 @@ deploy job 只在 build 成功后运行，使用 production environment 中已�
 - [ ] **Step 5: 跑 workflow 合同测试和静态校验**
 
 Run: `pytest tests/test_deploy_vps.py -q -k DeployVpsWorkflowContractTest`
-Expected: workflow 合同测试通过。执行 `actionlint .github/workflows/container-images.yml .github/workflows/deploy-vps.yml` 和与 PR workflow 相同的 `docker compose -f docker-compose.yml -f docker-compose.prod.yml config --format json` 检查，并断言两个服务的 `build` 字段已清除。
+Expected: workflow 合同测试通过。若 `actionlint` 已安装，运行 `actionlint .github/workflows/container-images.yml .github/workflows/deploy-vps.yml`；否则依靠新增 PR workflow 和 GitHub Actions 实际解析验证。
 
 - [ ] **Step 6: 提交本任务**
 
@@ -150,31 +150,27 @@ git commit -m "feat(ci): Actions 构建并发布 GHCR 镜像"
 
 **Files:**
 - Modify: `README.md`
-- Modify: `AGENTS.md` (automatically initialize CodeGraph when missing; describe GHCR deploy)
+- Modify: `AGENTS.md`
 - Modify: `TESTING.md`
 
 - [ ] **Step 1: 更新部署架构说明**
 
 说明 PR 镜像构建只验证不推送；合并到 `main` 后 Actions 构建和推送两个 GHCR 镜像，VPS 通过 digest 拉取并部署；VPS 仍需从 Git 拉取 Compose 配置，但不再需要访问 PyPI/npm 或执行 Docker build。
 
-- [ ] **Step 2: 更新 CodeGraph 自动初始化规则**
-
-在 `AGENTS.md` 明确：完成 `origin/main` 同步后运行 `codegraph status .`；状态为未初始化时自动运行 `codegraph init -i`，不询问用户。说明新 worktree 同样先同步再初始化索引。
-
-- [ ] **Step 3: 更新 GitHub 与 VPS 配置说明**
+- [ ] **Step 2: 更新 GitHub 与 VPS 配置说明**
 
 保留已有 `VPS_SSH_PRIVATE_KEY`、`VPS_SSH_KNOWN_HOSTS` 配置说明；新增仓库 Actions variable `PM_DOMAIN`，要求与 `/opt/pm/.env` 一致；说明 GitHub Actions `GITHUB_TOKEN` 的 package 权限及 GHCR package 必须允许本仓库访问。注明不需要在 VPS 保存长期 PAT，部署时 token 临时经 SSH stdin 使用。
 
-- [ ] **Step 4: 记录回滚和故障排查方法**
+- [ ] **Step 3: 记录回滚和故障排查方法**
 
 说明如何从 GHCR 找到 API/Web 两个 digest 并用 Actions 的 `workflow_dispatch` 同时传入；说明数据库 migration 已运行时，镜像回滚不能自动回滚数据库，需遵循现有 migration 向后兼容策略。更新本机手动部署命令，要求传入两份 digest 与 `GHCR_TOKEN`，并注明它只用于故障排查。
 
-- [ ] **Step 5: 按仓库规则执行目标验证**
+- [ ] **Step 4: 按仓库规则执行目标验证**
 
 Run: `pytest tests/test_deploy_vps.py -q`
 Expected: 所有目标部署测试通过。PR 中确认 `container-images` 成功；合并后的 `deploy-vps` 应记录当前 commit SHA、两个 GHCR digest，以及 API/Web 健康检查结果。
 
-- [ ] **Step 6: 提交文档**
+- [ ] **Step 5: 提交文档**
 
 ```bash
 git add README.md AGENTS.md TESTING.md
