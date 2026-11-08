@@ -1,10 +1,10 @@
 from logging.config import fileConfig
 
 from alembic import context
-from api.core.database import DB_URL, Base
+from api.legacy_py.core.database import DB_URL, Base
 
 # 注册全部模型
-from api import models  # noqa: F401
+from api.legacy_py import models  # noqa: F401
 
 config = context.config
 config.set_main_option("sqlalchemy.url", DB_URL)

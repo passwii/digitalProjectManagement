@@ -35,10 +35,10 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from api.core.database import DATA_DIR, SessionLocal, engine  # noqa: E402
-from api.core.notify import push, user_ids_with_role  # noqa: E402
-from api.core.security import hash_password  # noqa: E402
-from api.models import (ApprovalRecord, Attachment, Budget, BudgetAdjust, Department,  # noqa: E402
+from api.legacy_py.core.database import DATA_DIR, SessionLocal, engine  # noqa: E402
+from api.legacy_py.core.notify import push, user_ids_with_role  # noqa: E402
+from api.legacy_py.core.security import hash_password  # noqa: E402
+from api.legacy_py.models import (ApprovalRecord, Attachment, Budget, BudgetAdjust, Department,  # noqa: E402
                         Expense,
                         Followup, Milestone, Notification, ProgressLog, Project,
                         ProjectChange, ProjectMember, Role, Task, User, UserRole)
@@ -516,7 +516,7 @@ def seed(db) -> dict:
 
     # ---------- 站内通知：预警落库 + 立项待办 ----------
     db.commit()
-    from api.core.jobs import sync_notifications
+    from api.legacy_py.core.jobs import sync_notifications
     projects = [p1, p2, p3, p4, p5, p6, p7, p8, p9]
     created = sync_notifications(db, projects)
     # 立项审批待办通知（管理员 + 负责人）
@@ -576,7 +576,7 @@ def clean(db) -> int:
     if uids:
         db.query(Notification).filter(Notification.user_id.in_(uids)).delete(synchronize_session=False)
         db.query(UserRole).filter(UserRole.user_id.in_(uids)).delete(synchronize_session=False)
-        from api.models import AuditLog, TokenBlacklist
+        from api.legacy_py.models import AuditLog, TokenBlacklist
         db.query(AuditLog).filter(AuditLog.user_id.in_(uids)).update({"user_id": None},
                                                                     synchronize_session=False)
         db.query(TokenBlacklist).filter(TokenBlacklist.user_id.in_(uids)).delete(synchronize_session=False)
@@ -631,7 +631,7 @@ def main() -> None:
             print(f"  {username:<12} {real_name:<6} {dept:<6} {'/'.join(roles):<24} {scope.get(username, '')}")
         print("  审批中心与系统管理仅管理员可用 → 用 demo_admin 演示（不影响你自己的 admin 密码）")
         print()
-        from api.core.rbac import demo_data_on
+        from api.legacy_py.core.rbac import demo_data_on
         state = "已显示" if demo_data_on(db) else "当前隐藏"
         print(f"演示数据开关：{state}")
         print("  · 打开：项目台账页头「显示演示数据」开关，或 系统管理 → 参数 → demo_data_on")

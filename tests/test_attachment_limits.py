@@ -20,7 +20,7 @@ import pytest
 from fastapi import HTTPException
 from test_mvp import login, mkproject
 
-from api.core.limits import (
+from api.legacy_py.core.limits import (
     MAX_ATTACHMENT_SIZE,
     UNIT_MB,
     attachment_size_label,
@@ -38,7 +38,7 @@ def test_limit_is_100mb_and_single_source():
     assert MAX_ATTACHMENT_SIZE == 100 * UNIT_MB
     assert UNIT_MB == 1024 * 1024
 
-    from api.routers import contacts, expenses, projects
+    from api.legacy_py.routers import contacts, expenses, projects
 
     assert projects.MAX_SIZE is MAX_ATTACHMENT_SIZE
     assert contacts.MAX_SIZE is MAX_ATTACHMENT_SIZE

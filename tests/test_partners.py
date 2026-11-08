@@ -45,7 +45,7 @@ def test_partners_admin_only(client, db):
 
 def test_partner_forbidden_writes_nothing(client, db):
     """403 先于业务读写：非管理员的创建不落库。"""
-    from api.models import Partner
+    from api.legacy_py.models import Partner
 
     pm = login(client, "pm")
     r = client.post("/api/v1/partners", headers=pm, json={"name": "越权友商"})
@@ -146,7 +146,7 @@ def test_partner_payload_excludes_removed_fields(client, db):
 
 def test_partner_delete_cascades(client, db):
     """删除友商：合同级联，附件正文与元数据一并清理。"""
-    from api.models import Attachment, PartnerContract
+    from api.legacy_py.models import Attachment, PartnerContract
 
     h = login(client, "admin")
     p = _create_partner(client, h, name="待删友商")
@@ -226,8 +226,8 @@ def test_partner_subresources_isolated_by_pid(client, db):
 
 def test_partner_attachment_single_source_limit():
     """体积上限与全站同一来源（通讯录 / 项目 / 支出凭证同一常量对象）。"""
-    from api.core.limits import MAX_ATTACHMENT_SIZE
-    from api.routers import partners
+    from api.legacy_py.core.limits import MAX_ATTACHMENT_SIZE
+    from api.legacy_py.routers import partners
 
     assert partners.MAX_SIZE is MAX_ATTACHMENT_SIZE
     assert MAX_ATTACHMENT_SIZE == 100 * 1024 * 1024
@@ -291,8 +291,8 @@ def test_partner_attachment_flow(client, db):
 
 def test_partner_attachment_over_limit_rejected(client, db, monkeypatch):
     """超限 400 走同一 `read_within_limit` 接线：把上限临时调小验证，不传 100MB 真文件。"""
-    from api.core import limits
-    from api.routers import partners
+    from api.legacy_py.core import limits
+    from api.legacy_py.routers import partners
 
     h = login(client, "admin")
     pid = _create_partner(client, h, name="上限友商")["id"]
@@ -323,7 +323,7 @@ def test_partner_attachment_isolated_by_pid(client, db):
 
 def test_partner_attachment_download_audited(client, db):
     """敏感附件下载写审计。"""
-    from api.models import AuditLog
+    from api.legacy_py.models import AuditLog
 
     h = login(client, "admin")
     pid = _create_partner(client, h, name="审计友商")["id"]

@@ -17,11 +17,11 @@ import pytest
 from sqlalchemy import create_engine, func, select
 from sqlalchemy.orm import sessionmaker
 
-from api.core.database import get_db
-from api.core.security import decode_token
-from api.core.timeutil import APP_TZ, APP_TZ_NAME, app_now, app_now_aware, as_app
-from api.main import app
-from api.models import Attachment, Followup, SysParam, User
+from api.legacy_py.core.database import get_db
+from api.legacy_py.core.security import decode_token
+from api.legacy_py.core.timeutil import APP_TZ, APP_TZ_NAME, app_now, app_now_aware, as_app
+from api.legacy_py.main import app
+from api.legacy_py.models import Attachment, Followup, SysParam, User
 
 TEST_DATABASE_URL = (os.getenv("TEST_DATABASE_URL") or "").strip()
 

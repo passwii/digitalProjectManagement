@@ -1,11 +1,11 @@
 # 数科云办公：系统架构设计
 
 > 文档状态：Architecture Baseline v1.0<br>
-> 更新时间：2026-09-17<br>
+> 更新时间：2026-11-08<br>
 > 标记约定：`[现状]` 表示代码已实现；`[目标]` 表示推荐的目标架构或演进方向，不代表当前已经落地。<br>
 > 协作与交付规则见 `AGENTS.md`；测试怎么跑、合并看哪条 CI 见 `TESTING.md`。
 
-数科云办公是一套面向企业内部项目治理的数字化工作台，覆盖组织与账号、项目台账、进度任务、成本支出、审批、通知、报表、通讯录和安全审计。系统当前采用 **API-first 的分层模块化单体**，以 PostgreSQL 作为唯一业务系统记录，通过事务一致性、显式权限边界和审计留痕保证管理数据的可信度，并为后续对象存储、水平扩容和安全增强保留演进路径。
+数科云办公是一套面向企业内部项目治理的数字化工作台，覆盖组织与账号、项目台账、进度任务、成本支出、审批、通知、报表、通讯录和安全审计。系统当前采用 **API-first 的 Go 模块化单体**（Gin + GORM），以 PostgreSQL 作为唯一业务系统记录，通过事务一致性、显式权限边界和审计留痕保证管理数据的可信度。原 FastAPI 后端归档在 `api/legacy_py/`，仅作为行为基线。
 
 ---
 
@@ -24,23 +24,23 @@
 
 | 领域 | 核心职责 | 主要模块 |
 | --- | --- | --- |
-| 身份与访问 | 登录、会话、密码策略、RBAC、项目管理边界 | `auth`、`meta`、`admin`、`core.rbac` |
-| 组织与通讯录 | 部门、账号主数据、员工档案、证件与合同附件 | `contacts` |
-| 项目治理 | 项目生命周期、成员、合同、附件、跟进记录 | `projects` |
-| 计划与执行 | WBS、任务依赖、里程碑、进度填报、预警 | `tasks`、`milestones`、`core.jobs` |
-| 成本与预算 | 预算、调整、支出、凭证、执行率、超预算控制 | `budgets`、`expenses`、`core.costs` |
-| 审批与流程 | 立项、预算调整、支出审批、状态时间线 | `approvals`、`core.timeline` |
-| 通知与协作 | 站内通知、去重、处理状态、深链定位 | `notifications`、`core.notify` |
-| 报表与决策 | 成本、部门、项目、月份聚合和 Excel 导出 | `reports`、`dashboard` |
-| 安全与审计 | 权限拒绝、敏感操作留痕、业务时间线、审计查询 | `core.audit`、`core.timeline`、`admin` |
+| 身份与访问 | 登录、会话、密码策略、RBAC、项目管理边界 | `internal/auth`、`internal/rbac`、`internal/meta`、`internal/admin` |
+| 组织与通讯录 | 部门、账号主数据、员工档案、证件与合同附件 | `internal/contact` |
+| 项目治理 | 项目生命周期、成员、合同、附件、跟进记录 | `internal/project` |
+| 计划与执行 | WBS、任务依赖、里程碑、进度填报、预警 | `internal/task`、`internal/milestone`、`internal/notify` |
+| 成本与预算 | 预算、调整、支出、凭证、执行率、超预算控制 | `internal/budget`、`internal/expense` |
+| 审批与流程 | 立项、预算调整、支出审批、状态时间线 | `internal/approval` |
+| 通知与协作 | 站内通知、去重、处理状态、深链定位 | `internal/notify` |
+| 报表与决策 | 成本、部门、项目、月份聚合和 Excel 导出 | `internal/report`、`internal/dashboard` |
+| 安全与审计 | 权限拒绝、敏感操作留痕、业务时间线、审计查询 | `pkg/audit`、`internal/admin`、`internal/rbac` |
 
 ### 1.3 C4 Container View `[现状]`
 
 ```mermaid
 flowchart LR
     U["用户 / 浏览器 / iPad"] --> W["Next.js 14 Web"]
-    W -->|"HTTPS + JSON / Bearer JWT"| A["FastAPI API"]
-    A -->|"SQLAlchemy + psycopg3"| DB[("PostgreSQL")]
+    W -->|"HTTPS + JSON / Bearer JWT"| A["Go API<br/>Gin + GORM"]
+    A -->|"pgx / GORM"| DB[("PostgreSQL")]
     A -->|"文件读写"| VOL[("pm-data 持久卷")]
     C["Cron / jobs"] -->|"预警与提醒扫描"| A
     A -->|"站内通知 / 审计 / 时间线"| DB
@@ -50,7 +50,7 @@ flowchart LR
 
 ```mermaid
 flowchart LR
-    API["FastAPI Control Plane"] --> DB[("PostgreSQL Metadata")]
+    API["Go Control Plane"] --> DB[("PostgreSQL Metadata")]
     API --> SP["StorageProvider Abstraction"]
     SP --> R2["Cloudflare R2<br/>S3-Compatible Object Storage"]
     API -->|"短期 Presigned URL"| B["Browser"]
@@ -65,7 +65,7 @@ flowchart LR
 
 - `[现状]` Next.js 14 App Router、React 18、TypeScript、Recharts。
 - `[现状]` `/login`、`/change-password` 与 `(dashboard)` 路由组构成两套页面壳；业务页面按领域拆分为 projects、progress、costs、approvals、reports、contacts、admin。
-- `[现状]` Next.js Middleware 只承担粗粒度路由门禁和登录页重定向；它不替代后端鉴权，真正的权限边界始终在 FastAPI。
+- `[现状]` Next.js Middleware 只承担粗粒度路由门禁和登录页重定向；它不替代后端鉴权，真正的权限边界始终在 Go API。
 - `[现状]` 前端通过统一 API Client 注入访问令牌、处理 `401`、传播 `AbortController`、解析业务错误和下载二进制流。
 
 ### 2.2 前端分层
@@ -101,17 +101,17 @@ flowchart LR
 
 ### 3.1 架构风格
 
-后端采用 FastAPI 的 **模块化单体**。每个 Router 负责 HTTP 语义、输入模型和资源编排；通用业务规则放在 `api/core`；SQLAlchemy Model 负责关系映射和持久化。该结构保留了清晰模块边界，同时避免当前规模下的服务发现、跨服务事务、链路重试和分布式一致性成本。
+后端采用 Go 的 **模块化单体**。`internal/<domain>` 按业务域组织 Handler、规则和查询；`pkg/` 承载配置、数据库、时间、分页、安全、审计、存储与 Excel 等无业务依赖的平台能力；GORM Model 负责 PostgreSQL 映射。该结构保留了清晰模块边界，同时避免当前规模下的服务发现、跨服务事务、链路重试和分布式一致性成本。
 
 ### 3.2 逻辑分层
 
 ```mermaid
 flowchart TB
-    HTTP["HTTP Transport<br/>FastAPI Router"] --> APP["Application Orchestration<br/>业务用例与事务边界"]
-    APP --> DOMAIN["Domain Rules<br/>RBAC / Validation / Costs / Timeline"]
-    DOMAIN --> PERSIST["Persistence<br/>SQLAlchemy Models"]
+    HTTP["HTTP Transport<br/>Gin Router + Middleware"] --> APP["Application Orchestration<br/>internal 业务模块"]
+    APP --> DOMAIN["Domain Rules<br/>RBAC / Validation / State Machines"]
+    DOMAIN --> PERSIST["Persistence<br/>GORM Models"]
     PERSIST --> PG[("PostgreSQL")]
-    APP --> XCUT["Cross-cutting<br/>Audit / Notify / Paging / Security"]
+    APP --> XCUT["Cross-cutting<br/>pkg/audit / paging / security / storage"]
 ```
 
 | 层 | 责任 | 不应承担 |
@@ -124,7 +124,7 @@ flowchart TB
 
 ### 3.3 API 契约
 
-- `[现状]` 所有接口统一挂在 `/api/v1`，OpenAPI 是机器可读契约。
+- `[现状]` 所有接口统一挂在 `/api/v1`；前端手写 TypeScript Client，接口契约由 Go DTO、行为基线测试和前端构建共同校验。
 - `[现状]` 列表响应统一为 `{ total, page, size, items }`，服务端强制分页、排序白名单和主键兜底。
 - `[现状]` 软删除资源在普通业务面按 `404` 处理，回收站是独立管理面。
 - `[现状]` 权限判定先于业务读写，非超级管理员对 `/admin/*` 稳定返回 `403`；业务模块与审批接口由各自模组权限控制。
@@ -135,7 +135,7 @@ flowchart TB
 ```mermaid
 sequenceDiagram
     participant B as Browser
-    participant API as FastAPI
+    participant API as Go API
     participant AUTH as Auth/RBAC
     participant APP as Application Logic
     participant DB as PostgreSQL
@@ -144,7 +144,7 @@ sequenceDiagram
     API->>AUTH: Decode JWT + Blacklist Check + RBAC
     AUTH-->>API: User / Permission Decision
     API->>APP: Validated Command / Query
-    APP->>DB: SQLAlchemy Transaction
+    APP->>DB: GORM Transaction
     APP->>DB: Business Change + Timeline + Audit
     DB-->>APP: Commit
     APP-->>B: Contract Response
@@ -153,7 +153,7 @@ sequenceDiagram
 ### 3.5 一致性与扩展
 
 - `[现状]` API 容器无本地业务状态，可水平复制；会话状态通过 JWT 与 PostgreSQL 黑名单维护。
-- `[现状]` 关键写操作使用 `commit_audited()`，业务变更、审批时间线和审计行在同一次 commit 中完成。
+- `[现状]` 关键写操作使用 `audit.CommitAudited()`，业务变更、审批时间线和审计行在同一次事务中完成。
 - `[目标]` 将通知生成、病毒扫描、报表快照等非关键路径转移到 Worker，API 只写入 Outbox。
 - `[目标]` 以 Redis 或云缓存承接限流、幂等键和短期会话状态；PostgreSQL 继续作为事实源。
 
@@ -185,7 +185,7 @@ PostgreSQL 是整个系统的 **System of Record**。预算审批、支出状态
 - `[现状]` `progress_logs` 只允许追加，任务 `progress` 是可重建的当前快照，避免覆盖历史。
 - `[现状]` 项目软删除通过 `deleted_at` 控制；普通查询和子表查询统一排除软删除项目。
 - `[目标]` 金额字段迁移为 `NUMERIC(18,2)` 或等价 Decimal 类型，避免 `Float` 累积误差。
-  `[现状]` 金额列仍是 `double precision`（`api/models/__init__.py` 的 `Column(Float, ...)`，
+  `[现状]` 部分金额列仍是 `double precision`（归档模型见 `api/legacy_py/models/__init__.py`，
   生产库实测 `budgets.amount` / `expenses.amount` / `projects.budget_total` / `budget_adjusts.old_amount|new_amount` 均为
   `double precision`），因此精度收敛仍待做。
 - `[目标]` 对管理员改参数、项目状态流转、审批决策增加乐观锁版本号或条件更新，防止并发覆盖。
@@ -193,15 +193,15 @@ PostgreSQL 是整个系统的 **System of Record**。预算审批、支出状态
 ### 4.4 时间口径（BLF-1138 定稿）
 
 时间列都是 `timestamp without time zone`，**列约定 = `Asia/Shanghai` 的 naive 墙钟值**。
-唯一入口是 `api/core/timeutil.py`，所有写入 / 读取 / 出参都必须走它：
+唯一入口是 `api/pkg/timeutil/timeutil.go`，所有写入 / 读取 / 出参都必须走它：
 
 | 场景 | 用什么 | 说明 |
 | --- | --- | --- |
-| 写库、SQL 过滤值 | `app_now()` / `to_db(x)` | naive 北京时间。naive 入 naive 列，PostgreSQL 不做任何时区折算 |
-| 计算、比较 | `as_app(x)` / `app_now_aware()` | 离开 DB 边界立刻变 aware（`+08:00`）；**不要**在同一段算术里混用 naive 与 aware |
-| 出参 | `iso(x)` | 带偏移的 ISO8601（`2026-09-18T17:32:28+08:00`）；前端 `fmtDateTime` 是纯字符串裁剪，显示不变 |
-| 业务日（今天） | `app_today()` | 不依赖进程 `TZ` |
-| epoch 换算（JWT `exp`） | `from_timestamp()` | JWT 的 `exp` 本身仍必须是 aware UTC（`core/security.py`），不要改 |
+| 写库、SQL 过滤值 | `timeutil.NowDateTime()` / `DateTime.Value()` | naive 北京时间。naive 入 naive 列，PostgreSQL 不做任何时区折算 |
+| 计算、比较 | `timeutil.AppNow()` | 固定 `Asia/Shanghai` 时区；**不要**直接使用 `time.Now()` |
+| 出参 | `timeutil.DateTime.MarshalJSON()` / `ISO()` | 带偏移的 ISO8601（`2026-09-18T17:32:28+08:00`）；前端 `fmtDateTime` 显示不变 |
+| 业务日（今天） | `timeutil.AppToday()` | 不依赖进程 `TZ` |
+| epoch 换算（JWT `exp`） | `pkg/security` | JWT 的 `exp` 本身仍必须是 aware UTC |
 
 为什么必须收口：写入侧历史上给的是**带时区的 UTC**，PostgreSQL 在
 `timestamptz → timestamp` 隐式转换时按**会话时区**折算 —— 会话时区是 `Asia/Shanghai` 时
@@ -231,7 +231,7 @@ PostgreSQL 是整个系统的 **System of Record**。预算审批、支出状态
 ### 5.1 `[ 现状／已实现 ]` Cloudflare R2 为正文唯一持久化口径（本地仅临时暂存）
 
 附件正文自 BLF-1136 起有两个后端，但**唯一被认可的持久化口径是 Cloudflare R2**：
-服务器磁盘只允许在上传途中「短暂停留」（`UploadFile` 的 spool 文件、内存缓冲），
+服务器磁盘只允许在上传途中「短暂停留」（Gin 请求内存缓冲或临时落点），
 任何配置组合都不允许把正文落盘持久化。`STORAGE_BACKEND` 只决定**新上传**落到哪里：
 
 - `r2`（**默认**）：新上传强制走对象存储，`R2_*` 配不全时**应用 lifespan 启动即失败**；
@@ -239,16 +239,16 @@ PostgreSQL 是整个系统的 **System of Record**。预算审批、支出状态
 - `local`：仅开发/测试显式可用，正文写进 `STORAGE_LOCAL_ROOT`（默认系统临时目录，
   **不是持久卷**），且 `APP_ENV=production` 时该取值被**直接拒绝**。
 
-配套硬校验：`local_staging_root()` 不允许落点位于应用目录（容器里的 `/app`，含 `data`
+配套硬校验：Go 配置加载与存储初始化不允许生产环境使用本地后端，本地暂存目录也不能位于应用目录（容器里的 `/app`，含 `data`
 持久卷）内。所以「VPS 不落盘」不靠约定，而是配置一错就起不来。
 
 已存在附件的下载与删除**永远按行内坐标**（`attachments.storage_backend` / `object_key` / `path`）选后端，
-与当前 `STORAGE_BACKEND` 无关（`storage.get_backend_for_row()`）。所以把开关改回 `local` 后：
+与当前 `STORAGE_BACKEND` 无关（`attachment.backendForRow()`）。所以把开关改回 `local` 后：
 存量 R2 附件照常从 R2 下载、删除时也真的删掉 R2 对象，只是新上传改落本地盘（「读旧的、写新的」）。
 反之，行在 R2 而 `R2_*` 缺失时会返回 `502` 并**保留元数据**（绝不静默 404 或假装删除成功）。
 
 存量附件（BLF-1136 之前落在 `data/files/{pid}/...` 的行）仍按行内 `path` 读，不受布局变化影响；
-本地后端新写入的暂存路径为 `{STORAGE_LOCAL_ROOT}/{domain}/{owner_id}/{uuid}{ext}`，
+本地后端新写入的暂存路径为 `{STORAGE_LOCAL_ROOT}/{ref_type}/{ref_id}/{uuid}{ext}`，
 磁盘上不保留原始文件名（原名只存库里）。`scripts/seed_mock.py` 的演示数据仍用旧布局，属已知差异。
 要让存量附件也不再依赖服务器磁盘，跑 `scripts/migrate_attachments_to_r2.py --apply --verify --delete-local`。
 
@@ -256,47 +256,47 @@ PostgreSQL 是整个系统的 **System of Record**。预算审批、支出状态
 
 实现位置：
 
-- `api/core/r2.py` —— S3 兼容传输层（单例客户端、key 清洗、URL 编码、结构化删除结果、404 与「R2 不可用」的区分）；
-- `api/core/storage.py` —— 后端抽象（`LocalBackend` / `R2Backend`）+ 对象键命名 + 配置解析；
-- `api/core/attachments.py` —— 三个上传入口共用的「写正文 / 下载响应 / 删正文」；
-- `api/routers/{projects,contacts,expenses}.py` —— 只负责鉴权与业务语义。
+- `api/pkg/storage/storage.go` —— `StorageBackend` 抽象、本地后端、R2 后端、上传/下载/删除/Presign；
+- `api/pkg/attachment/attachment.go` —— 上传校验、对象键、元数据写入、下载/删除与按行选后端；
+- `api/internal/{project,task,expense,contact,partner}/...` —— 各业务域只负责鉴权、归属与业务语义。
 
 剩余约束（`[目标]`）：写入与数据库提交仍不是一个原子操作；对账与生命周期任务尚未实现（见 5.7）。
 
 ### 5.2 `[ 现状／已实现 ]` 存储抽象
 
-PostgreSQL 是 **Attachment Control Plane**，Cloudflare R2 是 **Binary Data Plane**。业务代码只依赖 S3 协议与配置，不依赖 Cloudflare 专有 SDK（仅用 `boto3`）。
+PostgreSQL 是 **Attachment Control Plane**，Cloudflare R2 是 **Binary Data Plane**。业务代码只依赖 S3 协议与配置，不依赖 Cloudflare 专有 SDK（使用 AWS SDK for Go v2 的 S3 客户端）。
 
-```python
-class StorageBackend(Protocol):
-    def put(self, data, key, local_path, content_type) -> StoredObject: ...
-    def stream(self, object_key, local_path) -> tuple[Iterator[bytes], int]: ...
-    def delete(self, object_key, local_path) -> None: ...
-    def exists(self, object_key, local_path) -> bool: ...
-    def url_for(self, object_key, local_path) -> str: ...
+```go
+type StorageBackend interface {
+    Upload(ctx context.Context, key string, body io.Reader, size int64, contentType string) (publicURL, etag string, err error)
+    Download(ctx context.Context, key string) (io.ReadCloser, int64, string, error)
+    Delete(ctx context.Context, key string) error
+    Presign(ctx context.Context, key string, ttl time.Duration) (string, error)
+    PublicURL(key string) string
+    Name() string
+}
 ```
 
 取后端实例有两个入口，读写**已存在**附件只能用第二个：
 
-- `get_backend()` —— 按全局 `STORAGE_BACKEND`，仅用于新上传与回填脚本；
-- `get_backend_for_row(row)` —— 按行内坐标，下载/删除/存在性判定一律用这个。
+- `storage.GetBackend()` —— 按全局 `STORAGE_BACKEND`，仅用于新上传与回填脚本；
+- `attachment.backendForRow(row)` —— 按行内坐标，下载/删除一律用这个。
 
 适配器：
 
-- `LocalBackend`：**仅开发/测试**用的临时暂存后端（落在 `STORAGE_LOCAL_ROOT` 指定的应用目录之外的位置，`object_key` 为空，进程/临时目录清理后即消失）。
+- `LocalBackend`：**仅开发/测试**用的临时暂存后端（落在 `STORAGE_LOCAL_ROOT` 指定的应用目录之外的位置，仍写 `object_key`；进程/临时目录清理后正文即消失）。
 - `R2Backend`：通过 S3-compatible Endpoint、SigV4 签名和存储桶访问 Cloudflare R2（生产唯一后端）。
 
-能力差异：R2 下载走 `StreamingResponse`，**不支持 Range 断点续传**（本地后端走 `FileResponse`，支持）。
+能力差异：R2 下载走流式响应，**不支持 Range 断点续传**（本地后端直接打开文件，支持）。
 100MB 附件的中断重传会从 0 开始，前端目前是 blob 全量下载，暂无功能回归。
 
 失败语义（务必区分，否则会把「R2 挂了」误报成「文件丢了」）：
 
-| 情况 | `core.r2` | 下载响应 |
+| 情况 | `pkg/storage` / `pkg/attachment` | 下载响应 |
 | --- | --- | --- |
-| 对象不存在 | `R2ObjectMissing` | `404 附件文件已丢失` |
-| 网络 / 凭据 / 5xx | `R2Unavailable` | `502 文件存储不可用，请稍后重试` |
-| R2 行但 `R2_*` 配置缺失 | `RuntimeError` | `502`（保留元数据，不静默 404） |
-| 删除失败 | `R2DeleteResult(success=False)` | 删除接口 `502` 且**保留元数据** |
+| 对象不存在 / 网络 / 凭据 / 5xx | `StorageError` | 接口返回 `502`，保留元数据 |
+| R2 行但后端不可用或配置不匹配 | 后端名称校验错误 | `502`，不静默 404 |
+| 删除失败 | `StorageError` | 删除接口失败且**保留元数据** |
 
 ### 5.3 附件元数据模型
 
@@ -304,7 +304,7 @@ class StorageBackend(Protocol):
 
 | 字段 | 语义 |
 | --- | --- |
-| `storage_backend` | `local` / `s3`（`s3` 指向 Cloudflare R2） |
+| `storage_backend` | `local` / `r2` |
 | `bucket` | 对象存储桶 |
 | `object_key` | 与供应商解耦的对象键 |
 | `etag` | 对象存储返回的版本指纹 |
@@ -314,7 +314,9 @@ class StorageBackend(Protocol):
 | `encryption_key_id` | KMS 或密钥管理服务引用 |
 | `status` | `pending` / `ready` / `deleting` / `deleted` |
 
-对象键命名（方案 A，2026-09-18 与用户确认：**一级目录就是业务**，最多两级、文件名可读）：
+`[现状]` 新上传对象键为 `{ref_type}/{ref_id}/{uuid}{ext}`；下载和删除只按行内坐标解析，不依赖当前全局后端。
+
+`[目标]` 可读对象键方案（2026-09-18 确认：**一级目录就是业务**，最多两级、文件名可读）：
 
 ```text
 {业务域}/{yyyy}/{可读原名}__{8位随机}.{ext}     # 合同 / 项目 / 凭证
@@ -341,14 +343,14 @@ class StorageBackend(Protocol):
   真的无操作，跨年后重跑也不会把旧年份的键算成新年份、在桶里留下孤儿；
 
 数据库只保存对象键，不保存带签名参数的 URL；下载 URL 必须即时签发、短期有效，避免凭据进入日志或浏览器历史。
-（当前 `path` 存的是私有 endpoint URL，仅作排查线索，真实取件始终走鉴权下载接口。）
+（当前 `path` 存的是上传返回的定位值，仅作排查与旧本地附件兼容；真实取件始终走鉴权下载接口。）
 
 ### 5.4 `[目标]` 直传流程
 
 ```mermaid
 sequenceDiagram
     participant B as Browser
-    participant API as FastAPI
+    participant API as Go API
     participant DB as PostgreSQL
     participant OS as Cloudflare R2
     participant AV as Virus Scanner
@@ -377,7 +379,7 @@ sequenceDiagram
 
 1. API 校验用户身份、业务权限和附件状态。
 2. API 生成短期 Presigned GET URL，例如 TTL 60 秒。
-3. 浏览器直接从 Cloudflare R2 下载，大文件不经过 FastAPI。
+3. 浏览器直接从 Cloudflare R2 下载，大文件不经过 Go API。
 4. API 写入 `download` 审计事件，记录对象键、操作者、资源、IP 和结果。
 5. 桶保持私有，禁止公开读；如使用 Cloudflare CDN，只允许签名或受控回源。
 
@@ -435,7 +437,8 @@ R2_PUBLIC_URL=
 - 项目数据范围同样由**功能模块**决定（Stage 6）：拥有任一项目内容模块
   （`opportunities/projects/assets/reports`）即获得项目台账/支出报表/工作台及其子资源
   （任务/预算/支出/里程碑/应收）的全局读写，不再要求是该项目的负责人或成员；
-  未分配基础模块的用户回落到「负责人/成员」参与范围（项目内容入口由路由门禁 403）。
+  未分配基础模块的用户回落到「负责人/成员」参与范围，仍可打开自己负责或参与的项目及子资源；
+  是否展示全局入口由前端模块菜单控制，数据边界由后端项目可见性查询执行。
   独立业务规则仍在项目范围之上：进度填报只能报自己的任务、快照确认仅负责人、项目删除/回收站仅超级管理员。
 - 项目、子表和附件接口在数据库查询层下推可见性与软删除条件。
 
@@ -487,7 +490,7 @@ hash_self
 
 ### 6.4 事务性审计
 
-`[现状]` 关键写操作通过 `commit_audited()` 将业务行、审批时间线和审计行放入同一个数据库事务：
+`[现状]` 关键写操作通过 `audit.CommitAudited()` 将业务行、审批时间线和审计行放入同一个数据库事务：
 
 ```text
 Business Change
@@ -497,7 +500,7 @@ Business Change
     -> Single PostgreSQL Commit
 ```
 
-如果审计写入失败，业务事务整体回滚并返回 `500`，杜绝“业务成功但留痕丢失”。登录、下载、导出等业务已完成后才记录的事件使用独立 `write_audit()`，但失败同样不能静默吞掉。
+如果审计写入失败，业务事务整体回滚并返回 `500`，杜绝“业务成功但留痕丢失”。登录、下载、导出等业务已完成后才记录的事件使用独立 `audit.WriteAudit()`，但失败同样不能静默吞掉。
 
 ### 6.5 防篡改与可验证审计 `[目标]`
 
@@ -537,7 +540,7 @@ flowchart LR
     J["Cron / CLI"] --> A
 ```
 
-当前部署是单机 Docker Compose 形态：API 启动前执行 Alembic Migration 和幂等 Seed，Web 使用 Next.js standalone server，PostgreSQL 由外部主机、VPS 隧道或宿主机提供。
+当前部署是单机 Docker Compose 形态：API 容器启动前执行 Alembic Migration，再运行 Go `cmd/seed` 做幂等初始化，最后启动 Gin Server；Web 使用 Next.js standalone server，PostgreSQL 由外部主机、VPS 隧道或宿主机提供。
 
 #### 7.1.1 HTTPS 入口（PWA 装机的前提）
 
@@ -684,6 +687,7 @@ flowchart TB
 | ADR-006 | 管理面与业务时间线分表 | 管理员审计语义与申请人看到的业务流转语义不同 | 需要明确两张表的查询边界 |
 | ADR-007 | 软删除而不是物理删除业务聚合 | 支持回收站、审计和引用完整性 | 所有查询必须显式下推软删除条件 |
 | ADR-008 | 先做可靠的模组，再考虑服务拆分 | 避免在没有负载证据时引入分布式复杂度 | 单体发布节奏仍需纪律 |
+| ADR-009 | 后端由 FastAPI 迁移为 Go / Gin / GORM 模块化单体 | 静态二进制部署、低运行时开销、强类型边界与统一 Go 工具链 | Python 仅保留为 Alembic 运行底座与归档行为基线 |
 
 ---
 

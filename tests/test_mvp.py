@@ -41,7 +41,7 @@ def _scope_user(client, db, username, modules, pwd="abc12345"):
     直接写库建号（不走 `/admin/users`）：创建接口需要超级管理员令牌，而为建号再登录
     一次会推进 admin 的 `session_version`，让用例先前拿到的管理员令牌当场失效。
     """
-    from api.models import User, UserModule
+    from api.legacy_py.models import User, UserModule
     from tests.support import hash_test_password
 
     with db() as session:
@@ -247,7 +247,7 @@ def test_over_budget_and_exception(client, db):
     assert r.status_code == 400
     # 打开审批开关：超预算转为 pending
     S = db()
-    from api.models import SysParam
+    from api.legacy_py.models import SysParam
     S.query(SysParam).filter_by(key="expense_approval_on").first().value = "1"
     S.commit()
     S.close()
@@ -328,7 +328,7 @@ def test_followup_update_delete_paged(client):
 def test_set_members(client, db):
     h = login(client, "pm")
     p = mkproject(client, h, "PMem")
-    from api.models import User
+    from api.legacy_py.models import User
     session = db()
     try:
         other = session.query(User).filter_by(username="cost").first().id
@@ -487,7 +487,7 @@ def test_paging_and_visibility(client, db):
 
 def mkuser_in_other_dept(db, username, pwd, roles, dept_name="外部部门"):
     """在另一个部门建用户（用于验证「全局范围只属于管理员」）。返回 (user_id, dept_id)。"""
-    from api.models import Department, Role, User, UserRole
+    from api.legacy_py.models import Department, Role, User, UserRole
     from tests.support import hash_test_password
     S = db()
     d = S.query(Department).filter_by(name=dept_name).first()
@@ -520,7 +520,7 @@ def test_admin_audit_log_operator_names_and_export_columns(client, db):
     """审计日志展示姓名，姓名为空回落账号，未知操作人回落可读 ID。"""
     from openpyxl import load_workbook
 
-    from api.models import AuditLog, User
+    from api.legacy_py.models import AuditLog, User
     from tests.support import hash_test_password
 
     ha = login(client, "admin")
@@ -819,7 +819,7 @@ def test_child_lists_apply_visibility_boundary(client, db):
 
 # 30. 软删除项目边界（子表）：列表 / 待办 / 计数 / 决策入口 / 写入口一律排除
 def test_soft_deleted_project_child_records_excluded(client, db):
-    from api.models import BudgetAdjust, Expense
+    from api.legacy_py.models import BudgetAdjust, Expense
 
     ha = login(client, "admin")
     h = login(client, "pm")
@@ -919,7 +919,7 @@ def test_soft_deleted_project_child_records_excluded(client, db):
 
 def _mk_demo_project(client, db, name="DemoProj"):
     """直接落库一个 is_demo=True 的项目（模拟 seed_mock 写入的演示数据）。"""
-    from api.models import Project
+    from api.legacy_py.models import Project
     s = db()
     try:
         p = Project(code="PJ-2026-9001", name=name, type="研发", status="doing",
@@ -1200,7 +1200,7 @@ def test_admin_issued_phone_user_must_change_password(client, db):
     })
     assert r.status_code == 200, r.text
     S = db()
-    from api.models import User
+    from api.legacy_py.models import User
     u = S.query(User).filter_by(username="13800138000").first()
     assert u is not None and u.must_change_pwd is True
     S.close()

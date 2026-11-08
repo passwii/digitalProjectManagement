@@ -2,8 +2,8 @@
 
 from importlib import import_module
 
-from api.core.database import Base
-from api import models  # noqa: F401 - register live ORM tables
+from api.legacy_py.core.database import Base
+from api.legacy_py import models  # noqa: F401 - register live ORM tables
 
 
 def test_initial_tables_are_frozen_to_original_twenty():

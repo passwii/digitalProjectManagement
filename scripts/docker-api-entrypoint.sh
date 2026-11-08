@@ -16,5 +16,8 @@ cd /app/api
 alembic upgrade head
 
 cd /app
-python3 -m api.seed
-exec uvicorn api.main:app --host 0.0.0.0 --port 8001
+if [ -f /app/seed ]; then
+  /app/seed
+fi
+
+exec /app/server

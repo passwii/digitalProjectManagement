@@ -6,8 +6,8 @@
 """
 from datetime import timedelta
 
-from api.core.timeutil import app_now
-from api.models import Project, ProjectChange, User
+from api.legacy_py.core.timeutil import app_now
+from api.legacy_py.models import Project, ProjectChange, User
 from tests.test_project_changes_ledger import create_project, login
 
 

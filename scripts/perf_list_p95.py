@@ -31,10 +31,10 @@ os.environ["DATABASE_URL"] = TEST_DATABASE_URL
 from sqlalchemy import create_engine, event, text  # noqa: E402
 from sqlalchemy.orm import sessionmaker  # noqa: E402
 
-from api.core.database import Base, get_db  # noqa: E402
-from api.core.security import hash_password  # noqa: E402
-from api.main import app  # noqa: E402
-from api.models import (  # noqa: E402
+from api.legacy_py.core.database import Base, get_db  # noqa: E402
+from api.legacy_py.core.security import hash_password  # noqa: E402
+from api.legacy_py.main import app  # noqa: E402
+from api.legacy_py.models import (  # noqa: E402
     Budget,
     Department,
     Expense,

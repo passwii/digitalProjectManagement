@@ -34,7 +34,7 @@ def _accounts(client, headers):
 
 
 def _assign_finance(client, db, admin_headers, username):
-    from api.models import User
+    from api.legacy_py.models import User
 
     with db() as session:
         user_id = session.query(User).filter_by(username=username).one().id
@@ -47,7 +47,7 @@ def _assign_finance(client, db, admin_headers, username):
 
 
 def test_finance_module_controls_books_and_ignores_legacy_member_roles(client, db):
-    from api.models import AccountBookMember, User
+    from api.legacy_py.models import AccountBookMember, User
 
     admin = _auth(client, "admin", "admin123456")
     pm = _auth(client, "pm", "pm123456")
@@ -156,7 +156,7 @@ def test_account_books_are_limited_to_cny(client, db):
         assert rejected.status_code == 400
         assert rejected.json()["detail"]["code"] == "F-BOOK-CURRENCY"
     with db() as session:
-        from api.models import AccountBook
+        from api.legacy_py.models import AccountBook
         assert session.query(AccountBook).filter(AccountBook.code.in_(["BOOK-USD", "BOOK-JPY"])).count() == 0
 
 
@@ -659,7 +659,7 @@ def test_finance_module_users_share_access_without_member_role_gates(client, db)
     accounts = _accounts(client, scoped_admin)
     period = client.get("/api/v1/finance/periods", headers=scoped_admin).json()[0]
 
-    from api.models import AccountBookMember, User
+    from api.legacy_py.models import AccountBookMember, User
     with db() as session:
         finance_user_id = session.query(User).filter_by(username="pm").one().id
         session.add(AccountBookMember(account_book_id=book["id"], user_id=finance_user_id, role="invalid"))
@@ -1179,7 +1179,7 @@ def test_fifo_collection_cannot_cross_receivable_accounts_in_one_voucher(client,
     assert items[second["id"]]["applied_amount"] == "0.00"
     assert client.get("/api/v1/finance/vouchers", headers=scoped).json()["total"] == before_vouchers
     with db() as session:
-        from api.models import ARAPAllocation
+        from api.legacy_py.models import ARAPAllocation
         assert session.query(ARAPAllocation).filter(
             ARAPAllocation.account_book_id == book["id"],
             ARAPAllocation.target_id.in_([first["id"], second["id"]]),
@@ -1440,7 +1440,7 @@ def test_arap_document_cannot_be_settled_while_reversing_or_after_reversal(clien
 
 
 def test_posting_arap_reversal_rechecks_active_allocations(client, db):
-    from api.models import ARAPAllocation, ARAPTransaction
+    from api.legacy_py.models import ARAPAllocation, ARAPTransaction
 
     headers = _auth(client, "admin", "admin123456")
     book = _book(client, headers, "AR-AP-REVERSE-POST-GUARD")

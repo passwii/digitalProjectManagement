@@ -3,7 +3,7 @@ from test_mvp import login
 
 
 def _uid(db, username: str) -> int:
-    from api.models import User
+    from api.legacy_py.models import User
 
     session = db()
     try:
@@ -15,7 +15,7 @@ def _uid(db, username: str) -> int:
 
 
 def _dept_id(db) -> int:
-    from api.models import Department
+    from api.legacy_py.models import Department
 
     session = db()
     try:
@@ -38,7 +38,7 @@ def _create_contact(client, headers, **overrides):
 
 
 def test_contact_profile_model(db):
-    from api.models import ContactProfile
+    from api.legacy_py.models import ContactProfile
 
     session = db()
     try:
