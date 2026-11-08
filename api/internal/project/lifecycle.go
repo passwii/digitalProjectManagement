@@ -8,7 +8,6 @@ import (
 	"digitalprojectmanagement/api/internal/model"
 	"digitalprojectmanagement/api/internal/rbac"
 	"digitalprojectmanagement/api/pkg/audit"
-	"digitalprojectmanagement/api/pkg/paging"
 	"digitalprojectmanagement/api/pkg/timeutil"
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -99,18 +98,15 @@ func (h *Handler) Changes(c *gin.Context) {
 		}
 		return
 	}
-	page, size, ok := pagination(c)
-	if !ok {
+	var rows []model.ProjectChange
+	if err := h.DB.Model(&model.ProjectChange{}).Preload("User").Where("project_id = ?", id).Order("id DESC").Find(&rows).Error; err != nil {
+		writeError(c, http.StatusInternalServerError, "查询项目变更失败")
 		return
 	}
-	sortFields := map[string]string{"id": "project_changes.id", "at": "project_changes.at", "field": "project_changes.field"}
-	q := h.DB.Model(&model.ProjectChange{}).Preload("User").Where("project_id = ?", id)
-	result, err := paging.Paginate[model.ProjectChange](q, page, size, c.Query("sort"), sortFields, "-id")
-	if err != nil {
-		writeError(c, http.StatusBadRequest, err.Error())
-		return
+	if rows == nil {
+		rows = []model.ProjectChange{}
 	}
-	c.JSON(http.StatusOK, result)
+	c.JSON(http.StatusOK, rows)
 }
 
 func (h *Handler) Progress(c *gin.Context) {

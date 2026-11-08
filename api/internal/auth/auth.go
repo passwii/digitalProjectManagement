@@ -161,23 +161,39 @@ func (h *Handler) Logout(c *gin.Context) {
 	u := rbac.GetCurrentUser(c)
 	authHeader := c.GetHeader("Authorization")
 	parts := strings.SplitN(authHeader, " ", 2)
-	if len(parts) == 2 {
-		if claims, err := security.DecodeToken(parts[1], "access"); err == nil {
-			expTime := timeutil.NewDateTime(claims.ExpiresAt.Time)
-			blacklist := model.TokenBlacklist{
-				JTI:       claims.JTI,
-				UserID:    &u.ID,
-				ExpiresAt: &expTime,
-				CreatedAt: timeutil.NowDateTime(),
-			}
-			h.DB.Create(&blacklist)
+
+	err := h.DB.Transaction(func(tx *gorm.DB) error {
+		var lockedUser model.User
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("id = ?", u.ID).First(&lockedUser).Error; err != nil {
+			return err
 		}
+		lockedUser.SessionVersion++
+		if err := tx.Save(&lockedUser).Error; err != nil {
+			return err
+		}
+		if len(parts) == 2 {
+			if claims, err := security.DecodeToken(parts[1], "access"); err == nil {
+				expTime := timeutil.NewDateTime(claims.ExpiresAt.Time)
+				blacklist := model.TokenBlacklist{
+					JTI:       claims.JTI,
+					UserID:    &lockedUser.ID,
+					ExpiresAt: &expTime,
+					CreatedAt: timeutil.NowDateTime(),
+				}
+				if err := tx.Create(&blacklist).Error; err != nil {
+					return err
+				}
+			}
+		}
+		subStr := strconv.Itoa(int(lockedUser.ID))
+		return audit.CommitAudited(tx, &lockedUser.ID, "logout", "auth", subStr, "登出成功", c.ClientIP())
+	})
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"detail": "退出登录失败"})
+		return
 	}
 
-	u.SessionVersion++
-	h.DB.Save(u)
-
-	c.JSON(http.StatusOK, gin.H{"ok": true})
+	c.JSON(http.StatusOK, gin.H{"ok": true, "detail": "已退出登录"})
 }
 
 type RefreshReq struct {

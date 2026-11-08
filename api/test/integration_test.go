@@ -332,7 +332,44 @@ func TestDatabaseIntegrationWorkflow(t *testing.T) {
 	if postUser.LoginFailCount != preUser.LoginFailCount+1 {
 		t.Fatalf("failed_count not incremented: %d -> %d", preUser.LoginFailCount, postUser.LoginFailCount)
 	}
+
+	// 15. 验证 /projects/:pid/changes 返回数组契约
+	w = httptest.NewRecorder()
+	req, _ = http.NewRequest("GET", fmt.Sprintf("/api/v1/projects/%d/changes", createdProj.ID), nil)
+	req.Header.Set("Authorization", tokenHeader)
+	app.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200 for project changes, got %d: %s", w.Code, w.Body.String())
+	}
+	var changeList []map[string]any
+	if err := json.Unmarshal(w.Body.Bytes(), &changeList); err != nil {
+		t.Fatalf("project changes must be an array: %v", err)
+	}
+
+	// 16. 验证通知轮询触发懒同步
+	w = httptest.NewRecorder()
+	req, _ = http.NewRequest("GET", "/api/v1/notifications?page=1&size=20", nil)
+	req.Header.Set("Authorization", tokenHeader)
+	app.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200 for notifications list, got %d: %s", w.Code, w.Body.String())
+	}
+
+	// 17. 验证安全退出登录与审计留痕
+	w = httptest.NewRecorder()
+	req, _ = http.NewRequest("POST", "/api/v1/auth/logout", nil)
+	req.Header.Set("Authorization", tokenHeader)
+	app.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200 for logout, got %d: %s", w.Code, w.Body.String())
+	}
+	var logoutAudit int64
+	db.Model(&model.AuditLog{}).Where("action = ? AND resource = ?", "logout", "auth").Count(&logoutAudit)
+	if logoutAudit == 0 {
+		t.Fatalf("expected logout audit log in database")
+	}
 }
+
 
 
 

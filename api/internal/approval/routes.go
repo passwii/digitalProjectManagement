@@ -16,4 +16,5 @@ func RegisterRoutes(r *gin.RouterGroup, db *gorm.DB) {
 	g.GET("/pending", h.Pending)
 	g.GET("/:kind/:aid/timeline", h.Timeline)
 	g.POST("/:kind/:aid/decide", h.Decide)
+	g.POST("/expense/:eid/exception", h.ExpenseException)
 }

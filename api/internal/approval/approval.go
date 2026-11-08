@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"digitalprojectmanagement/api/internal/model"
+	"digitalprojectmanagement/api/internal/notify"
 	projectdomain "digitalprojectmanagement/api/internal/project"
 	"digitalprojectmanagement/api/internal/rbac"
 	"digitalprojectmanagement/api/pkg/audit"
@@ -402,6 +403,20 @@ func decideExpense(tx *gorm.DB, user *model.User, id uint, approve bool, reason,
 	if err := audit.CommitAudited(tx, &user.ID, "decide_expense", "expenses", strconv.FormatUint(uint64(row.ID), 10), action+" "+reason, ip); err != nil {
 		return nil, err
 	}
+	if row.ByID != nil {
+		actionLabel := "已通过"
+		bodyMsg := "审批通过，金额已计入预算执行"
+		if !approve {
+			actionLabel = "已驳回"
+			bodyMsg = reason
+		}
+		if bodyMsg == "" {
+			bodyMsg = "当前状态：" + row.Status
+		}
+		title := fmt.Sprintf("支出%s：%s %s", actionLabel, row.Subject, strconv.FormatFloat(row.Amount, 'f', 2, 64))
+		dedupKey := fmt.Sprintf("expense-decided:%d:%s:%d", row.ID, row.Status, row.ResubmitCount)
+		_, _ = notify.Push(tx, *row.ByID, "approval", title, bodyMsg, "in_app", "expense", &row.ID, &projectID, dedupKey)
+	}
 	return gin.H{"kind": "expense", "id": row.ID, "status": row.Status, "decision_reason": reason}, nil
 }
 
@@ -451,3 +466,79 @@ func approvalError(c *gin.Context, err error) {
 
 var errApprovalHandled = errors.New("approval already handled")
 var errApprovalExpenseOverBudget = errors.New("expense exceeds budget")
+
+func (h *Handler) ExpenseException(c *gin.Context) {
+	eidStr := c.Param("eid")
+	eid, err := strconv.ParseUint(eidStr, 10, 32)
+	if err != nil || eid == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"detail": "支出 ID 无效"})
+		return
+	}
+	var req struct {
+		Reason string `json:"reason"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil || strings.TrimSpace(req.Reason) == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"detail": "特批必须填写理由"})
+		return
+	}
+	reason := strings.TrimSpace(req.Reason)
+	user := rbac.GetCurrentUser(c)
+	var result model.Expense
+	err = h.DB.Transaction(func(tx *gorm.DB) error {
+		var row model.Expense
+		if err := tx.Clauses(clause.Locking{Strength: clause.LockingStrengthUpdate}).First(&row, eid).Error; err != nil {
+			return err
+		}
+		if row.Status != "pending" && row.Status != "rejected" {
+			return errors.New("expense_decision_state")
+		}
+		if _, err := projectdomain.LoadVisibleProject(tx, user, row.ProjectID); err != nil {
+			return err
+		}
+		old := row.Status
+		now := timeutil.NowDateTime()
+		row.Status = "exception"
+		row.ApprovedBy = &user.ID
+		row.DecisionReason = reason
+		row.DecidedAt = &now
+		if err := tx.Save(&row).Error; err != nil {
+			return err
+		}
+		projectID := row.ProjectID
+		if err := tx.Create(&model.ApprovalRecord{
+			Kind: "expense", RefID: row.ID, ProjectID: &projectID,
+			Action: "exception", FromStatus: old, ToStatus: "exception",
+			ActorID: &user.ID, Reason: reason, CreatedAt: now,
+		}).Error; err != nil {
+			return err
+		}
+		if err := tx.Create(&model.ProjectChange{
+			ProjectID: row.ProjectID, Field: "expense",
+			New:  fmt.Sprintf("「%s」特批放行：%s", row.Subject, reason),
+			ByID: &user.ID, At: now,
+		}).Error; err != nil {
+			return err
+		}
+		if err := audit.CommitAudited(tx, &user.ID, "exception_expense", "expenses", strconv.FormatUint(uint64(row.ID), 10), reason, c.ClientIP()); err != nil {
+			return err
+		}
+		if row.ByID != nil {
+			title := fmt.Sprintf("支出特批放行：%s %s", row.Subject, strconv.FormatFloat(row.Amount, 'f', 2, 64))
+			dedupKey := fmt.Sprintf("expense-decided:%d:exception:%d", row.ID, row.ResubmitCount)
+			_, _ = notify.Push(tx, *row.ByID, "approval", title, reason, "in_app", "expense", &row.ID, &projectID, dedupKey)
+		}
+		result = row
+		return nil
+	})
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"detail": "支出不存在"})
+		} else if err.Error() == "expense_decision_state" {
+			c.JSON(http.StatusBadRequest, gin.H{"detail": "仅待审批或已驳回的支出可特批"})
+		} else {
+			c.JSON(http.StatusInternalServerError, gin.H{"detail": "特批放行失败"})
+		}
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"kind": "expense", "id": result.ID, "status": result.Status, "decision_reason": reason})
+}

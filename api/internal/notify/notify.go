@@ -1,6 +1,7 @@
 package notify
 
 import (
+	"time"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -149,7 +150,96 @@ func formatNotification(n *model.Notification) NotifItem {
 	}
 }
 
+
+func SyncWarnings(db *gorm.DB, force bool) {
+	now := timeutil.AppNow()
+	nowDt := timeutil.NewDateTime(now)
+	today := timeutil.NewDate(now)
+
+	const syncInterval = 300 * time.Second
+	var param model.SysParam
+	if err := db.Where("key = ?", "notifications_synced_at").First(&param).Error; err == nil {
+		if !force && param.Value != "" {
+			if t, err := time.Parse(time.RFC3339, param.Value); err == nil {
+				if now.Sub(t) < syncInterval {
+					return
+				}
+			}
+		}
+	}
+
+	// 1. 任务逾期预警
+	var overdueTasks []model.Task
+	_ = db.Model(&model.Task{}).
+		Joins("JOIN projects ON projects.id = tasks.project_id").
+		Where("projects.deleted_at IS NULL AND tasks.status <> 'done' AND tasks.plan_end < ?", today).
+		Limit(50).Find(&overdueTasks).Error
+	for _, t := range overdueTasks {
+		if t.OwnerID != nil {
+			title := fmt.Sprintf("任务逾期：%s", t.Name)
+			body := "计划结束仍未完成"
+			if t.PlanEnd != nil {
+				body = fmt.Sprintf("计划结束 %s，仍未完成", t.PlanEnd.Format("2006-01-02"))
+			}
+			dedupKey := fmt.Sprintf("overdue_task:%d", t.ID)
+			projectID := t.ProjectID
+			_, _ = Push(db, *t.OwnerID, "overdue_task", title, body, "in_app", "task", &t.ID, &projectID, dedupKey)
+		}
+	}
+
+	// 2. 里程碑临近/逾期预警
+	var nearMilestones []model.Milestone
+	_ = db.Model(&model.Milestone{}).
+		Joins("JOIN projects ON projects.id = milestones.project_id").
+		Where("projects.deleted_at IS NULL AND milestones.status <> 'done' AND milestones.plan_date <= ?", today.AddDate(0, 0, 3)).
+		Limit(50).Find(&nearMilestones).Error
+	for _, m := range nearMilestones {
+		if m.OwnerID != nil && m.PlanDate != nil {
+			state := "临近"
+			if m.PlanDate.Before(today.Time) {
+				state = "已逾期"
+			}
+			title := fmt.Sprintf("里程碑%s：%s", state, m.Name)
+			body := fmt.Sprintf("计划日期 %s", m.PlanDate.Format("2006-01-02"))
+			dedupKey := fmt.Sprintf("milestone:%d", m.ID)
+			projectID := m.ProjectID
+			_, _ = Push(db, *m.OwnerID, "milestone", title, body, "in_app", "milestone", &m.ID, &projectID, dedupKey)
+		}
+	}
+
+	// 3. 跟进到期提醒
+	var dueFollowups []model.Followup
+	_ = db.Model(&model.Followup{}).
+		Joins("JOIN projects ON projects.id = followups.project_id").
+		Where("projects.deleted_at IS NULL AND followups.remind_at <= ? AND (followups.remind_state = 'pending' OR followups.remind_state IS NULL OR followups.remind_state = '')", nowDt).
+		Limit(50).Find(&dueFollowups).Error
+	for _, f := range dueFollowups {
+		if f.UserID != nil {
+			title := "跟进提醒"
+			body := f.Content
+			if len([]rune(body)) > 200 {
+				body = string([]rune(body)[:200])
+			}
+			dedupKey := fmt.Sprintf("followup:%d", f.ID)
+			projectID := f.ProjectID
+			_, _ = Push(db, *f.UserID, "followup", title, body, "in_app", "followup", &f.ID, &projectID, dedupKey)
+			_ = db.Model(&model.Followup{}).Where("id = ?", f.ID).Updates(map[string]any{
+				"remind_state": "done",
+				"reminded_at": nowDt,
+			}).Error
+		}
+	}
+
+	nowStr := now.Format(time.RFC3339)
+	if param.ID > 0 {
+		_ = db.Model(&param).Update("value", nowStr).Error
+	} else {
+		_ = db.Create(&model.SysParam{Key: "notifications_synced_at", Value: nowStr, Desc: "通知最近同步时间"}).Error
+	}
+}
+
 func (h *Handler) List(c *gin.Context) {
+	SyncWarnings(h.DB, false)
 	u := rbac.GetCurrentUser(c)
 	q := h.DB.Model(&model.Notification{}).Where("user_id = ?", u.ID)
 
@@ -198,6 +288,7 @@ func (h *Handler) List(c *gin.Context) {
 }
 
 func (h *Handler) Count(c *gin.Context) {
+	SyncWarnings(h.DB, false)
 	u := rbac.GetCurrentUser(c)
 	var unread, pending int64
 	h.DB.Model(&model.Notification{}).Where("user_id = ? AND read_at IS NULL", u.ID).Count(&unread)
