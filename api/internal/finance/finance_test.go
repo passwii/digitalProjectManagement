@@ -53,3 +53,13 @@ func TestValidateEntryAmountsRequiresTwoLines(t *testing.T) {
 		t.Fatal("validateEntryAmounts() accepted fewer than two lines")
 	}
 }
+
+func TestJsonTextNormalizesNilToEmptyObject(t *testing.T) {
+	if got := jsonText(nil); got != "{}" {
+		t.Fatalf("jsonText(nil) = %s, want {}", got)
+	}
+	var m map[string]bool
+	if got := jsonText(m); got != "{}" {
+		t.Fatalf("jsonText(nil map) = %s, want {}", got)
+	}
+}

@@ -191,7 +191,7 @@ func SyncWarnings(db *gorm.DB, force bool) {
 	var nearMilestones []model.Milestone
 	_ = db.Model(&model.Milestone{}).
 		Joins("JOIN projects ON projects.id = milestones.project_id").
-		Where("projects.deleted_at IS NULL AND milestones.status <> 'done' AND milestones.plan_date <= ?", today.AddDate(0, 0, 3)).
+		Where("projects.deleted_at IS NULL AND milestones.status = 'open' AND milestones.actual_date IS NULL AND milestones.plan_date IS NOT NULL AND milestones.plan_date <= ?", today.AddDate(0, 0, 3)).
 		Limit(50).Find(&nearMilestones).Error
 	for _, m := range nearMilestones {
 		if m.OwnerID != nil && m.PlanDate != nil {

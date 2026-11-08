@@ -217,7 +217,7 @@ func validateParent(db *gorm.DB, parentID *uint, projectID, taskID uint) (*model
 	seen := map[uint]bool{parent.ID: true}
 	current := parent
 	for current.ParentID != nil && *current.ParentID > 0 {
-		if seen[*current.ParentID] {
+		if *current.ParentID == taskID || seen[*current.ParentID] {
 			return nil, 0, errTaskParent
 		}
 		seen[*current.ParentID] = true

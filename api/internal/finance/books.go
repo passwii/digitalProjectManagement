@@ -177,7 +177,12 @@ func seedBook(tx *gorm.DB, bookID uint) error {
 			AccountBookID: bookID, Code: seed.code, Name: seed.name,
 			Level: len(seed.code)/2 - 1, ParentID: parentID,
 			Direction: seed.direction, Category: seed.category,
-			AuxFlags: jsonText(seed.flags), SubjectVersion: "2022",
+			AuxFlags: func() string {
+				if seed.flags == nil {
+					return "{}"
+				}
+				return jsonText(seed.flags)
+			}(), SubjectVersion: "2022",
 			IsLeaf: true, IsActive: true,
 		}
 		if err := tx.Create(&row).Error; err != nil {

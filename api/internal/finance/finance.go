@@ -236,11 +236,18 @@ func ensureOpen(period *model.AccountingPeriod) error {
 }
 
 func jsonText(value any) string {
+	if value == nil {
+		return "{}"
+	}
 	data, err := json.Marshal(value)
 	if err != nil {
 		return "{}"
 	}
-	return string(data)
+	text := string(data)
+	if text == "null" {
+		return "{}"
+	}
+	return text
 }
 
 func decodeBoolMap(value string) map[string]bool {
