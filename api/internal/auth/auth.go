@@ -291,16 +291,29 @@ func (h *Handler) ChangePassword(c *gin.Context) {
 	}
 
 	err = h.DB.Transaction(func(tx *gorm.DB) error {
-		u.PwdHash = newHash
-		u.MustChangePwd = false
-		u.LoginFailCount = 0
-		u.LockedUntil = nil
-		if err := tx.Save(u).Error; err != nil {
+		var lockedUser model.User
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("id = ?", u.ID).First(&lockedUser).Error; err != nil {
 			return err
 		}
-		return audit.CommitAudited(tx, &u.ID, "change_password", "auth", strconv.Itoa(int(u.ID)), "修改密码", c.ClientIP())
+		if !security.VerifyPassword(req.OldPassword, lockedUser.PwdHash) {
+			return errors.New("old_password_wrong")
+		}
+		updates := map[string]any{
+			"pwd_hash":        newHash,
+			"must_change_pwd": false,
+			"failed_count":    0,
+			"locked_until":    nil,
+		}
+		if err := tx.Model(&model.User{}).Where("id = ?", lockedUser.ID).Updates(updates).Error; err != nil {
+			return err
+		}
+		return audit.CommitAudited(tx, &lockedUser.ID, "change_password", "auth", strconv.Itoa(int(lockedUser.ID)), "修改密码", c.ClientIP())
 	})
 	if err != nil {
+		if err.Error() == "old_password_wrong" {
+			c.JSON(http.StatusBadRequest, gin.H{"detail": "原密码错误"})
+			return
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{"detail": "修改密码失败"})
 		return
 	}

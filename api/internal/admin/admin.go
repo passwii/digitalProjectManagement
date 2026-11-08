@@ -435,6 +435,7 @@ type CreateDictReq struct {
 }
 
 func (h *Handler) CreateDict(c *gin.Context) {
+	currentUser := rbac.GetCurrentUser(c)
 	var req CreateDictReq
 	if err := c.ShouldBindJSON(&req); err != nil || req.Type == "" || req.Code == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"detail": "type 和 code 必填"})
@@ -446,7 +447,13 @@ func (h *Handler) CreateDict(c *gin.Context) {
 		Label: req.Label,
 		Sort:  req.Sort,
 	}
-	if err := h.DB.Create(&dict).Error; err != nil {
+	err := h.DB.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(&dict).Error; err != nil {
+			return err
+		}
+		return audit.CommitAudited(tx, &currentUser.ID, "create_dict", "dicts", strconv.Itoa(int(dict.ID)), dict.Type+":"+dict.Code, c.ClientIP())
+	})
+	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"detail": "创建字典失败"})
 		return
 	}

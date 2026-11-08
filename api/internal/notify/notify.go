@@ -90,6 +90,7 @@ type NotifItem struct {
 	RefType     string             `json:"ref_type"`
 	RefID       *uint              `json:"ref_id"`
 	ProjectID   *uint              `json:"project_id"`
+	Read        bool               `json:"read"`
 	ReadAt      *timeutil.DateTime `json:"read_at"`
 	State       string             `json:"state"`
 	HandledAt   *timeutil.DateTime `json:"handled_at"`
@@ -139,6 +140,7 @@ func formatNotification(n *model.Notification) NotifItem {
 		RefType:     n.RefType,
 		RefID:       n.RefID,
 		ProjectID:   n.ProjectID,
+		Read:        n.ReadAt != nil,
 		ReadAt:      n.ReadAt,
 		State:       n.State,
 		HandledAt:   n.HandledAt,
@@ -279,11 +281,17 @@ func (h *Handler) List(c *gin.Context) {
 		items = []NotifItem{}
 	}
 
+	var unreadCount, pendingCount int64
+	h.DB.Model(&model.Notification{}).Where("user_id = ? AND read_at IS NULL", u.ID).Count(&unreadCount)
+	h.DB.Model(&model.Notification{}).Where("user_id = ? AND state = 'pending'", u.ID).Count(&pendingCount)
+
 	c.JSON(http.StatusOK, gin.H{
-		"total": env.Total,
-		"page":  env.Page,
-		"size":  env.Size,
-		"items": items,
+		"total":   env.Total,
+		"unread":  unreadCount,
+		"pending": pendingCount,
+		"page":    env.Page,
+		"size":    env.Size,
+		"items":   items,
 	})
 }
 
