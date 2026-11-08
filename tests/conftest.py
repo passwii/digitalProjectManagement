@@ -44,8 +44,8 @@ if not TEST_DATABASE_URL:
 else:
     os.environ["DATABASE_URL"] = TEST_DATABASE_URL
 
-from api.core.database import Base, get_db  # noqa: E402
-from api.main import app  # noqa: E402
+from api.legacy_py.core.database import Base, get_db  # noqa: E402
+from api.legacy_py.main import app  # noqa: E402
 from tests.support import hash_test_password  # noqa: E402
 
 
@@ -76,7 +76,7 @@ def db():
     TestingSession = sessionmaker(bind=engine, autoflush=False, autocommit=False)
     session = TestingSession()
     try:
-        from api.models import Department, Role, SysParam, User, UserRole
+        from api.legacy_py.models import Department, Role, SysParam, User, UserRole
 
         dept = Department(name="综合部")
         session.add(dept)
