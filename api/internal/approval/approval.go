@@ -365,8 +365,11 @@ func decideExpense(tx *gorm.DB, user *model.User, id uint, approve bool, reason,
 			return nil, err
 		}
 		var spent float64
-		err = tx.Model(&model.Expense{}).Select("COALESCE(SUM(amount), 0)").
-			Where("project_id = ? AND subject = ? AND status IN ?", row.ProjectID, row.Subject, []string{"approved", "exception"}).Scan(&spent).Error
+		spentQ := tx.Model(&model.Expense{}).Where("project_id = ? AND status IN ?", row.ProjectID, []string{"approved", "exception"})
+		if s := strings.TrimSpace(row.Subject); s != "" {
+			spentQ = spentQ.Where("subject = ?", s)
+		}
+		err = spentQ.Select("COALESCE(SUM(amount), 0)").Scan(&spent).Error
 		if err != nil {
 			return nil, err
 		}
@@ -437,8 +440,11 @@ func dateString(value *timeutil.Date) any {
 
 func approvalSubjectBudget(tx *gorm.DB, projectID uint, subject string) (float64, error) {
 	var amount float64
-	err := tx.Model(&model.Budget{}).Select("COALESCE(SUM(amount), 0)").
-		Where("project_id = ? AND subject = ?", projectID, subject).Scan(&amount).Error
+	q := tx.Model(&model.Budget{}).Where("project_id = ?", projectID)
+	if s := strings.TrimSpace(subject); s != "" {
+		q = q.Where("subject = ?", s)
+	}
+	err := q.Select("COALESCE(SUM(amount), 0)").Scan(&amount).Error
 	return amount, err
 }
 

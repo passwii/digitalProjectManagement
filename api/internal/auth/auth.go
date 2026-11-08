@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"fmt"
 	"errors"
 	
 	"net/http"
@@ -69,6 +70,7 @@ func (h *Handler) Login(c *gin.Context) {
 	}
 
 	if err != nil {
+		_ = audit.WriteAudit(h.DB, nil, "login_fail", "auth", req.Username, "用户不存在", c.ClientIP())
 		c.JSON(http.StatusUnauthorized, gin.H{"detail": "账号或密码错误"})
 		return
 	}
@@ -86,6 +88,7 @@ func (h *Handler) Login(c *gin.Context) {
 
 	// 验证密码
 	if !security.VerifyPassword(req.Password, user.PwdHash) {
+		msg := "账号或密码错误"
 		_ = h.DB.Transaction(func(tx *gorm.DB) error {
 			var lockedUser model.User
 			if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("id = ?", user.ID).First(&lockedUser).Error; err != nil {
@@ -95,14 +98,22 @@ func (h *Handler) Login(c *gin.Context) {
 			updates := map[string]any{
 				"failed_count": lockedUser.LoginFailCount,
 			}
+			locked := false
 			if lockedUser.LoginFailCount >= failLimit {
-				locked := timeutil.NewDateTime(now.Add(time.Duration(lockMinutes) * time.Minute))
-				updates["locked_until"] = &locked
+				lockedTime := timeutil.NewDateTime(now.Add(time.Duration(lockMinutes) * time.Minute))
+				updates["locked_until"] = &lockedTime
 				updates["status"] = "locked"
+				locked = true
 			}
-			return tx.Model(&model.User{}).Where("id = ?", lockedUser.ID).Updates(updates).Error
+			if err := tx.Model(&model.User{}).Where("id = ?", lockedUser.ID).Updates(updates).Error; err != nil {
+				return err
+			}
+			if locked {
+				msg = fmt.Sprintf("密码错误，已锁定%d分钟", lockMinutes)
+			}
+			return audit.CommitAudited(tx, &lockedUser.ID, "login_fail", "auth", req.Username, "密码错误", c.ClientIP())
 		})
-		c.JSON(http.StatusUnauthorized, gin.H{"detail": "账号或密码错误"})
+		c.JSON(http.StatusUnauthorized, gin.H{"detail": msg})
 		return
 	}
 

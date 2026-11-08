@@ -199,7 +199,7 @@ func (h *Handler) Create(c *gin.Context) {
 		return
 	}
 	var result model.Project
-	if err := h.DB.Preload("Owner").Preload("Department").First(&result, created.ID).Error; err != nil {
+	if err := h.DB.Preload("Owner").Preload("Department").Preload("Members").First(&result, created.ID).Error; err != nil {
 		result = created
 	}
 	c.JSON(http.StatusCreated, result)

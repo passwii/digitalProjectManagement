@@ -332,6 +332,11 @@ func TestDatabaseIntegrationWorkflow(t *testing.T) {
 	if postUser.LoginFailCount != preUser.LoginFailCount+1 {
 		t.Fatalf("failed_count not incremented: %d -> %d", preUser.LoginFailCount, postUser.LoginFailCount)
 	}
+	var failAuditCount int64
+	db.Model(&model.AuditLog{}).Where("action = ? AND resource = ?", "login_fail", "auth").Count(&failAuditCount)
+	if failAuditCount == 0 {
+		t.Fatalf("expected login_fail audit log in database")
+	}
 
 	// 15. 验证 /projects/:pid/changes 返回数组契约
 	w = httptest.NewRecorder()

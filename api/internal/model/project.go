@@ -1,6 +1,7 @@
 package model
 
 import (
+	"encoding/json"
 	"digitalprojectmanagement/api/pkg/timeutil"
 	"github.com/shopspring/decimal"
 )
@@ -31,7 +32,26 @@ type Project struct {
 	UpdatedAt    timeutil.DateTime  `json:"updated_at"`
 	DeletedAt    *timeutil.DateTime `gorm:"index" json:"deleted_at"`
 	IsDemo       bool               `gorm:"default:false;not null;index" json:"is_demo"`
-	Members      []ProjectMember    `gorm:"foreignKey:ProjectID" json:"members,omitempty"`
+	Members      []ProjectMember    `gorm:"foreignKey:ProjectID" json:"-"`
+	MemberIDs    []uint             `gorm:"-" json:"member_ids"`
+}
+
+func (p Project) MarshalJSON() ([]byte, error) {
+	type Alias Project
+	ids := p.MemberIDs
+	if ids == nil {
+		ids = make([]uint, 0, len(p.Members))
+		for _, m := range p.Members {
+			ids = append(ids, m.UserID)
+		}
+	}
+	return json.Marshal(&struct {
+		Alias
+		MemberIDs []uint `json:"member_ids"`
+	}{
+		Alias:     Alias(p),
+		MemberIDs: ids,
+	})
 }
 
 func (Project) TableName() string { return "projects" }

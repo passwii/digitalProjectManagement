@@ -80,7 +80,7 @@ func (h *Handler) List(c *gin.Context) {
 		}
 		q = q.Where("EXTRACT(YEAR FROM projects.plan_start) = ?", year)
 	}
-	q = q.Preload("Owner").Preload("Department")
+	q = q.Preload("Owner").Preload("Department").Preload("Members")
 	result, err := paging.Paginate[model.Project](q, page, size, c.Query("sort"), projectSorts, "-id")
 	if err != nil {
 		writeError(c, http.StatusBadRequest, err.Error())

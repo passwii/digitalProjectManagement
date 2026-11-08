@@ -77,7 +77,7 @@ func VisibleProjectIDs(db *gorm.DB, user *model.User) *gorm.DB {
 // LoadVisibleProject returns 404 for hidden, deleted, or demo-hidden projects.
 func LoadVisibleProject(db *gorm.DB, user *model.User, id uint) (model.Project, error) {
 	var row model.Project
-	err := visibleProjects(db, user).Preload("Owner").Preload("Department").
+	err := visibleProjects(db, user).Preload("Owner").Preload("Department").Preload("Members").
 		Where("projects.id = ?", id).First(&row).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return row, gorm.ErrRecordNotFound

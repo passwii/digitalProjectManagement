@@ -203,16 +203,21 @@ func approvalEnabled(db *gorm.DB, key string) bool {
 
 func subjectBudget(db *gorm.DB, projectID uint, subject string) (float64, error) {
 	var total float64
-	err := db.Model(&model.Budget{}).Select("COALESCE(SUM(amount), 0)").
-		Where("project_id = ? AND subject = ?", projectID, subject).Scan(&total).Error
+	q := db.Model(&model.Budget{}).Where("project_id = ?", projectID)
+	if subject = strings.TrimSpace(subject); subject != "" {
+		q = q.Where("subject = ?", subject)
+	}
+	err := q.Select("COALESCE(SUM(amount), 0)").Scan(&total).Error
 	return total, err
 }
 
 func subjectSpent(db *gorm.DB, projectID uint, subject string) (float64, error) {
 	var total float64
-	err := db.Model(&model.Expense{}).Select("COALESCE(SUM(amount), 0)").
-		Where("project_id = ? AND subject = ? AND status IN ?", projectID, subject, []string{"approved", "exception"}).
-		Scan(&total).Error
+	q := db.Model(&model.Expense{}).Where("project_id = ? AND status IN ?", projectID, []string{"approved", "exception"})
+	if subject = strings.TrimSpace(subject); subject != "" {
+		q = q.Where("subject = ?", subject)
+	}
+	err := q.Select("COALESCE(SUM(amount), 0)").Scan(&total).Error
 	return total, err
 }
 
