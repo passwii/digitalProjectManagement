@@ -3,6 +3,7 @@ package finance
 import (
 	"testing"
 
+	"digitalprojectmanagement/api/internal/model"
 	"github.com/shopspring/decimal"
 )
 
@@ -61,5 +62,24 @@ func TestJsonTextNormalizesNilToEmptyObject(t *testing.T) {
 	var m map[string]bool
 	if got := jsonText(m); got != "{}" {
 		t.Fatalf("jsonText(nil map) = %s, want {}", got)
+	}
+}
+
+func TestCalculateBalanceSheetTotalsDoesNotRepeatChildActivity(t *testing.T) {
+	parentID, childID := uint(1), uint(2)
+	accounts := []model.Account{
+		{ID: parentID, Name: "主营业务成本", Category: "损益", Direction: "D"},
+		{ID: childID, ParentID: &parentID, Name: "直接成本", Category: "损益", Direction: "D"},
+	}
+	opening := map[uint]ledgerTotals{}
+	through := map[uint]ledgerTotals{
+		parentID: {AccountID: parentID, Debit: decimal.NewFromInt(20)},
+		childID:  {AccountID: childID, Debit: decimal.NewFromInt(100)},
+	}
+
+	got := calculateBalanceSheetTotals(accounts, opening, through)
+
+	if !got.profit.Equal(decimal.NewFromInt(120)) {
+		t.Fatalf("profit = %s, want 120 without counting the child twice", got.profit)
 	}
 }

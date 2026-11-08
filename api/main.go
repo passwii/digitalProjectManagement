@@ -31,6 +31,34 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+var allowedCORSHeaders = []string{
+	"Authorization",
+	"Content-Type",
+	"Accept",
+	"Origin",
+	"User-Agent",
+	"DNT",
+	"Cache-Control",
+	"X-Mx-ReqToken",
+	"Keep-Alive",
+	"X-Requested-With",
+	"If-Modified-Since",
+	"If-Match",
+	"X-CSRF-Token",
+	"X-Account-Book",
+	"X-Reopen-Period",
+}
+
+func buildCORSConfig(origins []string) cors.Config {
+	cfg := cors.DefaultConfig()
+	cfg.AllowOrigins = origins
+	cfg.AllowCredentials = true
+	cfg.AllowHeaders = append([]string(nil), allowedCORSHeaders...)
+	cfg.AllowMethods = []string{"GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"}
+	cfg.ExposeHeaders = []string{"Content-Disposition"}
+	return cfg
+}
+
 func main() {
 	cfg, err := config.Load()
 	if err != nil {
@@ -70,25 +98,7 @@ func main() {
 	r := gin.Default()
 
 	// CORS 配置
-	corsConfig := cors.DefaultConfig()
-	corsConfig.AllowOrigins = cfg.CorsOrigins
-	corsConfig.AllowCredentials = true
-	corsConfig.AllowHeaders = []string{
-		"Authorization",
-		"Content-Type",
-		"Accept",
-		"Origin",
-		"User-Agent",
-		"DNT",
-		"Cache-Control",
-		"X-Mx-ReqToken",
-		"Keep-Alive",
-		"X-Requested-With",
-		"If-Modified-Since",
-		"X-CSRF-Token",
-	}
-	corsConfig.AllowMethods = []string{"GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"}
-	corsConfig.ExposeHeaders = []string{"Content-Disposition"}
+	corsConfig := buildCORSConfig(cfg.CorsOrigins)
 	r.Use(cors.New(corsConfig))
 
 	// 健康检查

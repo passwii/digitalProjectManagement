@@ -17,6 +17,7 @@ import (
 	"digitalprojectmanagement/api/pkg/timeutil"
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type Handler struct {
@@ -315,13 +316,18 @@ func (h *Handler) UpdateUser(c *gin.Context) {
 			user.PwdHash = hash
 			user.MustChangePwd = true
 		}
-		if err := tx.Save(&user).Error; err != nil {
+		user.Department = nil
+		user.Roles = nil
+		user.Modules = nil
+		if err := tx.Omit(clause.Associations).Save(&user).Error; err != nil {
 			return err
 		}
 
 		if req.Modules != nil {
 			user.ModulesAssigned = true
-			tx.Save(&user)
+			if err := tx.Omit(clause.Associations).Save(&user).Error; err != nil {
+				return err
+			}
 			tx.Where("user_id = ?", user.ID).Delete(&model.UserModule{})
 			for _, m := range *req.Modules {
 				tx.Create(&model.UserModule{UserID: user.ID, Module: m})
@@ -338,7 +344,9 @@ func (h *Handler) UpdateUser(c *gin.Context) {
 				contact.DeptID = req.DeptID
 			}
 			contact.UpdatedAt = timeutil.NowDateTime()
-			tx.Save(&contact)
+			if err := tx.Omit(clause.Associations).Save(&contact).Error; err != nil {
+				return err
+			}
 		}
 
 		return audit.CommitAudited(tx, &currentUser.ID, "update", "user", strconv.Itoa(int(user.ID)), fmt.Sprintf("更新用户 %s", user.Username), c.ClientIP())

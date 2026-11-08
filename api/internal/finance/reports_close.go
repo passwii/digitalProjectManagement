@@ -272,6 +272,35 @@ func normalBalance(account model.Account, totals ledgerTotals) decimal.Decimal {
 	return net
 }
 
+type balanceSheetCategoryTotals struct {
+	assets      decimal.Decimal
+	liabilities decimal.Decimal
+	equity      decimal.Decimal
+	profit      decimal.Decimal
+}
+
+func calculateBalanceSheetTotals(accounts []model.Account, opening, through map[uint]ledgerTotals) balanceSheetCategoryTotals {
+	totals := balanceSheetCategoryTotals{
+		assets: decimal.Zero, liabilities: decimal.Zero, equity: decimal.Zero, profit: decimal.Zero,
+	}
+	for _, account := range accounts {
+		// Category totals use each account's own activity, not the rolled-up node
+		// balance, otherwise parent accounts count their descendants repeatedly.
+		ownNet := normalBalance(account, combineTotals(opening[account.ID], through[account.ID]))
+		switch account.Category {
+		case "资产":
+			totals.assets = totals.assets.Add(ownNet)
+		case "负债":
+			totals.liabilities = totals.liabilities.Add(ownNet)
+		case "权益":
+			totals.equity = totals.equity.Add(ownNet)
+		case "损益":
+			totals.profit = totals.profit.Add(ownNet)
+		}
+	}
+	return totals
+}
+
 func (h *Handler) balanceSheet(c *gin.Context) {
 	book, ok := h.book(c)
 	if !ok {
@@ -318,20 +347,7 @@ func (h *Handler) balanceSheet(c *gin.Context) {
 			}
 		}
 	}
-	assets, liabilities, equity, profit := decimal.Zero, decimal.Zero, decimal.Zero, decimal.Zero
-	for _, account := range accounts {
-		value := nodes[account.ID].Balance
-		switch account.Category {
-		case "资产":
-			assets = assets.Add(normalBalance(account, combineTotals(opening[account.ID], through[account.ID])))
-		case "负债":
-			liabilities = liabilities.Add(normalBalance(account, combineTotals(opening[account.ID], through[account.ID])))
-		case "权益":
-			equity = equity.Add(normalBalance(account, combineTotals(opening[account.ID], through[account.ID])))
-		case "损益":
-			profit = profit.Add(value)
-		}
-	}
+	totals := calculateBalanceSheetTotals(accounts, opening, through)
 	items := make([]gin.H, 0, len(accounts))
 	for _, account := range accounts {
 		node := nodes[account.ID]
@@ -341,13 +357,13 @@ func (h *Handler) balanceSheet(c *gin.Context) {
 			"balance": node.Balance.StringFixed(2),
 		})
 	}
-	totalEquity := equity.Add(profit)
+	totalEquity := totals.equity.Add(totals.profit)
 	c.JSON(http.StatusOK, gin.H{
 		"period_id": period.ID, "items": items,
 		"totals": gin.H{
-			"assets": assets.StringFixed(2), "liabilities": liabilities.StringFixed(2),
-			"equity": totalEquity.StringFixed(2), "profit_before_close": profit.StringFixed(2),
-			"balanced": assets.Equal(liabilities.Add(totalEquity)),
+			"assets": totals.assets.StringFixed(2), "liabilities": totals.liabilities.StringFixed(2),
+			"equity": totalEquity.StringFixed(2), "profit_before_close": totals.profit.StringFixed(2),
+			"balanced": totals.assets.Equal(totals.liabilities.Add(totalEquity)),
 		},
 	})
 }

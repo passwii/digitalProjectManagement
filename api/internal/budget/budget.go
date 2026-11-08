@@ -66,17 +66,19 @@ func (h *Handler) List(c *gin.Context) {
 	execution := h.executionForBudgets(result.Items)
 	items := make([]gin.H, 0, len(result.Items))
 	for _, row := range result.Items {
-		spent := execution[budgetKey{row.ProjectID, row.Subject}]
-		rate := float64(0)
-		if row.Amount > 0 {
-			rate = spent / row.Amount
-		}
+		metrics := execution[budgetKey{row.ProjectID, row.Subject}]
 		items = append(items, gin.H{
-			"id": row.ID, "project_id": row.ProjectID, "subject": row.Subject,
-			"amount": row.Amount, "period_start": dateText(row.PeriodStart),
-			"period_end": dateText(row.PeriodEnd), "spent": spent,
-			"balance": row.Amount - spent, "rate": rate, "warn": rate >= .8,
-			"over": spent > row.Amount,
+			"id":           row.ID,
+			"project_id":   row.ProjectID,
+			"subject":      row.Subject,
+			"amount":       row.Amount,
+			"period_start": dateText(row.PeriodStart),
+			"period_end":   dateText(row.PeriodEnd),
+			"spent":        metrics.spent,
+			"balance":      metrics.balance,
+			"rate":         metrics.rate,
+			"warn":         metrics.warn,
+			"over":         metrics.over,
 		})
 	}
 	c.JSON(http.StatusOK, gin.H{"total": result.Total, "page": result.Page, "size": result.Size, "items": items})
@@ -87,23 +89,61 @@ type budgetKey struct {
 	subject   string
 }
 
-func (h *Handler) executionForBudgets(rows []model.Budget) map[budgetKey]float64 {
-	result := make(map[budgetKey]float64, len(rows))
+type subjectMetrics struct {
+	budget  float64
+	spent   float64
+	balance float64
+	rate    float64
+	warn    bool
+	over    bool
+}
+
+func (h *Handler) warnRate() float64 {
+	var sp model.SysParam
+	if err := h.DB.Where("key = ?", "budget_warn_rate").First(&sp).Error; err == nil {
+		if v, err := strconv.ParseFloat(sp.Value, 64); err == nil && v > 0 {
+			return v
+		}
+	}
+	return 0.8
+}
+
+func (h *Handler) executionForBudgets(rows []model.Budget) map[budgetKey]subjectMetrics {
+	result := make(map[budgetKey]subjectMetrics, len(rows))
 	if len(rows) == 0 {
 		return result
 	}
 	projectIDs := make([]uint, 0, len(rows))
 	subjects := make([]string, 0, len(rows))
-	keys := make(map[budgetKey]bool, len(rows))
+	keys := make([]budgetKey, 0, len(rows))
+	seen := make(map[budgetKey]bool, len(rows))
 	for _, row := range rows {
 		key := budgetKey{row.ProjectID, row.Subject}
-		if keys[key] {
+		if seen[key] {
 			continue
 		}
-		keys[key] = true
+		seen[key] = true
+		keys = append(keys, key)
 		projectIDs = append(projectIDs, row.ProjectID)
 		subjects = append(subjects, row.Subject)
 	}
+
+	budgetMap := make(map[budgetKey]float64, len(keys))
+	type budgetTotalRow struct {
+		ProjectID uint    `gorm:"column:project_id"`
+		Subject   string  `gorm:"column:subject"`
+		Total     float64 `gorm:"column:total"`
+	}
+	var budgetTotals []budgetTotalRow
+	h.DB.Model(&model.Budget{}).
+		Select("project_id, subject, COALESCE(SUM(amount), 0) AS total").
+		Where("project_id IN ? AND subject IN ?", projectIDs, subjects).
+		Group("project_id, subject").Scan(&budgetTotals)
+	for _, bt := range budgetTotals {
+		budgetMap[budgetKey{bt.ProjectID, bt.Subject}] = bt.Total
+	}
+
+	spendMap := make(map[budgetKey]float64, len(keys))
 	type spendRow struct {
 		ProjectID uint    `gorm:"column:project_id"`
 		Subject   string  `gorm:"column:subject"`
@@ -114,8 +154,33 @@ func (h *Handler) executionForBudgets(rows []model.Budget) map[budgetKey]float64
 		Select("project_id, subject, COALESCE(SUM(amount), 0) AS amount").
 		Where("project_id IN ? AND subject IN ? AND status IN ?", projectIDs, subjects, passingExpenseStatuses).
 		Group("project_id, subject").Scan(&spendRows)
-	for _, row := range spendRows {
-		result[budgetKey{row.ProjectID, row.Subject}] = row.Amount
+	for _, sr := range spendRows {
+		spendMap[budgetKey{sr.ProjectID, sr.Subject}] = sr.Amount
+	}
+
+	return calculateSubjectMetrics(keys, budgetMap, spendMap, h.warnRate())
+}
+
+func calculateSubjectMetrics(keys []budgetKey, budgetTotals, spendTotals map[budgetKey]float64, warnRate float64) map[budgetKey]subjectMetrics {
+	result := make(map[budgetKey]subjectMetrics, len(keys))
+	for _, key := range keys {
+		b := budgetTotals[key]
+		s := spendTotals[key]
+		rate := float64(0)
+		if b > 0 {
+			rate = math.Round((s/b)*10000) / 10000
+		}
+		balance := math.Round((b-s)*100) / 100
+		warn := b > 0 && rate >= warnRate
+		over := b > 0 && s > b
+		result[key] = subjectMetrics{
+			budget:  b,
+			spent:   s,
+			balance: balance,
+			rate:    rate,
+			warn:    warn,
+			over:    over,
+		}
 	}
 	return result
 }
@@ -178,10 +243,19 @@ func (h *Handler) Create(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"detail": "创建预算失败"})
 		return
 	}
+	metrics := h.executionForBudgets([]model.Budget{row})[budgetKey{row.ProjectID, row.Subject}]
 	c.JSON(http.StatusCreated, gin.H{
-		"id": row.ID, "project_id": row.ProjectID, "subject": row.Subject,
-		"amount": row.Amount, "period_start": dateText(row.PeriodStart), "period_end": dateText(row.PeriodEnd),
-		"spent": 0, "balance": row.Amount, "rate": 0, "warn": false, "over": false,
+		"id":           row.ID,
+		"project_id":   row.ProjectID,
+		"subject":      row.Subject,
+		"amount":       row.Amount,
+		"period_start": dateText(row.PeriodStart),
+		"period_end":   dateText(row.PeriodEnd),
+		"spent":        metrics.spent,
+		"balance":      metrics.balance,
+		"rate":         metrics.rate,
+		"warn":         metrics.warn,
+		"over":         metrics.over,
 	})
 }
 
