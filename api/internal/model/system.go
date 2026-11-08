@@ -21,11 +21,10 @@ type User struct {
 	DeptID          *uint              `json:"dept_id"`
 	Department      *Department        `gorm:"foreignKey:DeptID" json:"dept,omitempty"`
 	Status          string             `gorm:"size:16;default:'active'" json:"status"`
-	LoginFailCount  int                `gorm:"default:0" json:"-"`
+	LoginFailCount  int                `gorm:"column:failed_count;default:0" json:"-"`
 	LockedUntil     *timeutil.DateTime `json:"-"`
 	MustChangePwd   bool               `gorm:"default:true" json:"must_change_pwd"`
 	CreatedAt       timeutil.DateTime  `json:"created_at"`
-	UpdatedAt       timeutil.DateTime  `json:"updated_at"`
 	SessionVersion  int                `gorm:"default:0;not null" json:"session_version"`
 	IsSuperAdmin    bool               `gorm:"default:false;not null" json:"is_super_admin"`
 	ModulesAssigned bool               `gorm:"default:false;not null" json:"modules_assigned"`

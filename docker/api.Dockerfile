@@ -23,6 +23,8 @@ RUN pip install --no-cache-dir --index-url "${PIP_INDEX_URL}" -r /app/api/requir
 
 COPY api/alembic /app/api/alembic
 COPY api/alembic.ini /app/api/alembic.ini
+COPY api/legacy_py /app/api/legacy_py
+COPY api/__init__.py /app/api/__init__.py
 COPY scripts /app/scripts
 COPY --from=builder /app/server /app/server
 COPY --from=builder /app/seed /app/seed

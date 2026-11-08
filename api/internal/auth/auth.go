@@ -246,11 +246,20 @@ func (h *Handler) ChangePassword(c *gin.Context) {
 		return
 	}
 
-	u.PwdHash = newHash
-	u.MustChangePwd = false
-	u.LoginFailCount = 0
-	u.LockedUntil = nil
-	h.DB.Save(u)
+	err = h.DB.Transaction(func(tx *gorm.DB) error {
+		u.PwdHash = newHash
+		u.MustChangePwd = false
+		u.LoginFailCount = 0
+		u.LockedUntil = nil
+		if err := tx.Save(u).Error; err != nil {
+			return err
+		}
+		return audit.CommitAudited(tx, &u.ID, "change_password", "auth", strconv.Itoa(int(u.ID)), "修改密码", c.ClientIP())
+	})
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"detail": "修改密码失败"})
+		return
+	}
 
 	c.JSON(http.StatusOK, gin.H{"ok": true})
 }

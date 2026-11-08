@@ -151,7 +151,7 @@ func Seed(db *gorm.DB) error {
 			IsSuperAdmin:    true,
 			ModulesAssigned: true,
 			CreatedAt:       timeutil.NowDateTime(),
-			UpdatedAt:       timeutil.NowDateTime(),
+			
 		}
 		if err := db.Create(&adminUser).Error; err != nil {
 			return err

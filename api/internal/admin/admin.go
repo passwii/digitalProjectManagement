@@ -212,7 +212,6 @@ func (h *Handler) CreateUser(c *gin.Context) {
 		MustChangePwd:   true,
 		ModulesAssigned: true,
 		CreatedAt:       timeutil.NowDateTime(),
-		UpdatedAt:       timeutil.NowDateTime(),
 	}
 
 	err = h.DB.Transaction(func(tx *gorm.DB) error {
@@ -316,7 +315,6 @@ func (h *Handler) UpdateUser(c *gin.Context) {
 			user.PwdHash = hash
 			user.MustChangePwd = false
 		}
-		user.UpdatedAt = timeutil.NowDateTime()
 		if err := tx.Save(&user).Error; err != nil {
 			return err
 		}
