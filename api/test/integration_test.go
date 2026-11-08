@@ -33,6 +33,7 @@ import (
 	"digitalprojectmanagement/api/internal/opportunity"
 	"digitalprojectmanagement/api/internal/partner"
 	"digitalprojectmanagement/api/internal/project"
+	"digitalprojectmanagement/api/internal/rbac"
 	"digitalprojectmanagement/api/internal/receivable"
 	"digitalprojectmanagement/api/internal/report"
 	"digitalprojectmanagement/api/internal/task"
@@ -503,7 +504,7 @@ func TestDatabaseIntegrationWorkflow(t *testing.T) {
 
 func TestAdminUpdateUserChangesDepartmentAssociation(t *testing.T) {
 	app, db := setupTestApp(t)
-	_, adminToken := seedAdminAndLogin(t, app, db)
+	admin, adminToken := seedAdminAndLogin(t, app, db)
 	now := timeutil.NowDateTime()
 	deptA := model.Department{Name: fmt.Sprintf("测试部门A-%s", uuid.NewString()[:8])}
 	deptB := model.Department{Name: fmt.Sprintf("测试部门B-%s", uuid.NewString()[:8])}
@@ -546,6 +547,15 @@ func TestAdminUpdateUserChangesDepartmentAssociation(t *testing.T) {
 	if recorder.Code != http.StatusOK {
 		t.Fatalf("update user status = %d: %s", recorder.Code, recorder.Body.String())
 	}
+	var detail struct {
+		Modules []string `json:"modules"`
+	}
+	if err := json.Unmarshal(recorder.Body.Bytes(), &detail); err != nil {
+		t.Fatalf("decode updated user: %v", err)
+	}
+	if strings.Join(detail.Modules, ",") != strings.Join(rbac.DefaultModules, ",") {
+		t.Fatalf("effective modules = %v, want defaults %v", detail.Modules, rbac.DefaultModules)
+	}
 
 	var updatedUser model.User
 	if err := db.Preload("Department").First(&updatedUser, target.ID).Error; err != nil {
@@ -560,6 +570,54 @@ func TestAdminUpdateUserChangesDepartmentAssociation(t *testing.T) {
 	}
 	if updatedContact.DeptID == nil || *updatedContact.DeptID != deptB.ID {
 		t.Fatalf("contact department = %v, want %d", updatedContact.DeptID, deptB.ID)
+	}
+
+	recorder = requestJSON(t, app, http.MethodPatch, fmt.Sprintf("/api/v1/admin/users/%d", target.ID), map[string]any{
+		"real_name": "仅修改姓名",
+	}, adminToken)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("rename user status = %d: %s", recorder.Code, recorder.Body.String())
+	}
+	if err := db.First(&updatedUser, target.ID).Error; err != nil {
+		t.Fatalf("reload user after omitted department: %v", err)
+	}
+	if updatedUser.DeptID == nil || *updatedUser.DeptID != deptB.ID {
+		t.Fatalf("omitted department changed user department to %v, want %d", updatedUser.DeptID, deptB.ID)
+	}
+
+	recorder = requestJSON(t, app, http.MethodPatch, fmt.Sprintf("/api/v1/admin/users/%d", target.ID), map[string]any{
+		"dept_id": nil,
+	}, adminToken)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("clear user department status = %d: %s", recorder.Code, recorder.Body.String())
+	}
+	if err := db.First(&updatedUser, target.ID).Error; err != nil {
+		t.Fatalf("reload user after clearing department: %v", err)
+	}
+	if updatedUser.DeptID != nil {
+		t.Fatalf("user department = %v, want nil", updatedUser.DeptID)
+	}
+	if err := db.First(&updatedContact, contact.ID).Error; err != nil {
+		t.Fatalf("reload contact after clearing department: %v", err)
+	}
+	if updatedContact.DeptID != nil {
+		t.Fatalf("contact department = %v, want nil", updatedContact.DeptID)
+	}
+
+	recorder = requestJSON(t, app, http.MethodGet, "/api/v1/admin/logs?action=update&page=1&size=20", nil, adminToken)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("list audit logs status = %d: %s", recorder.Code, recorder.Body.String())
+	}
+	var logs struct {
+		Items []struct {
+			OperatorName string `json:"operator_name"`
+		} `json:"items"`
+	}
+	if err := json.Unmarshal(recorder.Body.Bytes(), &logs); err != nil {
+		t.Fatalf("decode audit logs: %v", err)
+	}
+	if len(logs.Items) == 0 || logs.Items[0].OperatorName != admin.RealName {
+		t.Fatalf("audit log operator_name = %+v, want %q", logs.Items, admin.RealName)
 	}
 }
 

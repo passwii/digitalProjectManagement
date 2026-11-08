@@ -1,6 +1,7 @@
 package admin
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"regexp"
@@ -67,13 +68,7 @@ func serializeUser(u *model.User) UserDetail {
 	if roles == nil {
 		roles = []string{}
 	}
-	var mods []string
-	for _, m := range u.Modules {
-		mods = append(mods, m.Module)
-	}
-	if mods == nil {
-		mods = []string{}
-	}
+	mods := rbac.EffectiveModules(u)
 	deptName := ""
 	if u.Department != nil {
 		deptName = u.Department.Name
@@ -257,12 +252,31 @@ func (h *Handler) CreateUser(c *gin.Context) {
 	c.JSON(http.StatusOK, serializeUser(&user))
 }
 
+type optionalUint struct {
+	Set   bool
+	Value *uint
+}
+
+func (value *optionalUint) UnmarshalJSON(data []byte) error {
+	value.Set = true
+	if string(data) == "null" {
+		value.Value = nil
+		return nil
+	}
+	var parsed uint
+	if err := json.Unmarshal(data, &parsed); err != nil {
+		return err
+	}
+	value.Value = &parsed
+	return nil
+}
+
 type UpdateUserReq struct {
-	RealName *string   `json:"real_name"`
-	Status   *string   `json:"status"`
-	DeptID   *uint     `json:"dept_id"`
-	Password *string   `json:"password"`
-	Modules  *[]string `json:"modules"`
+	RealName *string      `json:"real_name"`
+	Status   *string      `json:"status"`
+	DeptID   optionalUint `json:"dept_id"`
+	Password *string      `json:"password"`
+	Modules  *[]string    `json:"modules"`
 }
 
 func (h *Handler) UpdateUser(c *gin.Context) {
@@ -294,8 +308,8 @@ func (h *Handler) UpdateUser(c *gin.Context) {
 		if req.RealName != nil {
 			user.RealName = *req.RealName
 		}
-		if req.DeptID != nil {
-			user.DeptID = req.DeptID
+		if req.DeptID.Set {
+			user.DeptID = req.DeptID.Value
 		}
 		if req.Status != nil {
 			user.Status = *req.Status
@@ -340,8 +354,8 @@ func (h *Handler) UpdateUser(c *gin.Context) {
 			if req.RealName != nil {
 				contact.Name = *req.RealName
 			}
-			if req.DeptID != nil {
-				contact.DeptID = req.DeptID
+			if req.DeptID.Set {
+				contact.DeptID = req.DeptID.Value
 			}
 			contact.UpdatedAt = timeutil.NowDateTime()
 			if err := tx.Omit(clause.Associations).Save(&contact).Error; err != nil {
@@ -588,15 +602,15 @@ func (h *Handler) ExportLogs(c *gin.Context) {
 }
 
 type LogItem struct {
-	ID         uint              `json:"id"`
-	UserID     *uint             `json:"user_id"`
-	UserName   string            `json:"user_name"`
-	Action     string            `json:"action"`
-	Resource   string            `json:"resource"`
-	ResourceID string            `json:"resource_id"`
-	Detail     string            `json:"detail"`
-	IP         string            `json:"ip"`
-	CreatedAt  timeutil.DateTime `json:"created_at"`
+	ID           uint              `json:"id"`
+	UserID       *uint             `json:"user_id"`
+	OperatorName string            `json:"operator_name"`
+	Action       string            `json:"action"`
+	Resource     string            `json:"resource"`
+	ResourceID   string            `json:"resource_id"`
+	Detail       string            `json:"detail"`
+	IP           string            `json:"ip"`
+	CreatedAt    timeutil.DateTime `json:"created_at"`
 }
 
 func (h *Handler) GetLogs(c *gin.Context) {
@@ -659,15 +673,15 @@ func (h *Handler) GetLogs(c *gin.Context) {
 			}
 		}
 		items = append(items, LogItem{
-			ID:         l.ID,
-			UserID:     l.UserID,
-			UserName:   name,
-			Action:     l.Action,
-			Resource:   l.Resource,
-			ResourceID: l.ResourceID,
-			Detail:     l.Detail,
-			IP:         l.IP,
-			CreatedAt:  l.CreatedAt,
+			ID:           l.ID,
+			UserID:       l.UserID,
+			OperatorName: name,
+			Action:       l.Action,
+			Resource:     l.Resource,
+			ResourceID:   l.ResourceID,
+			Detail:       l.Detail,
+			IP:           l.IP,
+			CreatedAt:    l.CreatedAt,
 		})
 	}
 	if items == nil {
