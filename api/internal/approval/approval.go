@@ -9,7 +9,6 @@ import (
 
 	"digitalprojectmanagement/api/internal/model"
 	"digitalprojectmanagement/api/internal/notify"
-	projectdomain "digitalprojectmanagement/api/internal/project"
 	"digitalprojectmanagement/api/internal/rbac"
 	"digitalprojectmanagement/api/pkg/audit"
 	"digitalprojectmanagement/api/pkg/timeutil"
@@ -312,7 +311,7 @@ func decideBudget(tx *gorm.DB, user *model.User, id uint, approve bool, reason, 
 	if row.Status != "pending" {
 		return nil, errApprovalHandled
 	}
-	if _, err := projectdomain.LoadVisibleProject(tx, user, row.ProjectID); err != nil {
+	if _, err := loadActiveProject(tx, row.ProjectID); err != nil {
 		return nil, err
 	}
 	var budget model.Budget
@@ -356,7 +355,7 @@ func decideExpense(tx *gorm.DB, user *model.User, id uint, approve bool, reason,
 	if row.Status != "pending" {
 		return nil, errApprovalHandled
 	}
-	if _, err := projectdomain.LoadVisibleProject(tx, user, row.ProjectID); err != nil {
+	if _, err := loadActiveProject(tx, row.ProjectID); err != nil {
 		return nil, err
 	}
 	if approve {
@@ -498,7 +497,7 @@ func (h *Handler) ExpenseException(c *gin.Context) {
 		if row.Status != "pending" && row.Status != "rejected" {
 			return errors.New("expense_decision_state")
 		}
-		if _, err := projectdomain.LoadVisibleProject(tx, user, row.ProjectID); err != nil {
+		if _, err := loadActiveProject(tx, row.ProjectID); err != nil {
 			return err
 		}
 		old := row.Status
@@ -547,4 +546,18 @@ func (h *Handler) ExpenseException(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"kind": "expense", "id": result.ID, "status": result.Status, "decision_reason": reason})
+}
+
+func loadActiveProject(db *gorm.DB, projectID uint) (model.Project, error) {
+	var row model.Project
+	err := db.Where("id = ? AND deleted_at IS NULL", projectID).First(&row).Error
+	if err != nil {
+		return row, gorm.ErrRecordNotFound
+	}
+	var demoParam model.SysParam
+	demoOn := db.Where("key = ?", "demo_data_on").First(&demoParam).Error == nil && demoParam.Value == "1"
+	if row.IsDemo && !demoOn {
+		return row, gorm.ErrRecordNotFound
+	}
+	return row, nil
 }

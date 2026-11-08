@@ -146,7 +146,11 @@ func (h *Handler) DownloadVoucher(c *gin.Context) {
 		c.JSON(http.StatusBadGateway, gin.H{"detail": "附件存储不可用"})
 		return
 	}
-	reader, size, contentType, err := backend.Download(c.Request.Context(), row.ObjectKey)
+	downloadKey := row.ObjectKey
+	if row.StorageBackend != "r2" && strings.TrimSpace(row.Path) != "" {
+		downloadKey = row.Path
+	}
+	reader, size, contentType, err := backend.Download(c.Request.Context(), downloadKey)
 	if err != nil {
 		c.JSON(http.StatusBadGateway, gin.H{"detail": "读取凭证失败"})
 		return
@@ -197,7 +201,13 @@ func (h *Handler) DeleteVoucher(c *gin.Context) {
 		return
 	}
 	backend, err := voucherBackend(row.StorageBackend)
-	if err != nil || backend.Delete(c.Request.Context(), row.ObjectKey) != nil {
+	if err != nil || func() error {
+		delKey := row.ObjectKey
+		if row.StorageBackend != "r2" && strings.TrimSpace(row.Path) != "" {
+			delKey = row.Path
+		}
+		return backend.Delete(c.Request.Context(), delKey)
+	}() != nil {
 		c.JSON(http.StatusBadGateway, gin.H{"detail": "删除凭证正文失败"})
 		return
 	}

@@ -234,7 +234,11 @@ func (h *Handler) DownloadAttachment(c *gin.Context) {
 		writeError(c, http.StatusBadGateway, "附件存储不可用")
 		return
 	}
-	reader, size, contentType, err := backend.Download(c.Request.Context(), row.ObjectKey)
+	downloadKey := row.ObjectKey
+	if row.StorageBackend != "r2" && strings.TrimSpace(row.Path) != "" {
+		downloadKey = row.Path
+	}
+	reader, size, contentType, err := backend.Download(c.Request.Context(), downloadKey)
 	if err != nil {
 		writeError(c, http.StatusBadGateway, "读取附件失败")
 		return
@@ -280,7 +284,13 @@ func (h *Handler) DeleteAttachment(c *gin.Context) {
 		return
 	}
 	backend, err := attachmentBackend(row.StorageBackend)
-	if err != nil || backend.Delete(c.Request.Context(), row.ObjectKey) != nil {
+	if err != nil || func() error {
+		delKey := row.ObjectKey
+		if row.StorageBackend != "r2" && strings.TrimSpace(row.Path) != "" {
+			delKey = row.Path
+		}
+		return backend.Delete(c.Request.Context(), delKey)
+	}() != nil {
 		writeError(c, http.StatusBadGateway, "删除附件正文失败")
 		return
 	}
