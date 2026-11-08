@@ -5,10 +5,9 @@ import (
 )
 
 type Department struct {
-	ID        uint              `gorm:"primaryKey" json:"id"`
-	Name      string            `gorm:"size:64;unique;not null" json:"name"`
-	ParentID  *uint             `json:"parent_id"`
-	CreatedAt timeutil.DateTime `json:"created_at"`
+	ID       uint   `gorm:"primaryKey" json:"id"`
+	Name     string `gorm:"size:64;unique;not null" json:"name"`
+	ParentID *uint  `json:"parent_id"`
 }
 
 func (Department) TableName() string { return "departments" }

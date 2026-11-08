@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"errors"
 	
 	"net/http"
 	"strconv"
@@ -15,6 +16,7 @@ import (
 	"digitalprojectmanagement/api/pkg/timeutil"
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type Handler struct {
@@ -95,14 +97,33 @@ func (h *Handler) Login(c *gin.Context) {
 		return
 	}
 
-	// 登录成功
-	user.LoginFailCount = 0
-	user.LockedUntil = nil
-	if user.Status == "locked" {
-		user.Status = "active"
-	}
-	user.SessionVersion++
-	if err := h.DB.Save(&user).Error; err != nil {
+	// 登录成功：在行锁事务中更新会话版本号与审计，保证并发登录获得不同的版本号
+	err = h.DB.Transaction(func(tx *gorm.DB) error {
+		var lockedUser model.User
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("id = ?", user.ID).First(&lockedUser).Error; err != nil {
+			return err
+		}
+		if lockedUser.Status == "disabled" {
+			return errors.New("user_disabled")
+		}
+		lockedUser.LoginFailCount = 0
+		lockedUser.LockedUntil = nil
+		if lockedUser.Status == "locked" {
+			lockedUser.Status = "active"
+		}
+		lockedUser.SessionVersion++
+		if err := tx.Save(&lockedUser).Error; err != nil {
+			return err
+		}
+		user = lockedUser
+		subStr := strconv.Itoa(int(user.ID))
+		return audit.WriteAudit(tx, &user.ID, "login", "auth", subStr, "用户登录", c.ClientIP())
+	})
+	if err != nil {
+		if err.Error() == "user_disabled" {
+			c.JSON(http.StatusForbidden, gin.H{"detail": "账号已停用"})
+			return
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{"detail": "保存用户会话状态失败"})
 		return
 	}
@@ -118,8 +139,6 @@ func (h *Handler) Login(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"detail": "生成令牌失败"})
 		return
 	}
-
-	_ = audit.WriteAudit(h.DB, &user.ID, "login", "auth", subStr, "用户登录", c.ClientIP())
 
 	c.JSON(http.StatusOK, gin.H{
 		"access_token":    accessToken,

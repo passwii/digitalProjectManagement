@@ -90,8 +90,7 @@ func Seed(db *gorm.DB) error {
 		var dept model.Department
 		if err := db.Where("name = ?", name).First(&dept).Error; err != nil {
 			db.Create(&model.Department{
-				Name:      name,
-				CreatedAt: timeutil.NowDateTime(),
+				Name: name,
 			})
 		}
 	}

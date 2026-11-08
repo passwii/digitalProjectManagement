@@ -267,5 +267,36 @@ func TestDatabaseIntegrationWorkflow(t *testing.T) {
 	if w.Code != http.StatusOK {
 		t.Fatalf("expected 200 for project restore, got %d: %s", w.Code, w.Body.String())
 	}
+
+	// 11. 测试按负责人姓名过滤与 /projects/owners 列表
+	w = httptest.NewRecorder()
+	req, _ = http.NewRequest("GET", "/api/v1/projects?owner=测试超管", nil)
+	req.Header.Set("Authorization", tokenHeader)
+	app.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200 for project owner filter, got %d: %s", w.Code, w.Body.String())
+	}
+
+	w = httptest.NewRecorder()
+	req, _ = http.NewRequest("GET", "/api/v1/projects/owners", nil)
+	req.Header.Set("Authorization", tokenHeader)
+	app.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200 for /projects/owners, got %d: %s", w.Code, w.Body.String())
+	}
+	var ownerList []struct {
+		Name  string `json:"name"`
+		Count int64  `json:"count"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &ownerList); err != nil {
+		t.Fatalf("failed to parse /projects/owners response: %v", err)
+	}
+
+	// 12. 验证部门模型无 created_at 列，可直接插入
+	dept := model.Department{Name: "综合运营部"}
+	if err := db.Where("name = ?", dept.Name).FirstOrCreate(&dept).Error; err != nil {
+		t.Fatalf("failed to insert department without created_at: %v", err)
+	}
 }
+
 

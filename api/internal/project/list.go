@@ -2,6 +2,7 @@ package project
 
 import (
 	"net/http"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -44,6 +45,15 @@ func (h *Handler) List(c *gin.Context) {
 			return
 		}
 		q = q.Where("projects.owner_id = ?", id)
+	}
+	if owner := strings.TrimSpace(c.Query("owner")); owner != "" {
+		var sameNameIDs []uint
+		h.DB.Model(&model.User{}).Where("real_name = ? OR username = ?", owner, owner).Pluck("id", &sameNameIDs)
+		if len(sameNameIDs) > 0 {
+			q = q.Where("(projects.owner_name = ? OR (COALESCE(projects.owner_name, '') = '' AND projects.owner_id IN ?))", owner, sameNameIDs)
+		} else {
+			q = q.Where("projects.owner_name = ?", owner)
+		}
 	}
 	if deptID := strings.TrimSpace(c.Query("dept_id")); deptID != "" {
 		id, err := strconv.ParseUint(deptID, 10, 32)
@@ -99,50 +109,63 @@ func (h *Handler) Options(c *gin.Context) {
 }
 
 type OwnerOption struct {
-	ID    uint   `json:"id"`
 	Name  string `json:"name"`
 	Count int64  `json:"count"`
 }
 
 func (h *Handler) Owners(c *gin.Context) {
-	type ownerCount struct {
-		OwnerID uint  `gorm:"column:owner_id"`
-		Count   int64 `gorm:"column:count"`
+	counts := map[string]int64{}
+	user := rbac.GetCurrentUser(c)
+	base := visibleProjects(h.DB, user)
+
+	type namedRow struct {
+		OwnerName string `gorm:"column:owner_name"`
+		Count     int64  `gorm:"column:count"`
 	}
-	var counts []ownerCount
-	q := visibleProjects(h.DB, rbac.GetCurrentUser(c)).
-		Select("projects.owner_id, COUNT(*) AS count").
-		Where("projects.owner_id IS NOT NULL").
-		Group("projects.owner_id").
-		Order("count DESC, projects.owner_id ASC")
-	if err := q.Scan(&counts).Error; err != nil {
-		writeError(c, http.StatusInternalServerError, "查询项目负责人失败")
-		return
+	var namedRows []namedRow
+	_ = h.DB.Table("(?) as p", base).
+		Select("COALESCE(p.owner_name, '') as owner_name, COUNT(*) as count").
+		Where("COALESCE(p.owner_name, '') <> ''").
+		Group("COALESCE(p.owner_name, '')").
+		Scan(&namedRows).Error
+	for _, r := range namedRows {
+		counts[r.OwnerName] += r.Count
 	}
-	ids := make([]uint, 0, len(counts))
-	for _, row := range counts {
-		ids = append(ids, row.OwnerID)
+
+	type linkedRow struct {
+		RealName string `gorm:"column:real_name"`
+		Username string `gorm:"column:username"`
+		Count    int64  `gorm:"column:count"`
 	}
-	var users []model.User
-	if len(ids) > 0 {
-		if err := h.DB.Where("id IN ?", ids).Find(&users).Error; err != nil {
-			writeError(c, http.StatusInternalServerError, "查询负责人信息失败")
-			return
-		}
-	}
-	names := make(map[uint]string, len(users))
-	for _, user := range users {
-		name := strings.TrimSpace(user.RealName)
+	var linkedRows []linkedRow
+	_ = h.DB.Table("(?) as p", base).
+		Select("u.real_name, u.username, COUNT(*) as count").
+		Joins("JOIN users u ON u.id = p.owner_id").
+		Where("COALESCE(p.owner_name, '') = ''").
+		Group("u.real_name, u.username").
+		Scan(&linkedRows).Error
+	for _, r := range linkedRows {
+		name := strings.TrimSpace(r.RealName)
 		if name == "" {
-			name = user.Username
+			name = strings.TrimSpace(r.Username)
 		}
-		names[user.ID] = name
+		if name != "" {
+			counts[name] += r.Count
+		}
 	}
+
 	items := make([]OwnerOption, 0, len(counts))
-	for _, row := range counts {
-		if name := names[row.OwnerID]; name != "" {
-			items = append(items, OwnerOption{ID: row.OwnerID, Name: name, Count: row.Count})
+	for name, count := range counts {
+		items = append(items, OwnerOption{Name: name, Count: count})
+	}
+	sort.Slice(items, func(i, j int) bool {
+		if items[i].Count != items[j].Count {
+			return items[i].Count > items[j].Count
 		}
+		return items[i].Name < items[j].Name
+	})
+	if len(items) > 200 {
+		items = items[:200]
 	}
 	c.JSON(http.StatusOK, items)
 }
