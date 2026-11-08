@@ -297,6 +297,42 @@ func TestDatabaseIntegrationWorkflow(t *testing.T) {
 	if err := db.Where("name = ?", dept.Name).FirstOrCreate(&dept).Error; err != nil {
 		t.Fatalf("failed to insert department without created_at: %v", err)
 	}
+
+	// 13. 测试按项目编号子串筛选 (前端年份选择器)
+	w = httptest.NewRecorder()
+	req, _ = http.NewRequest("GET", "/api/v1/projects?code=001", nil)
+	req.Header.Set("Authorization", tokenHeader)
+	app.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200 for project code filter, got %d: %s", w.Code, w.Body.String())
+	}
+
+	// 14. 验证错误密码登录只原子递增 failed_count，不破坏 session_version
+	var preUser model.User
+	db.Where("username = ?", testUser.Username).First(&preUser)
+	preVersion := preUser.SessionVersion
+
+	wrongLoginBody, _ := json.Marshal(map[string]string{
+		"username": testUser.Username,
+		"password": "wrongpassword999",
+	})
+	w = httptest.NewRecorder()
+	req, _ = http.NewRequest("POST", "/api/v1/auth/login", bytes.NewReader(wrongLoginBody))
+	req.Header.Set("Content-Type", "application/json")
+	app.ServeHTTP(w, req)
+	if w.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401 for wrong password, got %d", w.Code)
+	}
+
+	var postUser model.User
+	db.Where("username = ?", testUser.Username).First(&postUser)
+	if postUser.SessionVersion != preVersion {
+		t.Fatalf("session_version changed after failed login: %d -> %d", preVersion, postUser.SessionVersion)
+	}
+	if postUser.LoginFailCount != preUser.LoginFailCount+1 {
+		t.Fatalf("failed_count not incremented: %d -> %d", preUser.LoginFailCount, postUser.LoginFailCount)
+	}
 }
+
 
 

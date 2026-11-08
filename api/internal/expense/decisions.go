@@ -1,6 +1,7 @@
 package expense
 
 import (
+	"fmt"
 	"encoding/json"
 	"errors"
 	"math"
@@ -9,6 +10,7 @@ import (
 	"strings"
 
 	"digitalprojectmanagement/api/internal/model"
+	"digitalprojectmanagement/api/internal/notify"
 	projectdomain "digitalprojectmanagement/api/internal/project"
 	"digitalprojectmanagement/api/internal/rbac"
 	"digitalprojectmanagement/api/pkg/audit"
@@ -256,6 +258,24 @@ func (h *Handler) decide(c *gin.Context, decision, reason string) {
 		}
 		if err := audit.CommitAudited(tx, &user.ID, action+"_expense", "expenses", strconv.FormatUint(uint64(row.ID), 10), old+"->"+to+" "+reason, c.ClientIP()); err != nil {
 			return err
+		}
+		if row.ByID != nil {
+			actionLabel := "已通过"
+			bodyMsg := "审批通过，金额已计入预算执行"
+			if to == "rejected" {
+				actionLabel = "已驳回"
+				bodyMsg = reason
+			} else if to == "exception" {
+				actionLabel = "特批放行"
+				bodyMsg = reason
+			}
+			if bodyMsg == "" {
+				bodyMsg = "当前状态：" + row.Status
+			}
+			title := fmt.Sprintf("支出%s：%s %s", actionLabel, row.Subject, strconv.FormatFloat(row.Amount, 'f', 2, 64))
+			dedupKey := fmt.Sprintf("expense-decided:%d:%s:%d", row.ID, row.Status, row.ResubmitCount)
+			projectID := row.ProjectID
+			_, _ = notify.Push(tx, *row.ByID, "approval", title, bodyMsg, "in_app", "expense", &row.ID, &projectID, dedupKey)
 		}
 		result = row
 		return nil

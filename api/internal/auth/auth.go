@@ -86,13 +86,22 @@ func (h *Handler) Login(c *gin.Context) {
 
 	// 验证密码
 	if !security.VerifyPassword(req.Password, user.PwdHash) {
-		user.LoginFailCount++
-		if user.LoginFailCount >= failLimit {
-			locked := timeutil.NewDateTime(now.Add(time.Duration(lockMinutes) * time.Minute))
-			user.LockedUntil = &locked
-			user.Status = "locked"
-		}
-		h.DB.Save(&user)
+		_ = h.DB.Transaction(func(tx *gorm.DB) error {
+			var lockedUser model.User
+			if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("id = ?", user.ID).First(&lockedUser).Error; err != nil {
+				return err
+			}
+			lockedUser.LoginFailCount++
+			updates := map[string]any{
+				"failed_count": lockedUser.LoginFailCount,
+			}
+			if lockedUser.LoginFailCount >= failLimit {
+				locked := timeutil.NewDateTime(now.Add(time.Duration(lockMinutes) * time.Minute))
+				updates["locked_until"] = &locked
+				updates["status"] = "locked"
+			}
+			return tx.Model(&model.User{}).Where("id = ?", lockedUser.ID).Updates(updates).Error
+		})
 		c.JSON(http.StatusUnauthorized, gin.H{"detail": "账号或密码错误"})
 		return
 	}

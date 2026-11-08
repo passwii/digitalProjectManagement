@@ -29,6 +29,12 @@ func (h *Handler) List(c *gin.Context) {
 	}
 	user := rbac.GetCurrentUser(c)
 	q := visibleProjects(h.DB, user)
+	if code := strings.TrimSpace(c.Query("code")); code != "" {
+		q = q.Where("projects.code LIKE ?", "%"+code+"%")
+	}
+	if name := strings.TrimSpace(c.Query("name")); name != "" {
+		q = q.Where("projects.name LIKE ?", "%"+name+"%")
+	}
 	if keyword := strings.TrimSpace(c.Query("keyword")); keyword != "" {
 		like := "%" + keyword + "%"
 		q = q.Where("(projects.name ILIKE ? OR projects.code ILIKE ? OR projects.client ILIKE ?)", like, like, like)
