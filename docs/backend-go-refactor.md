@@ -7,7 +7,7 @@
 ## 一、架构概览与技术选型
 
 ### 1.1 核心选型
-- **编程语言**：Go 1.24+
+- **编程语言**：Go 1.26.10 module directive，CI 与生产镜像统一使用 Go 1.27
 - **Web 框架**：Gin (`github.com/gin-gonic/gin`)
 - **数据访问与 ORM**：GORM (`gorm.io/gorm`) + `gorm.io/driver/postgres` (`pgx/v5` 驱动)
 - **数据库**：PostgreSQL 18（100% 保持 44 张业务表结构、主键、外键约束与索引完全兼容）
@@ -31,6 +31,7 @@ api/
 │   ├── paging/                 # 统一信封 {"total","page","size","items"} 与排序白名单
 │   ├── validator/              # 数值/日期/枚举纯函数校验（拒绝 NaN/Infinity）
 │   ├── audit/                  # 原子审计 (CommitAudited 业务+时间线+通知+审计单事务)
+│   ├── attachment/             # 附件校验、对象键、元数据与按行后端选择
 │   ├── storage/                # Cloudflare R2 S3 协议上传/下载/删除与本地临时暂存
 │   ├── security/               # JWT HS256 严格签发/验签与 bcrypt 密码哈希
 │   └── excel/                  # 基于 excelize/v2 的安全 Excel/CSV 导入导出引擎
@@ -122,21 +123,21 @@ api/
 ## 四、容器化与 CI/CD 交付标准
 
 ### 4.1 多阶段 Dockerfile (`docker/api.Dockerfile`)
-- **构建阶段**：`golang:1.24-alpine`，静态编译 `CGO_ENABLED=0 GOOS=linux`，生成 `/app/server` 和 `/app/seed` 二进制。
+- **构建阶段**：`golang:1.27-alpine`，静态编译 `CGO_ENABLED=0 GOOS=linux`，生成 `/app/server` 和 `/app/seed` 二进制。
 - **运行阶段**：`python:3.14-slim`，保留轻量 Python 运行底座以无缝执行 `alembic upgrade head` 迁移脚本，随后启动 Go 编译产物。
 - **端口与健康检查**：对外暴露 `8001`，健康检查探针请求 `http://127.0.0.1:8001/health`。
 
 ### 4.2 GitHub Actions 流水线 (`.github/workflows/api.yml`)
 1. 启动 `postgres:18` 服务容器。
-2. 安装 Go 1.24 环境与 Python 3.14 依赖。
-3. 执行 `cd api && go test -v ./...` 运行全量 Go 单元与集成测试。
-4. 执行 `pytest tests/test_migration_revision_ids.py -q` 守卫数据库迁移链完整性。
+2. 安装 Go 1.27 环境与 Python 3.14 依赖。
+3. 执行 `cd api && go test -v ./...` 运行全量 Go 单元与集成测试；数据库用例在随机 schema 上执行真实 Alembic 迁移。
+4. 执行 `pytest tests -q` 运行归档 FastAPI 行为基线与迁移链守卫。
 
 ---
 
 ## 五、验证与自检清单 (Verification Checklist)
 
-- [x] `api/` 目录下 Go 模块初始化完成 (`go.mod` 对齐 `go 1.24`)
+- [x] `api/` 目录下 Go 模块初始化完成（`go.mod` 为 `go 1.26.10`，CI / Docker 使用 Go 1.27）
 - [x] 所有 44 张数据表在 `internal/model` 映射完毕
 - [x] 平台基础设施 (`pkg/timeutil`, `pkg/paging`, `pkg/security`, `pkg/audit`, `pkg/storage`, `pkg/validator`, `pkg/excel`, `pkg/config`, `pkg/database`) 单测全绿
 - [x] 18 个领域包业务路由全量注册并在 `main.go` 挂载
@@ -146,6 +147,7 @@ api/
 - [x] 生产配置强制校验 `APP_SECRET` 强度，拒绝默认密钥
 - [x] `cd api && go test ./...` 全包测试 100% 通过
 - [x] `cd api && go build -o /dev/null main.go` 构建完全成功
-- [x] `pytest tests/test_migration_revision_ids.py -q` 迁移链测试全绿通过
+- [x] Go 数据库集成测试使用随机 schema 与真实 Alembic 迁移链
+- [x] `pytest tests -q` 归档 FastAPI 行为基线 454 passed
 - [x] 前端 Next.js (`web/`) 运行 `npm test`（1,073 个测试）全绿通过
 - [x] 前端 Next.js (`web/`) 运行 `npm run build` 静态编译成功
