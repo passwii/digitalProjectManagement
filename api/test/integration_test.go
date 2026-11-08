@@ -12,8 +12,10 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
 
 	"digitalprojectmanagement/api/internal/admin"
 	"digitalprojectmanagement/api/internal/approval"
@@ -198,6 +200,11 @@ func seedAdminAndLogin(t *testing.T, app *gin.Engine, db *gorm.DB) (model.User, 
 
 func requestJSON(t *testing.T, app *gin.Engine, method, path string, body any, token string) *httptest.ResponseRecorder {
 	t.Helper()
+	return requestJSONWithHeaders(t, app, method, path, body, token, nil)
+}
+
+func requestJSONWithHeaders(t *testing.T, app *gin.Engine, method, path string, body any, token string, headers map[string]string) *httptest.ResponseRecorder {
+	t.Helper()
 	var reader *bytes.Reader
 	if body == nil {
 		reader = bytes.NewReader(nil)
@@ -215,6 +222,9 @@ func requestJSON(t *testing.T, app *gin.Engine, method, path string, body any, t
 	}
 	if token != "" {
 		req.Header.Set("Authorization", token)
+	}
+	for key, value := range headers {
+		req.Header.Set(key, value)
 	}
 	app.ServeHTTP(recorder, req)
 	return recorder
@@ -617,6 +627,191 @@ func TestBudgetMetricsAggregateByProjectAndSubject(t *testing.T) {
 		if item.Amount != 100 || item.Spent != 150 || item.Balance != 50 || item.Rate != 0.75 || item.Warn || item.Over {
 			t.Fatalf("budget metrics = %+v, want amount=100 spent=150 balance=50 rate=0.75 warn=false over=false", item)
 		}
+	}
+}
+
+func TestFinanceProjectExpensesPreserveContractAndFilters(t *testing.T) {
+	app, db := setupTestApp(t)
+	admin, adminToken := seedAdminAndLogin(t, app, db)
+	now := timeutil.NowDateTime()
+	book := model.AccountBook{
+		Code:            fmt.Sprintf("BOOK-%s", strings.ReplaceAll(uuid.NewString()[:8], "-", "")),
+		Name:            "项目支出回归账套",
+		BaseCurrency:    "CNY",
+		Currencies:      `["CNY"]`,
+		FiscalYearStart: "01-01",
+		Status:          "active",
+		CreatedBy:       &admin.ID,
+		CreatedAt:       now,
+	}
+	if err := db.Create(&book).Error; err != nil {
+		t.Fatalf("create account book: %v", err)
+	}
+	periodStart := timeutil.NewDate(time.Date(2026, 2, 1, 0, 0, 0, 0, timeutil.Loc))
+	periodEnd := timeutil.NewDate(time.Date(2026, 2, 28, 0, 0, 0, 0, timeutil.Loc))
+	period := model.AccountingPeriod{
+		AccountBookID: book.ID,
+		Year:          2026,
+		Month:         2,
+		PeriodIndex:   2,
+		Status:        "open",
+		StartDate:     periodStart,
+		EndDate:       periodEnd,
+		Version:       1,
+	}
+	if err := db.Create(&period).Error; err != nil {
+		t.Fatalf("create accounting period: %v", err)
+	}
+	project := model.Project{
+		Code:      fmt.Sprintf("PRJ-%s", strings.ReplaceAll(uuid.NewString()[:8], "-", "")),
+		Name:      fmt.Sprintf("财务项目-%s", uuid.NewString()[:8]),
+		Type:      "other",
+		Status:    "doing",
+		Priority:  "中",
+		OwnerID:   &admin.ID,
+		CreatedAt: now,
+		UpdatedAt: now,
+	}
+	if err := db.Create(&project).Error; err != nil {
+		t.Fatalf("create project: %v", err)
+	}
+	dateApproved := timeutil.NewDate(time.Date(2026, 2, 10, 0, 0, 0, 0, timeutil.Loc))
+	dateException := timeutil.NewDate(time.Date(2026, 2, 20, 0, 0, 0, 0, timeutil.Loc))
+	approved := model.Expense{
+		ProjectID: project.ID,
+		Subject:   "采购",
+		Amount:    10,
+		ExpDate:   &dateApproved,
+		Status:    "approved",
+		ByID:      &admin.ID,
+		CreatedAt: now,
+	}
+	exception := model.Expense{
+		ProjectID: project.ID,
+		Subject:   "差旅",
+		Amount:    20,
+		ExpDate:   &dateException,
+		Status:    "exception",
+		ByID:      &admin.ID,
+		CreatedAt: now,
+	}
+	if err := db.Create(&approved).Error; err != nil {
+		t.Fatalf("create approved expense: %v", err)
+	}
+	if err := db.Create(&exception).Error; err != nil {
+		t.Fatalf("create exception expense: %v", err)
+	}
+	voucherDate := timeutil.NewDate(time.Date(2026, 2, 10, 0, 0, 0, 0, timeutil.Loc))
+	linkedVoucher := model.Voucher{
+		AccountBookID:   book.ID,
+		PeriodID:        period.ID,
+		VoucherNo:       "记-0001",
+		VoucherDate:     voucherDate,
+		Status:          "draft",
+		Source:          "project-expense",
+		SourceExpenseID: &approved.ID,
+		Summary:         "已转换项目支出",
+		TotalDebit:      decimal.NewFromInt(10),
+		TotalCredit:     decimal.NewFromInt(10),
+		CreatedBy:       &admin.ID,
+		CreatedAt:       now,
+		UpdatedAt:       now,
+	}
+	if err := db.Create(&linkedVoucher).Error; err != nil {
+		t.Fatalf("create linked voucher: %v", err)
+	}
+
+	bookHeaders := map[string]string{"X-Account-Book": book.Code}
+	recorder := requestJSONWithHeaders(t, app, http.MethodGet,
+		fmt.Sprintf("/api/v1/finance/project-expenses?project_id=%d&status=exception&date_from=2026-02-01&date_to=2026-02-28&page=1&size=1", project.ID),
+		nil, adminToken, bookHeaders)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("filtered project expenses status = %d: %s", recorder.Code, recorder.Body.String())
+	}
+	var filtered struct {
+		Total int64 `json:"total"`
+		Page  int   `json:"page"`
+		Size  int   `json:"size"`
+		Items []struct {
+			ID      uint   `json:"id"`
+			Status  string `json:"status"`
+			Project struct {
+				ID   uint   `json:"id"`
+				Code string `json:"code"`
+				Name string `json:"name"`
+			} `json:"project"`
+			SourceVoucherSummary any `json:"source_voucher_summary"`
+		} `json:"items"`
+	}
+	if err := json.Unmarshal(recorder.Body.Bytes(), &filtered); err != nil {
+		t.Fatalf("decode filtered project expenses: %v", err)
+	}
+	if filtered.Total != 1 || filtered.Page != 1 || filtered.Size != 1 || len(filtered.Items) != 1 {
+		t.Fatalf("filtered envelope = %+v, want one exception expense", filtered)
+	}
+	if filtered.Items[0].ID != exception.ID || filtered.Items[0].Status != "exception" || filtered.Items[0].Project.ID != project.ID || filtered.Items[0].Project.Name == "" {
+		t.Fatalf("filtered item = %+v, want exception with nested project", filtered.Items[0])
+	}
+	if filtered.Items[0].SourceVoucherSummary != nil {
+		t.Fatalf("unexpected source voucher summary for exception expense: %+v", filtered.Items[0].SourceVoucherSummary)
+	}
+
+	recorder = requestJSONWithHeaders(t, app, http.MethodGet,
+		fmt.Sprintf("/api/v1/finance/project-expenses?project_id=%d&status=approved&page=1&size=20", project.ID),
+		nil, adminToken, bookHeaders)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("linked project expenses status = %d: %s", recorder.Code, recorder.Body.String())
+	}
+	var linkedResponse struct {
+		Total int64 `json:"total"`
+		Items []struct {
+			SourceVoucherSummary *struct {
+				ID        uint   `json:"id"`
+				VoucherNo string `json:"voucher_no"`
+			} `json:"source_voucher_summary"`
+		} `json:"items"`
+	}
+	if err := json.Unmarshal(recorder.Body.Bytes(), &linkedResponse); err != nil {
+		t.Fatalf("decode linked project expenses: %v", err)
+	}
+	if linkedResponse.Total != 1 || len(linkedResponse.Items) != 1 || linkedResponse.Items[0].SourceVoucherSummary == nil || linkedResponse.Items[0].SourceVoucherSummary.ID != linkedVoucher.ID {
+		t.Fatalf("linked voucher summary = %+v, want voucher %d", linkedResponse, linkedVoucher.ID)
+	}
+
+	recorder = requestJSONWithHeaders(t, app, http.MethodPost,
+		fmt.Sprintf("/api/v1/finance/project-expenses/%d/voucher", exception.ID),
+		map[string]any{
+			"period_id": period.ID, "voucher_date": "2026-02-20", "summary": "特批支出入账",
+			"debit":  map[string]any{"account_id": 0, "aux_detail": map[string]any{}},
+			"credit": map[string]any{"account_id": 0, "aux_detail": map[string]any{}},
+		}, adminToken, bookHeaders)
+	if recorder.Code != http.StatusBadRequest {
+		t.Fatalf("exception conversion status = %d, want 400 after status acceptance: %s", recorder.Code, recorder.Body.String())
+	}
+
+	recorder = requestJSONWithHeaders(t, app, http.MethodPost,
+		fmt.Sprintf("/api/v1/finance/project-expenses/%d/voucher", approved.ID),
+		map[string]any{
+			"period_id": period.ID, "voucher_date": "2026-02-10", "summary": "重复入账",
+			"debit":  map[string]any{"account_id": 1, "aux_detail": map[string]any{}},
+			"credit": map[string]any{"account_id": 2, "aux_detail": map[string]any{}},
+		}, adminToken, bookHeaders)
+	if recorder.Code != http.StatusConflict {
+		t.Fatalf("linked conversion status = %d, want 409: %s", recorder.Code, recorder.Body.String())
+	}
+	var conflictResponse struct {
+		Detail struct {
+			Code                 string `json:"code"`
+			SourceVoucherSummary struct {
+				ID uint `json:"id"`
+			} `json:"source_voucher_summary"`
+		} `json:"detail"`
+	}
+	if err := json.Unmarshal(recorder.Body.Bytes(), &conflictResponse); err != nil {
+		t.Fatalf("decode linked conversion conflict: %v", err)
+	}
+	if conflictResponse.Detail.Code != "F-PROJECT-EXPENSE-LINKED" || conflictResponse.Detail.SourceVoucherSummary.ID != linkedVoucher.ID {
+		t.Fatalf("linked conversion conflict = %+v", conflictResponse)
 	}
 }
 

@@ -52,6 +52,7 @@ type apiError struct {
 	Code    string
 	Message string
 	Details []map[string]string
+	Payload gin.H
 }
 
 func (e *apiError) Error() string {
@@ -69,9 +70,13 @@ func financeErrDetails(status int, code, message string, details []map[string]st
 func writeError(c *gin.Context, err error, fallback string) {
 	var apiErr *apiError
 	if errors.As(err, &apiErr) {
-		c.JSON(apiErr.Status, gin.H{"detail": gin.H{
+		detail := gin.H{
 			"code": apiErr.Code, "message": apiErr.Message, "details": apiErr.Details,
-		}})
+		}
+		for key, value := range apiErr.Payload {
+			detail[key] = value
+		}
+		c.JSON(apiErr.Status, gin.H{"detail": detail})
 		return
 	}
 	if errors.Is(err, gorm.ErrRecordNotFound) {

@@ -547,6 +547,33 @@ func derefString(value *string) string {
 	return *value
 }
 
+var projectExpenseStatuses = []string{"approved", "exception"}
+
+func optionalFinanceDateQuery(c *gin.Context, key string) (*timeutil.Date, bool) {
+	raw := strings.TrimSpace(c.Query(key))
+	if raw == "" {
+		return nil, true
+	}
+	parsed, err := time.ParseInLocation("2006-01-02", raw, timeutil.Loc)
+	if err != nil {
+		badRequest(c, key+" 日期格式须为 YYYY-MM-DD")
+		return nil, false
+	}
+	value := timeutil.NewDate(parsed)
+	return &value, true
+}
+
+func projectExpenseSourceVoucherSummary(voucher *model.Voucher, bookID uint) gin.H {
+	if voucher.AccountBookID != bookID {
+		return gin.H{"converted": true, "message": "已在其他账套转换"}
+	}
+	return gin.H{
+		"id": voucher.ID, "voucher_no": voucher.VoucherNo,
+		"voucher_date": voucher.VoucherDate.Format("2006-01-02"),
+		"status":       voucher.Status, "summary": voucher.Summary,
+	}
+}
+
 func (h *Handler) listProjectExpenses(c *gin.Context) {
 	book, ok := h.book(c)
 	if !ok {
@@ -556,31 +583,98 @@ func (h *Handler) listProjectExpenses(c *gin.Context) {
 	if user == nil {
 		return
 	}
-	query := h.DB.Model(&model.Expense{}).
-		Select("expenses.*, projects.code AS project_code, projects.name AS project_name").
-		Joins("JOIN projects ON projects.id = expenses.project_id").
-		Where("expenses.status = ?", "approved").
-		Where("expenses.project_id IN (?)", rbac.VisibleProjectSubquery(h.DB, user)).
-		Where("NOT EXISTS (SELECT 1 FROM vouchers WHERE vouchers.source_expense_id = expenses.id)")
-	type expenseRow struct {
-		model.Expense
-		ProjectCode string `json:"project_code"`
-		ProjectName string `json:"project_name"`
+	projectID, ok := queryUint(c, "project_id", false)
+	if !ok {
+		return
 	}
-	var rows []expenseRow
-	if err := query.Order("expenses.exp_date DESC NULLS LAST, expenses.id DESC").Find(&rows).Error; err != nil {
+	status := strings.TrimSpace(c.Query("status"))
+	if status != "" && status != "approved" && status != "exception" {
+		badRequest(c, "status 仅支持 approved 或 exception")
+		return
+	}
+	dateFrom, ok := optionalFinanceDateQuery(c, "date_from")
+	if !ok {
+		return
+	}
+	dateTo, ok := optionalFinanceDateQuery(c, "date_to")
+	if !ok {
+		return
+	}
+	page, size, ok := parsePage(c, 20, 100)
+	if !ok {
+		return
+	}
+
+	query := h.DB.Model(&model.Expense{}).
+		Joins("JOIN projects ON projects.id = expenses.project_id").
+		Where("expenses.status IN ?", projectExpenseStatuses).
+		Where("expenses.project_id IN (?)", rbac.VisibleProjectSubquery(h.DB, user)).
+		Where("projects.deleted_at IS NULL")
+	if projectID > 0 {
+		query = query.Where("expenses.project_id = ?", projectID)
+	}
+	if status != "" {
+		query = query.Where("expenses.status = ?", status)
+	}
+	if dateFrom != nil {
+		query = query.Where("expenses.exp_date >= ?", dateFrom)
+	}
+	if dateTo != nil {
+		query = query.Where("expenses.exp_date <= ?", dateTo)
+	}
+	var total int64
+	if err := query.Session(&gorm.Session{}).Count(&total).Error; err != nil {
 		writeError(c, err, "读取待转凭证项目支出失败")
 		return
 	}
+	type expenseRow struct {
+		model.Expense
+		ProjectCode string `gorm:"column:project_code"`
+		ProjectName string `gorm:"column:project_name"`
+	}
+	var rows []expenseRow
+	if err := query.
+		Select("expenses.*, projects.code AS project_code, projects.name AS project_name").
+		Order("expenses.exp_date DESC NULLS LAST, expenses.id DESC").
+		Offset((page - 1) * size).
+		Limit(size).
+		Find(&rows).Error; err != nil {
+		writeError(c, err, "读取待转凭证项目支出失败")
+		return
+	}
+	expenseIDs := make([]uint, 0, len(rows))
+	for _, row := range rows {
+		expenseIDs = append(expenseIDs, row.ID)
+	}
+	linked := map[uint]model.Voucher{}
+	if len(expenseIDs) > 0 {
+		var vouchers []model.Voucher
+		if err := h.DB.Where("source_expense_id IN ?", expenseIDs).Find(&vouchers).Error; err != nil {
+			writeError(c, err, "读取项目支出关联凭证失败")
+			return
+		}
+		for i := range vouchers {
+			if vouchers[i].SourceExpenseID != nil {
+				linked[*vouchers[i].SourceExpenseID] = vouchers[i]
+			}
+		}
+	}
 	result := make([]gin.H, 0, len(rows))
 	for _, row := range rows {
+		var sourceVoucherSummary any
+		if voucher, exists := linked[row.ID]; exists {
+			sourceVoucherSummary = projectExpenseSourceVoucherSummary(&voucher, book.ID)
+		}
 		result = append(result, gin.H{
-			"id": row.ID, "project_id": row.ProjectID, "project_code": row.ProjectCode,
-			"project_name": row.ProjectName, "subject": row.Subject, "amount": decimal.NewFromFloat(row.Amount).StringFixed(2),
-			"exp_date": row.ExpDate, "note": row.Note, "status": row.Status, "account_book_id": book.ID,
+			"id": row.ID, "project_id": row.ProjectID,
+			"project": gin.H{"id": row.ProjectID, "code": row.ProjectCode, "name": row.ProjectName},
+			"subject": row.Subject, "amount": decimal.NewFromFloat(row.Amount).StringFixed(2),
+			"exp_date": row.ExpDate, "note": row.Note, "status": row.Status,
+			"by_id": row.ByID, "approved_by": row.ApprovedBy,
+			"source_voucher_summary": sourceVoucherSummary,
 		})
 	}
-	c.JSON(http.StatusOK, gin.H{"total": len(result), "items": result})
+	c.JSON(http.StatusOK, gin.H{"total": total, "page": page, "size": size, "items": result})
 }
 
 func (h *Handler) createProjectExpenseVoucher(c *gin.Context) {
@@ -603,13 +697,21 @@ func (h *Handler) createProjectExpenseVoucher(c *gin.Context) {
 	var voucher model.Voucher
 	err := h.DB.Transaction(func(tx *gorm.DB) error {
 		var expense model.Expense
-		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("id = ? AND status = ? AND project_id IN (?)", expenseID, "approved", rbac.VisibleProjectSubquery(tx, user)).First(&expense).Error; err != nil {
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("id = ? AND status IN ? AND project_id IN (?)", expenseID, projectExpenseStatuses, rbac.VisibleProjectSubquery(tx, user)).First(&expense).Error; err != nil {
 			return financeErr(http.StatusNotFound, "F-PROJECT-EXPENSE-NOT-FOUND", "项目支出不存在或不可转换")
 		}
 		var existing model.Voucher
 		err := tx.Where("source_expense_id = ?", expenseID).First(&existing).Error
 		if err == nil {
-			return financeErr(http.StatusConflict, "F-PROJECT-EXPENSE-LINKED", "项目支出已生成凭证")
+			message := "项目支出已生成凭证"
+			if existing.AccountBookID != book.ID {
+				message = "已在其他账套转换"
+			}
+			return &apiError{
+				Status: http.StatusConflict, Code: "F-PROJECT-EXPENSE-LINKED", Message: message,
+				Details: []map[string]string{},
+				Payload: gin.H{"source_voucher_summary": projectExpenseSourceVoucherSummary(&existing, book.ID)},
+			}
 		}
 		if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
 			return err
