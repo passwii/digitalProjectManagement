@@ -49,6 +49,7 @@ from scripts.deploy_vps import (  # noqa: E402
     DEFAULT_APP_DIR,
     DEFAULT_BRANCH,
     DEFAULT_COMPOSE_FILES,
+    DEFAULT_REPOSITORY_URL,
     PRUNE_KEEP_SPARE,
     REQUIRED_ENV_CHECKS,
     SSH_PROBE_TIMEOUT,
@@ -111,6 +112,143 @@ class DeployVpsScriptTest(unittest.TestCase):
         script = build_remote_script()
 
         self.assertIn("git rev-parse --short HEAD", script)
+
+    def test_missing_git_requires_explicit_bootstrap(self):
+        script = build_remote_script()
+
+        self.assertIn("bootstrap_git=0", script)
+        self.assertIn("if [ ! -d .git ]; then", script)
+        self.assertIn("确认目录状态后手动触发 bootstrap_git", script)
+        self.assertIn("bootstrap_git=1", build_remote_script(bootstrap_git=True))
+
+    def test_explicit_bootstrap_preserves_env_and_keeps_backup(self):
+        script = build_remote_script(bootstrap_git=True)
+
+        self.assertIn(f"git clone --depth 1 --branch main {DEFAULT_REPOSITORY_URL}", script)
+        self.assertIn('install -m 600 .env "$bootstrap_clone/.env"', script)
+        self.assertIn(".pre-bootstrap.$(date +%Y%m%d%H%M%S)", script)
+        self.assertIn('mv "$bootstrap_clone" /opt/pm', script)
+        self.assertIn("Git 元数据已重建，原目录备份", script)
+
+    def test_explicit_bootstrap_rebuilds_missing_repository(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            repo_dir = root / "repo"
+            app_dir = root / "app"
+            bin_dir = root / "bin"
+            repo_dir.mkdir()
+            app_dir.mkdir()
+            bin_dir.mkdir()
+
+            subprocess.run(["git", "init", "-b", "main", str(repo_dir)], check=True)
+            subprocess.run(
+                ["git", "-C", str(repo_dir), "config", "user.name", "Deploy Test"],
+                check=True,
+            )
+            subprocess.run(
+                [
+                    "git",
+                    "-C",
+                    str(repo_dir),
+                    "config",
+                    "user.email",
+                    "deploy-test@example.com",
+                ],
+                check=True,
+            )
+            (repo_dir / "docker-compose.yml").write_text(
+                "services: {}\n", encoding="utf-8"
+            )
+            subprocess.run(
+                ["git", "-C", str(repo_dir), "add", "docker-compose.yml"], check=True
+            )
+            subprocess.run(
+                ["git", "-C", str(repo_dir), "commit", "-m", "test"], check=True
+            )
+            revision = subprocess.run(
+                ["git", "-C", str(repo_dir), "rev-parse", "HEAD"],
+                capture_output=True,
+                text=True,
+                check=True,
+            ).stdout.strip()
+
+            env_content = (
+                "PM_DOMAIN=pm.example.com\n"
+                "PM_HOST_BIND=127.0.0.1\n"
+                "API_PORT_BIND=127.0.0.1\n"
+                "NEXT_PUBLIC_API_BASE=https://pm.example.com/api/v1\n"
+                "CORS_ORIGINS=https://pm.example.com\n"
+            )
+            (app_dir / ".env").write_text(env_content, encoding="utf-8")
+
+            calls = root / "calls"
+            docker_stub = bin_dir / "docker"
+            docker_stub.write_text(
+                f"""#!/usr/bin/env bash
+printf 'docker %s\\n' "$*" >> "{calls}"
+exit 0
+""",
+                encoding="utf-8",
+            )
+            curl_stub = bin_dir / "curl"
+            curl_stub.write_text("#!/usr/bin/env bash\nexit 0\n", encoding="utf-8")
+            docker_stub.chmod(0o755)
+            curl_stub.chmod(0o755)
+
+            script_path = root / "deploy.sh"
+            script_path.write_text(
+                build_remote_script(
+                    api_image=TEST_API_IMAGE,
+                    web_image=TEST_WEB_IMAGE,
+                    expected_revision=revision,
+                    ghcr_username="deploy-bot",
+                    app_dir=str(app_dir),
+                    prune_spare=None,
+                    bootstrap_git=True,
+                    repo_url=repo_dir.as_uri(),
+                ),
+                encoding="utf-8",
+            )
+            result = subprocess.run(
+                ["bash", str(script_path)],
+                input="test-token\n",
+                capture_output=True,
+                text=True,
+                env={
+                    **os.environ,
+                    "PATH": f"{bin_dir}{os.pathsep}{os.environ['PATH']}",
+                },
+                check=False,
+            )
+
+            backups = list(root.glob("app.pre-bootstrap.*"))
+            command_log = calls.read_text(encoding="utf-8") if calls.exists() else ""
+            repository_restored = (app_dir / ".git").is_dir()
+            deployed_env = (app_dir / ".env").read_text(encoding="utf-8")
+            deployed_compose = (app_dir / "docker-compose.yml").read_text(
+                encoding="utf-8"
+            )
+            backup_env = (
+                (backups[0] / ".env").read_text(encoding="utf-8")
+                if len(backups) == 1
+                else None
+            )
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertTrue(repository_restored)
+        self.assertEqual(deployed_env, env_content)
+        self.assertEqual(deployed_compose, "services: {}\n")
+        self.assertEqual(len(backups), 1)
+        self.assertEqual(backup_env, env_content)
+        self.assertIn(
+            "docker compose -f docker-compose.yml -f docker-compose.prod.yml pull",
+            command_log,
+        )
+        self.assertIn(
+            "docker compose -f docker-compose.yml -f docker-compose.prod.yml "
+            "up -d --no-build --remove-orphans",
+            command_log,
+        )
 
     def test_refuses_to_deploy_dirty_worktree(self):
         """/opt/pm 被手改过就停下，避免 --ff-only 失败在看不懂的地方。"""
@@ -195,7 +333,7 @@ class DeployVpsImmutableImageTest(unittest.TestCase):
             ghcr_username="deploy-bot",
         )
         pull_revision = _line_index(script, "git pull --ff-only origin main")
-        check_revision = _line_index(script, "expected_revision=")
+        check_revision = _line_index(script, "actual_revision=")
         pull_images = _line_index(
             script,
             "docker compose -f docker-compose.yml -f docker-compose.prod.yml pull",
@@ -211,6 +349,7 @@ class DeployVpsImmutableImageTest(unittest.TestCase):
             app_dir = root / "app"
             bin_dir = root / "bin"
             app_dir.mkdir()
+            (app_dir / ".git").mkdir()
             bin_dir.mkdir()
             calls = root / "calls"
             (app_dir / ".env").write_text(
@@ -277,6 +416,7 @@ exit 99
             app_dir = root / "app"
             bin_dir = root / "bin"
             app_dir.mkdir()
+            (app_dir / ".git").mkdir()
             bin_dir.mkdir()
             calls = root / "calls"
             (app_dir / ".env").write_text(
@@ -330,7 +470,7 @@ exit 99
                 env=env,
                 check=False,
             )
-            command_log = calls.read_text(encoding="utf-8")
+            command_log = calls.read_text(encoding="utf-8") if calls.exists() else ""
 
         self.assertEqual(result.returncode, 1)
         self.assertIn("部署中止：Actions PM_DOMAIN 与 VPS .env PM_DOMAIN 不一致", result.stderr)
@@ -475,6 +615,8 @@ class DeployVpsWorkflowContractTest(unittest.TestCase):
         self.assertIn("needs.build.outputs.web_image", workflow)
         self.assertIn("--expected-revision", workflow)
         self.assertIn("--expected-domain", workflow)
+        self.assertIn("--bootstrap-git", workflow)
+        self.assertIn("bootstrap_git: ${{ steps.request.outputs.bootstrap_git }}", workflow)
         self.assertIn("pm_domain: ${{ steps.request.outputs.pm_domain }}", workflow)
         self.assertIn("PM_DOMAIN: ${{ vars.PM_DOMAIN }}", workflow)
         self.assertIn(
@@ -488,6 +630,7 @@ class DeployVpsWorkflowContractTest(unittest.TestCase):
 
         self.assertIn("api_image:", workflow)
         self.assertIn("web_image:", workflow)
+        self.assertIn("bootstrap_git:", workflow)
         self.assertIn("mode=rollback", workflow)
         self.assertIn("mode=build", workflow)
         self.assertIn("inputs.api_image", workflow)

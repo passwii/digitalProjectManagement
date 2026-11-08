@@ -593,6 +593,8 @@ CORS_ORIGINS=https://pm.example.com
 
 `.github/workflows/container-images.yml` 在 PR 改动容器构建相关文件时，分别构建 API 与 Web 镜像，不推送、不连接 VPS。合并到 `main` 后，`.github/workflows/deploy-vps.yml` 在 GitHub-hosted runner 上构建两个生产镜像并推送到 GHCR；deploy job 使用 build 输出的不可变 digest，通过 SSH 调用 `scripts/deploy_vps.py`。VPS 快进拉取 `origin/main` 上的 Compose 配置，执行 `docker compose pull` 和 `docker compose up -d --no-build`，再检查 API 与 Web 健康状态。VPS 不再安装 npm/Python 依赖或执行 Docker build，但仍需要访问 GitHub 与 GHCR。
 
+若 `/opt/pm/.git` 丢失，自动部署会拒绝继续。确认目录和现有 `.env` 后，手动 dispatch `deploy-vps` 并勾选 `bootstrap_git`：脚本会从 `origin/main` 建立临时克隆、保留 `.env`、把旧目录改名为 `/opt/pm.pre-bootstrap.<时间戳>` 作为备份，再继续部署。该开关只用于这次显式恢复，不应作为常规部署参数。
+
 在 GitHub 仓库设置中创建 `production` environment，并将允许部署的分支限制为 `main`。在该 environment 下配置以下 secrets：
 
 | Secret | 内容 |
