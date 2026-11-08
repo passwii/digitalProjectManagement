@@ -5,7 +5,7 @@
 额外补一条 `ProjectChange`。与既有的项目字段 / 负责人 / 状态留痕互不影响，
 独立成文件便于回归「业务活动是否出现在日志里」这一条链路。
 """
-from api.models import ProjectChange
+from api.legacy_py.models import ProjectChange
 
 
 def login(client, username, password=None):
@@ -136,7 +136,7 @@ def test_expense_decision_and_resubmit_are_recorded_in_project_changes(client, d
 
     session = db()
     try:
-        from api.models import SysParam
+        from api.legacy_py.models import SysParam
 
         session.query(SysParam).filter_by(key="expense_approval_on").first().value = "1"
         session.commit()

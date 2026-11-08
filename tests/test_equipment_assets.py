@@ -8,8 +8,8 @@ import pytest
 from openpyxl import Workbook
 from sqlalchemy import text
 
-from api.core.timeutil import app_today
-from api.models import AuditLog, Dict, EquipmentAsset, EquipmentEvent, EquipmentBatch, User
+from api.legacy_py.core.timeutil import app_today
+from api.legacy_py.models import AuditLog, Dict, EquipmentAsset, EquipmentEvent, EquipmentBatch, User
 from test_mvp import _scope_user, login
 
 
@@ -600,7 +600,7 @@ def test_admin_acceptance_updates_batch_assets_events_and_audit_atomically(clien
         "name": "二号验收批次", "acceptance_status": "pending_acceptance", "items": [{"name": "电脑丙", "category_code": "computer"}],
     }).json()
     second_batch_id = pending["batch_id"]
-    import api.core.audit as audit
+    import api.legacy_py.core.audit as audit
     def fail(*_args, **_kwargs):
         raise RuntimeError("audit unavailable")
     monkeypatch.setattr(audit, "audit_row", fail)
@@ -721,7 +721,7 @@ def test_corrupt_xlsx_returns_validation_error(client):
 def test_audit_failure_rolls_back_state_and_event(client, db, monkeypatch):
     admin = login(client, "admin")
     asset = _create(client, admin)
-    import api.core.audit as audit
+    import api.legacy_py.core.audit as audit
     def fail(*_args, **_kwargs):
         raise RuntimeError("audit unavailable")
     monkeypatch.setattr(audit, "audit_row", fail)

@@ -4,7 +4,7 @@ from datetime import date, datetime
 
 from sqlalchemy import UniqueConstraint
 
-from api.models import Account, AccountBookMember, AccountingPeriod, AuditLog, AuxiliaryItem, Expense, Project, User, Voucher, VoucherEntry
+from api.legacy_py.models import Account, AccountBookMember, AccountingPeriod, AuditLog, AuxiliaryItem, Expense, Project, User, Voucher, VoucherEntry
 
 
 def _auth(client, username="admin", password="admin123456"):

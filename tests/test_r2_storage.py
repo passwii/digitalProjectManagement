@@ -11,7 +11,7 @@
   4. **兼容与失败路径** —— 接入 R2 前的存量本地行仍可下载；R2 上传失败 → 502 且不产生元数据；
      R2 删除失败 → 502 且**保留**元数据（不留无人追踪的孤儿对象）；体积上限与归属隔离不变。
 
-测试通过替换 `api.core.r2.build_client` 注入内存客户端，`R2_*` 环境变量在用例内设置，
+测试通过替换 `api.legacy_py.core.r2.build_client` 注入内存客户端，`R2_*` 环境变量在用例内设置，
 因此「本地跑测试」不需要 R2 凭据，也不会碰到真实桶。
 """
 
@@ -27,16 +27,16 @@ from botocore.exceptions import ClientError
 from sqlalchemy.orm import Session
 from test_mvp import login, mkproject
 
-from api.core import r2 as r2_mod
-from api.core import storage as storage_mod
-from api.core.attachments import (
+from api.legacy_py.core import r2 as r2_mod
+from api.legacy_py.core import storage as storage_mod
+from api.legacy_py.core.attachments import (
     attachment_blob_available,
     attachment_response,
     remove_attachment_blob,
     store_attachment,
 )
-from api.core.limits import MAX_ATTACHMENT_SIZE
-from api.core.r2 import (
+from api.legacy_py.core.limits import MAX_ATTACHMENT_SIZE
+from api.legacy_py.core.r2 import (
     R2DeleteResult,
     R2ObjectMissing,
     R2Settings,
@@ -45,7 +45,7 @@ from api.core.r2 import (
     sanitize_key,
     try_delete_object,
 )
-from api.models import Attachment, User
+from api.legacy_py.models import Attachment, User
 from scripts.rekey_r2_objects import (
     reconcile,
     rekey,
@@ -425,7 +425,7 @@ def test_local_backend_refused_in_production(monkeypatch):
 
 def test_local_staging_root_must_be_outside_app_dir(monkeypatch):
     """本地后端落点不许在应用目录内：落进去就等于「在 VPS 上持久化」。"""
-    from api.core.database import ROOT
+    from api.legacy_py.core.database import ROOT
 
     monkeypatch.setenv("STORAGE_BACKEND", "local")
     monkeypatch.setenv("STORAGE_LOCAL_ROOT", str(ROOT / "data" / "files"))
@@ -437,7 +437,7 @@ def test_local_staging_root_must_be_outside_app_dir(monkeypatch):
 @pytest.mark.parametrize("env", ["development", "test"])
 def test_local_staging_default_is_outside_app_dir(monkeypatch, raw, env):
     """默认（或相对）落点要么在应用目录之外，要么直接报错。"""
-    from api.core.database import ROOT
+    from api.legacy_py.core.database import ROOT
 
     monkeypatch.setenv("STORAGE_BACKEND", "local")
     monkeypatch.setenv("APP_ENV", env)
@@ -453,7 +453,7 @@ def test_local_staging_default_is_outside_app_dir(monkeypatch, raw, env):
 
 def test_local_backend_stages_into_temp_root(local_storage, monkeypatch, tmp_path):
     """本地后端的正文只写进 `STORAGE_LOCAL_ROOT`（临时暂存），不是应用目录。"""
-    from api.core.database import ROOT
+    from api.legacy_py.core.database import ROOT
 
     staging = tmp_path / "staging"
     monkeypatch.setenv("STORAGE_LOCAL_ROOT", str(staging))
@@ -941,7 +941,7 @@ def test_legacy_local_rows_still_download(
 def test_local_backend_still_works_end_to_end(
     client, local_storage, session: Session
 ):
-    from api.core.database import ROOT
+    from api.legacy_py.core.database import ROOT
 
     h = login(client, "pm")
     p = mkproject(client, h, "PLocalBack")
@@ -1152,7 +1152,7 @@ def test_startup_lifespan_rejects_forced_r2_without_config(monkeypatch):
     """`r2` 强制模式配置不全 → **应用启动（lifespan）即抛错**，不是首个请求才炸。"""
     from fastapi.testclient import TestClient
 
-    from api.main import app
+    from api.legacy_py.main import app
 
     for name in R2_ENV:
         monkeypatch.delenv(name, raising=False)
@@ -1165,7 +1165,7 @@ def test_startup_lifespan_accepts_local_backend(monkeypatch):
     """开发/测试环境显式 `local` 仍能启动（临时暂存，不触网、不需要凭据）。"""
     from fastapi.testclient import TestClient
 
-    from api.main import app
+    from api.legacy_py.main import app
 
     for name in R2_ENV:
         monkeypatch.delenv(name, raising=False)
@@ -1181,7 +1181,7 @@ def test_startup_lifespan_rejects_local_backend_in_production(monkeypatch):
     """生产环境选本地后端 → 应用启动即失败（不是起来后每个请求才炸）。"""
     from fastapi.testclient import TestClient
 
-    from api.main import app
+    from api.legacy_py.main import app
 
     for name in R2_ENV:
         monkeypatch.delenv(name, raising=False)
@@ -1199,7 +1199,7 @@ def test_local_backend_logs_staging_warning(monkeypatch, caplog):
         monkeypatch.delenv(name, raising=False)
     monkeypatch.setenv("STORAGE_BACKEND", "local")
     monkeypatch.setenv("APP_ENV", "test")
-    with caplog.at_level(logging.WARNING, logger="api.core.storage"):
+    with caplog.at_level(logging.WARNING, logger="api.legacy_py.core.storage"):
         assert storage_mod.resolve_backend_name() == "local"
     assert any("临时暂存" in r.message for r in caplog.records)
     # 只报落点与变量名，绝不回显值
@@ -1456,7 +1456,7 @@ def test_rekey_is_noop_after_year_rollover(session, fake_s3, monkeypatch):
     assert set(fake_s3.objects) == {new_key}
 
     # 时钟拨到次年：目标键仍须由「行」（键里的年份）算出，而不是新的 now。
-    # BLF-1138 后 `build_object_key` 的默认年份取自 `api.core.timeutil.app_now()`
+    # BLF-1138 后 `build_object_key` 的默认年份取自 `api.legacy_py.core.timeutil.app_now()`
     # （北京时间墙钟，不再是 `datetime.now(timezone.utc)`），所以注入点跟着口径模块走；
     # 直接改口径函数而不是 `storage_mod.datetime`，避免守卫退化成永远通过的空断言。
     monkeypatch.setattr(storage_mod, "app_now", lambda: datetime(2027, 1, 1))

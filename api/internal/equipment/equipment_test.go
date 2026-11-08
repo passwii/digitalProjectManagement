@@ -24,7 +24,7 @@ func TestNormalizeHeaderKeySupportsChineseAndSnakeCase(t *testing.T) {
 }
 
 func TestParseImportDateAcceptsSupportedChineseFormats(t *testing.T) {
-	for _, input := range []string{"2026-01-05", "2026/1/5", "2026年1月5日"} {
+	for _, input := range []string{"2026-01-05", "2026/1/5", "2026年1月5日", "1/5/26", "01/05/2026"} {
 		got, err := parseImportDate(input)
 		if err != nil {
 			t.Fatalf("parseImportDate(%q): %v", input, err)

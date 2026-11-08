@@ -14,7 +14,7 @@ BUSINESS_MODULES = BASE_MODULES + ADMIN_MODULES + ["finance"]
 
 
 def _uid(db, username: str) -> int:
-    from api.models import User
+    from api.legacy_py.models import User
 
     session = db()
     try:
@@ -107,7 +107,7 @@ def test_explicitly_empty_modules_keep_only_dashboard(client, db):
 
 
 def test_legacy_admin_role_does_not_affect_explicit_modules(client, db):
-    from api.models import Role, User, UserRole
+    from api.legacy_py.models import Role, User, UserRole
 
     with db() as session:
         user = session.query(User).filter_by(username="pm").one()
@@ -122,7 +122,7 @@ def test_legacy_admin_role_does_not_affect_explicit_modules(client, db):
 
 
 def test_legacy_admin_role_does_not_affect_default_modules(client, db):
-    from api.models import Role, User, UserRole
+    from api.legacy_py.models import Role, User, UserRole
 
     with db() as session:
         user = session.query(User).filter_by(username="pm").one()

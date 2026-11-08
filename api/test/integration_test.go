@@ -8,6 +8,8 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"os/exec"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -35,11 +37,46 @@ import (
 	"digitalprojectmanagement/api/pkg/database"
 	"digitalprojectmanagement/api/pkg/security"
 	"digitalprojectmanagement/api/pkg/storage"
+	"digitalprojectmanagement/api/pkg/timeutil"
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 )
 
+func withSearchPath(databaseURL, schema string) string {
+	cleanURL := strings.Replace(databaseURL, "postgresql+psycopg://", "postgresql://", 1)
+	parsed, err := url.Parse(cleanURL)
+	if err != nil {
+		return databaseURL
+	}
+	query := parsed.Query()
+	query.Set("search_path", schema)
+	parsed.RawQuery = query.Encode()
+	return parsed.String()
+}
+
+func applyAlembicMigrations(t *testing.T, databaseURL, schema string) {
+	t.Helper()
+	workingDir, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("failed to resolve test working directory: %v", err)
+	}
+	apiDir := filepath.Dir(workingDir)
+	repoRoot := filepath.Dir(apiDir)
+	cmd := exec.Command("python3", "-m", "alembic", "upgrade", "head")
+	cmd.Dir = apiDir
+	cmd.Env = append(os.Environ(),
+		"DATABASE_URL="+databaseURL,
+		"PGOPTIONS=-c search_path="+schema,
+		"PYTHONPATH="+repoRoot,
+	)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("alembic upgrade head failed: %v\n%s", err, output)
+	}
+}
+
 func setupTestApp(t *testing.T) (*gin.Engine, *gorm.DB) {
+	t.Helper()
 	testDBURL := strings.TrimSpace(os.Getenv("TEST_DATABASE_URL"))
 	if testDBURL == "" {
 		t.Skip("TEST_DATABASE_URL not set; skipping database integration tests")
@@ -47,7 +84,7 @@ func setupTestApp(t *testing.T) (*gin.Engine, *gorm.DB) {
 
 	adminDB, err := database.Init(testDBURL, "test")
 	if err != nil {
-		t.Skipf("cannot connect to test database: %v", err)
+		t.Fatalf("cannot connect to test database: %v", err)
 	}
 
 	schema := fmt.Sprintf("test_%s", strings.ReplaceAll(uuid.NewString()[:12], "-", ""))
@@ -61,49 +98,19 @@ func setupTestApp(t *testing.T) (*gin.Engine, *gorm.DB) {
 		}
 	})
 
-	var schemaDBURL string
-	if strings.Contains(testDBURL, "://") {
-		cleanURL := strings.Replace(testDBURL, "postgresql+psycopg://", "postgresql://", 1)
-		if parsed, err := url.Parse(cleanURL); err == nil {
-			q := parsed.Query()
-			q.Set("search_path", schema)
-			parsed.RawQuery = q.Encode()
-		schemaDBURL = parsed.String()
-		} else {
-			schemaDBURL = testDBURL
-		}
-	} else {
-		schemaDBURL = testDBURL + " search_path=" + schema
-	}
+	applyAlembicMigrations(t, testDBURL, schema)
+	schemaDBURL := withSearchPath(testDBURL, schema)
 
 	security.Init("test-integration-secret-key-12345")
 	db, err := database.Init(schemaDBURL, "test")
 	if err != nil {
-		t.Skipf("cannot connect to schema database: %v", err)
+		t.Fatalf("cannot connect to schema database: %v", err)
 	}
-	_ = db.Exec(fmt.Sprintf("SET search_path TO %q", schema))
 	t.Cleanup(func() {
 		if sqlDB, err := db.DB(); err == nil {
 			_ = sqlDB.Close()
 		}
 	})
-
-	// AutoMigrate models if needed
-	_ = db.AutoMigrate(
-		&model.Department{}, &model.User{}, &model.Role{}, &model.UserRole{}, &model.UserModule{},
-		&model.SysParam{}, &model.Dict{}, &model.AuditLog{}, &model.TokenBlacklist{},
-		&model.Project{}, &model.ProjectMember{}, &model.ProjectChange{}, &model.Attachment{},
-		&model.Followup{}, &model.Milestone{}, &model.Task{}, &model.ProgressLog{},
-		&model.Budget{}, &model.BudgetAdjust{}, &model.Expense{}, &model.ApprovalRecord{},
-		&model.ProjectReceivable{}, &model.ProjectReceivablePayment{},
-		&model.ContactProfile{}, &model.Partner{}, &model.PartnerContract{}, &model.Opportunity{},
-		&model.Notification{}, &model.EquipmentBatch{}, &model.EquipmentAsset{}, &model.EquipmentEvent{},
-		&model.AccountBook{}, &model.AccountBookMember{}, &model.AccountingPeriod{}, &model.Account{},
-		&model.OpeningBalance{}, &model.AuxiliaryItem{}, &model.AccountAuxiliary{}, &model.AccountBalance{},
-		&model.Voucher{}, &model.VoucherEntry{}, &model.VoucherTemplate{}, &model.CashTransaction{},
-		&model.BankStatement{}, &model.FixedAsset{}, &model.AssetDepreciation{},
-		&model.ARAPTransaction{}, &model.ARAPAllocation{},
-	)
 
 	loc, _ := storage.NewLocalBackend(os.TempDir())
 	storage.InitGlobal(loc)
@@ -137,6 +144,82 @@ func setupTestApp(t *testing.T) (*gin.Engine, *gorm.DB) {
 	return r, db
 }
 
+func seedUserAndLogin(t *testing.T, app *gin.Engine, db *gorm.DB, realName string, modules []string, isSuperAdmin bool) (model.User, string) {
+	t.Helper()
+	pwdHash, err := security.HashPassword("admin123456")
+	if err != nil {
+		t.Fatalf("hash test password: %v", err)
+	}
+	user := model.User{
+		Username:        fmt.Sprintf("test_user_%s", strings.ReplaceAll(uuid.NewString()[:8], "-", "")),
+		PwdHash:         pwdHash,
+		RealName:        realName,
+		Status:          "active",
+		IsSuperAdmin:    isSuperAdmin,
+		ModulesAssigned: true,
+		CreatedAt:       timeutil.NowDateTime(),
+	}
+	if err := db.Create(&user).Error; err != nil {
+		t.Fatalf("create test admin: %v", err)
+	}
+
+	loginBody, _ := json.Marshal(map[string]string{
+		"username": user.Username,
+		"password": "admin123456",
+	})
+	recorder := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/login", bytes.NewReader(loginBody))
+	req.Header.Set("Content-Type", "application/json")
+	app.ServeHTTP(recorder, req)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("login status = %d: %s", recorder.Code, recorder.Body.String())
+	}
+	var response struct {
+		AccessToken string `json:"access_token"`
+	}
+	if err := json.Unmarshal(recorder.Body.Bytes(), &response); err != nil {
+		t.Fatalf("decode login response: %v", err)
+	}
+	if response.AccessToken == "" {
+		t.Fatal("login response did not include an access token")
+	}
+	for _, module := range modules {
+		if err := db.Create(&model.UserModule{UserID: user.ID, Module: module}).Error; err != nil {
+			t.Fatalf("create user module %q: %v", module, err)
+		}
+	}
+	return user, "Bearer " + response.AccessToken
+}
+
+func seedAdminAndLogin(t *testing.T, app *gin.Engine, db *gorm.DB) (model.User, string) {
+	t.Helper()
+	return seedUserAndLogin(t, app, db, "测试超管", nil, true)
+}
+
+func requestJSON(t *testing.T, app *gin.Engine, method, path string, body any, token string) *httptest.ResponseRecorder {
+	t.Helper()
+	var reader *bytes.Reader
+	if body == nil {
+		reader = bytes.NewReader(nil)
+	} else {
+		payload, err := json.Marshal(body)
+		if err != nil {
+			t.Fatalf("marshal request body: %v", err)
+		}
+		reader = bytes.NewReader(payload)
+	}
+	recorder := httptest.NewRecorder()
+	req := httptest.NewRequest(method, path, reader)
+	if body != nil {
+		req.Header.Set("Content-Type", "application/json")
+	}
+	if token != "" {
+		req.Header.Set("Authorization", token)
+	}
+	app.ServeHTTP(recorder, req)
+	return recorder
+}
+
 func TestDatabaseIntegrationWorkflow(t *testing.T) {
 	app, db := setupTestApp(t)
 
@@ -148,42 +231,8 @@ func TestDatabaseIntegrationWorkflow(t *testing.T) {
 		t.Fatalf("expected 401 for unauthenticated request, got %d", w.Code)
 	}
 
-	// 2. 初始化一个测试超级管理员
-	pwdHash, _ := security.HashPassword("admin123456")
-	testUsername := fmt.Sprintf("test_admin_%s", strings.ReplaceAll(uuid.NewString()[:8], "-", ""))
-	testUser := model.User{
-		Username:        testUsername,
-		PwdHash:         pwdHash,
-		RealName:        "测试超管",
-		Status:          "active",
-		IsSuperAdmin:    true,
-		ModulesAssigned: true,
-	}
-	db.Where("username = ?", testUser.Username).FirstOrCreate(&testUser)
-
-	// 3. 登录请求
-	loginBody, _ := json.Marshal(map[string]string{
-		"username": testUsername,
-		"password": "admin123456",
-	})
-	w = httptest.NewRecorder()
-	req, _ = http.NewRequest("POST", "/api/v1/auth/login", bytes.NewReader(loginBody))
-	req.Header.Set("Content-Type", "application/json")
-	app.ServeHTTP(w, req)
-
-	if w.Code != http.StatusOK {
-		t.Fatalf("expected 200 for login, got %d: %s", w.Code, w.Body.String())
-	}
-
-	var loginResp struct {
-		AccessToken string `json:"access_token"`
-	}
-	_ = json.Unmarshal(w.Body.Bytes(), &loginResp)
-	if loginResp.AccessToken == "" {
-		t.Fatalf("login did not return access token")
-	}
-
-	tokenHeader := "Bearer " + loginResp.AccessToken
+	// 2. 初始化并登录测试超级管理员
+	testUser, tokenHeader := seedAdminAndLogin(t, app, db)
 
 	// 4. 用 token 访问 /auth/me
 	w = httptest.NewRecorder()
@@ -262,12 +311,15 @@ func TestDatabaseIntegrationWorkflow(t *testing.T) {
 
 	// 8. 测试项目修改 (Patch: client, client_contact, contract_status, owner_id)
 	user2 := model.User{
-		Username: fmt.Sprintf("test_user_%s", strings.ReplaceAll(uuid.NewString()[:8], "-", "")),
-		PwdHash:  pwdHash,
-		RealName: "项目经理二号",
-		Status:   "active",
+		Username:  fmt.Sprintf("test_user_%s", strings.ReplaceAll(uuid.NewString()[:8], "-", "")),
+		PwdHash:   testUser.PwdHash,
+		RealName:  "项目经理二号",
+		Status:    "active",
+		CreatedAt: timeutil.NowDateTime(),
 	}
-	db.Create(&user2)
+	if err := db.Create(&user2).Error; err != nil {
+		t.Fatalf("create second user: %v", err)
+	}
 
 	patchBody, _ := json.Marshal(map[string]any{
 		"client":          "更新后的客户名",
@@ -439,6 +491,197 @@ func TestDatabaseIntegrationWorkflow(t *testing.T) {
 	}
 }
 
+func TestAdminUpdateUserChangesDepartmentAssociation(t *testing.T) {
+	app, db := setupTestApp(t)
+	_, adminToken := seedAdminAndLogin(t, app, db)
+	now := timeutil.NowDateTime()
+	deptA := model.Department{Name: fmt.Sprintf("测试部门A-%s", uuid.NewString()[:8])}
+	deptB := model.Department{Name: fmt.Sprintf("测试部门B-%s", uuid.NewString()[:8])}
+	if err := db.Create(&deptA).Error; err != nil {
+		t.Fatalf("create department A: %v", err)
+	}
+	if err := db.Create(&deptB).Error; err != nil {
+		t.Fatalf("create department B: %v", err)
+	}
+	pwdHash, err := security.HashPassword("user123456")
+	if err != nil {
+		t.Fatalf("hash target user password: %v", err)
+	}
+	target := model.User{
+		Username:  fmt.Sprintf("target_%s", strings.ReplaceAll(uuid.NewString()[:8], "-", "")),
+		PwdHash:   pwdHash,
+		RealName:  "部门变更用户",
+		DeptID:    &deptA.ID,
+		Status:    "active",
+		CreatedAt: now,
+	}
+	if err := db.Create(&target).Error; err != nil {
+		t.Fatalf("create target user: %v", err)
+	}
+	contact := model.ContactProfile{
+		UserID:    &target.ID,
+		Name:      target.RealName,
+		Mobile:    target.Username,
+		DeptID:    &deptA.ID,
+		CreatedAt: now,
+		UpdatedAt: now,
+	}
+	if err := db.Create(&contact).Error; err != nil {
+		t.Fatalf("create target contact: %v", err)
+	}
 
+	recorder := requestJSON(t, app, http.MethodPatch, fmt.Sprintf("/api/v1/admin/users/%d", target.ID), map[string]any{
+		"dept_id": deptB.ID,
+	}, adminToken)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("update user status = %d: %s", recorder.Code, recorder.Body.String())
+	}
 
+	var updatedUser model.User
+	if err := db.Preload("Department").First(&updatedUser, target.ID).Error; err != nil {
+		t.Fatalf("reload user: %v", err)
+	}
+	if updatedUser.DeptID == nil || *updatedUser.DeptID != deptB.ID || updatedUser.Department == nil || updatedUser.Department.ID != deptB.ID {
+		t.Fatalf("user department = %+v, want department %d", updatedUser.Department, deptB.ID)
+	}
+	var updatedContact model.ContactProfile
+	if err := db.First(&updatedContact, contact.ID).Error; err != nil {
+		t.Fatalf("reload contact: %v", err)
+	}
+	if updatedContact.DeptID == nil || *updatedContact.DeptID != deptB.ID {
+		t.Fatalf("contact department = %v, want %d", updatedContact.DeptID, deptB.ID)
+	}
+}
 
+func TestBudgetMetricsAggregateByProjectAndSubject(t *testing.T) {
+	app, db := setupTestApp(t)
+	admin, adminToken := seedAdminAndLogin(t, app, db)
+	now := timeutil.NowDateTime()
+	project := model.Project{
+		Code:      fmt.Sprintf("PRJ-%s", strings.ReplaceAll(uuid.NewString()[:8], "-", "")),
+		Name:      fmt.Sprintf("预算聚合项目-%s", uuid.NewString()[:8]),
+		Type:      "other",
+		Status:    "doing",
+		Priority:  "中",
+		OwnerID:   &admin.ID,
+		CreatedAt: now,
+		UpdatedAt: now,
+	}
+	if err := db.Create(&project).Error; err != nil {
+		t.Fatalf("create project: %v", err)
+	}
+	for _, amount := range []float64{100, 100} {
+		row := model.Budget{
+			ProjectID: project.ID,
+			Subject:   "采购",
+			Amount:    amount,
+			CreatedAt: now,
+			UpdatedAt: now,
+		}
+		if err := db.Create(&row).Error; err != nil {
+			t.Fatalf("create budget row: %v", err)
+		}
+	}
+	if err := db.Create(&model.Expense{
+		ProjectID: project.ID,
+		Subject:   "采购",
+		Amount:    150,
+		Status:    "approved",
+		ByID:      &admin.ID,
+		CreatedAt: now,
+	}).Error; err != nil {
+		t.Fatalf("create expense: %v", err)
+	}
+
+	recorder := requestJSON(t, app, http.MethodGet, fmt.Sprintf("/api/v1/budgets?project_id=%d&page=1&size=20", project.ID), nil, adminToken)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("list budgets status = %d: %s", recorder.Code, recorder.Body.String())
+	}
+	var response struct {
+		Items []struct {
+			Amount  float64 `json:"amount"`
+			Spent   float64 `json:"spent"`
+			Balance float64 `json:"balance"`
+			Rate    float64 `json:"rate"`
+			Warn    bool    `json:"warn"`
+			Over    bool    `json:"over"`
+		} `json:"items"`
+	}
+	if err := json.Unmarshal(recorder.Body.Bytes(), &response); err != nil {
+		t.Fatalf("decode budget response: %v", err)
+	}
+	if len(response.Items) != 2 {
+		t.Fatalf("budget item count = %d, want 2", len(response.Items))
+	}
+	for _, item := range response.Items {
+		if item.Amount != 100 || item.Spent != 150 || item.Balance != 50 || item.Rate != 0.75 || item.Warn || item.Over {
+			t.Fatalf("budget metrics = %+v, want amount=100 spent=150 balance=50 rate=0.75 warn=false over=false", item)
+		}
+	}
+}
+
+func TestProjectAndApprovalPermissionsWithoutBaseModules(t *testing.T) {
+	app, db := setupTestApp(t)
+	admin, _ := seedAdminAndLogin(t, app, db)
+	now := timeutil.NowDateTime()
+	project := model.Project{
+		Code:      fmt.Sprintf("PRJ-%s", strings.ReplaceAll(uuid.NewString()[:8], "-", "")),
+		Name:      fmt.Sprintf("权限回归项目-%s", uuid.NewString()[:8]),
+		Type:      "other",
+		Status:    "doing",
+		Priority:  "中",
+		OwnerID:   &admin.ID,
+		CreatedAt: now,
+		UpdatedAt: now,
+	}
+	if err := db.Create(&project).Error; err != nil {
+		t.Fatalf("create project: %v", err)
+	}
+
+	member, memberToken := seedUserAndLogin(t, app, db, "通讯录模块项目成员", []string{"contacts"}, false)
+	if err := db.Create(&model.ProjectMember{ProjectID: project.ID, UserID: member.ID}).Error; err != nil {
+		t.Fatalf("create project member: %v", err)
+	}
+	recorder := requestJSON(t, app, http.MethodGet, fmt.Sprintf("/api/v1/projects/%d", project.ID), nil, memberToken)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("project member detail status = %d: %s", recorder.Code, recorder.Body.String())
+	}
+
+	_, outsiderToken := seedUserAndLogin(t, app, db, "通讯录模块非成员", []string{"contacts"}, false)
+	recorder = requestJSON(t, app, http.MethodGet, fmt.Sprintf("/api/v1/projects/%d", project.ID), nil, outsiderToken)
+	if recorder.Code != http.StatusNotFound {
+		t.Fatalf("non-member project detail status = %d, want 404: %s", recorder.Code, recorder.Body.String())
+	}
+
+	budget := model.Budget{ProjectID: project.ID, Subject: "采购", Amount: 100, CreatedAt: now, UpdatedAt: now}
+	if err := db.Create(&budget).Error; err != nil {
+		t.Fatalf("create budget: %v", err)
+	}
+	adjustment := model.BudgetAdjust{
+		BudgetID:  budget.ID,
+		ProjectID: project.ID,
+		OldAmount: 100,
+		NewAmount: 120,
+		Reason:    "权限回归",
+		Status:    "pending",
+		ByID:      &admin.ID,
+		CreatedAt: now,
+	}
+	if err := db.Create(&adjustment).Error; err != nil {
+		t.Fatalf("create budget adjustment: %v", err)
+	}
+	_, approvalToken := seedUserAndLogin(t, app, db, "仅审批模块用户", []string{"approvals"}, false)
+	recorder = requestJSON(t, app, http.MethodPost, fmt.Sprintf("/api/v1/approvals/budget_adjust/%d/decide", adjustment.ID), map[string]any{
+		"approve": true,
+	}, approvalToken)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("approvals-only decision status = %d: %s", recorder.Code, recorder.Body.String())
+	}
+	var decided model.BudgetAdjust
+	if err := db.First(&decided, adjustment.ID).Error; err != nil {
+		t.Fatalf("reload budget adjustment: %v", err)
+	}
+	if decided.Status != "approved" {
+		t.Fatalf("budget adjustment status = %q, want approved", decided.Status)
+	}
+}

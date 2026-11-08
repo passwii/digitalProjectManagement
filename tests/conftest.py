@@ -38,7 +38,7 @@ if not TEST_DATABASE_URL:
             "CI 环境下必须设置 TEST_DATABASE_URL。未设置时 conftest 的 db fixture "
             "会静默跳过依赖数据库的用例（约 82%），导致套件在几乎没跑的情况下判绿。"
         )
-    # api.main imports the database module at collection time. Keep that import
+    # api.legacy_py.main imports the database module at collection time. Keep that import
     # non-connecting; fixtures below skip when no real test database is set.
     os.environ.setdefault("DATABASE_URL", "postgresql+psycopg://test:test@localhost/test")
 else:

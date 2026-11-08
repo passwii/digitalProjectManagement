@@ -40,7 +40,7 @@ def items(r):
 
 def scope_user(client, db, username, modules=()):
     """建一个显式分配指定模块的普通用户并登录（见 test_mvp._scope_user 的说明）。"""
-    from api.models import User, UserModule
+    from api.legacy_py.models import User, UserModule
     from tests.support import hash_test_password
 
     with db() as session:
@@ -60,7 +60,7 @@ def set_params(client, h, **kw):
 
 def seed_plan_dates(db):
     """把项目计划区间拉宽，避免手工造数被「任务/支出落在项目计划内」规则拦住。"""
-    from api.models import Project
+    from api.legacy_py.models import Project
     s = db()
     for p in s.query(Project).all():
         p.plan_start, p.plan_end = date(2020, 1, 1), date(2030, 12, 31)
@@ -560,7 +560,7 @@ def _seed_warning_fixtures(client, db, h):
     返回 (project, task, plan_start_iso, plan_end_iso)；日期在 session 关闭前取出，
     避免 ORM 对象游离后访问属性报 DetachedInstanceError。
     """
-    from api.models import Project
+    from api.legacy_py.models import Project
     p = mkproject(client, h, "P4AWarn")
     s = db()
     row = s.query(Project).filter_by(id=p["id"]).first()
@@ -628,7 +628,7 @@ def test_notification_dedup_window_blocks_repeat(client, db):
     first = client.get("/api/v1/notifications?size=100", headers=h).json()
     assert first["dedup_days"] == 1
     # 清掉同步节流，强制重算预警：同一引用不得再次写入
-    from api.models import Notification, SysParam
+    from api.legacy_py.models import Notification, SysParam
     s = db()
     s.query(SysParam).filter_by(key="notifications_synced_at").first().value = ""
     s.commit()
@@ -689,7 +689,7 @@ def test_notification_state_tracking_and_link(client, db):
 
 def test_followup_remind_state_is_tracked_and_not_repeated(client, db):
     """跟进提醒：到期可生成通知且带 followup 引用；推送后标记已通知，不会无限重复。"""
-    from api.models import Followup, SysParam
+    from api.legacy_py.models import Followup, SysParam
     h = login(client, "pm")
     p = mkproject(client, h, "P4AFollow")
     past = (datetime.now(timezone.utc) - timedelta(hours=2)).isoformat()
@@ -707,7 +707,7 @@ def test_followup_remind_state_is_tracked_and_not_repeated(client, db):
                        json={"method": "微信"}).status_code == 400
 
     # 手工触发同步 → 生成 followup 通知并标记已通知
-    from api.core.jobs import due_followups, sync_notifications
+    from api.legacy_py.core.jobs import due_followups, sync_notifications
     s = db()
     assert any(x["followup_id"] == fid for x in due_followups(s))
     sync_notifications(s, max_per_type=50)
@@ -835,8 +835,8 @@ def test_project_filing_decision_visible_to_applicant(client, db):
 
 def test_audit_failure_is_not_silently_swallowed(client, db, monkeypatch):
     """关键写操作审计失败 → 接口 500 且业务变更回滚，绝不静默成功。"""
-    from api.core import audit as audit_mod
-    from api.models import ApprovalRecord, AuditLog, Expense, Task
+    from api.legacy_py.core import audit as audit_mod
+    from api.legacy_py.models import ApprovalRecord, AuditLog, Expense, Task
 
     h = login(client, "pm")
     ha = login(client, "admin")

@@ -60,5 +60,5 @@ jobs:
           cd api
           go test -v ./...
 
-      - name: 运行 Alembic 迁移链守卫测试
-        run: pytest tests/test_migration_revision_ids.py -q
+      - name: 运行归档 Python 行为基线测试
+        run: pytest tests -q

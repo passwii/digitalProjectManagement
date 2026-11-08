@@ -63,8 +63,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from api.core.database import SessionLocal
-from api.core.r2 import (
+from api.legacy_py.core.database import SessionLocal
+from api.legacy_py.core.r2 import (
     R2ObjectMissing,
     R2Settings,
     R2Unavailable,
@@ -75,14 +75,14 @@ from api.core.r2 import (
     object_stream,
     public_url,
 )
-from api.core.storage import (
+from api.legacy_py.core.storage import (
     build_object_key,
     object_key_ext,
     r2_settings_complete,
     r2_settings_from_env,
     try_delete_object_quietly,
 )
-from api.models import Attachment
+from api.legacy_py.models import Attachment
 from scripts._attachment_rows import domain_for, int_of, text_of
 
 #: 旧键末段里的 uuid（32 位十六进制），用于取确定性的新键后缀

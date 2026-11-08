@@ -7,7 +7,7 @@ from urllib.parse import unquote
 import pytest
 from openpyxl import Workbook, load_workbook
 
-from api.models import Dict, EquipmentAsset
+from api.legacy_py.models import Dict, EquipmentAsset
 from test_mvp import login
 
 ROOT = "/api/v1/equipment-assets"

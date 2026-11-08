@@ -3,7 +3,7 @@ from test_mvp import items, login, login_raw, mkproject
 
 
 def _mkuser(db, username: str, real_name: str):
-    from api.models import Department, User
+    from api.legacy_py.models import Department, User
     from tests.support import hash_test_password
 
     session = db()
@@ -20,7 +20,7 @@ def _mkuser(db, username: str, real_name: str):
 
 
 def _insert_project(db, code: str, name: str, owner_id, owner_name: str):
-    from api.models import Project
+    from api.legacy_py.models import Project
 
     session = db()
     try:
@@ -61,7 +61,7 @@ def test_owner_name_exact_hit(client, db):
 
 def test_owner_name_does_not_include_other_names_with_same_owner_id(client, db):
     """负责人姓名是列表展示口径，不能被复用的 owner_id 放宽。"""
-    from api.models import Project
+    from api.legacy_py.models import Project
 
     admin, zhang_id, _ = _setup_owner_data(client, db)
     session = db()
@@ -116,7 +116,7 @@ def test_owner_name_filter_survives_creator_stamped_owner_id(client, db):
     于是「按 owner_id 筛」等于按创建人筛 —— 选谁都会把创建人名下的项目全捞回来，
     表现就是「筛选负责人后还是全部结果」。列表展示的是 `owner_name`，所以过滤必须按姓名。
     """
-    from api.models import User
+    from api.legacy_py.models import User
 
     admin = login(client, "admin")
     session = db()
@@ -160,7 +160,7 @@ def test_project_owner_options_mirror_displayed_names(client, db):
 
 def test_project_owner_options_cover_account_only_rows_and_scope(client, db):
     """`owner_name` 为空、只挂账号的行按账号姓名归组；选项范围与列表的模块边界一致。"""
-    from api.models import Project, User, UserModule
+    from api.legacy_py.models import Project, User, UserModule
 
     admin = login(client, "admin")
     wang_id = _mkuser(db, "13800007777", "王五")
@@ -204,7 +204,7 @@ def test_project_owner_options_cover_account_only_rows_and_scope(client, db):
         session.close()
     assert client.get("/api/v1/projects/owners", headers=wang_h).status_code == 403
 
-    from api.models import Project, ProjectChange
+    from api.legacy_py.models import Project, ProjectChange
 
     admin, zhang_id, lisi_id = _setup_owner_data(client, db)
     session = db()
@@ -236,7 +236,7 @@ def test_project_owner_options_cover_account_only_rows_and_scope(client, db):
 
 
 def test_patch_owner_name_duplicate_name_no_relink(client, db):
-    from api.models import Project
+    from api.legacy_py.models import Project
 
     admin, zhang_id, _ = _setup_owner_data(client, db)
     _mkuser(db, "13800003333", "同名")
@@ -255,8 +255,8 @@ def test_patch_owner_name_duplicate_name_no_relink(client, db):
 
 
 def test_departments_seed_contract(client, db):
-    from api.models import Department
-    from api.seed import DEPARTMENTS
+    from api.legacy_py.models import Department
+    from api.legacy_py.seed import DEPARTMENTS
 
     assert DEPARTMENTS == ["综合部", "行销部", "交付与服务部", "市场部", "总经办"]
     # 与 seed.main() 相同的幂等补齐逻辑跑两遍：5 个部门全量存在且无重复

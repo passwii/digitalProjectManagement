@@ -48,15 +48,15 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
-from api.core.database import SessionLocal
-from api.core.r2 import R2ObjectMissing, R2Unavailable
-from api.core.storage import (
+from api.legacy_py.core.database import SessionLocal
+from api.legacy_py.core.r2 import R2ObjectMissing, R2Unavailable
+from api.legacy_py.core.storage import (
     BACKEND_R2,
     build_object_key,
     get_backend,
     resolve_backend_name,
 )
-from api.models import Attachment
+from api.legacy_py.models import Attachment
 from scripts._attachment_rows import domain_for as _domain_for
 from scripts._attachment_rows import int_of as _ident
 from scripts._attachment_rows import text_of as _text

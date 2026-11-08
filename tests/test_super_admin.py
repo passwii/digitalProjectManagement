@@ -4,8 +4,8 @@ import pytest
 from sqlalchemy import Boolean, text
 from sqlalchemy.exc import IntegrityError
 
-from api import seed
-from api.models import AuditLog, Role, User, UserModule, UserRole
+from api.legacy_py import seed
+from api.legacy_py.models import AuditLog, Role, User, UserModule, UserRole
 
 
 def test_super_admin_metadata_contract():
@@ -37,7 +37,7 @@ def test_fixture_super_admin_is_explicit_and_legacy_role_does_not_promote(db):
 
 
 def test_admin_notification_recipients_use_super_admin_identity(db):
-    from api.core.notify import admin_ids
+    from api.legacy_py.core.notify import admin_ids
 
     with db() as session:
         super_admin = session.query(User).filter_by(username="admin").one()
@@ -53,8 +53,8 @@ def test_admin_notification_recipients_use_super_admin_identity(db):
 
 
 def test_approval_recipients_include_explicit_approvers_but_not_legacy_admins(db):
-    from api.core.notify import admin_ids, approval_recipients
-    from api.core.rbac import MODULE_APPROVALS
+    from api.legacy_py.core.notify import admin_ids, approval_recipients
+    from api.legacy_py.core.rbac import MODULE_APPROVALS
 
     with db() as session:
         super_admin = session.query(User).filter_by(username="admin").one()

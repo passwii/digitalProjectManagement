@@ -2,7 +2,7 @@ from tests import support
 
 
 def test_test_password_hash_is_compatible_with_production_verifier():
-    from api.core.security import verify_password
+    from api.legacy_py.core.security import verify_password
 
     hashed = support._hash_test_password("fixture-performance-probe")
 

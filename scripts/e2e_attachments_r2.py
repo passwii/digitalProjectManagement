@@ -34,7 +34,7 @@ HTTP 契约**（`web/lib/api.ts` 的 `projectsApi.upload` / `contactsApi.upload`
     --skip-oversize         跳过 100MB 界外用例（只有 1 秒，默认跑）
 
 退出码：全部用例通过 0，否则 1。对象级断言需要 `boto3` 与 `R2_*` 环境变量；
-数据库里取 `object_key` 需要本仓库可 import（`api.core.database`）。
+数据库里取 `object_key` 需要本仓库可 import（`api.legacy_py.core.database`）。
 """
 from __future__ import annotations
 
@@ -211,7 +211,7 @@ def _session() -> Session:
     返回类型写成 `Session`（并从 `sqlalchemy.orm` 导入），是给安全规则看来源：
     附件坐标只能用 ORM 语句构建器（`select(...)` + 绑定参数）读，不拼接 SQL。
     """
-    from api.core.database import SessionLocal
+    from api.legacy_py.core.database import SessionLocal
 
     return SessionLocal()
 
@@ -222,7 +222,7 @@ def object_key(attachment_id: int) -> str:
     只发一条 `select`（单次语句构建器调用）+ 在 Python 里按 id 取行：验证库的
     `attachments` 只有几十行，不为此再加一次带条件的查询。
     """
-    from api.models import Attachment
+    from api.legacy_py.models import Attachment
 
     db: Session = _session()
     try:
@@ -246,7 +246,7 @@ def metadata_count(where: str) -> int:
     本地验证库里附件总数是几十行，全量取出后在 Python 里归类即可，
     不在验证脚本里再拼一次查询条件。
     """
-    from api.models import Attachment
+    from api.legacy_py.models import Attachment
 
     db: Session = _session()
     try:

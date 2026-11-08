@@ -15,8 +15,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from api.core.database import SessionLocal, engine  # noqa: E402
-from api.models import (Base, Budget, Department, Expense, Project,  # noqa: E402
+from api.legacy_py.core.database import SessionLocal, engine  # noqa: E402
+from api.legacy_py.models import (Base, Budget, Department, Expense, Project,  # noqa: E402
                         ProjectMember, Task, User)
 
 SUBJECTS = ["人工", "采购", "外包", "差旅", "其他"]
@@ -28,7 +28,7 @@ def ensure_refs(db):
         db.add(Department(name="压测部"))
         db.commit()
     if not db.query(User).first():
-        from api.core.security import hash_password
+        from api.legacy_py.core.security import hash_password
         db.add(User(username="perfuser", pwd_hash=hash_password("perf123456"),
                     real_name="压测用户"))
         db.commit()
