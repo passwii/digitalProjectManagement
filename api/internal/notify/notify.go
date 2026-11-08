@@ -1,12 +1,10 @@
 package notify
 
 import (
-	"time"
 	"fmt"
 	"net/http"
 	"strconv"
-	
-	
+	"time"
 
 	"digitalprojectmanagement/api/internal/model"
 	"digitalprojectmanagement/api/internal/rbac"
@@ -173,7 +171,6 @@ func formatNotification(n *model.Notification) NotifItem {
 	}
 }
 
-
 func SyncWarnings(db *gorm.DB, force bool) {
 	now := timeutil.AppNow()
 	nowDt := timeutil.NewDateTime(now)
@@ -248,7 +245,7 @@ func SyncWarnings(db *gorm.DB, force bool) {
 			_, _ = Push(db, *f.UserID, "followup", title, body, "in_app", "followup", &f.ID, &projectID, dedupKey)
 			_ = db.Model(&model.Followup{}).Where("id = ?", f.ID).Updates(map[string]any{
 				"remind_state": "done",
-				"reminded_at": nowDt,
+				"reminded_at":  nowDt,
 			}).Error
 		}
 	}

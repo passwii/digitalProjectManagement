@@ -1,9 +1,9 @@
 package auth
 
 import (
-	"fmt"
 	"errors"
-	
+	"fmt"
+
 	"net/http"
 	"strconv"
 	"strings"
