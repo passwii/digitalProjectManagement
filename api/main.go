@@ -73,8 +73,21 @@ func main() {
 	corsConfig := cors.DefaultConfig()
 	corsConfig.AllowOrigins = cfg.CorsOrigins
 	corsConfig.AllowCredentials = true
-	corsConfig.AllowHeaders = []string{"*"}
-	corsConfig.AllowMethods = []string{"*"}
+	corsConfig.AllowHeaders = []string{
+		"Authorization",
+		"Content-Type",
+		"Accept",
+		"Origin",
+		"User-Agent",
+		"DNT",
+		"Cache-Control",
+		"X-Mx-ReqToken",
+		"Keep-Alive",
+		"X-Requested-With",
+		"If-Modified-Since",
+		"X-CSRF-Token",
+	}
+	corsConfig.AllowMethods = []string{"GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"}
 	corsConfig.ExposeHeaders = []string{"Content-Disposition"}
 	r.Use(cors.New(corsConfig))
 

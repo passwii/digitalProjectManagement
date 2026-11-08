@@ -28,6 +28,13 @@ func parseImportDate(value string) (*timeutil.Date, error) {
 	if text == "" {
 		return nil, nil
 	}
+	if serial, err := strconv.ParseFloat(text, 64); err == nil && serial >= 1000 && serial <= 100000 {
+		excelEpoch := time.Date(1899, 12, 30, 0, 0, 0, 0, timeutil.Loc)
+		t := excelEpoch.Add(time.Duration(serial * float64(24*time.Hour)))
+		parsed := timeutil.NewDate(t)
+		return &parsed, nil
+	}
+	hasSlash := strings.Contains(text, "/")
 	text = strings.NewReplacer("年", "-", "月", "-", "日", "", "/", "-", ".", "-").Replace(text)
 	if index := strings.IndexAny(text, "T "); index >= 0 {
 		text = text[:index]
@@ -36,17 +43,40 @@ func parseImportDate(value string) (*timeutil.Date, error) {
 	if len(parts) != 3 {
 		return nil, fmt.Errorf("采购日期格式错误，请填 2026-01-05 这类日期")
 	}
-	year, yearErr := strconv.Atoi(parts[0])
-	month, monthErr := strconv.Atoi(parts[1])
-	day, dayErr := strconv.Atoi(parts[2])
-	if yearErr != nil || monthErr != nil || dayErr != nil {
+	p0, err0 := strconv.Atoi(parts[0])
+	p1, err1 := strconv.Atoi(parts[1])
+	p2, err2 := strconv.Atoi(parts[2])
+	if err0 != nil || err1 != nil || err2 != nil {
 		return nil, fmt.Errorf("采购日期格式错误，请填 2026-01-05 这类日期")
 	}
-	if year < 100 {
-		year += 2000
+	var year, month, day int
+	if len(parts[0]) == 4 || p0 >= 1900 {
+		year, month, day = p0, p1, p2
+	} else if len(parts[2]) == 4 || p2 >= 1900 {
+		year = p2
+		if p0 <= 12 && p1 <= 31 {
+			month, day = p0, p1
+		} else {
+			month, day = p1, p0
+		}
+	} else if hasSlash && (p2 >= 20 && p2 <= 99) && (p0 <= 12 || p1 <= 12) {
+		year = 2000 + p2
+		if p0 <= 12 && p1 <= 31 {
+			month, day = p0, p1
+		} else {
+			month, day = p1, p0
+		}
+	} else {
+		if p0 < 100 {
+			p0 += 2000
+		}
+		year, month, day = p0, p1, p2
 	}
 	if year < 1900 || year > 2100 {
 		return nil, fmt.Errorf("采购日期年份须在 1900-2100 之间")
+	}
+	if month < 1 || month > 12 || day < 1 || day > 31 {
+		return nil, fmt.Errorf("采购日期格式错误，请填 2026-01-05 这类日期")
 	}
 	parsed := timeutil.NewDate(time.Date(year, time.Month(month), day, 0, 0, 0, 0, timeutil.Loc))
 	if parsed.Year() != year || int(parsed.Month()) != month || parsed.Day() != day {

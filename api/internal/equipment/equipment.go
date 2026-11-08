@@ -316,8 +316,10 @@ func toDateTimeValue(dateTime *timeutil.DateTime) *timeutil.DateTime {
 	return &copy
 }
 
+var maxPurchasePrice = decimal.NewFromInt(1000000000000)
+
 func isValidPurchasePrice(price *decimal.Decimal) bool {
-	return price == nil || !price.IsNegative()
+	return price == nil || (!price.IsNegative() && price.LessThan(maxPurchasePrice))
 }
 
 func auditCommit(tx *gorm.DB, c *gin.Context, actorID uint, action, resource, resourceID, detail string) error {

@@ -1,13 +1,17 @@
 package test
 
 import (
-	"fmt"
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
+	"strings"
 	"testing"
+
+	"github.com/google/uuid"
 
 	"digitalprojectmanagement/api/internal/admin"
 	"digitalprojectmanagement/api/internal/approval"
@@ -36,19 +40,53 @@ import (
 )
 
 func setupTestApp(t *testing.T) (*gin.Engine, *gorm.DB) {
-	dbURL := os.Getenv("DATABASE_URL")
-	if dbURL == "" {
-		dbURL = os.Getenv("TEST_DATABASE_URL")
+	testDBURL := strings.TrimSpace(os.Getenv("TEST_DATABASE_URL"))
+	if testDBURL == "" {
+		t.Skip("TEST_DATABASE_URL not set; skipping database integration tests")
 	}
-	if dbURL == "" {
-		t.Skip("DATABASE_URL / TEST_DATABASE_URL not set; skipping database integration tests")
+
+	adminDB, err := database.Init(testDBURL, "test")
+	if err != nil {
+		t.Skipf("cannot connect to test database: %v", err)
+	}
+
+	schema := fmt.Sprintf("test_%s", strings.ReplaceAll(uuid.NewString()[:12], "-", ""))
+	if err := adminDB.Exec(fmt.Sprintf("CREATE SCHEMA %q", schema)).Error; err != nil {
+		t.Fatalf("failed to create test schema: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = adminDB.Exec(fmt.Sprintf("DROP SCHEMA %q CASCADE", schema))
+		if sqlDB, err := adminDB.DB(); err == nil {
+			_ = sqlDB.Close()
+		}
+	})
+
+	var schemaDBURL string
+	if strings.Contains(testDBURL, "://") {
+		cleanURL := strings.Replace(testDBURL, "postgresql+psycopg://", "postgresql://", 1)
+		if parsed, err := url.Parse(cleanURL); err == nil {
+			q := parsed.Query()
+			q.Set("search_path", schema)
+			parsed.RawQuery = q.Encode()
+		schemaDBURL = parsed.String()
+		} else {
+			schemaDBURL = testDBURL
+		}
+	} else {
+		schemaDBURL = testDBURL + " search_path=" + schema
 	}
 
 	security.Init("test-integration-secret-key-12345")
-	db, err := database.Init(dbURL, "test")
+	db, err := database.Init(schemaDBURL, "test")
 	if err != nil {
-		t.Skipf("cannot connect to database: %v", err)
+		t.Skipf("cannot connect to schema database: %v", err)
 	}
+	_ = db.Exec(fmt.Sprintf("SET search_path TO %q", schema))
+	t.Cleanup(func() {
+		if sqlDB, err := db.DB(); err == nil {
+			_ = sqlDB.Close()
+		}
+	})
 
 	// AutoMigrate models if needed
 	_ = db.AutoMigrate(
@@ -112,8 +150,9 @@ func TestDatabaseIntegrationWorkflow(t *testing.T) {
 
 	// 2. 初始化一个测试超级管理员
 	pwdHash, _ := security.HashPassword("admin123456")
+	testUsername := fmt.Sprintf("test_admin_%s", strings.ReplaceAll(uuid.NewString()[:8], "-", ""))
 	testUser := model.User{
-		Username:        "15796280599",
+		Username:        testUsername,
 		PwdHash:         pwdHash,
 		RealName:        "测试超管",
 		Status:          "active",
@@ -124,7 +163,7 @@ func TestDatabaseIntegrationWorkflow(t *testing.T) {
 
 	// 3. 登录请求
 	loginBody, _ := json.Marshal(map[string]string{
-		"username": "15796280599",
+		"username": testUsername,
 		"password": "admin123456",
 	})
 	w = httptest.NewRecorder()
@@ -187,8 +226,11 @@ func TestDatabaseIntegrationWorkflow(t *testing.T) {
 	}
 
 	// 7. 测试项目创建与字段映射 (client, contract_status, owner_name)
+	projectName := fmt.Sprintf("集成测试项目-%s", strings.ReplaceAll(uuid.NewString()[:8], "-", ""))
+	projectCode := fmt.Sprintf("PRJ-%s", strings.ReplaceAll(uuid.NewString()[:8], "-", ""))
 	createProjBody, _ := json.Marshal(map[string]any{
-		"name":            "集成测试项目-001",
+		"code":            projectCode,
+		"name":            projectName,
 		"type":            "internal",
 		"priority":        "高",
 		"client":          "测试大客户",
@@ -208,6 +250,7 @@ func TestDatabaseIntegrationWorkflow(t *testing.T) {
 	}
 	var createdProj struct {
 		ID             uint   `json:"id"`
+		Code           string `json:"code"`
 		Client         string `json:"client"`
 		ContractStatus string `json:"contract_status"`
 		OwnerName      string `json:"owner_name"`
@@ -217,11 +260,21 @@ func TestDatabaseIntegrationWorkflow(t *testing.T) {
 		t.Fatalf("project creation field mismatch: %+v", createdProj)
 	}
 
-	// 8. 测试项目修改 (Patch: client, client_contact, contract_status)
+	// 8. 测试项目修改 (Patch: client, client_contact, contract_status, owner_id)
+	user2 := model.User{
+		Username: fmt.Sprintf("test_user_%s", strings.ReplaceAll(uuid.NewString()[:8], "-", "")),
+		PwdHash:  pwdHash,
+		RealName: "项目经理二号",
+		Status:   "active",
+	}
+	db.Create(&user2)
+
 	patchBody, _ := json.Marshal(map[string]any{
 		"client":          "更新后的客户名",
 		"client_contact":  "李四",
 		"contract_status": "未签订",
+		"owner_id":        user2.ID,
+		"member_ids":      []uint{user2.ID},
 	})
 	w = httptest.NewRecorder()
 	req, _ = http.NewRequest("PATCH", fmt.Sprintf("/api/v1/projects/%d", createdProj.ID), bytes.NewReader(patchBody))
@@ -230,6 +283,17 @@ func TestDatabaseIntegrationWorkflow(t *testing.T) {
 	app.ServeHTTP(w, req)
 	if w.Code != http.StatusOK {
 		t.Fatalf("expected 200 for project patch, got %d: %s", w.Code, w.Body.String())
+	}
+	var patchedProj struct {
+		ID      uint  `json:"id"`
+		OwnerID *uint `json:"owner_id"`
+		Owner   struct {
+			ID uint `json:"id"`
+		} `json:"owner"`
+	}
+	_ = json.Unmarshal(w.Body.Bytes(), &patchedProj)
+	if patchedProj.OwnerID == nil || *patchedProj.OwnerID != user2.ID || patchedProj.Owner.ID != user2.ID {
+		t.Fatalf("project patch owner_id association mismatch: %+v, expected %d", patchedProj, user2.ID)
 	}
 
 	// 9. 测试附件 ETag 映射
@@ -300,7 +364,7 @@ func TestDatabaseIntegrationWorkflow(t *testing.T) {
 
 	// 13. 测试按项目编号子串筛选 (前端年份选择器)
 	w = httptest.NewRecorder()
-	req, _ = http.NewRequest("GET", "/api/v1/projects?code=001", nil)
+	req, _ = http.NewRequest("GET", fmt.Sprintf("/api/v1/projects?code=%s", projectCode[4:]), nil)
 	req.Header.Set("Authorization", tokenHeader)
 	app.ServeHTTP(w, req)
 	if w.Code != http.StatusOK {

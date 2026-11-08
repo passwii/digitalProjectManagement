@@ -80,10 +80,53 @@ func Push(db *gorm.DB, userID uint, nType, title, body, channel, refType string,
 	return &notif, nil
 }
 
+var typeLabels = map[string]string{
+	"overdue_task": "任务逾期",
+	"milestone":    "里程碑",
+	"stagnant":     "项目停滞",
+	"budget":       "预算预警",
+	"followup":     "跟进提醒",
+	"approval":     "审批",
+	"expense":      "支出",
+}
+
+func linkOf(n *model.Notification) *string {
+	if n.RefType == "task" && n.ProjectID != nil && n.RefID != nil {
+		s := fmt.Sprintf("/progress?project_id=%d&task_id=%d", *n.ProjectID, *n.RefID)
+		return &s
+	}
+	if n.RefType == "milestone" && n.ProjectID != nil && n.RefID != nil {
+		s := fmt.Sprintf("/progress?project_id=%d&milestone_id=%d", *n.ProjectID, *n.RefID)
+		return &s
+	}
+	if n.RefType == "expense" && n.RefID != nil {
+		pidStr := ""
+		if n.ProjectID != nil {
+			pidStr = strconv.FormatUint(uint64(*n.ProjectID), 10)
+		}
+		s := fmt.Sprintf("/costs?project_id=%s&expense_id=%d", pidStr, *n.RefID)
+		return &s
+	}
+	if n.RefType == "budget_adjust" && n.RefID != nil {
+		s := fmt.Sprintf("/approvals?budget_adjust_id=%d", *n.RefID)
+		return &s
+	}
+	if n.RefType == "followup" && n.ProjectID != nil && n.RefID != nil {
+		s := fmt.Sprintf("/projects/%d?followup_id=%d", *n.ProjectID, *n.RefID)
+		return &s
+	}
+	if n.ProjectID != nil {
+		s := fmt.Sprintf("/projects/%d", *n.ProjectID)
+		return &s
+	}
+	return nil
+}
+
 type NotifItem struct {
 	ID          uint               `json:"id"`
 	UserID      uint               `json:"user_id"`
 	Type        string             `json:"type"`
+	TypeLabel   string             `json:"type_label"`
 	Title       string             `json:"title"`
 	Body        string             `json:"body"`
 	Channel     string             `json:"channel"`
@@ -97,43 +140,21 @@ type NotifItem struct {
 	HandledBy   *uint              `json:"handled_by"`
 	HandleNote  string             `json:"handle_note"`
 	CreatedAt   timeutil.DateTime  `json:"created_at"`
-	Link        string             `json:"link"`
+	Link        *string            `json:"link"`
 	RefComplete bool               `json:"ref_complete"`
 }
 
 func formatNotification(n *model.Notification) NotifItem {
-	link := ""
-	if n.RefType != "" && n.RefID != nil {
-		switch n.RefType {
-		case "project":
-			link = fmt.Sprintf("/projects/%d", *n.RefID)
-		case "task":
-			if n.ProjectID != nil {
-				link = fmt.Sprintf("/projects/%d?tab=tasks&taskId=%d", *n.ProjectID, *n.RefID)
-			}
-		case "milestone":
-			if n.ProjectID != nil {
-				link = fmt.Sprintf("/projects/%d?tab=milestones", *n.ProjectID)
-			}
-		case "expense":
-			if n.ProjectID != nil {
-				link = fmt.Sprintf("/projects/%d?tab=costs&expenseId=%d", *n.ProjectID, *n.RefID)
-			}
-		case "budget_adjust":
-			if n.ProjectID != nil {
-				link = fmt.Sprintf("/projects/%d?tab=costs", *n.ProjectID)
-			}
-		case "followup":
-			if n.ProjectID != nil {
-				link = fmt.Sprintf("/projects/%d?tab=followups", *n.ProjectID)
-			}
-		}
+	typeLabel := typeLabels[n.Type]
+	if typeLabel == "" {
+		typeLabel = n.Type
 	}
 
 	return NotifItem{
 		ID:          n.ID,
 		UserID:      n.UserID,
 		Type:        n.Type,
+		TypeLabel:   typeLabel,
 		Title:       n.Title,
 		Body:        n.Body,
 		Channel:     n.Channel,
@@ -147,7 +168,7 @@ func formatNotification(n *model.Notification) NotifItem {
 		HandledBy:   n.HandledBy,
 		HandleNote:  n.HandleNote,
 		CreatedAt:   n.CreatedAt,
-		Link:        link,
+		Link:        linkOf(n),
 		RefComplete: n.RefType != "" && n.RefID != nil,
 	}
 }

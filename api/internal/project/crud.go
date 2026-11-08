@@ -18,6 +18,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type createProjectRequest struct {
@@ -405,11 +406,44 @@ func (h *Handler) Patch(c *gin.Context) {
 				record(field, oldValue, strconv.FormatFloat(value, 'f', -1, 64))
 			}
 		}
+		if raw, ok := body["member_ids"]; ok {
+			var ids []uint
+			if string(raw) != "null" {
+				if err := json.Unmarshal(raw, &ids); err != nil {
+					return errInvalidField
+				}
+			}
+			if err := tx.Where("project_id = ?", id).Delete(&model.ProjectMember{}).Error; err != nil {
+				return err
+			}
+			memberSet := make(map[uint]struct{})
+			for _, mid := range ids {
+				if mid > 0 {
+					memberSet[mid] = struct{}{}
+				}
+			}
+			if row.OwnerID != nil && *row.OwnerID > 0 {
+				memberSet[*row.OwnerID] = struct{}{}
+			}
+			for mid := range memberSet {
+				var member model.User
+				if err := tx.First(&member, mid).Error; err != nil {
+					return errInvalidMember
+				}
+				if err := tx.Create(&model.ProjectMember{ProjectID: id, UserID: mid}).Error; err != nil {
+					return err
+				}
+			}
+			record("member_ids", "", string(raw))
+		}
 		if row.PlanStart != nil && row.PlanEnd != nil && row.PlanStart.After(row.PlanEnd.Time) {
 			return errInvalidProjectDates
 		}
 		row.UpdatedAt = now
-		if err := tx.Save(&row).Error; err != nil {
+		row.Owner = nil
+		row.Department = nil
+		row.Members = nil
+		if err := tx.Omit(clause.Associations).Save(&row).Error; err != nil {
 			return err
 		}
 		if len(changes) > 0 {
@@ -417,17 +451,13 @@ func (h *Handler) Patch(c *gin.Context) {
 				return err
 			}
 		}
-		if err := audit.CommitAudited(tx, &user.ID, "update_project", "projects", strconv.FormatUint(uint64(id), 10), strings.Join(sortedKeys(body), ","), c.ClientIP()); err != nil {
-			return err
-		}
-		result = row
-		return nil
+		return audit.CommitAudited(tx, &user.ID, "update_project", "projects", strconv.FormatUint(uint64(id), 10), strings.Join(sortedKeys(body), ","), c.ClientIP())
 	})
 	if err != nil {
 		switch err {
 		case gorm.ErrRecordNotFound:
 			writeError(c, http.StatusNotFound, "项目不存在")
-		case errProjectArchived, errInvalidField, errInvalidProjectDates, errDuplicateProjectCode, errDuplicateProjectName, errInvalidOwner, errInvalidDepartment:
+		case errProjectArchived, errInvalidField, errInvalidProjectDates, errDuplicateProjectCode, errDuplicateProjectName, errInvalidOwner, errInvalidDepartment, errInvalidMember:
 			detail := "项目字段无效"
 			switch err {
 			case errProjectArchived:
@@ -442,11 +472,17 @@ func (h *Handler) Patch(c *gin.Context) {
 				detail = "项目负责人不存在"
 			case errInvalidDepartment:
 				detail = "项目部门不存在"
+			case errInvalidMember:
+				detail = "项目成员不存在"
 			}
 			writeError(c, http.StatusBadRequest, detail)
 		default:
 			writeError(c, http.StatusInternalServerError, "更新项目失败")
 		}
+		return
+	}
+	if err := h.DB.Preload("Owner").Preload("Department").Preload("Members").First(&result, id).Error; err != nil {
+		writeError(c, http.StatusInternalServerError, "获取更新后项目失败")
 		return
 	}
 	c.JSON(http.StatusOK, result)
