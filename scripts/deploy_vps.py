@@ -46,6 +46,7 @@ DOMAIN_RE = re.compile(
 DEFAULT_APP_DIR = "/opt/pm"
 DEFAULT_BRANCH = "main"
 DEFAULT_COMPOSE_FILES = ("docker-compose.yml", "docker-compose.prod.yml")
+DEFAULT_REPOSITORY_URL = "https://github.com/passwii/digitalProjectManagement.git"
 
 # 探活目标。容器「启动」不等于「能服务」：API 的 entrypoint 还要先跑
 # `alembic upgrade head`（迁移链已 33 个）和幂等 seed，才轮到 uvicorn 监听。
@@ -251,6 +252,8 @@ def build_remote_script(
     branch: str = DEFAULT_BRANCH,
     compose_files: tuple[str, ...] = DEFAULT_COMPOSE_FILES,
     prune_spare: int | None = PRUNE_KEEP_SPARE,
+    bootstrap_git: bool = False,
+    repo_url: str = DEFAULT_REPOSITORY_URL,
 ) -> str:
     """渲染远端部署脚本；镜像与 revision 均须由调用方显式提供。"""
     validate_image_pair(api_image, web_image)
@@ -275,17 +278,11 @@ def build_remote_script(
         else ""
     )
     env_check_block = build_env_check_block()
+    bootstrap_git_flag = "1" if bootstrap_git else "0"
     # Feed the GHCR token through stdin instead of placing it in the remote command.
     login_input_flag = "--pass" + "word-stdin"
     return f"""set -euo pipefail
 cd {app_dir}
-
-# 服务器上被手改过就先停下，避免快进更新覆盖本地变更。
-if [ -n "$(git status --porcelain)" ]; then
-  echo "部署中止：{app_dir} 存在未提交改动，请先在服务器上处理或回滚：" >&2
-  git status --short >&2
-  exit 1
-fi
 
 {env_check_block}
 expected_domain={shlex.quote(expected_domain)}
@@ -294,8 +291,56 @@ if [ "$domain" != "$expected_domain" ]; then
     "$expected_domain" "$domain" >&2
   exit 1
 fi
-git pull --ff-only origin {branch}
 expected_revision={shlex.quote(expected_revision)}
+bootstrap_git={bootstrap_git_flag}
+if [ ! -d .git ]; then
+  if [ "$bootstrap_git" != "1" ]; then
+    echo "部署中止：{app_dir} 不是 Git 仓库；确认目录状态后手动触发 bootstrap_git" >&2
+    exit 1
+  fi
+  if [ ! -f .env ]; then
+    echo "部署中止：bootstrap_git 需要保留现有 {app_dir}/.env" >&2
+    exit 1
+  fi
+  echo "检测到 {app_dir} 缺少 Git 元数据，执行显式一次性重建"
+  bootstrap_root="$(mktemp -d "${{TMPDIR:-/tmp}}/pm-bootstrap.XXXXXX")"
+  bootstrap_clone="$bootstrap_root/repo"
+  cleanup_bootstrap() {{
+    rm -rf "$bootstrap_root"
+  }}
+  trap cleanup_bootstrap EXIT
+  git clone --depth 1 --branch {shlex.quote(branch)} {shlex.quote(repo_url)} "$bootstrap_clone"
+  bootstrap_revision="$(git -C "$bootstrap_clone" rev-parse HEAD)"
+  if [ "$bootstrap_revision" != "$expected_revision" ]; then
+    printf '部署中止：远端 main 已前进（期望 %s，实际 %s），请重新触发部署\\n' \\
+      "$expected_revision" "$bootstrap_revision" >&2
+    exit 1
+  fi
+  install -m 600 .env "$bootstrap_clone/.env"
+  backup_dir="{app_dir}.pre-bootstrap.$(date +%Y%m%d%H%M%S)"
+  if [ -e "$backup_dir" ]; then
+    echo "部署中止：备份目录已存在：$backup_dir" >&2
+    exit 1
+  fi
+  mv {shlex.quote(app_dir)} "$backup_dir"
+  if ! mv "$bootstrap_clone" {shlex.quote(app_dir)}; then
+    mv "$backup_dir" {shlex.quote(app_dir)}
+    echo "部署中止：无法把 bootstrap 仓库移动到 {app_dir}" >&2
+    exit 1
+  fi
+  rm -rf "$bootstrap_root"
+  trap - EXIT
+  cd {shlex.quote(app_dir)}
+  echo "Git 元数据已重建，原目录备份：$backup_dir"
+else
+  # 服务器上被手改过就先停下，避免快进更新覆盖本地变更。
+  if [ -n "$(git status --porcelain)" ]; then
+    echo "部署中止：{app_dir} 存在未提交改动，请先在服务器上处理或回滚：" >&2
+    git status --short >&2
+    exit 1
+  fi
+  git pull --ff-only origin {branch}
+fi
 actual_revision="$(git rev-parse HEAD)"
 if [ "$actual_revision" != "$expected_revision" ]; then
   printf '部署中止：VPS 代码版本与本次镜像不一致（期望 %s，实际 %s）\\n' \\
@@ -482,6 +527,11 @@ def main(argv: list[str] | None = None) -> int:
         help="GHCR 登录用户名；默认取 GHCR_USERNAME 或 GITHUB_ACTOR",
     )
     parser.add_argument(
+        "--bootstrap-git",
+        action="store_true",
+        help="仅在 /opt/pm 的 .git 丢失时使用：保留 .env 并重建工作目录",
+    )
+    parser.add_argument(
         "--host",
         help="跳过探活，强制使用指定地址（默认按序探活："
         + " → ".join(VPS_HOSTS)
@@ -513,6 +563,7 @@ def main(argv: list[str] | None = None) -> int:
         expected_revision=expected_revision,
         expected_domain=expected_domain,
         ghcr_username=args.ghcr_username,
+        bootstrap_git=args.bootstrap_git,
     )
     candidates = (args.host,) if args.host else VPS_HOSTS
 
