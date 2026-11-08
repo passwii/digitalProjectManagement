@@ -313,7 +313,7 @@ func (h *Handler) UpdateUser(c *gin.Context) {
 				return err
 			}
 			user.PwdHash = hash
-			user.MustChangePwd = false
+			user.MustChangePwd = true
 		}
 		if err := tx.Save(&user).Error; err != nil {
 			return err

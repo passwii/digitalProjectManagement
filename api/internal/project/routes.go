@@ -12,7 +12,7 @@ type Handler struct {
 
 func RegisterRoutes(r *gin.RouterGroup, db *gorm.DB) {
 	h := &Handler{DB: db}
-	g := r.Group("/projects", rbac.AuthMiddleware(db), rbac.RequireModule(rbac.ProjectScopeModules...))
+	g := r.Group("/projects", rbac.AuthMiddleware(db))
 
 	g.GET("", h.List)
 	g.GET("/options", h.Options)
