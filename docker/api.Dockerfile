@@ -1,5 +1,5 @@
 # 多阶段构建：Golang 构建编译 + Python/Alembic 运行底座
-FROM golang:1.24-alpine AS builder
+FROM golang:1.27-alpine AS builder
 
 WORKDIR /app/api
 COPY api/go.mod api/go.sum ./
