@@ -1,6 +1,7 @@
 package test
 
 import (
+	"fmt"
 	"bytes"
 	"encoding/json"
 	"net/http"
@@ -184,4 +185,87 @@ func TestDatabaseIntegrationWorkflow(t *testing.T) {
 	if auditCount == 0 {
 		t.Fatalf("expected login audit log to be committed in database")
 	}
+
+	// 7. 测试项目创建与字段映射 (client, contract_status, owner_name)
+	createProjBody, _ := json.Marshal(map[string]any{
+		"name":            "集成测试项目-001",
+		"type":            "internal",
+		"priority":        "高",
+		"client":          "测试大客户",
+		"client_contact":  "张三",
+		"client_phone":    "13800138000",
+		"contract_status": "已签订",
+		"owner_name":      "测试超管",
+		"budget_total":    100000,
+	})
+	w = httptest.NewRecorder()
+	req, _ = http.NewRequest("POST", "/api/v1/projects", bytes.NewReader(createProjBody))
+	req.Header.Set("Authorization", tokenHeader)
+	req.Header.Set("Content-Type", "application/json")
+	app.ServeHTTP(w, req)
+	if w.Code != http.StatusCreated {
+		t.Fatalf("expected 201 for project creation, got %d: %s", w.Code, w.Body.String())
+	}
+	var createdProj struct {
+		ID             uint   `json:"id"`
+		Client         string `json:"client"`
+		ContractStatus string `json:"contract_status"`
+		OwnerName      string `json:"owner_name"`
+	}
+	_ = json.Unmarshal(w.Body.Bytes(), &createdProj)
+	if createdProj.ID == 0 || createdProj.Client != "测试大客户" || createdProj.ContractStatus != "已签订" {
+		t.Fatalf("project creation field mismatch: %+v", createdProj)
+	}
+
+	// 8. 测试项目修改 (Patch: client, client_contact, contract_status)
+	patchBody, _ := json.Marshal(map[string]any{
+		"client":          "更新后的客户名",
+		"client_contact":  "李四",
+		"contract_status": "未签订",
+	})
+	w = httptest.NewRecorder()
+	req, _ = http.NewRequest("PATCH", fmt.Sprintf("/api/v1/projects/%d", createdProj.ID), bytes.NewReader(patchBody))
+	req.Header.Set("Authorization", tokenHeader)
+	req.Header.Set("Content-Type", "application/json")
+	app.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200 for project patch, got %d: %s", w.Code, w.Body.String())
+	}
+
+	// 9. 测试附件 ETag 映射
+	testAttach := model.Attachment{
+		ProjectID:      &createdProj.ID,
+		Filename:       "test.pdf",
+		Path:           "/tmp/test.pdf",
+		Size:           1024,
+		ContentType:    "application/pdf",
+		StorageBackend: "local",
+		ObjectKey:      "project/2026/test.pdf",
+		ETag:           "etag-123456",
+	}
+	if err := db.Create(&testAttach).Error; err != nil {
+		t.Fatalf("failed to create attachment with ETag mapping: %v", err)
+	}
+	var loadedAttach model.Attachment
+	if err := db.First(&loadedAttach, testAttach.ID).Error; err != nil || loadedAttach.ETag != "etag-123456" {
+		t.Fatalf("loaded attachment ETag mismatch: %+v, err: %v", loadedAttach, err)
+	}
+
+	// 10. 测试项目软删除与回收站恢复 (无 deleted_by 列错误)
+	w = httptest.NewRecorder()
+	req, _ = http.NewRequest("DELETE", fmt.Sprintf("/api/v1/projects/%d", createdProj.ID), nil)
+	req.Header.Set("Authorization", tokenHeader)
+	app.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200 for project soft-delete, got %d: %s", w.Code, w.Body.String())
+	}
+
+	w = httptest.NewRecorder()
+	req, _ = http.NewRequest("POST", fmt.Sprintf("/api/v1/projects/%d/restore", createdProj.ID), nil)
+	req.Header.Set("Authorization", tokenHeader)
+	app.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200 for project restore, got %d: %s", w.Code, w.Body.String())
+	}
 }
+

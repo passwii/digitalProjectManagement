@@ -183,12 +183,12 @@ func (h *Handler) createARAP(c *gin.Context, kind string) {
 		}
 		voucher = *created
 		transaction = model.ARAPTransaction{
-			AccountBookID: book.ID, PeriodID: period.ID, Direction: kind,
-			CounterpartyKind: partyKind, CounterpartyID: partyID,
-			TransactionDate: input.TransactionDate, DueDate: dueDate,
+			AccountBookID: book.ID, PeriodID: period.ID, Kind: kind,
+			TransactionDate: input.TransactionDate, PartyID: partyID,
 			Amount: amount, AppliedAmount: decimal.Zero, AccountID: account.ID,
-			VoucherID: &voucher.ID, Summary: strings.TrimSpace(input.Summary),
-			Status: "open", CreatedBy: userID(user), CreatedAt: timeutil.NowDateTime(),
+			OffsetAccountID: offset.ID, VoucherID: &voucher.ID,
+			Summary: strings.TrimSpace(input.Summary), CreatedBy: userID(user),
+			CreatedAt: timeutil.NowDateTime(),
 		}
 		if err := tx.Create(&transaction).Error; err != nil {
 			return err
@@ -205,9 +205,9 @@ func (h *Handler) createARAP(c *gin.Context, kind string) {
 		return
 	}
 	c.JSON(http.StatusCreated, gin.H{
-		"id": transaction.ID, "kind": transaction.Direction, "party_id": transaction.CounterpartyID,
+		"id": transaction.ID, "kind": transaction.Kind, "party_id": transaction.PartyID,
 		"amount": transaction.Amount.StringFixed(2), "outstanding": transaction.Amount.StringFixed(2),
-		"status": transaction.Status, "voucher": voucherResult,
+		"voucher": voucherResult,
 	})
 }
 
@@ -224,14 +224,14 @@ func (h *Handler) listARAP(c *gin.Context, kind string) {
 	if !ok {
 		return
 	}
-	query := h.DB.Where("account_book_id = ? AND direction = ?", book.ID, kind)
+	query := h.DB.Where("account_book_id = ? AND kind = ?", book.ID, kind)
 	if raw := c.Query("party_id"); raw != "" {
 		partyID, err := strconv.ParseUint(raw, 10, 64)
 		if err != nil || partyID == 0 {
 			badRequest(c, "party_id 须为正整数")
 			return
 		}
-		query = query.Where("counterparty_id = ?", partyID)
+		query = query.Where("party_id = ?", partyID)
 	}
 	var rows []model.ARAPTransaction
 	if err := query.Order("transaction_date, id").Find(&rows).Error; err != nil {
@@ -286,13 +286,12 @@ func arapItemJSON(db *gorm.DB, bookID uint, row model.ARAPTransaction) (gin.H, e
 		voucherDate, voucherNo, voucherStatus = voucher.VoucherDate, voucher.VoucherNo, voucher.Status
 	}
 	return gin.H{
-		"id": row.ID, "period_id": row.PeriodID, "direction": row.Direction, "kind": row.Direction,
-		"transaction_date": row.TransactionDate, "due_date": row.DueDate, "voucher_date": voucherDate,
-		"party_id": row.CounterpartyID, "counterparty_id": row.CounterpartyID,
-		"counterparty_kind": row.CounterpartyKind, "account_id": row.AccountID,
+		"id": row.ID, "period_id": row.PeriodID, "direction": row.Kind, "kind": row.Kind,
+		"transaction_date": row.TransactionDate.String(), "voucher_date": voucherDate,
+		"party_id": row.PartyID, "account_id": row.AccountID,
 		"amount": row.Amount.StringFixed(2), "applied_amount": row.AppliedAmount.StringFixed(2),
 		"outstanding": outstanding.StringFixed(2), "summary": row.Summary, "voucher_id": row.VoucherID,
-		"voucher_no": voucherNo, "voucher_status": voucherStatus, "status": row.Status,
+		"voucher_no": voucherNo, "voucher_status": voucherStatus,
 		"is_reversed": reversed, "is_reversing": reversing,
 	}, nil
 }
@@ -343,7 +342,7 @@ func (h *Handler) applyARAPPayment(c *gin.Context, kind string) {
 		}
 		var candidates []model.ARAPTransaction
 		targetQuery := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
-			Where("account_book_id = ? AND direction = ? AND counterparty_id = ? AND counterparty_kind = ?", book.ID, kind, partyID, partyKind)
+			Where("account_book_id = ? AND kind = ? AND party_id = ?", book.ID, kind, partyID)
 		if input.AccountID != nil && *input.AccountID > 0 {
 			targetQuery = targetQuery.Where("account_id = ?", *input.AccountID)
 		}
@@ -514,12 +513,11 @@ func (h *Handler) applyARAPPayment(c *gin.Context, kind string) {
 		for _, allocation := range allocations {
 			target := allocation.target
 			target.AppliedAmount = target.AppliedAmount.Add(allocation.amount)
-			target.Status = arapStatus(target.Amount, target.AppliedAmount)
-			if err := tx.Model(&model.ARAPTransaction{}).Where("id = ? AND account_book_id = ?", target.ID, book.ID).Updates(map[string]any{"applied_amount": target.AppliedAmount, "status": target.Status}).Error; err != nil {
+			if err := tx.Model(&model.ARAPTransaction{}).Where("id = ? AND account_book_id = ?", target.ID, book.ID).Update("applied_amount", target.AppliedAmount).Error; err != nil {
 				return err
 			}
 			row := model.ARAPAllocation{
-				AccountBookID: book.ID, PeriodID: period.ID, SourceID: voucher.ID,
+				AccountBookID: book.ID, SourceID: voucher.ID,
 				TargetID: target.ID, Amount: allocation.amount, CreatedBy: userID(user),
 				CreatedAt: timeutil.NowDateTime(),
 			}
@@ -610,12 +608,11 @@ func releaseARAPAllocationsCount(tx *gorm.DB, bookID, sourceVoucherID, userID ui
 			return 0, financeErr(http.StatusConflict, "F-ARAP-ALLOCATION-STATE", "已核销余额小于待释放金额，请联系管理员核对账套数据")
 		}
 		target.AppliedAmount = target.AppliedAmount.Sub(allocation.Amount)
-		target.Status = arapStatus(target.Amount, target.AppliedAmount)
-		if err := tx.Model(&target).Updates(map[string]any{"applied_amount": target.AppliedAmount, "status": target.Status}).Error; err != nil {
+		if err := tx.Model(&target).Update("applied_amount", target.AppliedAmount).Error; err != nil {
 			return 0, err
 		}
 		updates := map[string]any{
-			"released_at": now, "release_reason": strings.TrimSpace(reason),
+			"released_at": now, "released_by": userID, "release_reason": strings.TrimSpace(reason),
 			"release_voucher_id": releaseVoucherID,
 		}
 		if err := tx.Model(&model.ARAPAllocation{}).Where("id = ?", allocation.ID).Updates(updates).Error; err != nil {
@@ -627,7 +624,7 @@ func releaseARAPAllocationsCount(tx *gorm.DB, bookID, sourceVoucherID, userID ui
 
 func (h *Handler) arapEvents(bookID uint, kind string) ([]arapEvent, error) {
 	var transactions []model.ARAPTransaction
-	if err := h.DB.Where("account_book_id = ? AND direction = ?", bookID, kind).Find(&transactions).Error; err != nil {
+	if err := h.DB.Where("account_book_id = ? AND kind = ?", bookID, kind).Find(&transactions).Error; err != nil {
 		return nil, err
 	}
 	byID := make(map[uint]model.ARAPTransaction, len(transactions))
@@ -653,7 +650,7 @@ func (h *Handler) arapEvents(bookID uint, kind string) ([]arapEvent, error) {
 		voucherIDs = append(voucherIDs, source.ID)
 		voucherTransactions[source.ID] = append(voucherTransactions[source.ID], row)
 		events = append(events, arapEvent{
-			TransactionID: row.ID, PartyID: row.CounterpartyID, AccountID: row.AccountID,
+			TransactionID: row.ID, PartyID: row.PartyID, AccountID: row.AccountID,
 			Date: source.VoucherDate, VoucherID: source.ID, VoucherNo: source.VoucherNo,
 			EventType: "单据", Summary: firstNonEmpty(source.Summary, row.Summary),
 			Signed: row.Amount, Priority: 10,
@@ -669,7 +666,7 @@ func (h *Handler) arapEvents(bookID uint, kind string) ([]arapEvent, error) {
 	for _, reversal := range reversals {
 		for _, transaction := range voucherTransactions[*reversal.ReversalOf] {
 			events = append(events, arapEvent{
-				TransactionID: transaction.ID, PartyID: transaction.CounterpartyID,
+				TransactionID: transaction.ID, PartyID: transaction.PartyID,
 				AccountID: transaction.AccountID, Date: reversal.VoucherDate,
 				VoucherID: reversal.ID, VoucherNo: reversal.VoucherNo,
 				EventType: "单据冲销", Summary: firstNonEmpty(reversal.Summary, transaction.Summary),
@@ -699,7 +696,7 @@ func (h *Handler) arapEvents(bookID uint, kind string) ([]arapEvent, error) {
 			return nil, err
 		}
 		events = append(events, arapEvent{
-			TransactionID: transaction.ID, PartyID: transaction.CounterpartyID,
+			TransactionID: transaction.ID, PartyID: transaction.PartyID,
 			AccountID: transaction.AccountID, Date: payment.VoucherDate,
 			VoucherID: payment.ID, VoucherNo: payment.VoucherNo,
 			EventType: "收付款", Summary: firstNonEmpty(payment.Summary, transaction.Summary),
@@ -710,7 +707,7 @@ func (h *Handler) arapEvents(bookID uint, kind string) ([]arapEvent, error) {
 			err := h.DB.Where("id = ? AND account_book_id = ? AND status = ?", *allocation.ReleaseVoucherID, bookID, statusPosted).First(&release).Error
 			if err == nil {
 				events = append(events, arapEvent{
-					TransactionID: transaction.ID, PartyID: transaction.CounterpartyID,
+					TransactionID: transaction.ID, PartyID: transaction.PartyID,
 					AccountID: transaction.AccountID, Date: release.VoucherDate,
 					VoucherID: release.ID, VoucherNo: release.VoucherNo,
 					EventType: "收付款冲销恢复", Summary: firstNonEmpty(release.Summary, transaction.Summary),
@@ -776,19 +773,16 @@ func (h *Handler) arapAging(c *gin.Context, kind string) {
 	if !ok {
 		return
 	}
-	var transactions []model.ARAPTransaction
-	if err := h.DB.Where("account_book_id = ? AND direction = ?", book.ID, kind).Find(&transactions).Error; err != nil {
-		writeError(c, err, "读取账龄单据失败")
-		return
-	}
-	transactionByID := map[uint]model.ARAPTransaction{}
-	for _, row := range transactions {
-		transactionByID[row.ID] = row
-	}
 	events, err := h.arapEvents(book.ID, kind)
 	if err != nil {
 		writeError(c, err, "计算账龄失败")
 		return
+	}
+	sourceDates := map[uint]time.Time{}
+	for _, event := range events {
+		if event.EventType == "单据" {
+			sourceDates[event.TransactionID] = event.Date.Time
+		}
 	}
 	balances := map[uint]decimal.Decimal{}
 	for _, event := range events {
@@ -805,8 +799,11 @@ func (h *Handler) arapAging(c *gin.Context, kind string) {
 		if balance.Sign() <= 0 {
 			continue
 		}
-		transaction := transactionByID[id]
-		age := int(asOf.Sub(transaction.DueDate.Time).Hours() / 24)
+		sourceDate, ok := sourceDates[id]
+		if !ok || sourceDate.After(asOf.Time) {
+			continue
+		}
+		age := int(asOf.Sub(sourceDate).Hours() / 24)
 		switch {
 		case age <= 30:
 			buckets["0_30"] = buckets["0_30"].Add(balance)
@@ -824,7 +821,7 @@ func (h *Handler) arapAging(c *gin.Context, kind string) {
 		total = total.Add(value)
 		out[key] = value.StringFixed(2)
 	}
-	c.JSON(http.StatusOK, gin.H{"as_of": asOf, "age_basis": "due_date", "total_outstanding": total.StringFixed(2), "buckets": out})
+	c.JSON(http.StatusOK, gin.H{"as_of": asOf.Format("2006-01-02"), "age_basis": "voucher_date", "total_outstanding": total.StringFixed(2), "buckets": out})
 }
 
 func (h *Handler) receivableAging(c *gin.Context) { h.arapAging(c, "receivable") }

@@ -16,7 +16,7 @@ var projectSorts = map[string]string{
 	"id": "projects.id", "code": "projects.code", "name": "projects.name",
 	"type": "projects.type", "status": "projects.status", "priority": "projects.priority",
 	"owner_id": "projects.owner_id", "dept_id": "projects.dept_id",
-	"client_name": "projects.client_name", "plan_start": "projects.plan_start",
+	"client": "projects.client", "client_name": "projects.client", "plan_start": "projects.plan_start",
 	"plan_end": "projects.plan_end", "created_at": "projects.created_at",
 	"updated_at": "projects.updated_at", "progress": "projects.progress",
 }
@@ -30,7 +30,7 @@ func (h *Handler) List(c *gin.Context) {
 	q := visibleProjects(h.DB, user)
 	if keyword := strings.TrimSpace(c.Query("keyword")); keyword != "" {
 		like := "%" + keyword + "%"
-		q = q.Where("(projects.name ILIKE ? OR projects.code ILIKE ? OR projects.client_name ILIKE ?)", like, like, like)
+		q = q.Where("(projects.name ILIKE ? OR projects.code ILIKE ? OR projects.client ILIKE ?)", like, like, like)
 	}
 	for _, field := range []string{"status", "type", "priority"} {
 		if value := strings.TrimSpace(c.Query(field)); value != "" {
@@ -53,8 +53,8 @@ func (h *Handler) List(c *gin.Context) {
 		}
 		q = q.Where("projects.dept_id = ?", id)
 	}
-	if client := strings.TrimSpace(c.Query("client_name")); client != "" {
-		q = q.Where("projects.client_name ILIKE ?", "%"+client+"%")
+	client := strings.TrimSpace(c.Query("client")); if client == "" { client = strings.TrimSpace(c.Query("client_name")) }; if client != "" {
+		q = q.Where("projects.client ILIKE ?", "%"+client+"%")
 	}
 	if yearText := strings.TrimSpace(c.Query("year")); yearText != "" {
 		year, err := strconv.Atoi(yearText)

@@ -12,8 +12,11 @@ type Project struct {
 	Type         string             `gorm:"size:32;default:'other'" json:"type"`
 	Status       string             `gorm:"size:16;default:'draft';index" json:"status"`
 	Priority     string             `gorm:"size:16;default:'中'" json:"priority"`
-	ClientName   string             `gorm:"size:128;default:''" json:"client_name"`
+	Client         string             `gorm:"column:client;size:128;default:''" json:"client"`
+	ClientContact  string             `gorm:"column:client_contact;size:64;default:''" json:"client_contact"`
+	ClientPhone    string             `gorm:"column:client_phone;size:64;default:''" json:"client_phone"`
 	OwnerID      *uint              `gorm:"index" json:"owner_id"`
+	OwnerName      string             `gorm:"column:owner_name;size:64;default:''" json:"owner_name"`
 	Owner        *User              `gorm:"foreignKey:OwnerID" json:"owner,omitempty"`
 	DeptID       *uint              `gorm:"index" json:"dept_id"`
 	Department   *Department        `gorm:"foreignKey:DeptID" json:"dept,omitempty"`
@@ -22,10 +25,11 @@ type Project struct {
 	BudgetTotal  float64            `gorm:"default:0" json:"budget_total"`
 	Progress     float64            `gorm:"default:0" json:"progress"`
 	Description  string             `gorm:"type:text" json:"description"`
+	ContractStatus string             `gorm:"column:contract_status;size:16;default:''" json:"contract_status"`
+	CreatedBy      *uint              `gorm:"column:created_by" json:"created_by,omitempty"`
 	CreatedAt    timeutil.DateTime  `json:"created_at"`
 	UpdatedAt    timeutil.DateTime  `json:"updated_at"`
 	DeletedAt    *timeutil.DateTime `gorm:"index" json:"deleted_at"`
-	DeletedBy    *uint              `json:"deleted_by"`
 	IsDemo       bool               `gorm:"default:false;not null;index" json:"is_demo"`
 	Members      []ProjectMember    `gorm:"foreignKey:ProjectID" json:"members,omitempty"`
 }
@@ -68,7 +72,7 @@ type Attachment struct {
 	Category       string            `gorm:"size:32;default:''" json:"category"`
 	StorageBackend string            `gorm:"size:16;default:'local'" json:"storage_backend"`
 	ObjectKey      string            `gorm:"size:512;default:''" json:"object_key"`
-	ETag           string            `gorm:"size:128;default:''" json:"etag"`
+	ETag           string            `gorm:"column:etag;size:128;default:''" json:"etag"`
 }
 
 func (Attachment) TableName() string { return "attachments" }

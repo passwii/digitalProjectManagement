@@ -2,6 +2,7 @@ package project
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math"
 	"net/http"
@@ -20,19 +21,24 @@ import (
 )
 
 type createProjectRequest struct {
-	Code        string         `json:"code"`
-	Name        string         `json:"name"`
-	Type        string         `json:"type"`
-	Status      string         `json:"status"`
-	Priority    string         `json:"priority"`
-	ClientName  string         `json:"client_name"`
-	OwnerID     *uint          `json:"owner_id"`
-	DeptID      *uint          `json:"dept_id"`
-	PlanStart   *timeutil.Date `json:"plan_start"`
-	PlanEnd     *timeutil.Date `json:"plan_end"`
-	BudgetTotal float64        `json:"budget_total"`
-	Description string         `json:"description"`
-	MemberIDs   []uint         `json:"member_ids"`
+	Code           string         `json:"code"`
+	Name           string         `json:"name"`
+	Type           string         `json:"type"`
+	Status         string         `json:"status"`
+	Priority       string         `json:"priority"`
+	Client         string         `json:"client"`
+	ClientName     string         `json:"client_name"`
+	ClientContact  string         `json:"client_contact"`
+	ClientPhone    string         `json:"client_phone"`
+	ContractStatus string         `json:"contract_status"`
+	OwnerID        *uint          `json:"owner_id"`
+	OwnerName      string         `json:"owner_name"`
+	DeptID         *uint          `json:"dept_id"`
+	PlanStart      *timeutil.Date `json:"plan_start"`
+	PlanEnd        *timeutil.Date `json:"plan_end"`
+	BudgetTotal    float64        `json:"budget_total"`
+	Description    string         `json:"description"`
+	MemberIDs      []uint         `json:"member_ids"`
 }
 
 func generatedProjectCode() string {
@@ -114,12 +120,31 @@ func (h *Handler) Create(c *gin.Context) {
 		if req.Priority == "" {
 			req.Priority = "中"
 		}
+		client := strings.TrimSpace(req.Client)
+		if client == "" {
+			client = strings.TrimSpace(req.ClientName)
+		}
+		ownerName := strings.TrimSpace(req.OwnerName)
+		if ownerName == "" {
+			ownerName = owner.RealName
+			if ownerName == "" {
+				ownerName = owner.Username
+			}
+		}
+		contractStatus := strings.TrimSpace(req.ContractStatus)
+		if contractStatus != "" && contractStatus != "已签订" && contractStatus != "未签订" {
+			return errors.New("contract_status_invalid")
+		}
 		created = model.Project{
 			Code: code, Name: req.Name, Type: req.Type, Status: status,
-			Priority: req.Priority, ClientName: strings.TrimSpace(req.ClientName),
-			OwnerID: &ownerID, DeptID: deptID, PlanStart: req.PlanStart,
-			PlanEnd: req.PlanEnd, BudgetTotal: req.BudgetTotal,
-			Description: req.Description, CreatedAt: now, UpdatedAt: now,
+			Priority: req.Priority, Client: client,
+			ClientContact: strings.TrimSpace(req.ClientContact),
+			ClientPhone: strings.TrimSpace(req.ClientPhone),
+			ContractStatus: contractStatus,
+			OwnerID: &ownerID, OwnerName: ownerName, DeptID: deptID,
+			PlanStart: req.PlanStart, PlanEnd: req.PlanEnd,
+			BudgetTotal: req.BudgetTotal, Description: req.Description,
+			CreatedBy: &user.ID, CreatedAt: now, UpdatedAt: now,
 		}
 		if err := tx.Create(&created).Error; err != nil {
 			return err
@@ -205,8 +230,10 @@ func (h *Handler) Patch(c *gin.Context) {
 	}
 	allowed := map[string]bool{
 		"code": true, "name": true, "type": true, "priority": true,
-		"client_name": true, "owner_id": true, "dept_id": true,
+		"client": true, "client_name": true, "client_contact": true, "client_phone": true,
+		"owner_id": true, "owner_name": true, "dept_id": true,
 		"plan_start": true, "plan_end": true, "budget_total": true, "description": true,
+		"contract_status": true, "member_ids": true,
 	}
 	for field := range body {
 		if !allowed[field] {
@@ -237,7 +264,9 @@ func (h *Handler) Patch(c *gin.Context) {
 		}
 		for field, raw := range body {
 			switch field {
-			case "code", "name", "type", "priority", "client_name", "description":
+			case "member_ids":
+				continue
+			case "code", "name", "type", "priority", "client", "client_name", "client_contact", "client_phone", "owner_name", "contract_status", "description":
 				var value string
 				if string(raw) != "null" {
 					if err := json.Unmarshal(raw, &value); err != nil {
@@ -269,7 +298,11 @@ func (h *Handler) Patch(c *gin.Context) {
 						return errDuplicateProjectName
 					}
 				}
+				if field == "contract_status" && value != "" && value != "已签订" && value != "未签订" {
+					return errInvalidField
+				}
 				var old string
+				recordField := field
 				switch field {
 				case "code":
 					old = row.Code
@@ -283,14 +316,27 @@ func (h *Handler) Patch(c *gin.Context) {
 				case "priority":
 					old = row.Priority
 					row.Priority = value
-				case "client_name":
-					old = row.ClientName
-					row.ClientName = value
+				case "client", "client_name":
+					recordField = "client"
+					old = row.Client
+					row.Client = value
+				case "client_contact":
+					old = row.ClientContact
+					row.ClientContact = value
+				case "client_phone":
+					old = row.ClientPhone
+					row.ClientPhone = value
+				case "owner_name":
+					old = row.OwnerName
+					row.OwnerName = value
+				case "contract_status":
+					old = row.ContractStatus
+					row.ContractStatus = value
 				case "description":
 					old = row.Description
 					row.Description = value
 				}
-				record(field, old, value)
+				record(recordField, old, value)
 			case "owner_id", "dept_id":
 				var value *uint
 				if string(raw) != "null" {
@@ -433,7 +479,6 @@ func (h *Handler) Delete(c *gin.Context) {
 			return err
 		}
 		row.DeletedAt = &now
-		row.DeletedBy = &user.ID
 		row.UpdatedAt = now
 		if err := tx.Save(&row).Error; err != nil {
 			return err
@@ -463,7 +508,6 @@ func (h *Handler) Restore(c *gin.Context) {
 			return err
 		}
 		result.DeletedAt = nil
-		result.DeletedBy = nil
 		result.UpdatedAt = timeutil.NowDateTime()
 		if err := tx.Save(&result).Error; err != nil {
 			return err

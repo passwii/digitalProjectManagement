@@ -247,17 +247,15 @@ type ARAPTransaction struct {
 	ID              uint              `gorm:"primaryKey" json:"id"`
 	AccountBookID   uint              `gorm:"not null;index" json:"account_book_id"`
 	PeriodID        uint              `gorm:"not null" json:"period_id"`
-	Direction       string            `gorm:"size:16;not null" json:"direction"`
-	CounterpartyKind string           `gorm:"size:16;not null" json:"counterparty_kind"`
-	CounterpartyID  uint              `gorm:"not null" json:"counterparty_id"`
+	Kind            string            `gorm:"size:16;not null" json:"kind"`
 	TransactionDate timeutil.Date     `gorm:"not null" json:"transaction_date"`
-	DueDate         timeutil.Date     `gorm:"not null" json:"due_date"`
+	PartyID         uint              `gorm:"not null" json:"party_id"`
 	Amount          decimal.Decimal   `gorm:"type:numeric(18,2);not null" json:"amount"`
 	AppliedAmount   decimal.Decimal   `gorm:"type:numeric(18,2);not null;default:0" json:"applied_amount"`
 	AccountID       uint              `gorm:"not null" json:"account_id"`
-	VoucherID       *uint             `json:"voucher_id"`
+	OffsetAccountID uint              `gorm:"not null" json:"offset_account_id"`
 	Summary         string            `gorm:"size:255;not null;default:''" json:"summary"`
-	Status          string            `gorm:"size:16;not null;default:'open'" json:"status"`
+	VoucherID       *uint             `json:"voucher_id"`
 	CreatedBy       *uint             `json:"created_by"`
 	CreatedAt       timeutil.DateTime `gorm:"not null" json:"created_at"`
 }
@@ -265,17 +263,17 @@ type ARAPTransaction struct {
 func (ARAPTransaction) TableName() string { return "arap_transactions" }
 
 type ARAPAllocation struct {
-	ID                uint               `gorm:"primaryKey" json:"id"`
-	AccountBookID     uint               `gorm:"not null;index" json:"account_book_id"`
-	PeriodID          uint               `gorm:"not null" json:"period_id"`
-	SourceID          uint               `gorm:"not null" json:"source_id"`
-	TargetID          uint               `gorm:"not null" json:"target_id"`
-	Amount            decimal.Decimal    `gorm:"type:numeric(18,2);not null" json:"amount"`
-	CreatedBy         *uint              `json:"created_by"`
-	CreatedAt         timeutil.DateTime  `gorm:"not null" json:"created_at"`
-	ReleasedAt        *timeutil.DateTime `json:"released_at"`
-	ReleaseReason     string             `gorm:"type:text;not null;default:''" json:"release_reason"`
-	ReleaseVoucherID  *uint              `json:"release_voucher_id"`
+	ID               uint               `gorm:"primaryKey" json:"id"`
+	AccountBookID    uint               `gorm:"not null;index" json:"account_book_id"`
+	SourceID         uint               `gorm:"not null" json:"source_id"`
+	TargetID         uint               `gorm:"not null" json:"target_id"`
+	Amount           decimal.Decimal    `gorm:"type:numeric(18,2);not null" json:"amount"`
+	CreatedBy        *uint              `json:"created_by"`
+	CreatedAt        timeutil.DateTime  `gorm:"not null" json:"created_at"`
+	ReleasedAt       *timeutil.DateTime `json:"released_at"`
+	ReleasedBy       *uint              `json:"released_by"`
+	ReleaseReason    string             `gorm:"type:text;not null;default:''" json:"release_reason"`
+	ReleaseVoucherID *uint              `json:"release_voucher_id"`
 }
 
 func (ARAPAllocation) TableName() string { return "arap_allocations" }
