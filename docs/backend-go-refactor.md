@@ -151,3 +151,5 @@ api/
 - [x] `pytest tests -q` 归档 FastAPI 行为基线 454 passed
 - [x] 前端 Next.js (`web/`) 运行 `npm test`（1,073 个测试）全绿通过
 - [x] 前端 Next.js (`web/`) 运行 `npm run build` 静态编译成功
+- [x] 财务项目支出支持 project/status/date 筛选与分页，并保留 nested project 与 source voucher 契约
+- [x] 管理员用户响应返回生效模块，支持显式清空部门，审计日志保留 `operator_name`
