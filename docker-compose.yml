@@ -49,13 +49,7 @@ services:
       # 同一个插值表达式 → 合并后去重 → 仍只有一条。理由见 web.ports 注释。
       - "${API_PORT_BIND:-0.0.0.0}:8001:8001"
     healthcheck:
-      test:
-        - CMD
-        - python3
-        - -c
-        - >-
-          import urllib.request as u;
-          u.urlopen('http://127.0.0.1:8001/health')
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8001/health"]
       interval: 15s
       timeout: 5s
       retries: 5

@@ -214,7 +214,7 @@ PostgreSQL 是整个系统的 **System of Record**。预算审批、支出状态
   真正的 UTC 瞬时值。收益是口径最正，代价是一次生产 schema 迁移 + 全量校验；
   在上述约定下这不是正确性必需项（`timeutil` 是唯一入口，两套口径可平滑切换）。
 - `[注]` 应用运行时不依赖进程 `TZ`：口径模块用 `ZoneInfo("Asia/Shanghai")`，入库值与会话时区、
-  容器 `TZ` 无关（`api/requirements.txt` 带 `tzdata`，保证无系统时区库的镜像也能用）。
+  容器 `TZ` 无关；Go API 镜像安装 `tzdata`，保证 `ZoneInfo("Asia/Shanghai")` 可用。
 
 ### 4.5 查询与扩展
 
@@ -540,7 +540,7 @@ flowchart LR
     J["Cron / CLI"] --> A
 ```
 
-当前部署是单机 Docker Compose 形态：API 容器启动前执行 Alembic Migration，再运行 Go `cmd/seed` 做幂等初始化，最后启动 Gin Server；Web 使用 Next.js standalone server，PostgreSQL 由外部主机、VPS 隧道或宿主机提供。
+当前部署是单机 Docker Compose 形态：API 容器启动前由 Go/Goose 执行 schema 基线或增量迁移，再运行 Go `cmd/seed` 做幂等初始化，最后启动 Gin Server；Web 使用 Next.js standalone server，PostgreSQL 由外部主机、VPS 隧道或宿主机提供。已有数据库只有在 Alembic head 为 `0035_merge_superadmin_inventory` 且关键 schema 字段齐全时才会被 Goose 接管。
 
 #### 7.1.1 HTTPS 入口（PWA 装机的前提）
 
@@ -689,7 +689,7 @@ flowchart TB
 | ADR-006 | 管理面与业务时间线分表 | 管理员审计语义与申请人看到的业务流转语义不同 | 需要明确两张表的查询边界 |
 | ADR-007 | 软删除而不是物理删除业务聚合 | 支持回收站、审计和引用完整性 | 所有查询必须显式下推软删除条件 |
 | ADR-008 | 先做可靠的模组，再考虑服务拆分 | 避免在没有负载证据时引入分布式复杂度 | 单体发布节奏仍需纪律 |
-| ADR-009 | 后端由 FastAPI 迁移为 Go / Gin / GORM 模块化单体 | 静态二进制部署、低运行时开销、强类型边界与统一 Go 工具链 | Python 仅保留为 Alembic 运行底座与归档行为基线 |
+| ADR-009 | 后端由 FastAPI 迁移为 Go / Gin / GORM 模块化单体，迁移由 Goose 管理 | 静态二进制部署、低运行时开销、强类型边界与统一 Go 工具链 | Python 仅保留为归档 FastAPI 行为基线、历史迁移回归与运维验收脚本 |
 
 ---
 

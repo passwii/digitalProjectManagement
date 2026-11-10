@@ -49,14 +49,14 @@ DEFAULT_COMPOSE_FILES = ("docker-compose.yml", "docker-compose.prod.yml")
 DEFAULT_REPOSITORY_URL = "https://github.com/passwii/digitalProjectManagement.git"
 
 # 探活目标。容器「启动」不等于「能服务」：API 的 entrypoint 还要先跑
-# `alembic upgrade head`（迁移链已 33 个）和幂等 seed，才轮到 uvicorn 监听。
+# Goose schema 基线/增量迁移和幂等 Go seed，才轮到 Gin 开始监听。
 # 冷启动撞上迁移是常态，所以要轮询而不是 curl 一次就判生死。
 HEALTH_TARGETS = (
     ("API", "http://127.0.0.1:8001/health"),
     ("Web", "http://127.0.0.1:3001/"),
 )
-# 30 次 × 2 秒 = 60 秒。日常增量迁移（本次 0032/0033）几秒就跑完，够用；
-# 提到 45 次是为了兜住「库被清空、要连跑 33 个迁移」这种恢复场景。
+# 30 次 × 2 秒 = 60 秒。日常 Goose 增量迁移几秒就跑完，够用；
+# 提到 45 次是为了兜住「库被清空、要从当前 schema 基线重建」这种恢复场景。
 # 健康时函数首次成功即返回，这个上限不会拖慢正常部署。
 HEALTH_ATTEMPTS = 45
 HEALTH_INTERVAL = 2

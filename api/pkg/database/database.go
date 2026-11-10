@@ -1,6 +1,10 @@
 package database
 
 import (
+	"fmt"
+	"net"
+	"net/url"
+	"os"
 	"strings"
 	"time"
 
@@ -12,8 +16,10 @@ import (
 var GlobalDB *gorm.DB
 
 func Init(dbURL string, appEnv string) (*gorm.DB, error) {
-	// 兼容 python sqlalchemy 的 postgresql+psycopg:// 前缀
-	dsn := strings.Replace(dbURL, "postgresql+psycopg://", "postgresql://", 1)
+	dsn, err := normalizeDatabaseURL(dbURL)
+	if err != nil {
+		return nil, fmt.Errorf("invalid DATABASE_URL: %w", err)
+	}
 
 	logLevel := logger.Warn
 	if appEnv == "development" {
@@ -41,4 +47,27 @@ func Init(dbURL string, appEnv string) (*gorm.DB, error) {
 
 	GlobalDB = db
 	return db, nil
+}
+
+func normalizeDatabaseURL(dbURL string) (string, error) {
+	parsed, err := url.Parse(strings.TrimSpace(dbURL))
+	if err != nil {
+		return "", err
+	}
+
+	switch parsed.Scheme {
+	case "postgresql+psycopg":
+		parsed.Scheme = "postgresql"
+	case "postgresql", "postgres":
+	default:
+		return "", fmt.Errorf("unsupported database URL scheme %q", parsed.Scheme)
+	}
+	if parsed.Hostname() == "" {
+		return "", fmt.Errorf("database URL has no host")
+	}
+
+	if forwardHost := strings.Trim(strings.TrimSpace(os.Getenv("DB_FORWARD_HOST")), "[]"); forwardHost != "" {
+		parsed.Host = net.JoinHostPort(forwardHost, "5432")
+	}
+	return parsed.String(), nil
 }

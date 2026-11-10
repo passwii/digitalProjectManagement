@@ -14,7 +14,7 @@
 - Spark / 演示站模拟设计：`docs/mock-design.md` ← 新建或扩展演示站前先读
 - 产品定位与用户：`PRODUCT.md`
 
-仓库现实：单仓库（`web/` Next.js 14 + `api/` Go/Gin/GORM）、PostgreSQL 唯一业务数据源、附件走 Cloudflare R2、部署是 VPS 上的 Docker Compose + 宿主机 Caddy。原 FastAPI 后端归档在 `api/legacy_py/`，只用于行为基线与迁移期回归。
+仓库现实：单仓库（`web/` Next.js 14 + `api/` Go/Gin/GORM + Goose）、PostgreSQL 唯一业务数据源、附件走 Cloudflare R2、部署是 VPS 上的 Docker Compose + 宿主机 Caddy。生产 API 镜像只含 Go 运行时；FastAPI 与 Alembic 历史留在仓库供归档行为和迁移回归使用。
 
 ## 0. 规则优先级
 
@@ -28,7 +28,7 @@
 | 路径 | 内容 |
 | --- | --- |
 | `web/` | Next.js 14 App Router + React 18 + TypeScript。`app/` 路由、`components/` 组件、`lib/` 数据访问与纯逻辑（**测试也放在这里**） |
-| `api/` | Go 模块化单体：`internal/`（业务域）/ `pkg/`（平台能力）/ `legacy_py/`（归档行为基线）/ `alembic/`（迁移链） |
+| `api/` | Go 模块化单体：`internal/`（业务域）/ `pkg/`（平台能力与 Goose 迁移）/ `legacy_py/`（归档行为基线）/ `alembic/`（历史迁移回归） |
 | `tests/` | 归档 FastAPI 行为基线 pytest 套件（需要真实 PostgreSQL，见 `TESTING.md` §4） |
 | `scripts/` | 运维脚本（`deploy_vps.py`、`db_tunnel.sh`）与验收脚本（`av-*.mjs`、`acceptance_*.py`） |
 | `docker/`、`docker-compose*.yml` | 镜像与编排。`docker-compose.local.yml` 通过 SSH 隧道连 VPS 上的 PG |
@@ -54,10 +54,10 @@ npm run build     # 组件/页面的类型错误只有它能兜住
 cd api
 go test -v ./...                     # 需要 TEST_DATABASE_URL 才会执行数据库集成用例
 go build -o /dev/null main.go
-alembic upgrade head                 # 用 DATABASE_URL
+go build -o /dev/null ./cmd/migrate  # 生产迁移 runner
 cd ..
 
-# 归档 Python 行为基线
+# 归档 Python 行为与历史迁移基线
 pytest tests -q                      # 需要 TEST_DATABASE_URL，见 TESTING.md §4
 ```
 
@@ -136,7 +136,7 @@ python3 scripts/deploy_vps.py \
 - **审计与业务同事务**（ADR-004）：不允许业务成功而审计缺失。
 - **软删除**（ADR-007）：所有业务查询必须显式下推软删除条件。
 - **时间口径统一 `Asia/Shanghai`**（README §4.4）：不用本机时区，不写裸 `datetime.now()`。
-- **迁移**：只新增 revision，不改已合入的历史；Go 集成测试在随机临时 schema 上跑真实 Alembic 链，`tests/test_migration_revision_ids.py` 继续守 revision id 与链完整。不碰共享库。
+- **迁移**：生产 schema 由 `api/pkg/migrations/` 中的 Goose SQL 管理；只新增 Goose migration，不改已合入的历史。已有数据库仅在 Alembic head 为 `0035_merge_superadmin_inventory` 且关键分支字段齐全时自动登记 Goose 基线；Go 集成测试在随机临时 schema 上跑 Goose 基线，归档 pytest 继续守历史 Alembic revision 图与数据迁移。不碰共享库。
 - **前端样式与动效**：颜色、时长与缓动使用所属界面的语义令牌，不写裸色值或裸动效时长。`/stream-monitor` 使用 `var(--av-*)` 与 `AV_MOTION`，并由 `web/lib/av/*.vitest.test.ts` 守卫；Spark 与其他独立演示界面遵循各自的令牌体系及 `docs/mock-design.md`。
 - **前端界面文案**：Avoid unnecessary secondary labels and descriptions. Let the layout do the explaining. 不堆叠多余的二级标签与说明文字，让布局本身完成解释，而不是靠文字补充。
 - **`/stream-monitor` 演示站**：画面用 CSS/SVG 合成，不往 `public/` 加视频/图片素材。
