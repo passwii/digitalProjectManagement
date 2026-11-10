@@ -32,8 +32,6 @@ services:
 
   api:
     build:
-      args:
-        PIP_INDEX_URL: https://pypi.tuna.tsinghua.edu.cn/simple
       network: host
     depends_on:
       db-tunnel:

@@ -104,7 +104,7 @@ pytest tests -q                            # 归档 FastAPI 行为基线
 docker rm -f pm-test-pg
 ```
 
-Go 集成测试会为每个测试创建随机 schema，并执行真实 `alembic upgrade head`；数据库已配置但连接或迁移失败时直接失败，不会把基础设施故障伪装成 skip。
+Go 集成测试会为每个测试创建随机 schema，并执行嵌入 Go 二进制的 Goose 当前 schema 基线；数据库已配置但连接或迁移失败时直接失败，不会把基础设施故障伪装成 skip。归档 pytest 仍单独覆盖历史 Alembic revision 与数据迁移行为。
 
 需要连开发库时走 `scripts/db_tunnel.sh`（`docker compose -f docker-compose.yml -f docker-compose.local.yml up db-tunnel`，把 VPS 上的 PG 转发到本机 5432）。但**迁移类验证不要跑在共享库上**：用随机临时 schema，或就用上面的本地一次性 PG。
 
@@ -113,7 +113,7 @@ Go 集成测试会为每个测试创建随机 schema，并执行真实 `alembic 
 | 项 | 值 |
 | --- | --- |
 | Go | 1.27（与 `docker/api.Dockerfile` 一致） |
-| Python | 3.14（与本机、`docker/api.Dockerfile` 一致） |
+| Python | 3.14（CI 仅用于安装归档 pytest 基线依赖；生产 API 镜像不含 Python） |
 | PostgreSQL | `postgres:18` service，`app/app/app_test`，显式发布 5432 |
 | 环境变量 | `TEST_DATABASE_URL=postgresql+psycopg://app:app@localhost:5432/app_test`、`APP_ENV=test` |
 | 命令 | `pip install -r api/requirements.txt` → `cd api && go test -v ./...` → `pytest tests -q` |
@@ -124,7 +124,7 @@ Go 集成测试会为每个测试创建随机 schema，并执行真实 `alembic 
 
 - **权限与数据范围**：未授权稳定 `401/403/404`；跨部门/跨项目数据不可见；超级管理员与模块权限。
 - **状态机与事务**：审批、凭证、冲销等不允许半提交；审计与业务同事务。
-- **迁移与真实 schema**：`go test` 的数据库集成用例在随机 schema 上执行真实 Alembic 链；`tests/test_migration_revision_ids.py` 继续守卫 revision id 与链完整。
+- **迁移与真实 schema**：`go test` 的数据库集成用例在随机 schema 上执行 Goose 当前 schema 基线；`tests/test_migration_revision_ids.py` 继续守卫历史 Alembic revision 图与数据迁移行为。
 - **契约字段**：请求/响应字段、时间格式、分页与筛选语义。
 - **对象存储**：默认本地临时暂存，不触网；需要验证 R2 行为时用 `monkeypatch` 局部覆盖。
 - **测试账号密码哈希**：归档 pytest 直接写库的 fixture 用户使用 `tests.support.hash_test_password`（bcrypt cost 4）；Go 集成测试通过生产 `security.HashPassword` 创建账号。登录验证始终使用生产验密路径。
@@ -137,7 +137,7 @@ Go 集成测试会为每个测试创建随机 schema，并执行真实 `alembic 
 
 ### 4.5 归档 Python 的定位
 
-- 生产后端是 `api/` 下的 Go 模块；`api/legacy_py/` 只保留行为基线和迁移期对照。
+- 生产 API 与 schema 迁移均由 `api/` 下的 Go 模块执行；`api/legacy_py/` 和 `api/alembic/` 只保留行为基线与历史迁移回归，不随生产镜像发布。
 - `tests/**` 全部导入 `api.legacy_py.*`，不再混用 `api.core` / `api.models`，避免同一文件被加载成两套模块身份。
 - 新增业务行为优先在 `api/**/*_test.go` 覆盖；修改归档基线时必须同时确认 Go 契约没有偏离。
 

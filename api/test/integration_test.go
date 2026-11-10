@@ -2,14 +2,13 @@ package test
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"os"
-	"os/exec"
-	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -38,6 +37,7 @@ import (
 	"digitalprojectmanagement/api/internal/report"
 	"digitalprojectmanagement/api/internal/task"
 	"digitalprojectmanagement/api/pkg/database"
+	"digitalprojectmanagement/api/pkg/migrations"
 	"digitalprojectmanagement/api/pkg/security"
 	"digitalprojectmanagement/api/pkg/storage"
 	"digitalprojectmanagement/api/pkg/timeutil"
@@ -57,24 +57,22 @@ func withSearchPath(databaseURL, schema string) string {
 	return parsed.String()
 }
 
-func applyAlembicMigrations(t *testing.T, databaseURL, schema string) {
+func applyGooseMigrations(t *testing.T, databaseURL, schema string) {
 	t.Helper()
-	workingDir, err := os.Getwd()
+	gormDB, err := database.Init(withSearchPath(databaseURL, schema), "test")
 	if err != nil {
-		t.Fatalf("failed to resolve test working directory: %v", err)
+		t.Fatalf("cannot connect to migration schema: %v", err)
 	}
-	apiDir := filepath.Dir(workingDir)
-	repoRoot := filepath.Dir(apiDir)
-	cmd := exec.Command("python3", "-m", "alembic", "upgrade", "head")
-	cmd.Dir = apiDir
-	cmd.Env = append(os.Environ(),
-		"DATABASE_URL="+databaseURL,
-		"PGOPTIONS=-c search_path="+schema,
-		"PYTHONPATH="+repoRoot,
-	)
-	output, err := cmd.CombinedOutput()
+	sqlDB, err := gormDB.DB()
 	if err != nil {
-		t.Fatalf("alembic upgrade head failed: %v\n%s", err, output)
+		t.Fatalf("cannot access migration connection: %v", err)
+	}
+	defer sqlDB.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
+	if err := migrations.Up(ctx, sqlDB); err != nil {
+		t.Fatalf("Goose migrations failed: %v", err)
 	}
 }
 
@@ -101,7 +99,7 @@ func setupTestApp(t *testing.T) (*gin.Engine, *gorm.DB) {
 		}
 	})
 
-	applyAlembicMigrations(t, testDBURL, schema)
+	applyGooseMigrations(t, testDBURL, schema)
 	schemaDBURL := withSearchPath(testDBURL, schema)
 
 	security.Init("test-integration-secret-key-12345")
