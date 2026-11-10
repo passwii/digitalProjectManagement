@@ -6,6 +6,8 @@ import (
 	"embed"
 	"errors"
 	"fmt"
+	"strings"
+	"time"
 
 	"github.com/pressly/goose/v3"
 )
@@ -28,11 +30,18 @@ func Up(ctx context.Context, db *sql.DB) error {
 		return fmt.Errorf("set Goose PostgreSQL dialect: %w", err)
 	}
 
+	release, err := acquireMigrationLock(ctx, db)
+	if err != nil {
+		return err
+	}
+	defer release()
+
 	provider, err := goose.NewProvider(goose.DialectPostgres, db, migrationFiles)
 	if err != nil {
 		return fmt.Errorf("create Goose migration provider: %w", err)
 	}
-	defer func() { _ = provider.Close() }()
+	// The provider is intentionally not closed here: it closes the caller-owned
+	// *sql.DB, which cmd/migrate and the integration harness still own.
 
 	if err := adoptLegacyDatabase(ctx, db, provider); err != nil {
 		return err
@@ -41,6 +50,27 @@ func Up(ctx context.Context, db *sql.DB) error {
 		return fmt.Errorf("apply Goose migrations: %w", err)
 	}
 	return nil
+}
+
+// migrationLockKey serializes adoption and migration runs across API processes.
+// It is a fixed 64-bit advisory-lock key (the ASCII bytes "goose").
+const migrationLockKey int64 = 0x676f6f7365
+
+func acquireMigrationLock(ctx context.Context, db *sql.DB) (func(), error) {
+	conn, err := db.Conn(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("acquire migration lock connection: %w", err)
+	}
+	if _, err := conn.ExecContext(ctx, "SELECT pg_advisory_lock($1)", migrationLockKey); err != nil {
+		_ = conn.Close()
+		return nil, fmt.Errorf("acquire migration lock: %w", err)
+	}
+	return func() {
+		unlockCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		_, _ = conn.ExecContext(unlockCtx, "SELECT pg_advisory_unlock($1)", migrationLockKey)
+		_ = conn.Close()
+	}, nil
 }
 
 func adoptLegacyDatabase(ctx context.Context, db *sql.DB, provider *goose.Provider) error {
@@ -72,12 +102,12 @@ func adoptLegacyDatabase(ctx context.Context, db *sql.DB, provider *goose.Provid
 		return nil
 	}
 
-	hasTables, err := applicationTablesExist(ctx, db)
+	objects, err := unrecognizedObjects(ctx, db)
 	if err != nil {
 		return err
 	}
-	if hasTables {
-		return fmt.Errorf("database has application tables but no recognized Goose/Alembic migration state; refusing to apply baseline")
+	if len(objects) > 0 {
+		return fmt.Errorf("database has unrecognized objects but no Goose/Alembic migration state (refusing to apply baseline): %s", strings.Join(objects, ", "))
 	}
 	return nil
 }
@@ -145,8 +175,16 @@ func stampBaseline(ctx context.Context, db *sql.DB) error {
 }
 
 func tableExists(ctx context.Context, db *sql.DB, table string) (bool, error) {
+	const query = `SELECT EXISTS (
+		SELECT 1
+		FROM pg_catalog.pg_class AS c
+		JOIN pg_catalog.pg_namespace AS n ON n.oid = c.relnamespace
+		WHERE n.nspname = current_schema()
+		  AND c.relname = $1
+		  AND c.relkind IN ('r', 'p')
+	)`
 	var exists bool
-	if err := db.QueryRowContext(ctx, "SELECT to_regclass($1) IS NOT NULL", table).Scan(&exists); err != nil {
+	if err := db.QueryRowContext(ctx, query, table).Scan(&exists); err != nil {
 		return false, fmt.Errorf("check migration table %s: %w", table, err)
 	}
 	return exists, nil
@@ -171,18 +209,45 @@ func columnExists(ctx context.Context, db *sql.DB, table, column string) (bool, 
 	return exists, nil
 }
 
-func applicationTablesExist(ctx context.Context, db *sql.DB) (bool, error) {
-	const query = `SELECT EXISTS (
-		SELECT 1
+func unrecognizedObjects(ctx context.Context, db *sql.DB) ([]string, error) {
+	const query = `SELECT c.relname
 		FROM pg_catalog.pg_class AS c
 		JOIN pg_catalog.pg_namespace AS n ON n.oid = c.relnamespace
 		WHERE n.nspname = current_schema()
-		  AND c.relkind IN ('r', 'p', 'v', 'm', 'f', 'S')
-		  AND c.relname NOT IN ('alembic_version', 'goose_db_version')
-	)`
-	var exists bool
-	if err := db.QueryRowContext(ctx, query).Scan(&exists); err != nil {
-		return false, fmt.Errorf("check for untracked application objects: %w", err)
+		  AND (
+			c.relkind IN ('r', 'p', 'v', 'm', 'f')
+			OR (
+				c.relkind = 'S'
+				AND NOT EXISTS (
+					SELECT 1
+					FROM pg_catalog.pg_depend AS d
+					JOIN pg_catalog.pg_class AS t ON t.oid = d.refobjid
+					JOIN pg_catalog.pg_namespace AS tn ON tn.oid = t.relnamespace
+					WHERE d.objid = c.oid
+					  AND d.deptype = 'i'
+					  AND tn.nspname = current_schema()
+					  AND t.relname = $1
+				)
+			)
+		  )
+		  AND c.relname NOT IN ('alembic_version', $1)
+		ORDER BY c.relname`
+	rows, err := db.QueryContext(ctx, query, versionTable)
+	if err != nil {
+		return nil, fmt.Errorf("check for untracked application objects: %w", err)
 	}
-	return exists, nil
+	defer rows.Close()
+
+	var objects []string
+	for rows.Next() {
+		var name string
+		if err := rows.Scan(&name); err != nil {
+			return nil, fmt.Errorf("check for untracked application objects: %w", err)
+		}
+		objects = append(objects, name)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("check for untracked application objects: %w", err)
+	}
+	return objects, nil
 }

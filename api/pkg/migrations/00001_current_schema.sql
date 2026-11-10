@@ -14,7 +14,6 @@
 SET statement_timeout = 0;
 SET lock_timeout = 0;
 SET idle_in_transaction_session_timeout = 0;
-SET transaction_timeout = 0;
 SET client_encoding = 'UTF8';
 SET standard_conforming_strings = on;
 SET check_function_bodies = false;
@@ -4485,9 +4484,11 @@ ALTER TABLE ONLY vouchers
 -- PostgreSQL database dump complete
 --
 
-
-
-
 -- +goose Down
-DROP TABLE IF EXISTS account_auxiliaries,account_balances,account_book_members,account_books,accounting_periods,accounts,approval_records,arap_allocations,arap_transactions,asset_depreciations,attachments,audit_logs,auxiliary_items,bank_statements,budget_adjusts,budgets,cash_transactions,contact_profiles,departments,dicts,equipment_assets,equipment_batches,equipment_events,expenses,fixed_assets,followups,milestones,notifications,opening_balances,opportunities,partner_contracts,partners,progress_logs,project_changes,project_members,project_receivable_payments,project_receivables,projects,roles,sys_params,tasks,token_blacklist,user_modules,user_roles,users,voucher_entries,voucher_templates,vouchers CASCADE;
-DROP FUNCTION IF EXISTS prevent_equipment_event_change();
+-- The current-schema baseline is irreversible; restore from a database backup.
+-- +goose StatementBegin
+DO $$
+BEGIN
+  RAISE EXCEPTION 'Goose baseline is irreversible; restore from backup';
+END $$;
+-- +goose StatementEnd

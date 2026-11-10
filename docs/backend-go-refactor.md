@@ -123,15 +123,15 @@ api/
 ## 四、容器化与 CI/CD 交付标准
 
 ### 4.1 多阶段 Dockerfile (`docker/api.Dockerfile`)
-- **构建阶段**：`golang:1.27-alpine`，静态编译 `CGO_ENABLED=0 GOOS=linux`，生成 `/app/server` 和 `/app/seed` 二进制。
-- **运行阶段**：`python:3.14-slim`，保留轻量 Python 运行底座以无缝执行 `alembic upgrade head` 迁移脚本，随后启动 Go 编译产物。
+- **构建阶段**：`golang:1.27-alpine`，静态编译 `CGO_ENABLED=0 GOOS=linux`，生成 `/app/server`、`/app/seed` 和 `/app/migrate` 二进制。
+- **运行阶段**：`alpine:3.22`，只包含 Go 二进制、`/app/migrate`（Goose）与 `tzdata`；不含 Python/Alembic。
 - **端口与健康检查**：对外暴露 `8001`，健康检查探针请求 `http://127.0.0.1:8001/health`。
 
 ### 4.2 GitHub Actions 流水线 (`.github/workflows/api.yml`)
 1. 启动 `postgres:18` 服务容器。
 2. 安装 Go 1.27 环境与 Python 3.14 依赖。
-3. 执行 `cd api && go test -v ./...` 运行全量 Go 单元与集成测试；数据库用例在随机 schema 上执行真实 Alembic 迁移。
-4. 执行 `pytest tests -q` 运行归档 FastAPI 行为基线与迁移链守卫。
+3. 执行 `cd api && go test -v ./...` 运行全量 Go 单元与集成测试；数据库用例在随机 schema 上执行 Goose 基线与 adoption 用例。
+4. 执行 `pytest tests -q` 运行归档 FastAPI 行为基线与部分历史 Alembic revision 守卫；不执行完整 Alembic 链。
 
 ---
 
