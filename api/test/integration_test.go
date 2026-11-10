@@ -938,3 +938,117 @@ func TestProjectAndApprovalPermissionsWithoutBaseModules(t *testing.T) {
 		t.Fatalf("budget adjustment status = %q, want approved", decided.Status)
 	}
 }
+
+// 通讯录编辑会整份表单回提；关联了登录账号的人员还必须把姓名/部门同步回 users。
+// users 表没有 updated_at 列（见 alembic 0001 frozen schema 与 Go model.User），
+// 同步语句不能写它，否则事务报 42703，接口一律 500「通讯录操作失败」。
+func TestContactUpdateKeepsLinkedAccountEditable(t *testing.T) {
+	app, db := setupTestApp(t)
+	_, adminToken := seedAdminAndLogin(t, app, db)
+	now := timeutil.NowDateTime()
+
+	dept := model.Department{Name: fmt.Sprintf("通讯录部门-%s", uuid.NewString()[:8])}
+	if err := db.Create(&dept).Error; err != nil {
+		t.Fatalf("create department: %v", err)
+	}
+	pwdHash, err := security.HashPassword("user123456")
+	if err != nil {
+		t.Fatalf("hash linked account password: %v", err)
+	}
+	linked := model.User{
+		Username:  fmt.Sprintf("linked_%s", strings.ReplaceAll(uuid.NewString()[:8], "-", "")),
+		PwdHash:   pwdHash,
+		RealName:  "通讯录关联账号",
+		DeptID:    &dept.ID,
+		Status:    "active",
+		CreatedAt: now,
+	}
+	if err := db.Create(&linked).Error; err != nil {
+		t.Fatalf("create linked account: %v", err)
+	}
+
+	// 与 ContactDrawer.toPayload 对齐：编辑时前端提交完整表单字段。
+	payload := map[string]any{
+		"name":               "通讯录关联账号（改）",
+		"mobile":             "13900000000",
+		"user_id":            linked.ID,
+		"dept_id":            dept.ID,
+		"employee_no":        nil,
+		"position":           "项目经理",
+		"manager_id":         nil,
+		"employment_type":    "正式",
+		"employment_status":  "active",
+		"hire_date":          nil,
+		"regular_date":       nil,
+		"leave_date":         nil,
+		"work_email":         "",
+		"office_phone":       "",
+		"work_location":      "",
+		"contract_type":      "",
+		"contract_start":     nil,
+		"contract_end":       nil,
+		"gender":             "",
+		"birth_date":         nil,
+		"id_card_no":         "",
+		"native_place":       "",
+		"political_status":   "",
+		"marital_status":     "",
+		"address":            "",
+		"highest_education":  "",
+		"school":             "",
+		"major":              "",
+		"graduation_date":    nil,
+		"degree":             "",
+		"emergency_contact":  "",
+		"emergency_relation": "",
+		"emergency_phone":    "",
+		"remark":             "",
+	}
+
+	recorder := requestJSON(t, app, http.MethodPost, "/api/v1/contacts", payload, adminToken)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("create linked contact status = %d: %s", recorder.Code, recorder.Body.String())
+	}
+	var created struct {
+		ID uint `json:"id"`
+	}
+	if err := json.Unmarshal(recorder.Body.Bytes(), &created); err != nil {
+		t.Fatalf("decode created contact: %v", err)
+	}
+	if created.ID == 0 {
+		t.Fatal("created contact id is zero")
+	}
+
+	payload["name"] = "通讯录关联账号（再改）"
+	recorder = requestJSON(t, app, http.MethodPatch, fmt.Sprintf("/api/v1/contacts/%d", created.ID), payload, adminToken)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("update linked contact status = %d: %s", recorder.Code, recorder.Body.String())
+	}
+
+	var updated model.ContactProfile
+	if err := db.First(&updated, created.ID).Error; err != nil {
+		t.Fatalf("reload contact: %v", err)
+	}
+	if updated.Name != "通讯录关联账号（再改）" || updated.Position != "项目经理" {
+		t.Fatalf("contact not updated: name=%q position=%q", updated.Name, updated.Position)
+	}
+	var updatedAccount model.User
+	if err := db.First(&updatedAccount, linked.ID).Error; err != nil {
+		t.Fatalf("reload linked account: %v", err)
+	}
+	if updatedAccount.RealName != "通讯录关联账号（再改）" {
+		t.Fatalf("linked account real_name = %q, want synced contact name", updatedAccount.RealName)
+	}
+	if updatedAccount.DeptID == nil || *updatedAccount.DeptID != dept.ID {
+		t.Fatalf("linked account dept_id = %v, want %d", updatedAccount.DeptID, dept.ID)
+	}
+	var auditCount int64
+	if err := db.Model(&model.AuditLog{}).
+		Where("action = ? AND resource_id = ?", "update_contact", fmt.Sprintf("%d", created.ID)).
+		Count(&auditCount).Error; err != nil {
+		t.Fatalf("count update audit: %v", err)
+	}
+	if auditCount != 1 {
+		t.Fatalf("update_contact audit rows = %d, want 1", auditCount)
+	}
+}

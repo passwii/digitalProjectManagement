@@ -398,12 +398,13 @@ func syncLinkedUser(db *gorm.DB, profile *model.ContactProfile) error {
 	if profile.UserID == nil {
 		return nil
 	}
+	// users 表没有 updated_at 列（冻结 schema 与 model.User 一致），只同步姓名和部门。
+	// 在这里写 updated_at 会触发 42703，让整笔通讯录保存回滚并返回 500。
 	return db.Model(&model.User{}).
 		Where("id = ?", *profile.UserID).
 		Updates(map[string]any{
-			"real_name":  profile.Name,
-			"dept_id":    profile.DeptID,
-			"updated_at": timeutil.NowDateTime(),
+			"real_name": profile.Name,
+			"dept_id":   profile.DeptID,
 		}).Error
 }
 
