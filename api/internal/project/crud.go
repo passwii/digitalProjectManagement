@@ -73,7 +73,9 @@ func (h *Handler) Create(c *gin.Context) {
 	now := timeutil.NowDateTime()
 	var created model.Project
 	err := h.DB.Transaction(func(tx *gorm.DB) error {
-		if tx.Where("name = ? AND deleted_at IS NULL", req.Name).First(&model.Project{}).Error == nil {
+		// projects_name_key 是全局唯一索引（不分软删），应用层查重必须与之一致；
+		// 排除软删行会把重名留到 DB 约束，最终变成 500。
+		if tx.Where("name = ?", req.Name).First(&model.Project{}).Error == nil {
 			return errDuplicateProjectName
 		}
 		code := strings.TrimSpace(req.Code)
@@ -292,7 +294,8 @@ func (h *Handler) Patch(c *gin.Context) {
 				}
 				if field == "name" {
 					var count int64
-					if err := tx.Model(&model.Project{}).Where("name = ? AND id <> ? AND deleted_at IS NULL", value, id).Count(&count).Error; err != nil {
+					// 同上：软删项目仍占用名称，查重不能排除软删行。
+					if err := tx.Model(&model.Project{}).Where("name = ? AND id <> ?", value, id).Count(&count).Error; err != nil {
 						return err
 					}
 					if count > 0 {
