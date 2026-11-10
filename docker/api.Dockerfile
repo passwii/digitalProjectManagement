@@ -16,6 +16,7 @@ RUN apk add --no-cache ca-certificates tzdata
 WORKDIR /app
 
 COPY scripts/docker-api-entrypoint.sh /app/docker-api-entrypoint.sh
+RUN chmod +x /app/docker-api-entrypoint.sh
 COPY --from=builder /app/server /app/server
 COPY --from=builder /app/seed /app/seed
 COPY --from=builder /app/migrate /app/migrate

@@ -213,8 +213,8 @@ PostgreSQL 是整个系统的 **System of Record**。预算审批、支出状态
 - `[目标]` 时间列整体迁到 `TIMESTAMPTZ`（`USING col AT TIME ZONE 'Asia/Shanghai'`），库里改存
   真正的 UTC 瞬时值。收益是口径最正，代价是一次生产 schema 迁移 + 全量校验；
   在上述约定下这不是正确性必需项（`timeutil` 是唯一入口，两套口径可平滑切换）。
-- `[注]` 应用运行时不依赖进程 `TZ`：口径模块用 `ZoneInfo("Asia/Shanghai")`，入库值与会话时区、
-  容器 `TZ` 无关；Go API 镜像安装 `tzdata`，保证 `ZoneInfo("Asia/Shanghai")` 可用。
+- `[注]` 应用运行时不依赖进程 `TZ`：Go 的 `timeutil` 固定使用 `Asia/Shanghai`，入库值与会话时区无关；
+  API 镜像安装 `tzdata` 只用于日志/进程本地时间，不参与业务时间口径。
 
 ### 4.5 查询与扩展
 
@@ -542,7 +542,24 @@ flowchart LR
 
 当前部署是单机 Docker Compose 形态：API 容器启动前由 Go/Goose 执行 schema 基线或增量迁移，再运行 Go `cmd/seed` 做幂等初始化，最后启动 Gin Server；Web 使用 Next.js standalone server，PostgreSQL 由外部主机、VPS 隧道或宿主机提供。已有数据库只有在 Alembic head 为 `0035_merge_superadmin_inventory` 且关键 schema 字段齐全时才会被 Goose 接管。
 
-#### 7.1.1 HTTPS 入口（PWA 装机的前提）
+#### 7.1.1 数据库迁移切换与回滚边界
+
+生产 API 镜像只包含 Go/Goose，不再包含 Python/Alembic。切换前先确认数据库已经在 Alembic 当前 head：
+
+```sql
+SELECT version_num FROM alembic_version;
+-- 必须恰好返回 0035_merge_superadmin_inventory
+```
+
+并确认两个合并分支的关键字段存在：`users.is_super_admin`、`equipment_assets.available_quantity`、`equipment_assets.inventory_managed`、`project_receivable_payments.updated_by`。
+
+- **数据库落后于该 head**：先用旧版镜像或本地 Python venv 执行 `alembic upgrade head`，再切换新镜像；新镜像不会代跑 Alembic。
+- **空数据库**：Go/Goose 自动执行当前 schema 基线。
+- **启动报 `refusing Goose adoption`**：说明 head 或关键字段不匹配，先修复/升级旧库；不要手工删表或改 `alembic_version` 绕过检查。
+- **首次基线失败后重试**：Go/Goose 会忽略 `goose_db_version` 及其 identity sequence，可安全重启；若仍失败，保留日志并恢复备份。
+- **Goose 接管后再回退到 Alembic 镜像不受支持**：后续 Goose migration 不会写 `alembic_version`；需要回退时使用数据库备份，而不是只降级镜像。
+
+#### 7.1.2 HTTPS 入口（PWA 装机的前提）
 
 **公网入口只有一个：宿主机 Caddy 的 443。** Web(3001) 与 API(8001) 只听 `127.0.0.1`，由现有 Caddy 反代。
 
@@ -589,7 +606,7 @@ CORS_ORIGINS=https://pm.example.com
 > ⚠️ `.env` 的优先级**高于** compose 文件里的 `${VAR:-default}`。`.env` 里若留着
 > `NEXT_PUBLIC_API_BASE=http://127.0.0.1:8001/api/v1`，compose 的默认值根本不生效。
 
-#### 7.1.2 GitHub Actions 部署
+#### 7.1.3 GitHub Actions 部署
 
 `.github/workflows/container-images.yml` 在 PR 改动容器构建相关文件时，分别构建 API 与 Web 镜像，不推送、不连接 VPS。合并到 `main` 后，`.github/workflows/deploy-vps.yml` 在 GitHub-hosted runner 上构建两个生产镜像并推送到 GHCR；deploy job 使用 build 输出的不可变 digest，通过 SSH 调用 `scripts/deploy_vps.py`。VPS 快进拉取 `origin/main` 上的 Compose 配置，执行 `docker compose pull` 和 `docker compose up -d --no-build`，再检查 API 与 Web 健康状态。VPS 不再安装 npm/Python 依赖或执行 Docker build，但仍需要访问 GitHub 与 GHCR。
 

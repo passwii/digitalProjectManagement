@@ -104,7 +104,7 @@ pytest tests -q                            # 归档 FastAPI 行为基线
 docker rm -f pm-test-pg
 ```
 
-Go 集成测试会为每个测试创建随机 schema，并执行嵌入 Go 二进制的 Goose 当前 schema 基线；数据库已配置但连接或迁移失败时直接失败，不会把基础设施故障伪装成 skip。归档 pytest 仍单独覆盖历史 Alembic revision 与数据迁移行为。
+Go 集成测试会为每个测试创建随机 schema，并执行嵌入 Go 二进制的 Goose 当前 schema 基线；`api/pkg/migrations` 另有 adoption/拒绝/失败重试用例，覆盖已有库的接管路径。数据库已配置但连接或迁移失败时直接失败，不会把基础设施故障伪装成 skip。归档 pytest 只覆盖部分历史 Alembic revision 与数据迁移，不执行完整 Alembic 链。
 
 需要连开发库时走 `scripts/db_tunnel.sh`（`docker compose -f docker-compose.yml -f docker-compose.local.yml up db-tunnel`，把 VPS 上的 PG 转发到本机 5432）。但**迁移类验证不要跑在共享库上**：用随机临时 schema，或就用上面的本地一次性 PG。
 
@@ -124,7 +124,7 @@ Go 集成测试会为每个测试创建随机 schema，并执行嵌入 Go 二进
 
 - **权限与数据范围**：未授权稳定 `401/403/404`；跨部门/跨项目数据不可见；超级管理员与模块权限。
 - **状态机与事务**：审批、凭证、冲销等不允许半提交；审计与业务同事务。
-- **迁移与真实 schema**：`go test` 的数据库集成用例在随机 schema 上执行 Goose 当前 schema 基线；`tests/test_migration_revision_ids.py` 继续守卫历史 Alembic revision 图与数据迁移行为。
+- **迁移与真实 schema**：`go test` 的数据库集成用例在随机 schema 上执行 Goose 当前 schema 基线，`api/pkg/migrations` 覆盖 Alembic head 接管、错误 head/字段拒绝与失败重试；`tests/test_migration_revision_ids.py` 继续守卫历史 Alembic revision 图与部分数据迁移行为。
 - **契约字段**：请求/响应字段、时间格式、分页与筛选语义。
 - **对象存储**：默认本地临时暂存，不触网；需要验证 R2 行为时用 `monkeypatch` 局部覆盖。
 - **测试账号密码哈希**：归档 pytest 直接写库的 fixture 用户使用 `tests.support.hash_test_password`（bcrypt cost 4）；Go 集成测试通过生产 `security.HashPassword` 创建账号。登录验证始终使用生产验密路径。

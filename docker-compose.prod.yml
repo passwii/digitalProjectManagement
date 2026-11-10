@@ -69,7 +69,7 @@ services:
       DATABASE_URL: "${DATABASE_URL:?DATABASE_URL must be set}"
       # CORS 白名单匹配浏览器访问的 HTTPS 源，不是 Caddy 到上游的 loopback 地址。
       CORS_ORIGINS: "${CORS_ORIGINS:-https://${PM_DOMAIN}}"
-      # 生产环境：本地后端被直接拒绝，附件正文只能进 R2（见 api/pkg/storage/storage.go）。
+      # 生产环境：本地后端被直接拒绝，附件正文只能进 R2（见 api/pkg/config/config.go）。
       APP_ENV: production
       STORAGE_BACKEND: "${STORAGE_BACKEND:-r2}"
 

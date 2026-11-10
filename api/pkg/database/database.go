@@ -50,7 +50,18 @@ func Init(dbURL string, appEnv string) (*gorm.DB, error) {
 }
 
 func normalizeDatabaseURL(dbURL string) (string, error) {
-	parsed, err := url.Parse(strings.TrimSpace(dbURL))
+	trimmed := strings.TrimSpace(dbURL)
+	if trimmed == "" {
+		return "", fmt.Errorf("database URL is empty")
+	}
+	if !strings.Contains(trimmed, "://") {
+		if strings.TrimSpace(os.Getenv("DB_FORWARD_HOST")) != "" {
+			return "", fmt.Errorf("DB_FORWARD_HOST requires a URL-form DATABASE_URL")
+		}
+		return trimmed, nil
+	}
+
+	parsed, err := url.Parse(trimmed)
 	if err != nil {
 		return "", err
 	}
