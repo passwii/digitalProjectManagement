@@ -1866,6 +1866,142 @@ CREATE TABLE vouchers (
     reviewed_by integer,
     posted_by integer,
     voided_by integer,
+    reversal_of integer,
+    decision_reason text DEFAULT ''::text NOT NULL,
+    created_at timestamp without time zone NOT NULL,
+    updated_at timestamp without time zone NOT NULL,
+    source_expense_id integer,
+    CONSTRAINT ck_voucher_balanced CHECK (((total_debit >= (0)::numeric) AND (total_credit >= (0)::numeric) AND (total_debit = total_credit))),
+    CONSTRAINT ck_voucher_status CHECK (((status)::text = ANY ((ARRAY['draft'::character varying, 'pending'::character varying, 'posted'::character varying, 'void'::character varying])::text[])))
+);
+
+
+--
+-- Name: vouchers_id_seq; Type: SEQUENCE; Schema: goose_export; Owner: -
+--
+
+CREATE SEQUENCE vouchers_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: vouchers_id_seq; Type: SEQUENCE OWNED BY; Schema: goose_export; Owner: -
+--
+
+ALTER SEQUENCE vouchers_id_seq OWNED BY vouchers.id;
+
+
+--
+-- Name: account_auxiliaries id; Type: DEFAULT; Schema: goose_export; Owner: -
+--
+
+ALTER TABLE ONLY account_auxiliaries ALTER COLUMN id SET DEFAULT nextval('account_auxiliaries_id_seq'::regclass);
+
+
+--
+-- Name: account_balances id; Type: DEFAULT; Schema: goose_export; Owner: -
+--
+
+ALTER TABLE ONLY account_balances ALTER COLUMN id SET DEFAULT nextval('account_balances_id_seq'::regclass);
+
+
+--
+-- Name: account_book_members id; Type: DEFAULT; Schema: goose_export; Owner: -
+--
+
+ALTER TABLE ONLY account_book_members ALTER COLUMN id SET DEFAULT nextval('account_book_members_id_seq'::regclass);
+
+
+--
+-- Name: account_books id; Type: DEFAULT; Schema: goose_export; Owner: -
+--
+
+ALTER TABLE ONLY account_books ALTER COLUMN id SET DEFAULT nextval('account_books_id_seq'::regclass);
+
+
+--
+-- Name: accounting_periods id; Type: DEFAULT; Schema: goose_export; Owner: -
+--
+
+ALTER TABLE ONLY accounting_periods ALTER COLUMN id SET DEFAULT nextval('accounting_periods_id_seq'::regclass);
+
+
+--
+-- Name: accounts id; Type: DEFAULT; Schema: goose_export; Owner: -
+--
+
+ALTER TABLE ONLY accounts ALTER COLUMN id SET DEFAULT nextval('accounts_id_seq'::regclass);
+
+
+--
+-- Name: approval_records id; Type: DEFAULT; Schema: goose_export; Owner: -
+--
+
+ALTER TABLE ONLY approval_records ALTER COLUMN id SET DEFAULT nextval('approval_records_id_seq'::regclass);
+
+
+--
+-- Name: arap_allocations id; Type: DEFAULT; Schema: goose_export; Owner: -
+--
+
+ALTER TABLE ONLY arap_allocations ALTER COLUMN id SET DEFAULT nextval('arap_allocations_id_seq'::regclass);
+
+
+--
+-- Name: arap_transactions id; Type: DEFAULT; Schema: goose_export; Owner: -
+--
+
+ALTER TABLE ONLY arap_transactions ALTER COLUMN id SET DEFAULT nextval('arap_transactions_id_seq'::regclass);
+
+
+--
+-- Name: asset_depreciations id; Type: DEFAULT; Schema: goose_export; Owner: -
+--
+
+ALTER TABLE ONLY asset_depreciations ALTER COLUMN id SET DEFAULT nextval('asset_depreciations_id_seq'::regclass);
+
+
+--
+-- Name: attachments id; Type: DEFAULT; Schema: goose_export; Owner: -
+--
+
+ALTER TABLE ONLY attachments ALTER COLUMN id SET DEFAULT nextval('attachments_id_seq'::regclass);
+
+
+--
+-- Name: audit_logs id; Type: DEFAULT; Schema: goose_export; Owner: -
+--
+
+ALTER TABLE ONLY audit_logs ALTER COLUMN id SET DEFAULT nextval('audit_logs_id_seq'::regclass);
+
+
+--
+-- Name: auxiliary_items id; Type: DEFAULT; Schema: goose_export; Owner: -
+--
+
+ALTER TABLE ONLY auxiliary_items ALTER COLUMN id SET DEFAULT nextval('auxiliary_items_id_seq'::regclass);
+
+
+--
+-- Name: bank_statements id; Type: DEFAULT; Schema: goose_export; Owner: -
+--
+
+ALTER TABLE ONLY bank_statements ALTER COLUMN id SET DEFAULT nextval('bank_statements_id_seq'::regclass);
+
+
+--
+-- Name: budget_adjusts id; Type: DEFAULT; Schema: goose_export; Owner: -
+--
+
+ALTER TABLE ONLY budget_adjusts ALTER COLUMN id SET DEFAULT nextval('budget_adjusts_id_seq'::regclass);
+
+
+--
 -- Name: budgets id; Type: DEFAULT; Schema: goose_export; Owner: -
 --
 
@@ -3638,6 +3774,234 @@ ALTER TABLE ONLY cash_transactions
 --
 
 ALTER TABLE ONLY cash_transactions
+    ADD CONSTRAINT cash_transactions_voucher_id_fkey FOREIGN KEY (voucher_id) REFERENCES vouchers(id);
+
+
+--
+-- Name: contact_profiles contact_profiles_dept_id_fkey; Type: FK CONSTRAINT; Schema: goose_export; Owner: -
+--
+
+ALTER TABLE ONLY contact_profiles
+    ADD CONSTRAINT contact_profiles_dept_id_fkey FOREIGN KEY (dept_id) REFERENCES departments(id);
+
+
+--
+-- Name: contact_profiles contact_profiles_updated_by_fkey; Type: FK CONSTRAINT; Schema: goose_export; Owner: -
+--
+
+ALTER TABLE ONLY contact_profiles
+    ADD CONSTRAINT contact_profiles_updated_by_fkey FOREIGN KEY (updated_by) REFERENCES users(id);
+
+
+--
+-- Name: contact_profiles contact_profiles_user_id_fkey; Type: FK CONSTRAINT; Schema: goose_export; Owner: -
+--
+
+ALTER TABLE ONLY contact_profiles
+    ADD CONSTRAINT contact_profiles_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
+
+
+--
+-- Name: departments departments_parent_id_fkey; Type: FK CONSTRAINT; Schema: goose_export; Owner: -
+--
+
+ALTER TABLE ONLY departments
+    ADD CONSTRAINT departments_parent_id_fkey FOREIGN KEY (parent_id) REFERENCES departments(id);
+
+
+--
+-- Name: equipment_assets equipment_assets_batch_id_fkey; Type: FK CONSTRAINT; Schema: goose_export; Owner: -
+--
+
+ALTER TABLE ONLY equipment_assets
+    ADD CONSTRAINT equipment_assets_batch_id_fkey FOREIGN KEY (batch_id) REFERENCES equipment_batches(id);
+
+
+--
+-- Name: equipment_assets equipment_assets_created_by_fkey; Type: FK CONSTRAINT; Schema: goose_export; Owner: -
+--
+
+ALTER TABLE ONLY equipment_assets
+    ADD CONSTRAINT equipment_assets_created_by_fkey FOREIGN KEY (created_by) REFERENCES users(id);
+
+
+--
+-- Name: equipment_assets equipment_assets_holder_id_fkey; Type: FK CONSTRAINT; Schema: goose_export; Owner: -
+--
+
+ALTER TABLE ONLY equipment_assets
+    ADD CONSTRAINT equipment_assets_holder_id_fkey FOREIGN KEY (holder_id) REFERENCES users(id);
+
+
+--
+-- Name: equipment_batches equipment_batches_created_by_fkey; Type: FK CONSTRAINT; Schema: goose_export; Owner: -
+--
+
+ALTER TABLE ONLY equipment_batches
+    ADD CONSTRAINT equipment_batches_created_by_fkey FOREIGN KEY (created_by) REFERENCES users(id);
+
+
+--
+-- Name: equipment_events equipment_events_actor_id_fkey; Type: FK CONSTRAINT; Schema: goose_export; Owner: -
+--
+
+ALTER TABLE ONLY equipment_events
+    ADD CONSTRAINT equipment_events_actor_id_fkey FOREIGN KEY (actor_id) REFERENCES users(id);
+
+
+--
+-- Name: equipment_events equipment_events_asset_id_fkey; Type: FK CONSTRAINT; Schema: goose_export; Owner: -
+--
+
+ALTER TABLE ONLY equipment_events
+    ADD CONSTRAINT equipment_events_asset_id_fkey FOREIGN KEY (asset_id) REFERENCES equipment_assets(id);
+
+
+--
+-- Name: equipment_events equipment_events_batch_id_fkey; Type: FK CONSTRAINT; Schema: goose_export; Owner: -
+--
+
+ALTER TABLE ONLY equipment_events
+    ADD CONSTRAINT equipment_events_batch_id_fkey FOREIGN KEY (batch_id) REFERENCES equipment_batches(id);
+
+
+--
+-- Name: equipment_events equipment_events_holder_id_fkey; Type: FK CONSTRAINT; Schema: goose_export; Owner: -
+--
+
+ALTER TABLE ONLY equipment_events
+    ADD CONSTRAINT equipment_events_holder_id_fkey FOREIGN KEY (holder_id) REFERENCES users(id);
+
+
+--
+-- Name: expenses expenses_approved_by_fkey; Type: FK CONSTRAINT; Schema: goose_export; Owner: -
+--
+
+ALTER TABLE ONLY expenses
+    ADD CONSTRAINT expenses_approved_by_fkey FOREIGN KEY (approved_by) REFERENCES users(id);
+
+
+--
+-- Name: expenses expenses_by_id_fkey; Type: FK CONSTRAINT; Schema: goose_export; Owner: -
+--
+
+ALTER TABLE ONLY expenses
+    ADD CONSTRAINT expenses_by_id_fkey FOREIGN KEY (by_id) REFERENCES users(id);
+
+
+--
+-- Name: expenses expenses_project_id_fkey; Type: FK CONSTRAINT; Schema: goose_export; Owner: -
+--
+
+ALTER TABLE ONLY expenses
+    ADD CONSTRAINT expenses_project_id_fkey FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE;
+
+
+--
+-- Name: fixed_assets fixed_assets_account_book_id_fkey; Type: FK CONSTRAINT; Schema: goose_export; Owner: -
+--
+
+ALTER TABLE ONLY fixed_assets
+    ADD CONSTRAINT fixed_assets_account_book_id_fkey FOREIGN KEY (account_book_id) REFERENCES account_books(id) ON DELETE CASCADE;
+
+
+--
+-- Name: fixed_assets fixed_assets_created_by_fkey; Type: FK CONSTRAINT; Schema: goose_export; Owner: -
+--
+
+ALTER TABLE ONLY fixed_assets
+    ADD CONSTRAINT fixed_assets_created_by_fkey FOREIGN KEY (created_by) REFERENCES users(id);
+
+
+--
+-- Name: account_auxiliaries fk_account_auxiliary_account_same_book; Type: FK CONSTRAINT; Schema: goose_export; Owner: -
+--
+
+ALTER TABLE ONLY account_auxiliaries
+    ADD CONSTRAINT fk_account_auxiliary_account_same_book FOREIGN KEY (account_book_id, account_id) REFERENCES accounts(account_book_id, id) ON DELETE CASCADE;
+
+
+--
+-- Name: account_auxiliaries fk_account_auxiliary_item_same_book; Type: FK CONSTRAINT; Schema: goose_export; Owner: -
+--
+
+ALTER TABLE ONLY account_auxiliaries
+    ADD CONSTRAINT fk_account_auxiliary_item_same_book FOREIGN KEY (account_book_id, auxiliary_item_id) REFERENCES auxiliary_items(account_book_id, id) ON DELETE CASCADE;
+
+
+--
+-- Name: account_balances fk_account_balance_account_same_book; Type: FK CONSTRAINT; Schema: goose_export; Owner: -
+--
+
+ALTER TABLE ONLY account_balances
+    ADD CONSTRAINT fk_account_balance_account_same_book FOREIGN KEY (account_book_id, account_id) REFERENCES accounts(account_book_id, id) ON DELETE CASCADE;
+
+
+--
+-- Name: account_balances fk_account_balance_period_same_book; Type: FK CONSTRAINT; Schema: goose_export; Owner: -
+--
+
+ALTER TABLE ONLY account_balances
+    ADD CONSTRAINT fk_account_balance_period_same_book FOREIGN KEY (account_book_id, period_id) REFERENCES accounting_periods(account_book_id, id) ON DELETE CASCADE;
+
+
+--
+-- Name: accounts fk_accounts_parent_same_book; Type: FK CONSTRAINT; Schema: goose_export; Owner: -
+--
+
+ALTER TABLE ONLY accounts
+    ADD CONSTRAINT fk_accounts_parent_same_book FOREIGN KEY (account_book_id, parent_id) REFERENCES accounts(account_book_id, id);
+
+
+--
+-- Name: arap_transactions fk_arap_period_same_book; Type: FK CONSTRAINT; Schema: goose_export; Owner: -
+--
+
+ALTER TABLE ONLY arap_transactions
+    ADD CONSTRAINT fk_arap_period_same_book FOREIGN KEY (account_book_id, period_id) REFERENCES accounting_periods(account_book_id, id);
+
+
+--
+-- Name: asset_depreciations fk_asset_depreciation_asset_same_book; Type: FK CONSTRAINT; Schema: goose_export; Owner: -
+--
+
+ALTER TABLE ONLY asset_depreciations
+    ADD CONSTRAINT fk_asset_depreciation_asset_same_book FOREIGN KEY (account_book_id, asset_id) REFERENCES fixed_assets(account_book_id, id) ON DELETE CASCADE;
+
+
+--
+-- Name: asset_depreciations fk_asset_depreciation_period_same_book; Type: FK CONSTRAINT; Schema: goose_export; Owner: -
+--
+
+ALTER TABLE ONLY asset_depreciations
+    ADD CONSTRAINT fk_asset_depreciation_period_same_book FOREIGN KEY (account_book_id, period_id) REFERENCES accounting_periods(account_book_id, id) ON DELETE CASCADE;
+
+
+--
+-- Name: cash_transactions fk_cash_transaction_account_same_book; Type: FK CONSTRAINT; Schema: goose_export; Owner: -
+--
+
+ALTER TABLE ONLY cash_transactions
+    ADD CONSTRAINT fk_cash_transaction_account_same_book FOREIGN KEY (account_book_id, account_id) REFERENCES accounts(account_book_id, id);
+
+
+--
+-- Name: cash_transactions fk_cash_transaction_offset_same_book; Type: FK CONSTRAINT; Schema: goose_export; Owner: -
+--
+
+ALTER TABLE ONLY cash_transactions
+    ADD CONSTRAINT fk_cash_transaction_offset_same_book FOREIGN KEY (account_book_id, offset_account_id) REFERENCES accounts(account_book_id, id);
+
+
+--
+-- Name: cash_transactions fk_cash_transaction_period_same_book; Type: FK CONSTRAINT; Schema: goose_export; Owner: -
+--
+
+ALTER TABLE ONLY cash_transactions
+    ADD CONSTRAINT fk_cash_transaction_period_same_book FOREIGN KEY (account_book_id, period_id) REFERENCES accounting_periods(account_book_id, id);
+
+
+--
 -- Name: contact_profiles fk_contact_profiles_manager_contact; Type: FK CONSTRAINT; Schema: goose_export; Owner: -
 --
 
@@ -4122,6 +4486,8 @@ ALTER TABLE ONLY vouchers
 --
 
 
+
+
 -- +goose Down
-DROP TABLE IF EXISTS account_auxiliaries, account_balances, account_book_members, account_books, accounting_periods, accounts, approval_records, arap_allocations, arap_transactions, asset_depreciations, attachments, audit_logs, auxiliary_items, bank_statements, budget_adjusts, budgets, cash_transactions, contact_profiles, departments, dicts, equipment_assets, equipment_batches, equipment_events, expenses, fixed_assets, followups, milestones, notifications, opening_balances, opportunities, partner_contracts, partners, progress_logs, project_changes, project_members, project_receivable_payments, project_receivables, projects, roles, sys_params, tasks, token_blacklist, user_modules, user_roles, users, voucher_entries, voucher_templates, vouchers CASCADE;
+DROP TABLE IF EXISTS account_auxiliaries,account_balances,account_book_members,account_books,accounting_periods,accounts,approval_records,arap_allocations,arap_transactions,asset_depreciations,attachments,audit_logs,auxiliary_items,bank_statements,budget_adjusts,budgets,cash_transactions,contact_profiles,departments,dicts,equipment_assets,equipment_batches,equipment_events,expenses,fixed_assets,followups,milestones,notifications,opening_balances,opportunities,partner_contracts,partners,progress_logs,project_changes,project_members,project_receivable_payments,project_receivables,projects,roles,sys_params,tasks,token_blacklist,user_modules,user_roles,users,voucher_entries,voucher_templates,vouchers CASCADE;
 DROP FUNCTION IF EXISTS prevent_equipment_event_change();
