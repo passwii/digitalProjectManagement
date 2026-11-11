@@ -1,4 +1,4 @@
-# python
+# python（scripts/ 下仍有运维/验收脚本，本地运行会生成缓存）
 __pycache__/
 *.py[cod]
 .pytest_cache/
