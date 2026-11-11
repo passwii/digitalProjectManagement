@@ -35,5 +35,5 @@ python3 docs/prototypes/blf-1127-mobile-pwa/verify.py
 ## 这是原型，不是成品代码
 
 - 视觉令牌与动效曲线都取自 `web/app/globals.css` 与 `components/ui/Shell.module.css`，可 1:1 迁移；
-- 业务数据取自 `scripts/seed_mock.py` 的真实演示项目（企业官网改版 / CRM 系统一期实施）；
+- 业务数据取自当时的 `scripts/seed_mock.py` 的真实演示项目（企业官网改版 / CRM 系统一期实施）；该脚本已随 Python 后端删除，现由 `api/cmd/seed-demo` 生成演示数据；
 - 落地映射见 `docs/superpowers/specs/2026-09-18-mobile-pwa-navigation-design.md` 第 7 节。

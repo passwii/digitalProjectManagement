@@ -222,6 +222,7 @@ CREATE TABLE tax_policies (
 ## 8. 迁移与可重复执行要求（验收项）
 
 1. P0-A/B/C 迁移脚本遵循 AGENTS.md Alembic 约定：`alembic revision --rev-id <下一序号>`，
-   单 head，`check_alembic.py` 全绿。
+   单 head，`check_alembic.py` 全绿（注：`check_alembic.py` 已随 Python/Alembic 后端删除；
+   当前迁移由 `api/pkg/migrations/` 的 Goose 基线与 Go 测试覆盖，见 `TESTING.md` §4.5）。
 2. 迁移在空库可重复执行：`upgrade → downgrade → upgrade` 后表结构与约束一致。
 3. 预置科目、现金流项目、税率占位参数以 seed 导入，seed 幂等（按 code/version 去重）。
