@@ -13,9 +13,18 @@ import { MODAL_BODY_ATTR, MODAL_CLOSE_ATTR, resolveInitialFocus } from "@/lib/mo
 import type { ShellNavItem } from "@/lib/globalNav";
 import s from "./MobileMoreSheet.module.css";
 
-const EXIT_MS = 320;
 const BODY_MARK = { [MODAL_BODY_ATTR]: "true" };
 const CLOSE_MARK = { [MODAL_CLOSE_ATTR]: "true" };
+
+/** 从全站动效令牌解析毫秒数，确保退出清理与 CSS 过渡同源。 */
+function cssDurationMs(name: string): number {
+  if (typeof window === "undefined") return 0;
+  const raw = window.getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  if (!raw) return 0;
+  const value = Number.parseFloat(raw);
+  if (!Number.isFinite(value)) return 0;
+  return raw.endsWith("ms") ? value : value * 1000;
+}
 
 /**
  * 「更多」底部 sheet（≤767px）。
@@ -64,7 +73,7 @@ export default function MobileMoreSheet({
     const timer = window.setTimeout(() => {
       setPresent(false);
       handleExitComplete();
-    }, reduced ? 0 : EXIT_MS);
+    }, reduced ? 0 : cssDurationMs("--av-dur-base"));
     return () => window.clearTimeout(timer);
   }, [open, present, reduced, handleExitComplete]);
 
