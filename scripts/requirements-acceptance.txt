@@ -1,0 +1,23 @@
+# 验收/工具脚本依赖（人工运行，不参与生产镜像，也不进 API 测试套件）
+#
+# 需要 playwright 的浏览器验收脚本：
+#   scripts/acceptance_blf1093.py
+#   scripts/acceptance_blf1127_mobile.py
+#   scripts/acceptance_blf1140.py
+#   scripts/acceptance_blf1141_user_menu.py
+#   scripts/acceptance_blf1389_mobile.py
+#   scripts/acceptance_tablet_landscape.py
+#   scripts/test_tablet_layout_browser.py
+#   scripts/test_acceptance_tablet_landscape.py（只 import 验收模块，不启动浏览器）
+#   docs/prototypes/blf-1127-mobile-pwa/verify.py
+# 需要 Pillow 的图标/截图工具与单测：
+#   scripts/gen_pwa_icons.py
+#   scripts/av-artifact-shrink.py
+#   scripts/test_gen_pwa_icons.py
+#
+# 安装（Python 3.10+）：
+#   python3 -m pip install -r scripts/requirements-acceptance.txt
+# 浏览器验收脚本用 channel="chrome" 驱动本机已安装的 Google Chrome，不会下载
+# Playwright 自带 Chromium，因此不需要执行 `playwright install`。
+playwright
+Pillow

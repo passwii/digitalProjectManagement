@@ -1,0 +1,12 @@
+# 运维/数据脚本依赖（不进生产 API 镜像，也不参与 API 测试套件）
+#
+# 适用脚本：
+#   scripts/migrate_attachments_to_r2.py   psycopg3 直连 PostgreSQL，boto3 走 S3/R2
+#   scripts/rekey_r2_objects.py            psycopg3 直连 PostgreSQL
+#   scripts/e2e_attachments_r2.py          requests + boto3 + psycopg3（附件端到端走查）
+#
+# 安装（Python 3.10+）：
+#   python3 -m pip install -r scripts/requirements-ops.txt
+boto3
+psycopg[binary]
+requests

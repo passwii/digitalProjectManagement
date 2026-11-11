@@ -19,7 +19,7 @@
 · **不吞错**：任何上传失败都以非 0 退出码结束，便于放进发布流程做闸门。
 
 本脚本是独立的运维脚本：只用 psycopg3 连 PostgreSQL、用 boto3 连 R2，
-不依赖已归档的 Python 后端代码，也不会在导入期连接数据库。依赖见 `scripts/requirements.txt`。
+不依赖已归档的 Python 后端代码，也不会在导入期连接数据库。依赖见 `scripts/requirements-ops.txt`。
 
 用法
 ----
