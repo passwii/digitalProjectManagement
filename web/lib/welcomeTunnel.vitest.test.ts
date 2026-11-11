@@ -21,7 +21,9 @@ import {
   heroFrame,
   isEndStateActive,
   progressFromDrag,
+  progressFromKey,
   progressFromScroll,
+  TUNNEL_KEYBOARD_STEP,
   scrollCueOpacity,
   tunnelDepth,
 } from "./welcomeTunnel";
@@ -192,5 +194,30 @@ describe("空间布局", () => {
     expect(STATIC_FRAME_PROGRESS).toBeGreaterThan(0);
     expect(STATIC_FRAME_PROGRESS).toBeLessThan(END_THRESHOLD);
     expect(isEndStateActive(STATIC_FRAME_PROGRESS)).toBe(false);
+  });
+});
+
+
+describe("键盘推进", () => {
+  it("ArrowDown / PageDown / Space 前进一个步长", () => {
+    for (const key of ["ArrowDown", "PageDown", " "]) {
+      expect(progressFromKey(0.2, key)).toBeCloseTo(0.2 + TUNNEL_KEYBOARD_STEP);
+    }
+  });
+
+  it("ArrowUp / PageUp 回退一个步长", () => {
+    for (const key of ["ArrowUp", "PageUp"]) {
+      expect(progressFromKey(0.5, key)).toBeCloseTo(0.5 - TUNNEL_KEYBOARD_STEP);
+    }
+  });
+
+  it("端点夹紧到 0..1", () => {
+    expect(progressFromKey(0.95, "PageDown")).toBe(1);
+    expect(progressFromKey(0.05, "PageUp")).toBe(0);
+  });
+
+  it("Enter / Tab 不归隧道处理", () => {
+    expect(progressFromKey(0.2, "Enter")).toBeNull();
+    expect(progressFromKey(0.2, "Tab")).toBeNull();
   });
 });

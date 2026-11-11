@@ -154,6 +154,10 @@
   top: calc(100% + 10px);
   left: 50%;
   width: clamp(260px, calc(100vw - 28px), 520px);
+  max-height: calc(100svh - 96px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
   box-sizing: border-box;
   padding: 10px;
   border: 1px solid var(--line);
@@ -330,6 +334,7 @@
 
   .more {
     top: calc(100% + 8px);
+    max-height: calc(100svh - 76px);
   }
 
   .moreGrid {

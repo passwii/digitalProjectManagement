@@ -6,6 +6,7 @@ import {
   dedupeNavItems,
   findActiveNavItem,
   navItemMatchesPath,
+  projectScopedShortcutHrefs,
   splitNav,
   type ShellNavItem,
 } from "./globalNav";
@@ -302,5 +303,29 @@ describe("findActiveNavItem", () => {
     const found = findActiveNavItem([item("/finance"), settings], "/finance/settings");
 
     expect(found).toBe(settings);
+  });
+});
+
+
+describe("项目模块快捷入口", () => {
+  it("有 /projects 时补 progress 与 costs", () => {
+    expect(projectScopedShortcutHrefs([item("/dashboard"), item("/projects")])).toEqual([
+      "/progress",
+      "/costs",
+    ]);
+  });
+
+  it("没有 /projects 时不凭空暴露项目子视图", () => {
+    expect(projectScopedShortcutHrefs([item("/dashboard"), item("/approvals")])).toEqual([]);
+  });
+
+  it("已有 progress/costs 时不重复补位", () => {
+    expect(
+      projectScopedShortcutHrefs([item("/projects"), item("/progress"), item("/costs")]),
+    ).toEqual([]);
+  });
+
+  it("query / 尾斜杠按同一入口处理", () => {
+    expect(projectScopedShortcutHrefs([item("/projects/?tab=1")])).toEqual(["/progress", "/costs"]);
   });
 });

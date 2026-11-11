@@ -38,6 +38,24 @@ export const TUNNEL_CARD_COUNT = WELCOME_CARDS.length;
 /** 每张卡片在 0..1 进度轴上占据的区间宽度（草稿里的 55%）。 */
 export const TUNNEL_CARD_SPAN = 0.55;
 
+/** 键盘一次推进/回退的进度步长：约等于一屏滚轮。 */
+export const TUNNEL_KEYBOARD_STEP = 0.14;
+
+/**
+ * 键盘推进/回退：返回 null 表示该按键不归隧道处理。
+ * 空格在浏览器里默认滚动页面，但隧道是不可滚动的自定义手势面，必须显式接管。
+ */
+export function progressFromKey(progress: number, key: string): number | null {
+  const current = Math.min(1, Math.max(0, progress));
+  if (key === "ArrowDown" || key === "PageDown" || key === " " || key === "Spacebar") {
+    return Math.min(1, current + TUNNEL_KEYBOARD_STEP);
+  }
+  if (key === "ArrowUp" || key === "PageUp") {
+    return Math.max(0, current - TUNNEL_KEYBOARD_STEP);
+  }
+  return null;
+}
+
 /** 每条滚轮像素对应的进度。约 1250px 到底，符合一次长滚动的手感。 */
 export const SCROLL_PROGRESS_PER_PIXEL = 0.0008;
 

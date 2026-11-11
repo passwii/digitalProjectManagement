@@ -96,6 +96,23 @@ export function findActiveNavItem(
 }
 
 /**
+ * 项目模块附带的两个快捷入口。
+ *
+ * 后端 RBAC 模块目录里没有独立的 `progress` / `costs` 模块：这两个页面是项目台账的
+ * 子视图，权限由「项目」模块 + 后端项目范围共同约束。因此不能硬编码进主入口，只在
+ * 用户确实拿到 `/projects` 时补位，避免给没有项目权限的人显示必然 403 的入口。
+ */
+export const PROJECT_SCOPED_SHORTCUTS = ["/progress", "/costs"] as const;
+
+export function projectScopedShortcutHrefs(items: readonly ShellNavItem[]): string[] {
+  const hasProjects = items.some((item) => canonicalNavHref(item.href) === "/projects");
+  if (!hasProjects) return [];
+  return PROJECT_SCOPED_SHORTCUTS.filter(
+    (href) => !items.some((item) => canonicalNavHref(item.href) === href),
+  );
+}
+
+/**
  * 按 href 去重：保留第一次出现的项（顺序稳定，便于 output 与输入对齐）。
  * 主入口 / 补位 / 更多都消费这份去重结果。
  */

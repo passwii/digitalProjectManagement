@@ -18,6 +18,7 @@ import { useTheme } from "@/components/theme/ThemeProvider";
 import { ToastProvider } from "@/components/ui/Toast";
 import MotionProvider from "@/components/motion/MotionProvider";
 import CenteredNavbar from "@/components/shell/CenteredNavbar";
+import { projectScopedShortcutHrefs } from "@/lib/globalNav";
 import { PageTitleContext } from "@/components/ui/PageTitleContext";
 import s from "@/components/ui/Shell.module.css";
 
@@ -424,9 +425,16 @@ function DashboardShell({ children, modal }: { children: React.ReactNode; modal?
       .map((m) => ({ href: m.href, label: m.label || LABEL[m.href] || m.href }));
     // 权限同步失败时才退回参与性入口并提示重试；空菜单是合法的「未分配任何模块」，
     // 此时只保留恒可见的工作台与本地 Spark 入口（Stage 5：模块按用户手动分配）。
+    // 进度/支出是项目台账的子视图，后端没有独立模块；有项目权限时补进主入口，
+    // 没有项目权限时保持「更多」里的真实模块，不凭空暴露 403 页面。
+    const shortcuts = projectScopedShortcutHrefs(fromMenus).map((href) => ({
+      href,
+      label: LABEL[href],
+      icon: ICON[href],
+    }));
     const list = permsError
       ? BASE_HREFS.map((href) => ({ href, label: LABEL[href] }))
-      : [{ href: "/dashboard", label: LABEL["/dashboard"] }, ...fromMenus];
+      : [{ href: "/dashboard", label: LABEL["/dashboard"] }, ...fromMenus, ...shortcuts];
     const out: NavItem[] = [];
     for (const it of list) {
       if (out.some((o) => o.href === it.href)) continue;

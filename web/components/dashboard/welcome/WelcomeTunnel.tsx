@@ -25,6 +25,7 @@ import {
   heroFrame,
   isEndStateActive,
   progressFromDrag,
+  progressFromKey,
   progressFromScroll,
   scrollCueOpacity,
   tunnelDepth,
@@ -240,6 +241,15 @@ export default function WelcomeTunnel() {
         reset();
         return;
       }
+      const next = progressFromKey(targetRef.current, event.key);
+      if (next !== null) {
+        if (isInteractiveTarget(event.target)) return;
+        event.preventDefault();
+        targetRef.current = next;
+        wake();
+        return;
+      }
+
       if (event.key !== "Enter") return;
       if (!isEndStateActive(targetRef.current)) return;
       if (isInteractiveTarget(event.target)) return;
