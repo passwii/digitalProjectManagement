@@ -56,7 +56,6 @@ describe("PageHeader", () => {
       "progress",
       "costs",
       "reports",
-      "dashboard",
       "approvals",
       "finance",
       "admin",
@@ -68,6 +67,17 @@ describe("PageHeader", () => {
       );
       expect(source, page).toContain("PageHeader");
     }
+  });
+
+  it("dashboard 不再使用 PageHeader，欢迎页自己提供唯一 h1", () => {
+    const page = readFileSync(resolve(__dirname, "../app/(dashboard)/dashboard/page.tsx"), "utf8");
+    const welcome = readFileSync(
+      resolve(__dirname, "../components/dashboard/welcome/WelcomeTunnel.tsx"),
+      "utf8",
+    );
+    expect(page).not.toContain("PageHeader");
+    expect(welcome).toContain("<h1");
+    expect(welcome.match(/<h1/g)).toHaveLength(1);
   });
 
   it("有筛选的页面不再保留一级 toolbar-card", () => {

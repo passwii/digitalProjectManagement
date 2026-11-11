@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { m, useReducedMotion } from "framer-motion";
@@ -16,9 +16,8 @@ import Bell from "@/components/ui/Bell";
 import ThemeModePicker from "@/components/theme/ThemeModePicker";
 import { useTheme } from "@/components/theme/ThemeProvider";
 import { ToastProvider } from "@/components/ui/Toast";
-import ActivityBar from "@/components/motion/ActivityBar";
 import MotionProvider from "@/components/motion/MotionProvider";
-import MobileDock from "@/components/mobile/MobileDock";
+import CenteredNavbar from "@/components/shell/CenteredNavbar";
 import { PageTitleContext } from "@/components/ui/PageTitleContext";
 import s from "@/components/ui/Shell.module.css";
 
@@ -60,6 +59,18 @@ const ICON: Record<string, React.ReactNode> = {
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
       <path d="M5 3h14v18H5z" />
       <path d="M9 8h6M9 12h6M9 16h4" />
+    </svg>
+  ),
+  "/progress": (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M4 19V5M4 19h16" />
+      <path d="M8 16v-4M12 16v-8M16 16v-6" />
+    </svg>
+  ),
+  "/costs": (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="6" width="18" height="12" rx="2" />
+      <path d="M3 10h18M7 15h4" />
     </svg>
   ),
   "/approvals": (
@@ -133,6 +144,8 @@ interface NavItem {
   href: string;
   label: string;
   icon?: React.ReactNode;
+  external?: boolean;
+  target?: string;
 }
 
 /**
@@ -377,9 +390,8 @@ function UserMenu({ name, onLogout }: { name: string | null; onLogout: () => voi
 function DashboardShell({ children, modal }: { children: React.ReactNode; modal?: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const [collapsed, setCollapsed] = useState(false);
   const { me, error: meError } = useMe();
-  const { menus, isAdmin, ready: permsReady, loading: permsLoading, error: permsError, reload: reloadMenus, canApprove } = useMenus();
+  const { menus, isAdmin, ready: permsReady, error: permsError, reload: reloadMenus } = useMenus();
   const reduced = useReducedMotion();
   /**
    * 手机形态下两个独立站点的入口**不带** `target`（BLF-1389）。
@@ -404,7 +416,6 @@ function DashboardShell({ children, modal }: { children: React.ReactNode; modal?
         : { pathname, title },
     );
   }, [pathname]);
-  const today = new Date().toISOString().slice(0, 10);
 
   const navItems = useMemo<NavItem[]>(() => {
     // Spark 是本地静态入口，不属于后端权限菜单。
@@ -423,10 +434,10 @@ function DashboardShell({ children, modal }: { children: React.ReactNode; modal?
     }
     // Spark 分组下两条独立站点入口：云电竞管理平台与智能音视频平台。
     // 两者是完全不同的产品，各自一个 target，互不抢同一个标签页。
-    out.push({ href: "/spark", label: LABEL["/spark"], icon: ICON["/spark"] });
-    out.push({ href: "/stream-monitor", label: LABEL["/stream-monitor"], icon: ICON["/stream-monitor"] });
+    out.push({ href: "/spark", label: LABEL["/spark"], icon: ICON["/spark"], external: true, target: isMobile ? undefined : SPARK_WINDOW_TARGET });
+    out.push({ href: "/stream-monitor", label: LABEL["/stream-monitor"], icon: ICON["/stream-monitor"], external: true, target: isMobile ? undefined : AV_WINDOW_TARGET });
     return out;
-  }, [menus, permsError]);
+  }, [menus, permsError, isMobile]);
 
   useEffect(() => {
     // must_change_pwd 的强制跳转仍在这里；复用 `loadMe()` 而不是再直接打一次
@@ -475,138 +486,55 @@ function DashboardShell({ children, modal }: { children: React.ReactNode; modal?
     <>
     <PageTitleContext.Provider value={registerPageTitle}>
       <div
-        className={`${s.shell} ${collapsed ? s.collapsed : ""}`}
+        className={s.shell}
         data-console-shell="true"
         data-console-route={pathname}
         data-dashboard-shell={pathname === "/dashboard" ? "true" : undefined}
       >
-      <a className="skip-link" href="#main-content">跳到主要内容</a>
-      <aside className={s.sidebar} data-shell="sidebar">
-        <div className={s.ws} data-testid="sidebar-brand">
-          <div className={`${s.wsName} ${collapsed ? s.wsNameCollapsed : ""}`} title="数科云办公">
-            {/*
-              侧栏印章与 PWA 图标（app/icon.svg）同源：双层细框 + 加粗字标 +
-              字下一根短线。图标里的深色大底和底部小字在 34px 下会糊成一团，
-              这里只取三处识别特征，字标右侧仍由 .brandText 承担。
-            */}
-            {collapsed ? (
-              <button
-                className={`${s.brandSeal} ${s.brandSealToggle}`}
-                type="button"
-                onClick={() => setCollapsed(false)}
-                aria-label="展开侧边栏"
-                title="展开侧边栏"
-              >
-                <span className={s.brandSealWord}>SHZK</span>
-                <span className={s.brandSealBar} />
-              </button>
-            ) : (
-              <span className={s.brandSeal} aria-hidden="true">
-                <span className={s.brandSealWord}>SHZK</span>
-                <span className={s.brandSealBar} />
-              </span>
-            )}
-            <span className={s.brandText}>
-              <b>数科云办公</b>
-            </span>
-          </div>
-            {collapsed ? null : (
-              <button
-                className={s.collapseBtn}
-                onClick={() => setCollapsed(true)}
-                aria-expanded="true"
-                aria-label="收起侧边栏"
-                title="收起侧边栏"
-              >
-                <svg viewBox="0 0 20 20" aria-hidden="true">
-                  <path d="m12.5 4.5-5.5 5.5 5.5 5.5" />
-                </svg>
-              </button>
-            )}
-        </div>
-        <nav className={s.nav} aria-label="主导航" aria-busy={permsLoading}>
-          {navItems.map((n) => {
-            const active = pathname === n.href || pathname.startsWith(n.href + "/");
-            const startsSparkGroup = n.href === "/spark";
-            return (
-              <Fragment key={n.href}>
-                {startsSparkGroup && (
-                  <span className={s.navGroupLabel} title="独立站点" aria-hidden={collapsed}>
-                    {collapsed ? "——" : "独立站点"}
-                  </span>
-                )}
-                <Link
-                  href={n.href}
-                  target={
-                    isMobile
-                      ? undefined
-                      : n.href === "/spark"
-                        ? SPARK_WINDOW_TARGET
-                        : n.href === "/stream-monitor"
-                          ? AV_WINDOW_TARGET
-                          : undefined
-                  }
-                  className={`${s.navLink} ${active ? s.active : ""}`}
-                  title={n.label}
-                  aria-current={active ? "page" : undefined}
-                >
-                  {n.icon}
-                  <span className={s.label}>{n.label}</span>
-                  {active && (
-                    <m.span
-                      layoutId="primary-nav-active"
-                      className={s.navActive}
-                      transition={{ duration: reduced ? 0 : AV_MOTION.quick, ease: AV_EASE.standard }}
-                    />
-                  )}
-                </Link>
-              </Fragment>
-            );
-          })}
-        </nav>
-        {permsError && (
-          <div className={s.navError} role="alert">
-            <span>权限信息加载失败，仅显示基础入口。</span>
-            <button className={s.navRetry} onClick={reloadMenus}>重试</button>
-          </div>
-        )}
-      </aside>
+        <a className="skip-link" href="#main-content">跳到主要内容</a>
 
-      <div className={s.main}>
-        <header className={s.topbar} data-shell="topbar">
-          <div className={s.topContext}>
-            <span className={s.topTitleMark} aria-hidden="true" />
-            <span className={s.topTitle} data-page-title="true">{pageTitle}</span>
-          </div>
-          <div className={s.topActions}>
-            <span className={s.topDate}>{today}</span>
-            <Bell />
-            <UserMenu name={displayName} onLogout={logout} />
-          </div>
-          <ActivityBar />
-        </header>
-        <main className={s.content} id="main-content" tabIndex={-1}>
-          <div className={s.contentInner}>
-            <m.div
-              key={pathname}
-              className={s.routeView}
-              initial={reduced ? false : { opacity: 0, y: 4 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: reduced ? 0 : AV_MOTION.base, ease: AV_EASE.enter }}
-            >
-              {children}
-            </m.div>
-          </div>
-        </main>
+        <Link href="/dashboard" className={s.brandFloat} aria-label="数科云办公首页">
+          <span className={s.brandSeal} aria-hidden="true">
+            <span className={s.brandSealWord}>SHZK</span>
+            <span className={s.brandSealBar} />
+          </span>
+          <span className={s.brandText}><b>数科云办公</b></span>
+        </Link>
+
+        <div className={s.navDock}>
+          <CenteredNavbar
+            items={navItems}
+            activeHref={pathname}
+            permsError={Boolean(permsError)}
+            onRetry={reloadMenus}
+          />
+        </div>
+
+        <div className={s.accountDock}>
+          <span className={s.accountBell}><Bell /></span>
+          <UserMenu name={displayName} onLogout={logout} />
+        </div>
+
+        <div className={s.main}>
+          <main className={s.content} id="main-content" tabIndex={-1}>
+            <div className={s.contentInner}>
+              {pathname !== "/dashboard" && (
+                <div className={s.pageHeading} aria-hidden="true">{pageTitle}</div>
+              )}
+              <m.div
+                key={pathname}
+                className={s.routeView}
+                initial={reduced ? false : { opacity: 0, y: 4 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: reduced ? 0 : AV_MOTION.base, ease: AV_EASE.enter }}
+              >
+                {children}
+              </m.div>
+            </div>
+          </main>
+        </div>
+        {modal}
       </div>
-      {modal}
-      <MobileDock
-        menus={menus}
-        ready={permsReady}
-        failed={Boolean(permsError)}
-        canApprove={canApprove}
-      />
-    </div>
     </PageTitleContext.Provider>
     </>
   );

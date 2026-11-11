@@ -109,11 +109,7 @@
     width: var(--m-tap);
     height: var(--m-tap);
   }
-  /* 已登录工作台的 Dock 固定在底部，安装提示抬到 Dock 上方；登录页没有 Dock，
-     保持原来的底部留白，避免提示挤压表单。 */
-  body:has(nav[data-shell="dock"]) .prompt {
-    bottom: calc(var(--m-dock-h) + var(--m-safe-b) + 16px);
-  }
+  /* 工作台已改为顶部居中药丸导航，不再有底部 Dock，安装提示保持在底部安全区上方。 */
 }
 
 @media (prefers-reduced-motion: no-preference) {

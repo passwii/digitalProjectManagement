@@ -48,8 +48,10 @@ describe("生产端中文界面文案", () => {
     const projectExpenses = source("app/(dashboard)/finance/ProjectExpensePanel.tsx");
 
     assert.doesNotMatch(dashboard, /把项目状态、介入事项与资金脉冲收束在同一张工作面上/);
-    assert.doesNotMatch(dashboard, /当前工作态势/);
-    assert.match(dashboard, /aria-label="工作台关键指标"/);
+    assert.doesNotMatch(dashboard, /当前工作态势|aria-label="工作台关键指标"|DashboardReadout|DashboardInterventionQueue|dashboardApi/);
+    const welcome = source("components/dashboard/welcome/WelcomeTunnel.tsx");
+    assert.match(welcome, /<h1/);
+    assert.match(welcome, /你好/);
     assert.doesNotMatch(finance, /项目成本与财务账独立；已审批支出可在/);
     assert.doesNotMatch(finance, /凭证流水，草稿、待审核和已过账状态由后端控制/);
     assert.doesNotMatch(finance, /凭证审核、过账和账簿取数由后端状态机控制/);

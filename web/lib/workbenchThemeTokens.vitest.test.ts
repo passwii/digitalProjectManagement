@@ -229,11 +229,13 @@ describe("authenticated workbench theme tokens", () => {
     const consoleShell = dashboardLayout.indexOf('data-console-shell="true"');
     const shellOpeningEnd = dashboardLayout.indexOf(">", consoleShell);
     const skipLink = dashboardLayout.indexOf('className="skip-link"');
-    const sidebar = dashboardLayout.indexOf('<aside className={s.sidebar}', shellOpeningEnd);
+    const brandFloat = dashboardLayout.indexOf('className={s.brandFloat}', shellOpeningEnd);
+    const navDock = dashboardLayout.indexOf('className={s.navDock}', shellOpeningEnd);
 
     expect(consoleShell).toBeGreaterThanOrEqual(0);
     expect(skipLink).toBeGreaterThan(shellOpeningEnd);
-    expect(skipLink).toBeLessThan(sidebar);
+    expect(skipLink).toBeLessThan(brandFloat);
+    expect(skipLink).toBeLessThan(navDock);
   });
 
   it("leaves root tokens available to the isolated login and demo surfaces", () => {
