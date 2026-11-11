@@ -5,7 +5,7 @@
 > 标记约定：`[现状]` 表示代码已实现；`[目标]` 表示推荐的目标架构或演进方向，不代表当前已经落地。<br>
 > 协作与交付规则见 `AGENTS.md`；测试怎么跑、合并看哪条 CI 见 `TESTING.md`。
 
-数科云办公是一套面向企业内部项目治理的数字化工作台，覆盖组织与账号、项目台账、进度任务、成本支出、审批、通知、报表、通讯录和安全审计。系统当前采用 **API-first 的 Go 模块化单体**（Gin + GORM），以 PostgreSQL 作为唯一业务系统记录，通过事务一致性、显式权限边界和审计留痕保证管理数据的可信度。原 FastAPI 后端归档在 `api/legacy_py/`，仅作为行为基线。
+数科云办公是一套面向企业内部项目治理的数字化工作台，覆盖组织与账号、项目台账、进度任务、成本支出、审批、通知、报表、通讯录和安全审计。系统当前采用 **API-first 的 Go 模块化单体**（Gin + GORM），以 PostgreSQL 作为唯一业务系统记录，通过事务一致性、显式权限边界和审计留痕保证管理数据的可信度。后端 API、schema 迁移与测试均在 Go 模块内；Python 仅用于运维/数据工具脚本。
 
 ---
 
@@ -185,7 +185,7 @@ PostgreSQL 是整个系统的 **System of Record**。预算审批、支出状态
 - `[现状]` `progress_logs` 只允许追加，任务 `progress` 是可重建的当前快照，避免覆盖历史。
 - `[现状]` 项目软删除通过 `deleted_at` 控制；普通查询和子表查询统一排除软删除项目。
 - `[目标]` 金额字段迁移为 `NUMERIC(18,2)` 或等价 Decimal 类型，避免 `Float` 累积误差。
-  `[现状]` 部分金额列仍是 `double precision`（归档模型见 `api/legacy_py/models/__init__.py`，
+  `[现状]` 部分金额列仍是 `double precision`（当前模型见 `api/internal/model/`，
   生产库实测 `budgets.amount` / `expenses.amount` / `projects.budget_total` / `budget_adjusts.old_amount|new_amount` 均为
   `double precision`），因此精度收敛仍待做。
 - `[目标]` 对管理员改参数、项目状态流转、审批决策增加乐观锁版本号或条件更新，防止并发覆盖。
@@ -207,8 +207,7 @@ PostgreSQL 是整个系统的 **System of Record**。预算审批、支出状态
 `timestamptz → timestamp` 隐式转换时按**会话时区**折算 —— 会话时区是 `Asia/Shanghai` 时
 看起来「正好对」（纯属巧合），换库 / 改 `TZ` / 新环境默认 UTC 就会全站偏 8 小时且不报错；
 读取侧再把 naive 值贴回 UTC 标签，同一根因就让「配置 15 分钟的登录锁定」实际生效
-8 小时 15 分。回归用例见 `tests/test_time_contract.py`（含「把会话 `TimeZone` 改成 `UTC`
-后落库值与出参不变」的断言）。
+8 小时 15 分。回归用例见 `api/pkg/timeutil/timeutil_test.go` 与 Go 集成用例（含会话时区变化后落库值与出参不变）。
 
 - `[目标]` 时间列整体迁到 `TIMESTAMPTZ`（`USING col AT TIME ZONE 'Asia/Shanghai'`），库里改存
   真正的 UTC 瞬时值。收益是口径最正，代价是一次生产 schema 迁移 + 全量校验；
@@ -249,7 +248,7 @@ PostgreSQL 是整个系统的 **System of Record**。预算审批、支出状态
 
 存量附件（BLF-1136 之前落在 `data/files/{pid}/...` 的行）仍按行内 `path` 读，不受布局变化影响；
 本地后端新写入的暂存路径为 `{STORAGE_LOCAL_ROOT}/{ref_type}/{ref_id}/{uuid}{ext}`，
-磁盘上不保留原始文件名（原名只存库里）。`scripts/seed_mock.py` 的演示数据仍用旧布局，属已知差异。
+磁盘上不保留原始文件名（原名只存库里）。基础字典与管理员由 Go `api/cmd/seed` 初始化；演示数据用 Go `api/cmd/seed-demo`。
 要让存量附件也不再依赖服务器磁盘，跑 `scripts/migrate_attachments_to_r2.py --apply --verify --delete-local`。
 
 项目附件、支出凭证、通讯录证件和劳动合同共用 `attachments` 表，通过 `ref_type`、`ref_id`、`category` 区分。
@@ -553,7 +552,7 @@ SELECT version_num FROM alembic_version;
 
 并确认两个合并分支的关键字段存在：`users.is_super_admin`、`equipment_assets.available_quantity`、`equipment_assets.inventory_managed`、`project_receivable_payments.updated_by`。
 
-- **数据库落后于该 head**：先用旧版镜像或本地 Python venv 执行 `alembic upgrade head`，再切换新镜像；新镜像不会代跑 Alembic。
+- **数据库落后于该 head**：先用旧版 API 镜像执行 `alembic upgrade head`，再切换新镜像；当前仓库已移除 Alembic 代码，不能从当前分支执行。
 - **空数据库**：Go/Goose 自动执行当前 schema 基线。
 - **启动报 `refusing Goose adoption`**：说明 head 或关键字段不匹配，先修复/升级旧库；不要手工删表或改 `alembic_version` 绕过检查。
 - **首次基线失败后重试**：Go/Goose 会忽略 `goose_db_version` 及其 identity sequence，可安全重启；若仍失败，保留日志并恢复备份。
@@ -706,7 +705,7 @@ flowchart TB
 | ADR-006 | 管理面与业务时间线分表 | 管理员审计语义与申请人看到的业务流转语义不同 | 需要明确两张表的查询边界 |
 | ADR-007 | 软删除而不是物理删除业务聚合 | 支持回收站、审计和引用完整性 | 所有查询必须显式下推软删除条件 |
 | ADR-008 | 先做可靠的模组，再考虑服务拆分 | 避免在没有负载证据时引入分布式复杂度 | 单体发布节奏仍需纪律 |
-| ADR-009 | 后端由 FastAPI 迁移为 Go / Gin / GORM 模块化单体，迁移由 Goose 管理 | 静态二进制部署、低运行时开销、强类型边界与统一 Go 工具链 | Python 仅保留为归档 FastAPI 行为基线、历史迁移回归与运维验收脚本 |
+| ADR-009 | 后端由 FastAPI 迁移为 Go / Gin / GORM 模块化单体，迁移由 Goose 管理 | 静态二进制部署、低运行时开销、强类型边界与统一 Go 工具链 | Python 仅保留为运维/数据工具脚本，不参与 API、迁移与测试 |
 
 ---
 

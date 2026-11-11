@@ -1,0 +1,5 @@
+# 附件迁移/运维脚本依赖（仅 ops 使用，不进生产 API 镜像）
+# scripts/migrate_attachments_to_r2.py: psycopg3 直连 PostgreSQL，boto3 走 S3/R2。
+boto3
+psycopg[binary]
+requests

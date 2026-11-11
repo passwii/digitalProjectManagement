@@ -34,7 +34,8 @@ HTTP 契约**（`web/lib/api.ts` 的 `projectsApi.upload` / `contactsApi.upload`
     --skip-oversize         跳过 100MB 界外用例（只有 1 秒，默认跑）
 
 退出码：全部用例通过 0，否则 1。对象级断言需要 `boto3` 与 `R2_*` 环境变量；
-数据库里取 `object_key` 需要本仓库可 import（`api.legacy_py.core.database`）。
+数据库里取 `object_key` / 元数据计数需要 `psycopg`（psycopg3）与 `DATABASE_URL`
+（PostgreSQL；SQLAlchemy 风格的 `postgresql+psycopg://` 会规范化为 libpq URL）。
 """
 from __future__ import annotations
 
@@ -48,13 +49,6 @@ from pathlib import Path
 from typing import Any
 
 import requests
-from sqlalchemy import select
-from sqlalchemy.orm import Session
-
-# `scripts/` 下直接 `python3 scripts/…` 运行时，仓库根不在 sys.path 上；
-# 与 `scripts/seed_mock.py` 同法把仓库根插进去，才能 import 到 `api.*`。
-ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT))
 
 API_BASE = os.environ.get("API_BASE", "http://127.0.0.1:8001/api/v1")
 USER = os.environ.get("PM_USER", "15796280534")
@@ -205,61 +199,75 @@ class R2:
         return len(self.client.list_objects_v2(Bucket=self.bucket).get("Contents", []))
 
 
-def _session() -> Session:
-    """只读会话：DATABASE_URL 复用 API 那一份（含 `.env` 解析）。
+def _database_url() -> str:
+    """DATABASE_URL → psycopg3 可直接连接 PostgreSQL 的 libpq URL。
 
-    返回类型写成 `Session`（并从 `sqlalchemy.orm` 导入），是给安全规则看来源：
-    附件坐标只能用 ORM 语句构建器（`select(...)` + 绑定参数）读，不拼接 SQL。
+    DATABASE_URL 沿用 API 那一份；SQLAlchemy 风格的驱动后缀
+    （`postgresql+psycopg://` / `+psycopg2` / `+asyncpg`）不是合法 libpq 连接串，
+    这里统一去掉，`postgres://` 也归一为 `postgresql://`。
     """
-    from api.legacy_py.core.database import SessionLocal
+    raw = (os.environ.get("DATABASE_URL") or "").strip()
+    if not raw:
+        raise RuntimeError("DATABASE_URL 未配置（需指向 PostgreSQL）")
+    if raw.startswith("postgres://"):
+        return "postgresql://" + raw[len("postgres://"):]
+    if raw.startswith("postgresql://"):
+        return raw
+    if raw.startswith("postgresql+") and "://" in raw:
+        return "postgresql://" + raw.split("://", 1)[1]
+    raise RuntimeError("DATABASE_URL 必须指向 PostgreSQL")
 
-    return SessionLocal()
+
+def _connect() -> Any:
+    """只读连接：脚本不跑迁移、不写库，用完即关（`with` 退出时关闭连接）。"""
+    try:
+        import psycopg
+    except ImportError as exc:  # 只有取对象键 / 元数据计数的用例需要
+        raise RuntimeError(
+            "缺少 psycopg（psycopg3），请先 pip install 'psycopg[binary]'"
+        ) from exc
+    return psycopg.connect(_database_url(), connect_timeout=10)
 
 
 def object_key(attachment_id: int) -> str:
     """从库里读对象键（前端拿不到、也不该用 R2 URL 热链）。
 
-    只发一条 `select`（单次语句构建器调用）+ 在 Python 里按 id 取行：验证库的
-    `attachments` 只有几十行，不为此再加一次带条件的查询。
+    一条按主键参数化的 `SELECT`：值走绑定参数，SQL 是静态字面量，不拼接。
     """
-    from api.legacy_py.models import Attachment
-
-    db: Session = _session()
     try:
-        # 语句构建器直接内联在 execute 参数位：结构上不可能拼 SQL（`select` 由 ORM 构造，
-        # 值与列标识符都走绑定/白名单，不是字符串拼接）。
-        rows = db.execute(select(Attachment.id, Attachment.object_key)).all()
-    except Exception as exc:  # 不在仓库根跑 / 缺 DATABASE_URL
+        with _connect() as conn, conn.cursor() as cur:
+            cur.execute(
+                "SELECT object_key FROM attachments WHERE id = %s",
+                (attachment_id,),
+            )
+            row = cur.fetchone()
+    except Exception as exc:  # 缺 DATABASE_URL / psycopg，或连不上库
         print(f"      （跳过对象键查询：{exc.__class__.__name__}: {exc}）")
         return ""
-    finally:
-        db.close()
-    for row_id, key in rows:
-        if row_id == attachment_id:
-            return key or ""
-    return ""
+    return (row[0] or "") if row else ""
 
 
 def metadata_count(where: str) -> int:
     """某入口当前附件元数据条数（用于断言「失败不产生元数据」）。
 
-    本地验证库里附件总数是几十行，全量取出后在 Python 里归类即可，
-    不在验证脚本里再拼一次查询条件。
+    与原来全量取回再归类等价，改成三条静态 SQL 分支 + 绑定参数，让库自己计数。
     """
-    from api.legacy_py.models import Attachment
-
-    db: Session = _session()
-    try:
-        rows = db.execute(select(Attachment.project_id, Attachment.ref_type)).all()
-    finally:
-        db.close()
     if where == "expense":
-        return sum(1 for row in rows if (row[1] or "") == "expense")
-    if where == "project":
-        return sum(
-            1 for row in rows if row[0] is not None and (row[1] or "") in ("", "contract")
+        sql = "SELECT count(*) FROM attachments WHERE ref_type = %s"
+        params: tuple[str, ...] = ("expense",)
+    elif where == "project":
+        sql = (
+            "SELECT count(*) FROM attachments "
+            "WHERE project_id IS NOT NULL AND COALESCE(ref_type, '') IN ('', 'contract')"
         )
-    return len(rows)
+        params = ()
+    else:
+        sql = "SELECT count(*) FROM attachments"
+        params = ()
+    with _connect() as conn, conn.cursor() as cur:
+        cur.execute(sql, params)
+        row = cur.fetchone()
+    return int(row[0]) if row else 0
 
 
 def check_download(api: Api, path: str, expected: bytes, filename: str) -> tuple[bool, str]:

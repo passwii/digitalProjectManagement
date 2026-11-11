@@ -56,7 +56,6 @@ api/
 │   ├── opportunity/            # 商机漏斗与阶段流转
 │   ├── equipment/              # 设备资产单件vs批量库存、状态机、出库行锁、事件流
 │   └── finance/                # 复式记账引擎 (账套/期间/科目树/凭证/现金/银行/资产折旧/往来核销/报表)
-└── legacy_py/                  # 归档的原 Python FastAPI 代码，作为行为基线对照
 ```
 
 ---
@@ -129,9 +128,8 @@ api/
 
 ### 4.2 GitHub Actions 流水线 (`.github/workflows/api.yml`)
 1. 启动 `postgres:18` 服务容器。
-2. 安装 Go 1.27 环境与 Python 3.14 依赖。
+2. 安装 Go 1.27 环境。
 3. 执行 `cd api && go test -v ./...` 运行全量 Go 单元与集成测试；数据库用例在随机 schema 上执行 Goose 基线与 adoption 用例。
-4. 执行 `pytest tests -q` 运行归档 FastAPI 行为基线与部分历史 Alembic revision 守卫；不执行完整 Alembic 链。
 
 ---
 
@@ -147,8 +145,8 @@ api/
 - [x] 生产配置强制校验 `APP_SECRET` 强度，拒绝默认密钥
 - [x] `cd api && go test ./...` 全包测试 100% 通过
 - [x] `cd api && go build -o /dev/null main.go` 构建完全成功
-- [x] Go 数据库集成测试使用随机 schema 与真实 Alembic 迁移链
-- [x] `pytest tests -q` 归档 FastAPI 行为基线 454 passed
+- [x] Go 数据库集成测试使用随机 schema 与真实 Goose 迁移基线
+- [x] Python 后端、Alembic 历史资产与 pytest 套件已从仓库移除
 - [x] 前端 Next.js (`web/`) 运行 `npm test`（1,073 个测试）全绿通过
 - [x] 前端 Next.js (`web/`) 运行 `npm run build` 静态编译成功
 - [x] 财务项目支出支持 project/status/date 筛选与分页，并保留 nested project 与 source voucher 契约

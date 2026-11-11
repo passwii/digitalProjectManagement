@@ -43,21 +43,13 @@ jobs:
           CORS_ORIGINS: https://build.invalid
         run: |
           set -euo pipefail
-          docker compose -f docker-compose.yml -f docker-compose.prod.yml config --format json \
-            | python3 -c '
-          import json
-          import sys
-
-          services = json.load(sys.stdin)["services"]
-          expected = {
-              "api": "ghcr.io/compose-check/digitalprojectmanagement-api@sha256:" + "a" * 64,
-              "web": "ghcr.io/compose-check/digitalprojectmanagement-web@sha256:" + "b" * 64,
-          }
-          for name, image in expected.items():
-              service = services[name]
-              assert service["image"] == image, (name, service.get("image"))
-              assert "build" not in service, f"{name} still has a production build section"
-          '
+          docker compose -f docker-compose.yml -f docker-compose.prod.yml config --format json > /tmp/pm-compose.json
+          jq -e '
+            .services.api.image == ("ghcr.io/compose-check/digitalprojectmanagement-api@sha256:" + ("a" * 64))
+            and (.services.api | has("build") | not)
+            and .services.web.image == ("ghcr.io/compose-check/digitalprojectmanagement-web@sha256:" + ("b" * 64))
+            and (.services.web | has("build") | not)
+          ' /tmp/pm-compose.json >/dev/null
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
