@@ -501,6 +501,10 @@ function DashboardShell({ children, modal }: { children: React.ReactNode; modal?
           <span className={s.brandText}><b>数科云办公</b></span>
         </Link>
 
+        {isMobile ? (
+          <span className={s.brandBell}><Bell panelAlign="left" /></span>
+        ) : null}
+
         <div className={s.navDock}>
           <CenteredNavbar
             items={navItems}
@@ -511,7 +515,7 @@ function DashboardShell({ children, modal }: { children: React.ReactNode; modal?
         </div>
 
         <div className={s.accountDock}>
-          <span className={s.accountBell}><Bell /></span>
+          {!isMobile ? <span className={s.accountBell}><Bell /></span> : null}
           <UserMenu name={displayName} onLogout={logout} />
         </div>
 

@@ -83,3 +83,15 @@ describe("Bell 读取生命周期", () => {
     expect(listSignal?.aborted).toBe(true);
   });
 });
+
+describe("Bell 面板方向", () => {
+  it("panelAlign=left 时面板左对齐，供移动端左上角使用", async () => {
+    mocks.count.mockResolvedValue({ unread: 0 });
+    render(<Bell panelAlign="left" />);
+    await act(async () => {});
+    fireEvent.click(screen.getByRole("button", { name: "通知，无未读" }));
+    await act(async () => {});
+    const panel = screen.getByRole("dialog", { name: "通知列表" });
+    expect(panel.className).toMatch(/panelLeft/);
+  });
+});

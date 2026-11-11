@@ -85,4 +85,13 @@ describe("Dashboard 欢迎页", () => {
     expect(welcome).toContain('href="/projects"');
     expect(welcome).toContain("data-end-primary");
   });
+
+  it("隧道使用自定义纵向手势，避免移动端被原生 pan-y 取消", () => {
+    const css = readFileSync(
+      resolve(__dirname, "../components/dashboard/welcome/WelcomeTunnel.module.css"),
+      "utf8",
+    );
+    expect(css).toContain("touch-action: none");
+    expect(css).not.toContain("touch-action: pan-y");
+  });
 });

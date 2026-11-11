@@ -132,3 +132,9 @@
   background: var(--card-lift);
   box-shadow: inset 0 1px 0 var(--highlight-inset);
 }
+
+/* 左对齐：移动端铃铛在屏幕左上角，面板不能继续贴右侧展开。 */
+.panelLeft {
+  right: auto;
+  left: 0;
+}

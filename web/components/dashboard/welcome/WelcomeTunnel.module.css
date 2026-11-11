@@ -17,7 +17,8 @@
   background: var(--bg);
   color: var(--ink);
   isolation: isolate;
-  touch-action: pan-y;
+  /* 自定义纵向手势：交给浏览器 pan-y 会在 pointercancel 后中断隧道，页面本身又不可滚动。 */
+  touch-action: none;
 }
 
 .stage * {

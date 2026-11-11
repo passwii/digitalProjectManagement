@@ -937,3 +937,15 @@
   .accountDock { top: calc(22px + env(safe-area-inset-top, 0px)); }
   .content { padding-top: calc(88px + env(safe-area-inset-top, 0px)); }
 }
+
+.brandBell { display: none; }
+@media (max-width: 767px) {
+  .brandFloat { display: none; }
+  .brandBell {
+    display: inline-flex;
+    position: fixed;
+    z-index: 50;
+    top: calc(26px + env(safe-area-inset-top, 0px));
+    left: 14px;
+  }
+}
