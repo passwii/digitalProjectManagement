@@ -1,0 +1,221 @@
+/*
+ * 「更多」底部 sheet（已确认草稿 docs/prototypes/mobile-pwa/index.html）。
+ * 行为（Esc / 焦点陷阱 / 关闭后还焦）由 useModalBehavior 提供，这里只管视觉。
+ */
+.root {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  pointer-events: auto;
+}
+
+.root[data-open="false"] { pointer-events: none; }
+
+.scrim {
+  position: absolute;
+  inset: 0;
+  background: var(--overlay);
+  -webkit-backdrop-filter: blur(2px);
+  backdrop-filter: blur(2px);
+  opacity: 1;
+  transition: opacity var(--av-dur-base) var(--av-ease-standard);
+}
+
+.root[data-open="false"] .scrim { opacity: 0; }
+
+.sheet {
+  position: absolute;
+  right: 8px;
+  bottom: 0;
+  left: 8px;
+  max-height: 72dvh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  box-sizing: border-box;
+  padding: 8px 14px calc(24px + env(safe-area-inset-bottom, 0px));
+  border: 1px solid var(--line);
+  border-bottom: 0;
+  border-radius: 24px 24px 0 0;
+  background: var(--card);
+  box-shadow: 0 -24px 60px -30px color-mix(in srgb, var(--bg) 80%, transparent);
+  transform: translateY(0);
+  transition: transform var(--av-dur-base) var(--av-ease-enter);
+}
+
+.sheet[data-open="false"] { transform: translateY(108%); }
+
+.handle {
+  display: block;
+  width: 36px;
+  height: 4px;
+  margin: 2px auto 12px;
+  border-radius: 99px;
+  background: var(--line);
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.head b {
+  color: var(--ink);
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: -.02em;
+}
+
+.close {
+  display: inline-flex;
+  width: 44px;
+  height: 44px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  background: none;
+  color: var(--ink-2);
+}
+
+.close:hover { color: var(--ink); background: var(--card-lift); }
+.close:focus-visible { outline: 2px solid var(--focus-ring, var(--brand)); outline-offset: 2px; }
+
+.body {
+  display: block;
+  touch-action: pan-y;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 2px;
+}
+
+.navItem {
+  display: flex;
+  min-height: 48px;
+  align-items: center;
+  gap: 9px;
+  padding: 0 10px;
+  border-radius: var(--radius-control);
+  color: var(--ink);
+  font-size: 12.5px;
+  text-decoration: none;
+}
+
+.navItem:hover { background: var(--card-lift); text-decoration: none; }
+.navItem:focus-visible {
+  outline: 2px solid var(--focus-ring, var(--brand));
+  outline-offset: -2px;
+}
+
+.navIcon {
+  display: inline-flex;
+  width: 17px;
+  height: 17px;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  color: var(--ink-3);
+}
+
+.navIcon svg {
+  width: 17px;
+  height: 17px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.navLabel {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.empty {
+  margin: 0;
+  padding: 12px 10px;
+  color: var(--ink-3);
+  font-size: 12px;
+}
+
+.account {
+  margin-top: 10px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+
+.who {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: var(--m-tap);
+}
+
+.identity {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.identity b {
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 12.5px;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.accountActions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.accountLink,
+.logout {
+  display: inline-flex;
+  min-height: var(--m-tap);
+  align-items: center;
+  padding: 0 14px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: none;
+  color: var(--ink-2);
+  font: inherit;
+  font-size: 12px;
+  text-decoration: none;
+}
+
+.accountLink:hover,
+.logout:hover { color: var(--ink); background: var(--card-lift); }
+.accountLink:focus-visible,
+.logout:focus-visible { outline: 2px solid var(--focus-ring, var(--brand)); outline-offset: 2px; }
+
+@media (max-width: 380px) {
+  .grid { grid-template-columns: 1fr; }
+}
+
+@media (max-height: 520px) {
+  .sheet { max-height: calc(100dvh - 12px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sheet,
+  .scrim { transition: none; }
+}
+
+:global(:root[data-theme="light"]) .sheet {
+  box-shadow: 0 -24px 60px -30px color-mix(in srgb, var(--ink) 22%, transparent);
+}

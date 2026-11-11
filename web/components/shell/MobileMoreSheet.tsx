@@ -1,0 +1,173 @@
+"use client";
+
+import { createPortal } from "react-dom";
+import Link from "next/link";
+import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
+import { useReducedMotion } from "framer-motion";
+import Avatar from "@/components/ui/Avatar";
+import ThemeModePicker from "@/components/theme/ThemeModePicker";
+import { useTheme } from "@/components/theme/ThemeProvider";
+import { useModalBehavior } from "@/components/ui/Modal";
+import { getWorkbenchPortalContainer } from "@/lib/workbenchPortalContainer";
+import { MODAL_BODY_ATTR, MODAL_CLOSE_ATTR, resolveInitialFocus } from "@/lib/modalFocus";
+import type { ShellNavItem } from "@/lib/globalNav";
+import s from "./MobileMoreSheet.module.css";
+
+const EXIT_MS = 320;
+const BODY_MARK = { [MODAL_BODY_ATTR]: "true" };
+const CLOSE_MARK = { [MODAL_CLOSE_ATTR]: "true" };
+
+/**
+ * 「更多」底部 sheet（≤767px）。
+ *
+ * 行为直接复用 `useModalBehavior`（与 Dialog / Drawer / Confirm / BottomSheet 同源）：
+ * Esc 关闭、Tab 焦点锁定、body 滚动锁定、关闭后把焦点还给打开它的「更多」按钮。
+ * 视觉按草稿：遮罩 + 底部圆角面板 + 两列溢出入口 + 账号与设置。
+ */
+export interface MobileMoreSheetProps {
+  open: boolean;
+  onClose: () => void;
+  /** 来自同一份 `navItems` 的溢出项（`splitNav().overflow`），不写死。 */
+  items: ShellNavItem[];
+  accountName: string | null;
+  onLogout: () => void;
+}
+
+export default function MobileMoreSheet({
+  open,
+  onClose,
+  items,
+  accountName,
+  onLogout,
+}: MobileMoreSheetProps) {
+  const titleId = `${useId()}-more-title`;
+  const reduced = useReducedMotion() ?? false;
+  const { mode, setMode } = useTheme();
+  const { mounted, panelRef, handleExitComplete } = useModalBehavior({
+    open,
+    onRequestClose: onClose,
+  });
+  const [present, setPresent] = useState(false);
+  const bodyRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (open) {
+      setPresent(true);
+      return;
+    }
+    if (!present) return;
+    const timer = window.setTimeout(() => {
+      setPresent(false);
+      handleExitComplete();
+    }, reduced ? 0 : EXIT_MS);
+    return () => window.clearTimeout(timer);
+  }, [open, present, reduced, handleExitComplete]);
+
+  useEffect(() => {
+    if (open && bodyRef.current) bodyRef.current.scrollTop = 0;
+  }, [open]);
+
+  // 断点回到桌面（>767px）时收起 sheet：桌面没有「更多」入口，留着会成为孤儿浮层。
+  useEffect(() => {
+    if (!open) return;
+    // 桌面 / 平板横屏才收起；手机横屏（≤932px 且 ≤500px 高）仍属于手机壳。
+    const media = window.matchMedia?.("(min-width: 933px), (min-width: 768px) and (min-height: 501px)");
+    const sync = () => {
+      if (media?.matches) onClose();
+    };
+    sync();
+    media?.addEventListener?.("change", sync);
+    return () => media?.removeEventListener?.("change", sync);
+  }, [open, onClose]);
+
+  // 面板要等 `present` 才真正挂到 portal 上；useModalBehavior 的初始聚焦
+  // 在 panelRef 为空时不会重跑，这里按 BottomSheet 同款口径补一次同步聚焦。
+  useLayoutEffect(() => {
+    if (!open || !present) return;
+    const first = resolveInitialFocus(panelRef.current) as HTMLElement | null;
+    (first ?? panelRef.current)?.focus({ preventScroll: true });
+  }, [open, present, panelRef]);
+
+  if (!mounted || !present) return null;
+
+  return createPortal(
+    <div className={s.root} data-open={open} data-more-root="true">
+      <div className={s.scrim} data-more-scrim="true" onClick={onClose} aria-hidden="true" />
+      <section
+        id="mobile-more-sheet"
+        ref={(node) => { panelRef.current = node; }}
+        className={s.sheet}
+        data-open={open}
+        data-more-sheet="true"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        tabIndex={-1}
+      >
+        <span className={s.handle} aria-hidden="true" />
+        <header className={s.head}>
+          <b id={titleId}>更多</b>
+          <button
+            type="button"
+            className={s.close}
+            aria-label="关闭更多"
+            onClick={onClose}
+            {...CLOSE_MARK}
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true">
+              <path d="M5 5l14 14M19 5L5 19" />
+            </svg>
+          </button>
+        </header>
+
+        <div className={s.body} ref={bodyRef} {...BODY_MARK}>
+          {items.length > 0 ? (
+            <div className={s.grid}>
+              {items.map((item) => (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  target={item.target}
+                  rel={item.target === "_blank" ? "noopener noreferrer" : undefined}
+                  className={s.navItem}
+                  onClick={onClose}
+                >
+                  <span className={s.navIcon} aria-hidden="true">{item.icon}</span>
+                  <span className={s.navLabel}>{item.label}</span>
+                </Link>
+              ))}
+            </div>
+          ) : (
+            <p className={s.empty}>当前没有更多入口</p>
+          )}
+
+          <div className={s.account}>
+            <div className={s.who}>
+              <Avatar name={accountName || "账号"} size={34} />
+              <span className={s.identity}>
+                <b>{accountName || "账号"}</b>
+              </span>
+            </div>
+            <div className={s.accountActions}>
+              <Link href="/change-password" className={s.accountLink} onClick={onClose}>
+                修改密码
+              </Link>
+              <button
+                type="button"
+                className={s.logout}
+                onClick={() => {
+                  onClose();
+                  onLogout();
+                }}
+              >
+                退出登录
+              </button>
+            </div>
+            <ThemeModePicker mode={mode} onChange={setMode} />
+          </div>
+        </div>
+      </section>
+    </div>,
+    getWorkbenchPortalContainer(),
+  );
+}

@@ -18,9 +18,14 @@ import { useTheme } from "@/components/theme/ThemeProvider";
 import { ToastProvider } from "@/components/ui/Toast";
 import MotionProvider from "@/components/motion/MotionProvider";
 import CenteredNavbar from "@/components/shell/CenteredNavbar";
-import { projectScopedShortcutHrefs } from "@/lib/globalNav";
+import MobileBottomDock from "@/components/shell/MobileBottomDock";
+import MobileBrandBar from "@/components/shell/MobileBrandBar";
+import MobileMoreSheet from "@/components/shell/MobileMoreSheet";
+import { MobileShellProvider } from "@/components/shell/MobileShellContext";
+import { projectScopedShortcutHrefs, splitNav } from "@/lib/globalNav";
 import { PageTitleContext } from "@/components/ui/PageTitleContext";
 import s from "@/components/ui/Shell.module.css";
+import pwa from "@/components/shell/MobilePwaShell.module.css";
 
 /**
  * 业务菜单由 `/meta/me/menus` 决定（Stage 1 契约）；Spark 与智能音视频平台是独立的静态站点入口。
@@ -404,6 +409,12 @@ function DashboardShell({ children, modal }: { children: React.ReactNode; modal?
    * 根本不知道自己「跳」到了另一个标签页。
    */
   const isMobile = useIsMobile();
+  const [mobileMoreOpen, setMobileMoreOpen] = useState(false);
+
+  // 路由变化后「更多」sheet 不应留在原地。
+  useEffect(() => {
+    setMobileMoreOpen(false);
+  }, [pathname]);
 
   const current = Object.keys(LABEL).find((k) => pathname === k || pathname.startsWith(k + "/"));
   const [registeredTitle, setRegisteredTitle] = useState<{ pathname: string; title: string } | null>(null);
@@ -446,6 +457,11 @@ function DashboardShell({ children, modal }: { children: React.ReactNode; modal?
     out.push({ href: "/stream-monitor", label: LABEL["/stream-monitor"], icon: ICON["/stream-monitor"], external: true, target: isMobile ? undefined : AV_WINDOW_TARGET });
     return out;
   }, [menus, permsError, isMobile]);
+
+  // 「更多」sheet 的溢出项与底部 dock 共用同一份 splitNav 投影，不另维护一份菜单。
+  const mobileOverflow = useMemo(() => splitNav(navItems, pathname).overflow, [navItems, pathname]);
+  const openMore = useCallback(() => setMobileMoreOpen(true), []);
+  const closeMore = useCallback(() => setMobileMoreOpen(false), []);
 
   useEffect(() => {
     // must_change_pwd 的强制跳转仍在这里；复用 `loadMe()` 而不是再直接打一次
@@ -493,49 +509,52 @@ function DashboardShell({ children, modal }: { children: React.ReactNode; modal?
   return (
     <>
     <PageTitleContext.Provider value={registerPageTitle}>
+      <MobileShellProvider navItems={navItems} openMore={openMore}>
       <div
-        className={s.shell}
+        className={`${s.shell} ${pwa.shell}`}
         data-console-shell="true"
         data-console-route={pathname}
         data-dashboard-shell={pathname === "/dashboard" ? "true" : undefined}
       >
         <a className="skip-link" href="#main-content">跳到主要内容</a>
 
-        <Link href="/dashboard" className={s.brandFloat} aria-label="数科云办公首页">
-          <span className={s.brandSeal} aria-hidden="true">
-            <span className={s.brandSealWord}>SHZK</span>
-            <span className={s.brandSealBar} />
-          </span>
-          <span className={s.brandText}><b>数科云办公</b></span>
-        </Link>
-
-        {isMobile ? (
-          <span className={s.brandBell}><Bell panelAlign="left" /></span>
-        ) : null}
-
-        <div className={s.navDock}>
-          <CenteredNavbar
-            items={navItems}
-            activeHref={pathname}
-            permsError={Boolean(permsError)}
-            onRetry={reloadMenus}
-          />
+        <div className={pwa.brandFloatSlot}>
+          <Link href="/dashboard" className={s.brandFloat} aria-label="数科云办公首页">
+            <span className={s.brandSeal} aria-hidden="true">
+              <span className={s.brandSealWord}>SHZK</span>
+              <span className={s.brandSealBar} />
+            </span>
+            <span className={s.brandText}><b>数科云办公</b></span>
+          </Link>
         </div>
 
-        <div className={s.accountDock}>
-          {!isMobile ? <span className={s.accountBell}><Bell /></span> : null}
+        <MobileBrandBar />
+
+        <div className={pwa.navDockSlot}>
+          <div className={s.navDock}>
+            <CenteredNavbar
+              items={navItems}
+              activeHref={pathname}
+              permsError={Boolean(permsError)}
+              onRetry={reloadMenus}
+            />
+          </div>
+        </div>
+
+        <div className={`${s.accountDock} ${pwa.accountDock}`}>
+          <span className={`${s.accountBell} ${pwa.accountBell}`}><Bell /></span>
           <UserMenu name={displayName} onLogout={logout} />
         </div>
 
-        <div className={s.main}>
-          <main className={s.content} id="main-content" tabIndex={-1}>
+        <div className={`${s.main} ${pwa.main}`}>
+          <main className={`${s.content} ${pwa.content}`} id="main-content" tabIndex={-1}>
             <div className={s.contentInner}>
               {pathname !== "/dashboard" && (
                 <div className={s.pageHeading} aria-hidden="true">{pageTitle}</div>
               )}
               <m.div
                 key={pathname}
-                className={s.routeView}
+                className={`${s.routeView} ${pwa.routeView}`}
                 initial={reduced ? false : { opacity: 0, y: 4 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: reduced ? 0 : AV_MOTION.base, ease: AV_EASE.enter }}
@@ -546,7 +565,23 @@ function DashboardShell({ children, modal }: { children: React.ReactNode; modal?
           </main>
         </div>
         {modal}
+
+        <MobileBottomDock
+          items={navItems}
+          activeHref={pathname}
+          moreOpen={mobileMoreOpen}
+          onMoreClick={openMore}
+          loading={!permsReady && !Boolean(permsError)}
+        />
+        <MobileMoreSheet
+          open={mobileMoreOpen}
+          onClose={closeMore}
+          items={mobileOverflow}
+          accountName={displayName}
+          onLogout={logout}
+        />
       </div>
+      </MobileShellProvider>
     </PageTitleContext.Provider>
     </>
   );

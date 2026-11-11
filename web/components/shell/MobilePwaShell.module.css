@@ -1,0 +1,87 @@
+/*
+ * 手机 PWA 外壳（≤767px）的布局级适配。
+ *
+ * 桌面（>767px）保持现有居中液态导航 + 账号浮标不变：本文件所有规则都在
+ * 767px 媒体查询内（除了 100dvh 基线），并且只在 layout 的 marker class 上生效。
+ *
+ * 这里负责：
+ *   · 隐藏顶部药丸导航的占位（MobileBottomDock 接管）；
+ *   · 账号浮标在手机端展开为「铃铛 + 头像」两个 44px 触控目标；
+ *   · 内容底部为 dock + 安全区让位；
+ *   · 工作台首页固定在 100dvh 的壳内滚动，横屏短屏也能滚。
+ */
+.shell[data-console-shell="true"] {
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
+@media (max-width: 767px), (max-width: 932px) and (max-height: 500px) and (orientation: landscape) {
+  /* 顶部药丸导航与桌面品牌浮标在手机端退出，导航由底部 dock 承担。 */
+  .navDockSlot,
+  .brandFloatSlot { display: none; }
+
+  /* 账号浮标：草稿顶栏的「铃铛 + 头像」。透明底、无外框，44px 触控目标。 */
+  .shell .accountDock {
+    top: calc(12px + env(safe-area-inset-top, 0px));
+    right: max(10px, env(safe-area-inset-right, 0px));
+    gap: 2px;
+    padding: 0;
+    border-color: transparent;
+    background: transparent;
+    box-shadow: none;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+
+  .shell .accountDock .accountBell { display: inline-flex; }
+
+  .shell .accountDock .userChip {
+    min-width: var(--m-tap);
+    min-height: var(--m-tap);
+    justify-content: center;
+    padding: 0;
+    margin-right: 0;
+  }
+
+  .shell .accountDock .userChipWrap {
+    padding-left: 0;
+    border-left: 0;
+  }
+
+  .shell .accountDock .userMenu {
+    top: calc(100% + 8px);
+    right: 0;
+  }
+
+  /* 内容给 fixed dock 让位：62 高 + 8 底部间距 + 安全区 + 24 呼吸位。 */
+  .shell .content {
+    padding-bottom: calc(62px + 8px + env(safe-area-inset-bottom, 0px) + 24px);
+    min-height: 0;
+  }
+
+  /* 工作台首页：壳固定 100dvh，内容区自己滚（横屏短屏不裁切）。 */
+  .shell[data-dashboard-shell="true"] {
+    height: 100vh;
+    height: 100dvh;
+  }
+
+  .shell[data-dashboard-shell="true"] .main {
+    min-height: 0;
+  }
+
+  .shell[data-dashboard-shell="true"] .content {
+    padding: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .shell[data-dashboard-shell="true"] .routeView {
+    height: auto;
+    min-height: 100dvh;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .shell[data-dashboard-shell="true"] .content { scroll-behavior: auto; }
+}
