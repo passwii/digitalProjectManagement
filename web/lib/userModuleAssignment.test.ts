@@ -9,7 +9,7 @@ const dialog = readFileSync(join(root, "app/(dashboard)/admin/UserDialog.tsx"), 
 const adminPage = readFileSync(join(root, "app/(dashboard)/admin/page.tsx"), "utf8");
 const useMeta = readFileSync(join(root, "lib/useMeta.ts"), "utf8");
 const api = readFileSync(join(root, "lib/api.ts"), "utf8");
-const backendModules = readFileSync(join(root, "../api/core/rbac.py"), "utf8");
+const backendModules = readFileSync(join(root, "../api/internal/rbac/rbac.go"), "utf8");
 const layout = readFileSync(join(root, "app/(dashboard)/layout.tsx"), "utf8");
 const menuResp = api.slice(api.indexOf("export interface MenuResp"), api.indexOf("export interface FinanceBook"));
 const adminUser = api.slice(api.indexOf("export interface AdminUser"), api.indexOf("/** 功能模块目录"));
@@ -32,7 +32,8 @@ test("用户弹窗具备模块分配并随创建/编辑一起提交", () => {
 test("模块目录驱动弹窗并包含财务说明，不默认分配业务模块或选择角色", () => {
   contains(api, /modules: \(signal\?: AbortSignal\) => apiGet<ModuleItem\[]>\("\/admin\/modules"/, "目录应来自模块 API");
   contains(dialog, /modules\.map\(\(mod\)/, "弹窗应展示 API 返回的目录");
-  contains(backendModules, /MODULE_FINANCE = "finance"[\s\S]*?\(MODULE_FINANCE, "财务管理", "\/finance"\)/, "后端可分配目录应暴露财务模块");
+  contains(backendModules, /ModuleFinance\s*=\s*"finance"/, "后端可分配目录应暴露财务模块");
+  contains(backendModules, /{ModuleFinance, "财务管理", "\/finance"}/, "后端财务模块应出现在模块目录");
   contains(dialog, /mod\.key/, "弹窗应按后端模块 key 展示并回填财务模块");
   contains(dialog, /财务模块包含全部活动账套/, "应解释财务模块的账套访问范围");
   excludes(dialog, /modules\.filter\(|key\s*===\s*["']admin["']/, "模块目录应原样展示，系统管理不作为可分配模块");
@@ -83,16 +84,22 @@ test("项目数据全局范围与后端 PROJECT_SCOPE_MODULES 同源", () => {
   const projectsDetail = readFileSync(
     join(root, "app/(dashboard)/projects/[id]/page.tsx"), "utf8");
   const backendScope = backendModules.slice(
-    backendModules.indexOf("PROJECT_SCOPE_MODULES = ("),
-    backendModules.indexOf(")", backendModules.indexOf("PROJECT_SCOPE_MODULES = (")));
+    backendModules.indexOf("ProjectScopeModules = []string{"),
+    backendModules.indexOf("}", backendModules.indexOf("ProjectScopeModules = []string{")));
   const frontendScope = useMeta.slice(
     useMeta.indexOf("PROJECT_SCOPE_MODULE_KEYS = ["),
     useMeta.indexOf("]", useMeta.indexOf("PROJECT_SCOPE_MODULE_KEYS = [")));
 
   contains(useMeta, /hasProjectScope: boolean/, "菜单 hook 应暴露项目数据全局范围");
   assert.ok(backendScope, "后端应集中声明项目内容模块集合");
+  const backendScopeNames: Record<string, string> = {
+    opportunities: "ModuleOpportunities",
+    projects: "ModuleProjects",
+    assets: "ModuleAssets",
+    reports: "ModuleReports",
+  };
   for (const key of ["opportunities", "projects", "assets", "reports"]) {
-    contains(backendScope, new RegExp(`MODULE_${key.toUpperCase()}`),
+    contains(backendScope, new RegExp(backendScopeNames[key]),
       `后端项目内容模块应包含 ${key}`);
     contains(frontendScope, new RegExp(`"${key}"`),
       `前端项目内容模块应包含 ${key}`);
