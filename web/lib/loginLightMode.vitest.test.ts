@@ -1,60 +1,74 @@
 /**
- * 登录页浅色适配的 CSS 契约（BLF-1343）。
+ * 登录页主题与响应式契约。
  *
- * 为什么是 CSS 契约而不是 DOM 测试：登录页的明暗差异**全部**落在样式层——组件树、
- * 文案、无障碍语义在两套主题下完全一致（`loginPage.dom.vitest.test.tsx` 守着那部分）。
- * 一个「浅色下仍是深色世界」的回归不会让任何 DOM 断言变红，只会在肉眼上出现。
- * 所以这里读真实 CSS 文件，锁三件事：
- *   1. 浅色覆盖段确实存在，且本地调色板交接给已落地的浅色语义 token（不新造颜色）；
- *   2. 浅色段引用的每个 `var()` 都能解析（拼错变量名 = 静默失效，是最常见的失手）；
+ * 登录页的明暗差异全部落在样式层：深色默认值必须与工作台
+ * `[data-console-shell="true"]` 的语义角色一致，浅色覆盖必须把同一组
+ * 本地令牌交接给工作台浅色值；移动端仍是一张卡片单列，故事区不再叠一层大背景。
+ * 这里读真实 CSS，锁住三件事：
+ *   1. 深/浅两套本地调色板存在，且与工作台对应语义令牌逐项相等；
+ *   2. CSS 里引用的每个 --login-* 都能在任一调色板里解析（拼错变量 = 静默失效）；
  *   3. 关键文字/按钮/错误态的组合对比度达到 WCAG AA。
  */
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
-const globalsCss = readFileSync(resolve(process.cwd(), "app/globals.css"), "utf8");
 const loginCss = readFileSync(resolve(process.cwd(), "app/login/login.module.css"), "utf8");
+const shellCss = readFileSync(resolve(process.cwd(), "components/ui/Shell.module.css"), "utf8");
+const globalsCss = readFileSync(resolve(process.cwd(), "app/globals.css"), "utf8");
 const passwordInputCss = readFileSync(resolve(process.cwd(), "components/ui/PasswordInput.module.css"), "utf8");
 
-/** 浅色覆盖段的起始注释：这段文字就是本测试的入口标记。 */
-const LIGHT_SECTION_MARKER = " * 浅色适配（BLF-1343）";
-/** 段内定义本地调色板的那条规则（深色默认值在文件开头，一行未动）。 */
-const LIGHT_PALETTE_SELECTOR = ':global(:root[data-theme="light"]) .wrap {';
-
-/** 取 `{` 到下一个行首 `}` 之间的扁平 token 定义（只用于调色板块）。 */
-function tokensIn(css: string, from: number): Record<string, string> {
-  const end = css.indexOf("\n}", from);
-  expect(end).toBeGreaterThan(from);
+/** 取一条规则下扁平的自定义属性定义（只用于调色板块）。 */
+function tokensIn(css: string, selector: string): Record<string, string> {
+  const start = css.indexOf(selector);
+  expect(start, `缺少令牌块：${selector}`).toBeGreaterThanOrEqual(0);
+  const end = css.indexOf("\n}", start);
+  expect(end).toBeGreaterThan(start);
   return Object.fromEntries(
-    Array.from(css.slice(from, end).matchAll(/--([\w-]+):\s*([^;]+);/g), ([, name, value]) => [name, value.trim()]),
+    Array.from(css.slice(start, end).matchAll(/--([\w-]+):\s*([^;]+);/g), ([, name, value]) => [name, value.trim()]),
   );
 }
 
-const lightTokens = tokensIn(globalsCss, globalsCss.indexOf(':root[data-theme="light"] {'));
+const darkPalette = tokensIn(loginCss, "\n.wrap {");
+const lightPalette = tokensIn(loginCss, ':global(:root[data-theme="light"]) .wrap {');
+const shellDark = tokensIn(shellCss, '.shell[data-console-shell="true"] {');
+const shellLight = tokensIn(shellCss, ':global(:root[data-theme="light"]) .shell[data-console-shell="true"] {');
 
-const lightSectionStart = loginCss.indexOf(LIGHT_SECTION_MARKER);
-const lightSection = loginCss.slice(lightSectionStart);
-const paletteStart = loginCss.indexOf(LIGHT_PALETTE_SELECTOR);
-const lightPalette = tokensIn(loginCss, paletteStart);
-
-/** 解析 `var(--x)` 链（globals 的浅色块里存在 `--line: var(--separator)` 这类两层引用）。 */
-function resolveColor(color: string, depth = 0): string {
-  const match = color.match(/^var\(--([\w-]+)\)$/);
-  if (!match || depth > 4) return color;
-  const next = lightTokens[match[1]];
-  return next ? resolveColor(next, depth + 1) : color;
-}
+/** 登录页本地令牌 → 工作台语义令牌。两套主题都必须逐项相等。 */
+const WORKBENCH_ROLES: Readonly<Record<string, string>> = {
+  "--login-bg": "--bg",
+  "--login-surface": "--card",
+  "--login-surface-raised": "--card-lift",
+  "--login-ink": "--ink",
+  "--login-ink-2": "--ink-2",
+  "--login-ink-3": "--ink-3",
+  "--login-line": "--line",
+  "--login-line-soft": "--line-soft",
+  "--login-brand": "--brand",
+  "--login-brand-hover": "--brand-hover",
+  "--login-brand-soft": "--brand-soft",
+  "--login-line-blue": "--line-blue",
+  "--login-focus": "--focus-ring",
+  "--login-danger": "--danger",
+  "--login-danger-bg": "--danger-bg",
+  "--login-line-danger": "--line-danger",
+  "--login-control-border": "--control-border",
+  "--login-success-ink": "--success-ink",
+  "--login-done-bg": "--done-bg",
+  "--login-on-brand": "--on-brand",
+};
 
 function luminance(color: string) {
-  const channels = resolveColor(color)
+  const channels = color
     .match(/[a-f\d]{2}/gi)
     ?.slice(0, 3)
     .map((channel) => {
       const value = parseInt(channel, 16) / 255;
       return value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
     });
-  if (!channels || channels.length !== 3) throw new Error(`Expected opaque hex color, received ${color}`);
+  if (!channels || channels.length !== 3 || !color.startsWith("#")) {
+    throw new Error(`Expected opaque hex color, received ${color}`);
+  }
   return channels[0] * 0.2126 + channels[1] * 0.7152 + channels[2] * 0.0722;
 }
 
@@ -63,160 +77,80 @@ function contrast(foreground: string, background: string) {
   return (lighter + 0.05) / (darker + 0.05);
 }
 
-function escapeSelector(selector: string) {
-  return selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
-/** 取浅色段里某条规则的声明块；缺规则直接失败（没有覆盖 = 深色残留）。 */
-function lightRule(css: string, selector: string) {
-  const match = css.match(
-    new RegExp(`:global\\(:root\\[data-theme="light"\\]\\)\\s*${escapeSelector(selector)}\\s*\\{([^}]*)\\}`),
-  );
-  expect(match, `浅色段缺少覆盖：${selector}`).toBeTruthy();
-  return match![1];
-}
-
-describe("登录页浅色适配契约（BLF-1343）", () => {
-  it("把登录页的本地调色板交接给浅色语义 token", () => {
-    expect(loginCss).toContain(LIGHT_SECTION_MARKER);
-    expect(lightPalette).toEqual({
-      "login-bg": "var(--bg)",
-      "login-surface": "var(--card)",
-      "login-line": "var(--line)",
-      "login-ink": "var(--ink)",
-      "login-muted": "var(--ink-2)",
-      "login-dim": "var(--ink-3)",
-      "login-signal": "var(--brand)",
-      "login-active": "var(--action)",
-      "login-story-bg": "var(--nav-bg)",
-      "login-story-ink": "var(--nav-ink)",
-    });
-  });
-
-  it("品牌栏沿用深海蓝导航骨架，工作区切成冷白画布", () => {
-    // 左栏是品牌身份：浅色下仍是深蓝导轨（与工作台侧栏同一套 nav token），不是白底
-    expect(lightRule(loginCss, ".story")).toMatch(/var\(--login-story-bg\)/);
-    expect(lightRule(loginCss, ".mark")).toMatch(/color:\s*var\(--login-story-ink\)/);
-    expect(lightRule(loginCss, ".storyMain h1")).toMatch(/color:\s*var\(--login-story-ink\)/);
-
-    // 右栏是工作区：冷白画布 + 白色内容面 + 冷灰边界
-    expect(lightRule(loginCss, ".card")).toMatch(/background-size:\s*32px 32px,\s*auto/);
-    expect(lightRule(loginCss, ".card")).toMatch(/border-color:\s*var\(--line\)/);
-    expect(lightRule(loginCss, ".field input")).toMatch(/border-color:\s*var\(--control-border\)/);
-    expect(lightRule(loginCss, ".field input")).toMatch(/background:\s*var\(--card\)/);
-
-    // 浅色纪律：装饰性发光收敛、酸橙不再当装饰线
-    expect(lightRule(loginCss, ".card::before")).toMatch(/box-shadow:\s*none/);
-    expect(lightRule(loginCss, ".card::after")).toMatch(/background:\s*var\(--login-signal\)/);
-    expect(lightRule(loginCss, ".storyMain h1 span")).toMatch(/text-shadow:\s*none/);
-  });
-
-  it("浅色段引用的每个 var() 都能解析（没有自造或拼错的 token）", () => {
-    const referenced = new Set(Array.from(lightSection.matchAll(/var\(--([\w-]+)/g), ([, name]) => name));
-    expect(referenced.size).toBeGreaterThan(15);
-    const unresolved = Array.from(referenced).filter(
-      (name) => !lightTokens[name] && !lightPalette[name],
-    );
-    expect(unresolved).toEqual([]);
-  });
-
-  it("浅色段不留深色硬编码", () => {
-    for (const darkValue of [
-      "#07131f",
-      "#081622",
-      "#0d1d2c",
-      "rgba(108, 243, 255",
-      "rgba(198, 255, 114",
-      "rgba(146, 189, 210",
-      "rgba(4, 13, 22",
-      "#ff9a6a",
-      "#eaf9fb",
-    ]) {
-      expect(lightSection.toLowerCase()).not.toContain(darkValue.toLowerCase());
+describe("登录页主题契约", () => {
+  it("深色默认调色板与工作台语义令牌一致", () => {
+    for (const [local, workbench] of Object.entries(WORKBENCH_ROLES)) {
+      expect(darkPalette[local], `深色缺令牌 ${local}`).toBe(shellDark[workbench]);
     }
   });
 
-  it("正文、标签、按钮与状态文案满足 WCAG AA", () => {
-    const local = (name: string) => lightPalette[name];
-    const global = (name: string) => lightTokens[name];
-
-    // 工作区：正文 / 字段标签与状态说明 / placeholder
-    expect(contrast(local("login-ink"), local("login-bg"))).toBeGreaterThanOrEqual(4.5);
-    expect(contrast(local("login-ink"), local("login-surface"))).toBeGreaterThanOrEqual(4.5);
-    expect(contrast(local("login-muted"), local("login-surface"))).toBeGreaterThanOrEqual(4.5);
-    expect(contrast(local("login-dim"), local("login-surface"))).toBeGreaterThanOrEqual(4.5);
-
-    // 主按钮三态：默认（青柠 + 深前景）/ 载入中（次级面 + 次文字）/ 成功（完成绿 + 完成底）
-    expect(lightRule(loginCss, ".submit")).toMatch(/color:\s*var\(--on-action\)/);
-    expect(lightRule(loginCss, ".submit:disabled")).toMatch(/background:\s*var\(--th-bg\)/);
-    expect(lightRule(loginCss, ".submit:disabled")).toMatch(/color:\s*var\(--ink-2\)/);
-    expect(lightRule(loginCss, '.submit[data-phase="success"]')).toMatch(/color:\s*var\(--success-ink\)/);
-    expect(contrast(global("on-action"), local("login-active"))).toBeGreaterThanOrEqual(4.5);
-    expect(contrast(global("ink-2"), global("th-bg"))).toBeGreaterThanOrEqual(4.5);
-    expect(contrast(global("success-ink"), global("done-bg"))).toBeGreaterThanOrEqual(4.5);
-
-    // 错误提示：错误色文字 + 低饱和错误底
-    expect(lightRule(loginCss, ".alert")).toMatch(/color:\s*var\(--danger\)/);
-    expect(lightRule(loginCss, ".alert")).toMatch(/background:\s*var\(--danger-bg\)/);
-    expect(contrast(global("danger"), global("danger-bg"))).toBeGreaterThanOrEqual(4.5);
-
-    // 品牌栏：深海蓝底上的字标与强调行
-    expect(contrast(local("login-story-ink"), local("login-story-bg"))).toBeGreaterThanOrEqual(4.5);
-    expect(contrast(global("nav-active-accent"), local("login-story-bg"))).toBeGreaterThanOrEqual(4.5);
-
-    // 焦点环与光标用信号青（白底卡片上 ≥ 4.5）
-    expect(lightRule(loginCss, ".field input")).toMatch(/caret-color:\s*var\(--login-signal\)/);
-    expect(contrast(local("login-signal"), local("login-surface"))).toBeGreaterThanOrEqual(4.5);
+  it("浅色调色板与工作台浅色语义令牌一致", () => {
+    for (const [local, workbench] of Object.entries(WORKBENCH_ROLES)) {
+      expect(lightPalette[local], `浅色缺令牌 ${local}`).toBe(shellLight[workbench]);
+    }
   });
 
-  it("手机壳里品牌栏不再铺深蓝，字标与徽记改回工作区颜色", () => {
-    const mobile = lightSection.slice(lightSection.indexOf("@media (max-width: 767px)"));
-    expect(mobile).toMatch(/\.wrap\[data-login-page\] \.mark\s*\{\s*color:\s*var\(--ink\)/);
-    expect(mobile).toMatch(/\.wrap\[data-login-page\] \.brandGlyph\s*\{[^}]*background:\s*var\(--brand-soft\)/);
-    expect(mobile).toMatch(/\.wrap\[data-login-page\] \.brandGlyph i\s*\{\s*background:\s*var\(--login-signal\)/);
-    // 手机上 `.wrap` 自带底色，`.auth` 不该再叠一层
-    expect(mobile).toMatch(/\.wrap\[data-login-page\] \.auth\s*\{\s*background:\s*none/);
-    // 品牌栏在手机壳里本来就不铺底（字标浮在画布上），浅色不能把深海蓝重新铺回来
-    expect(mobile).toMatch(/\.wrap\[data-login-page\] \.story\s*\{\s*background:\s*none/);
-    expect(mobile).toMatch(/\.wrap\[data-login-page\] \.storyGrid[\s\S]*?rgba\(23, 97, 125/);
-  });
-
-  it("密码可见性按钮在浅色下换成语义色（图标控件 ≥ 3:1）", () => {
-    expect(passwordInputCss).toContain('data-theme="light"');
-    const toggle = lightRule(passwordInputCss, ".toggle");
-    expect(toggle).toMatch(/color:\s*var\(--ink-2\)/);
-    expect(lightRule(passwordInputCss, ".toggle:hover:not(:disabled)")).toMatch(/border-color:\s*var\(--brand\)/);
-    expect(lightRule(passwordInputCss, ".toggle:focus-visible")).toMatch(/outline-color:\s*var\(--brand\)/);
-    // 白底卡片上的眼睛图标：`--ink-2` 实测 6:1，远高于图标类 3:1 的下限
-    expect(contrast(lightTokens["ink-2"], lightTokens.card)).toBeGreaterThanOrEqual(3);
-  });
-
-  it("密码可见性按钮在浅色下仍看得出禁用态（hover 不再套到 disabled 上）", () => {
-    // 本段选择器的特异性从 (0,3,0) 起，会压过上文的 `.toggle:disabled` (0,2,0)，
-    // 所以「交互态只作用于可用态」「禁用态另有覆盖」两件事都必须在浅色段里显式写出来。
-    const hover = lightRule(passwordInputCss, ".toggle:hover:not(:disabled)");
-    expect(hover).toMatch(/border-color:\s*var\(--brand\)/);
-    expect(hover).toMatch(/background:\s*var\(--brand-soft\)/);
-    expect(hover).toMatch(/color:\s*var\(--ink\)/);
-
-    const disabled = lightRule(passwordInputCss, ".toggle:disabled");
-    // 弱文字 token + 降透明度；且不得出现交互态的强调色
-    expect(disabled).toMatch(/color:\s*var\(--ink-3\)/);
-    expect(Number(disabled.match(/opacity:\s*([\d.]+)/)?.[1])).toBeLessThan(1);
-    expect(disabled).not.toMatch(/--brand/);
-    // 禁用的 <button> 实测仍会命中 `:hover`，上文深色 `.toggle:hover` 会因此给浅色页面
-    // 套上青色边界 / 底色；这两条把它收回透明（与基础 `.toggle` 完全同形，不位移）
-    expect(disabled).toMatch(/border-color:\s*transparent/);
-    expect(disabled).toMatch(/background:\s*transparent/);
-
-    // 可用态 / 禁用态不是同一个颜色：禁用色更接近白底（对比度更低），且仍在 3:1 以上
-    const tokenOf = (block: string) => block.match(/color:\s*var\(--([\w-]+)\)/)?.[1];
-    const enabledToken = tokenOf(lightRule(passwordInputCss, ".toggle"));
-    const disabledToken = tokenOf(disabled);
-    expect(disabledToken).not.toBe(enabledToken);
-    expect(contrast(lightTokens[disabledToken!], lightTokens.card)).toBeLessThan(
-      contrast(lightTokens[enabledToken!], lightTokens.card),
+  it("所有 --login-* 引用都能在任一调色板解析", () => {
+    const referenced = new Set(
+      Array.from(loginCss.matchAll(/var\(--(login-[\w-]+)/g), ([, name]) => name),
     );
-    expect(contrast(lightTokens[disabledToken!], lightTokens.card)).toBeGreaterThanOrEqual(3);
+    expect(referenced.size).toBeGreaterThan(15);
+    const defined = new Set([...Object.keys(darkPalette), ...Object.keys(lightPalette)]);
+    expect(Array.from(referenced).filter((name) => !defined.has(name))).toEqual([]);
+  });
+
+  it("浅色段不再残留旧青色科幻配色", () => {
+    for (const oldColor of [
+      "#6cf3ff",
+      "#c6ff72",
+      "#07131f",
+      "#0d1d2c",
+      "#eaf9fb",
+      "#ff9a6a",
+      "rgba(108, 243, 255",
+      "rgba(198, 255, 114",
+      "rgba(146, 189, 210",
+    ]) {
+      expect(loginCss.toLowerCase()).not.toContain(oldColor.toLowerCase());
+    }
+  });
+
+  it("正文、字段标签、按钮与错误文案满足 WCAG AA", () => {
+    for (const palette of [darkPalette, lightPalette]) {
+      expect(contrast(palette["login-ink"], palette["login-bg"])).toBeGreaterThanOrEqual(4.5);
+      expect(contrast(palette["login-ink"], palette["login-surface"])).toBeGreaterThanOrEqual(4.5);
+      expect(contrast(palette["login-ink-2"], palette["login-surface"])).toBeGreaterThanOrEqual(4.5);
+      expect(contrast(palette["login-ink-3"], palette["login-surface"])).toBeGreaterThanOrEqual(4.5);
+      expect(contrast(palette["login-on-brand"], palette["login-brand"])).toBeGreaterThanOrEqual(4.5);
+      expect(contrast(palette["login-danger"], palette["login-surface"])).toBeGreaterThanOrEqual(4.5);
+    }
+  });
+
+  it("移动端是一张卡片单列，故事区不重复铺大背景", () => {
+    const mobileStart = loginCss.indexOf("@media (max-width: 820px)");
+    expect(mobileStart).toBeGreaterThanOrEqual(0);
+    const mobile = loginCss.slice(mobileStart, loginCss.indexOf("@media (max-width: 420px)", mobileStart));
+
+    expect(mobile).toMatch(/\.authCard\s*\{[^}]*flex-direction:\s*column/);
+    const storyBlock = mobile.match(/\.story\s*\{([^}]*)\}/)?.[1] ?? "";
+    expect(storyBlock).toContain("border-right: 0");
+    expect(storyBlock).toContain("border-bottom: 1px solid var(--login-line)");
+    expect(storyBlock).not.toContain("background");
+    expect(mobile).toMatch(/\.lede\s*\{\s*display:\s*none/);
+    expect(mobile).toMatch(/\.steps\s*\{\s*display:\s*none/);
+  });
+
+  it("动效尊重 prefers-reduced-motion", () => {
+    expect(loginCss).toMatch(/@media \(prefers-reduced-motion: reduce\)/);
+    expect(loginCss).toMatch(/\.submitSpinner\s*\{\s*animation:\s*none/);
+  });
+
+  it("共享密码可见性按钮在浅色下仍使用语义色（改密页复用）", () => {
+    expect(passwordInputCss).toContain(':global(:root[data-theme="light"]) .toggle');
+    expect(passwordInputCss).toMatch(
+      /:global\(:root\[data-theme="light"\]\) \.toggle:hover:not\(:disabled\)[^}]*border-color:\s*var\(--brand\)/,
+    );
+    // 共享组件仍消费工作台浅色令牌；只做存在性检查，避免与全站主题守卫重复。
+    expect(globalsCss).toContain(':root[data-theme="light"] {');
   });
 });
