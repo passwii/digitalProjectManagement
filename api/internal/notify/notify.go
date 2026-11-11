@@ -381,11 +381,11 @@ func (h *Handler) MarkRead(c *gin.Context) {
 func (h *Handler) MarkReadAll(c *gin.Context) {
 	u := rbac.GetCurrentUser(c)
 	now := timeutil.NowDateTime()
-	h.DB.Model(&model.Notification{}).
+	result := h.DB.Model(&model.Notification{}).
 		Where("user_id = ? AND read_at IS NULL", u.ID).
 		Update("read_at", now)
 
-	c.JSON(http.StatusOK, gin.H{"ok": true})
+	c.JSON(http.StatusOK, gin.H{"ok": true, "read": result.RowsAffected})
 }
 
 type HandleReq struct {
