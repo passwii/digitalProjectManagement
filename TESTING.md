@@ -132,12 +132,12 @@ Go 集成测试会为每个测试创建随机 schema，并执行嵌入 Go 二进
 ### 4.5 Python 的定位
 
 - 后端 API、schema 迁移与测试全部由 `api/` 下的 Go 模块执行；仓库不再保留 `api/legacy_py/`、`api/alembic/` 或 pytest 套件。
-- 仅运维/数据工具脚本可以保留 Python（如 `scripts/deploy_vps.py`、`scripts/rekey_r2_objects.py`），它们不参与生产镜像构建，也不进入 CI。
+- 仅运维/数据工具脚本可以保留 Python（如 `scripts/deploy_vps.py`、`scripts/rekey_r2_objects.py`），它们不参与生产镜像构建，也不进入 API 测试套件；例外是 `deploy_vps.py` 作为部署链路的一环由 `.github/workflows/deploy-vps.yml` 调用。依赖清单见 `scripts/requirements-ops.txt` 与 `scripts/requirements-acceptance.txt`。
 - 新增业务行为在 `api/**/*_test.go` 覆盖；禁止为补测试重新引入 Python 后端。
 
 ## 5. 浏览器/端到端验收（不进 CI）
 
-仓库没有浏览器 E2E workflow，也没有 Playwright/Puppeteer 依赖。这类验证用 `scripts/` 下的脚本，**由人按 issue 验收标准手动跑**：
+仓库没有自动化的浏览器 E2E workflow。`scripts/` 下既有一批**人工运行**的 Python Playwright 验收脚本（依赖 `scripts/requirements-acceptance.txt`，要求本机已装 Google Chrome），也有下面这些通过 CDP 驱动本机 Chrome 的 `node` 脚本；两者都**由人按 issue 验收标准手动跑**，不进 CI：
 
 ```bash
 # 终端 A：起站点（默认 3001）
@@ -146,6 +146,10 @@ cd web && npm run dev
 # 终端 B：在仓库根目录跑验收脚本
 node scripts/av-layout-overflow.mjs http://127.0.0.1:3001
 node scripts/av-monitor-motion.mjs  http://127.0.0.1:3001 artifacts/blf1425
+
+# Python Playwright 验收（先装依赖，示例为平板横屏全路由走查）
+python3 -m pip install -r scripts/requirements-acceptance.txt
+python3 scripts/acceptance_tablet_landscape.py
 ```
 
 - 脚本会 spawn 本机 Chrome（默认 `/Applications/Google Chrome.app/...`，可用 `CHROME_PATH` 覆盖），走 CDP。
