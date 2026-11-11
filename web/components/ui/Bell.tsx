@@ -65,7 +65,7 @@ function hasLocator(n: Notification): boolean {
   return !!key && parseTarget(String(n.ref_id ?? "")) > 0;
 }
 
-export default function Bell() {
+export default function Bell({ panelAlign = "right" }: { panelAlign?: "left" | "right" }) {
   const router = useRouter();
   const { canApprove } = useMenus();
   const toast = useToast();
@@ -218,7 +218,7 @@ export default function Bell() {
       </button>
 
       {open && (
-        <div className={s.panel} role="dialog" aria-label="通知列表">
+        <div className={`${s.panel}${panelAlign === "left" ? ` ${s.panelLeft}` : ""}`} role="dialog" aria-label="通知列表">
           <div className={s.head}>
             <b>通知</b>
             <span className={s.headRight}>

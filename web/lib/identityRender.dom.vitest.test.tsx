@@ -318,35 +318,27 @@ describe("BLF-1141 顶栏账号菜单（身份区已从侧栏搬走）", () => {
     await waitFor(() => expect(screen.getAllByText("张伟").length).toBeGreaterThan(0));
   }
 
-  it("侧栏没有身份区或登出按钮，折叠开关在品牌区", async () => {
+  it("桌面外壳移除侧栏，品牌浮标只负责回到工作台", async () => {
     await mountSignedIn();
 
-    const sidebar = document.querySelector('[data-shell="sidebar"]') as HTMLElement;
-    expect(sidebar, "桌面侧栏必须还在（删的是身份区，不是侧栏）").toBeTruthy();
-    expect(sidebar.textContent).not.toContain("张伟");
-    expect(sidebar.textContent).not.toContain("登出");
-    expect(sidebar.textContent).not.toContain("管理员");
-    const buttons = Array.from(sidebar.querySelectorAll("button"));
-    expect(buttons.map((b) => b.getAttribute("aria-label"))).toEqual(["收起侧边栏"]);
-    expect(sidebar.querySelector('[data-testid="sidebar-brand"]')?.contains(buttons[0])).toBe(true);
+    expect(document.querySelector('[data-shell="sidebar"]')).toBeNull();
+    expect(screen.queryByRole("button", { name: /收起侧边栏|展开侧边栏/ })).toBeNull();
+
+    const brand = screen.getByRole("link", { name: "数科云办公首页" });
+    expect(brand.textContent).toContain("数科云办公");
+    expect(brand.querySelector("button")).toBeNull();
   });
 
-  it("侧栏按钮位于品牌区并能切换展开状态", async () => {
+  it("主导航只渲染权限入口，账号操作仍在浮标里", async () => {
     await mountSignedIn();
 
-    const sidebar = document.querySelector('[data-shell="sidebar"]') as HTMLElement;
-    const collapseButton = screen.getByRole("button", { name: "收起侧边栏" });
-    expect(sidebar.querySelector('[data-testid="sidebar-brand"]')?.contains(collapseButton)).toBe(true);
-    expect(collapseButton.getAttribute("aria-expanded")).toBe("true");
-
-    fireEvent.click(collapseButton);
-    const brandToggle = screen.getByRole("button", { name: "展开侧边栏" });
-    expect(sidebar.querySelector('[data-testid="sidebar-brand"]')?.contains(brandToggle)).toBe(true);
-    expect(sidebar.querySelectorAll("button")).toHaveLength(1);
-
-    fireEvent.click(brandToggle);
-    expect(screen.getByRole("button", { name: "收起侧边栏" }).getAttribute("aria-expanded")).toBe("true");
-    expect(screen.queryByRole("button", { name: "展开侧边栏" })).toBeNull();
+    const nav = screen.getByRole("navigation", { name: "主导航" });
+    expect(nav.getAttribute("data-centered-nav")).toBe("true");
+    expect(nav.textContent).toContain("工作台");
+    expect(nav.textContent).toContain("项目台账");
+    // MENUS 只返回 projects：审批入口不能凭空出现
+    expect(nav.textContent).not.toContain("审批中心");
+    expect(screen.getByRole("button", { name: /^账号菜单/ })).toBeTruthy();
   });
 
   it("菜单与顶栏 chip 都不再出现角色权限文案", async () => {

@@ -1,0 +1,363 @@
+/* 居中药丸导航：外层由 layout 的 .navDock 负责 fixed 居中，本组件只负责药丸
+   与“更多”浮层的相对布局。颜色 / 时长一律消费现有的语义令牌：
+   --card / --ink / --ink-2 / --brand / --brand-soft / --line / --line-soft /
+   --highlight-inset / --shadow-float / --motion-* / --ease-console。 */
+
+.root {
+  position: relative;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+/* ── 药丸 ─────────────────────────────────────────────── */
+.nav {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 6px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-pill, 999px);
+  background: color-mix(in srgb, var(--card) 72%, transparent);
+  -webkit-backdrop-filter: blur(16px) saturate(1.25);
+  backdrop-filter: blur(16px) saturate(1.25);
+  box-shadow:
+    inset 0 1px 0 var(--highlight-inset, var(--line-soft)),
+    0 12px 38px -18px color-mix(in srgb, var(--bg) 90%, transparent);
+  isolation: isolate;
+}
+
+/* WebGL 水面：相对药丸向外出血 14px，具体像素尺寸由 LiquidNavbar 量出来。 */
+.water {
+  position: absolute;
+  z-index: -1;
+  top: -14px;
+  left: -14px;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+
+/* CSS 液滴：WebGL 不可用 / prefers-reduced-motion 时的回退；WebGL 成功后隐藏。 */
+.drop {
+  position: absolute;
+  z-index: -1;
+  top: 6px;
+  bottom: 6px;
+  left: 0;
+  width: 0;
+  border-radius: var(--radius-pill, 999px);
+  opacity: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(
+      120% 160% at 50% -30%,
+      color-mix(in srgb, var(--brand) 42%, transparent),
+      transparent 62%
+    ),
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--brand) 20%, transparent),
+      color-mix(in srgb, var(--brand) 8%, transparent)
+    );
+  box-shadow:
+    inset 0 1px 1px color-mix(in srgb, var(--ink) 32%, transparent),
+    inset 0 0 0 1px color-mix(in srgb, var(--brand) 38%, transparent);
+  transition:
+    left var(--motion-base) var(--ease-console),
+    width var(--motion-base) var(--ease-console),
+    opacity var(--motion-fast) var(--ease-console);
+}
+
+.nav[data-liquid-gl="on"] .drop {
+  display: none;
+}
+
+.item {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  height: 42px;
+  align-items: center;
+  gap: 8px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: var(--radius-pill, 999px);
+  background: none;
+  color: var(--ink-2);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: -.01em;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: color var(--motion-fast) var(--ease-console);
+}
+
+.item:hover {
+  color: var(--ink);
+}
+
+.item[aria-current="page"],
+.moreBtn[data-liquid-active="true"] {
+  color: var(--ink);
+}
+
+.item:focus-visible,
+.moreBtn:focus-visible {
+  outline: 2px solid var(--focus-ring, var(--brand));
+  outline-offset: 2px;
+}
+
+.icon {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+}
+
+.icon svg {
+  width: 100%;
+  height: 100%;
+}
+
+.label {
+  white-space: nowrap;
+}
+
+.moreBtn {
+  gap: 6px;
+}
+
+.chev {
+  width: 14px;
+  height: 14px;
+  flex: none;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  transition: transform var(--motion-fast) var(--ease-console);
+}
+
+.moreBtn[aria-expanded="true"] .chev {
+  transform: rotate(180deg);
+}
+
+/* ── 更多浮层 ─────────────────────────────────────────── */
+.more {
+  position: absolute;
+  z-index: 80;
+  top: calc(100% + 10px);
+  left: 50%;
+  width: clamp(260px, calc(100vw - 28px), 520px);
+  max-height: calc(100svh - 96px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  box-sizing: border-box;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius, 12px);
+  background: var(--card);
+  box-shadow: var(--shadow-float);
+  transform: translateX(-50%);
+  animation: moreIn var(--motion-base) var(--ease-console) both;
+}
+
+@keyframes moreIn {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
+.moreGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 2px;
+}
+
+.moreItem {
+  display: flex;
+  min-height: 40px;
+  align-items: center;
+  gap: 9px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: var(--radius-control, 10px);
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    background var(--motion-fast) var(--ease-console),
+    box-shadow var(--motion-fast) var(--ease-console);
+}
+
+.moreItem:hover,
+.moreItem:focus-visible {
+  background: var(--brand-soft);
+  outline: none;
+}
+
+.moreItem:focus-visible {
+  box-shadow: inset 0 0 0 2px var(--focus-ring, var(--brand));
+}
+
+.moreItemActive {
+  background: var(--brand-soft);
+}
+
+.moreLabel {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.moreIcon {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  color: var(--brand);
+}
+
+.moreIcon svg {
+  width: 100%;
+  height: 100%;
+}
+
+.moreBullet {
+  width: 6px;
+  height: 6px;
+  flex: none;
+  margin: 0 6px;
+  border-radius: 50%;
+  background: var(--brand);
+}
+
+.moreEmpty {
+  grid-column: 1 / -1;
+  margin: 0;
+  padding: 10px;
+  color: var(--ink-2);
+  font-size: 13px;
+}
+
+/* ── 权限同步失败 ─────────────────────────────────────── */
+.permsError {
+  display: inline-flex;
+  max-width: calc(100vw - 28px);
+  align-items: center;
+  gap: 10px;
+  padding: 6px 8px 6px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control, 10px);
+  background: color-mix(in srgb, var(--card) 88%, transparent);
+  color: var(--ink-2);
+  font-size: 12px;
+  line-height: 1.4;
+  box-shadow: inset 0 1px 0 var(--highlight-inset, var(--line-soft));
+}
+
+.permsErrorText {
+  min-width: 0;
+}
+
+.retry {
+  flex: none;
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-badge, 6px);
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background var(--motion-fast) var(--ease-console);
+}
+
+.retry:hover {
+  background: var(--brand-soft);
+}
+
+.retry:focus-visible {
+  outline: 2px solid var(--focus-ring, var(--brand));
+  outline-offset: 2px;
+}
+
+/* ── 窄屏：只留图标与“更多”，标签保留在读屏树里 ─────────── */
+@media (max-width: 1120px) {
+  .item {
+    gap: 0;
+    padding: 0 12px;
+  }
+
+  .label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+}
+
+@media (max-width: 767px) {
+  .root {
+    gap: 6px;
+  }
+
+  .nav {
+    gap: 1px;
+    padding: 5px;
+  }
+
+  .item {
+    height: 38px;
+    padding: 0 11px;
+  }
+
+  .more {
+    top: calc(100% + 8px);
+    max-height: calc(100svh - 76px);
+  }
+
+  .moreGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .drop,
+  .item,
+  .chev,
+  .moreItem,
+  .retry {
+    transition: none;
+  }
+
+  .more {
+    animation: none;
+  }
+}
+
+@media (max-width: 380px) {
+  .item {
+    padding: 0 8px;
+  }
+}

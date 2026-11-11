@@ -14,14 +14,14 @@ describe("云电竞管理平台品牌契约", () => {
 
   it("桌面与移动入口使用统一站点名称并保留 /spark 目标", () => {
     assert.match(desktopLayout, /"\/spark": "云电竞管理平台"/);
-    assert.match(desktopLayout, /n\.href === "\/spark"/);
+    assert.match(desktopLayout, /href: "\/spark"[^\n]*external: true/);
     assert.match(mobileEntry, /href="\/spark"[\s\S]*?title="云电竞管理平台"/);
     assert.doesNotMatch(mobileEntry, /NebulaCloud|Spark 演示站/);
   });
 
   it("桌面侧栏用独立浏览上下文打开站点，手机端改为同页导航（BLF-1389）", () => {
     // 桌面端：两个站点各有自己的浏览上下文（`target`），桌面用户能同时开两个窗口。
-    assert.match(desktopLayout, /target=\{[\s\S]*?SPARK_WINDOW_TARGET/);
+    assert.match(desktopLayout, /target:\s*isMobile\s*\?\s*undefined\s*:\s*SPARK_WINDOW_TARGET/);
     // 手机端：`target` 会在手机上开出一堆新标签页（底部多一条地址栏、
     // 回主工作台要连点好几次「返回」），所以手机端入口**不带** target。
     assert.doesNotMatch(

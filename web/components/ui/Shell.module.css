@@ -834,3 +834,118 @@
      （58 + 安全区 + 18 的呼吸位，与 MobileDock.module.css 的高度口径一致） */
   .content { padding-bottom: calc(var(--m-dock-h) + var(--m-safe-b) + 18px); }
 }
+
+
+/* ── 居中导航外壳（替换 sidebar + topbar）────────────────────────── */
+.main { margin-left: 0; }
+.content { padding: 104px clamp(20px, 2.4vw, 44px) 48px; }
+.pageHeading {
+  margin: 0 0 18px;
+  color: var(--ink);
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -.02em;
+  line-height: 1.2;
+}
+.brandFloat {
+  position: fixed;
+  z-index: 50;
+  top: 30px;
+  left: clamp(16px, 2.2vw, 34px);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  text-decoration: none;
+}
+.brandFloat .brandText b { color: var(--ink); }
+.brandFloat:focus-visible { outline: 2px solid var(--focus); outline-offset: 4px; border-radius: 6px; }
+.navDock {
+  position: fixed;
+  z-index: 60;
+  top: 22px;
+  left: 50%;
+  transform: translateX(-50%);
+}
+.accountDock {
+  position: fixed;
+  z-index: 50;
+  top: 26px;
+  right: clamp(16px, 2.2vw, 34px);
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--card) 72%, transparent);
+  -webkit-backdrop-filter: blur(16px) saturate(1.25);
+  backdrop-filter: blur(16px) saturate(1.25);
+  box-shadow: inset 0 1px 0 var(--line-soft), 0 12px 38px -18px color-mix(in srgb, var(--bg) 90%, transparent);
+}
+.accountDock .userChipWrap { padding-left: 0; border-left: 0; }
+.accountDock .userChipText { display: none; }
+.accountDock .userChip { min-height: 32px; padding: 0; margin-right: 0; }
+.accountDock .userMenu { top: calc(100% + 10px); }
+.shell[data-dashboard-shell="true"] { height: 100svh; overflow: hidden; }
+.shell[data-dashboard-shell="true"] .content { padding: 0; }
+.shell[data-dashboard-shell="true"] .contentInner { max-width: none; }
+.shell[data-dashboard-shell="true"] .routeView { height: 100svh; }
+@media (max-width: 900px) {
+  .content { padding: 92px 20px 40px; }
+  .brandFloat { top: 26px; left: 16px; }
+  .accountDock { top: 22px; right: 16px; }
+  .navDock { top: 18px; }
+}
+@media (max-width: 767px) {
+  .brandFloat .brandText { display: none; }
+  .brandFloat { top: 22px; left: 14px; }
+  .accountDock { top: 22px; right: 14px; }
+  .navDock { top: 16px; }
+  .content { padding: 88px 16px 32px; }
+  .pageHeading { margin-bottom: 14px; font-size: 19px; }
+}
+
+.accountBell { display: inline-flex; align-items: center; }
+@media (max-width: 767px) { .accountBell { display: none; } }
+
+:global(:root[data-theme="light"]) .shell[data-console-shell="true"] .brandFloat .brandSeal {
+  border-color: var(--line-blue);
+  color: var(--brand);
+}
+:global(:root[data-theme="light"]) .shell[data-console-shell="true"] .brandFloat .brandSeal::before {
+  border-color: var(--line-blue);
+}
+:global(:root[data-theme="light"]) .shell[data-console-shell="true"] .brandFloat .brandSealBar {
+  background: var(--brand);
+}
+
+/* iOS 刘海 / 横屏圆角：固定浮层与内容避让安全区 */
+.brandFloat { top: calc(30px + env(safe-area-inset-top, 0px)); }
+.navDock { top: calc(22px + env(safe-area-inset-top, 0px)); }
+.accountDock { top: calc(26px + env(safe-area-inset-top, 0px)); }
+.content { padding-top: calc(104px + env(safe-area-inset-top, 0px)); }
+@media (max-width: 900px) {
+  .brandFloat { top: calc(26px + env(safe-area-inset-top, 0px)); }
+  .navDock { top: calc(18px + env(safe-area-inset-top, 0px)); }
+  .accountDock { top: calc(22px + env(safe-area-inset-top, 0px)); }
+  .content { padding-top: calc(92px + env(safe-area-inset-top, 0px)); }
+}
+@media (max-width: 767px) {
+  .brandFloat { top: calc(22px + env(safe-area-inset-top, 0px)); }
+  .navDock { top: calc(16px + env(safe-area-inset-top, 0px)); }
+  .accountDock { top: calc(22px + env(safe-area-inset-top, 0px)); }
+  .content { padding-top: calc(88px + env(safe-area-inset-top, 0px)); }
+}
+
+.brandBell { display: none; }
+@media (max-width: 767px) {
+  .brandFloat { display: none; }
+  .brandBell {
+    display: inline-flex;
+    position: fixed;
+    z-index: 50;
+    top: calc(26px + env(safe-area-inset-top, 0px));
+    left: 14px;
+  }
+}

@@ -1,0 +1,456 @@
+/*
+ * Dashboard 欢迎页 · 透视隧道
+ *
+ * 视觉基准：docs/prototypes/dashboard-welcome/index.html。
+ * 颜色 / 时长 / 缓动全部走主工作台语义令牌（--bg / --ink / --line / --brand /
+ * --av-dur-* / --av-ease-*），不写裸色值与裸时长。
+ * 页面本身是全屏一屏：layout 已把 content padding 归零并给 routeView 100svh，
+ * 这里只负责撑满，不做 position: fixed（否则会盖住导航浮层）。
+ */
+
+.stage {
+  position: relative;
+  height: 100svh;
+  overflow: hidden;
+  perspective: 1200px;
+  perspective-origin: 50% 50%;
+  background: var(--bg);
+  color: var(--ink);
+  isolation: isolate;
+  /* 自定义纵向手势：交给浏览器 pan-y 会在 pointercancel 后中断隧道，页面本身又不可滚动。 */
+  touch-action: none;
+}
+
+.stage * {
+  box-sizing: border-box;
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ── 背景层：网格 + 中心辉光 + 两道同心圆 ───────────────────────── */
+.gridLayer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.55;
+  background-image: radial-gradient(color-mix(in srgb, var(--ink) 22%, transparent) 1px, transparent 1px);
+  background-size: 28px 28px;
+  -webkit-mask-image: radial-gradient(ellipse 68% 68% at 50% 50%, #000 58%, transparent 100%);
+  mask-image: radial-gradient(ellipse 68% 68% at 50% 50%, #000 58%, transparent 100%);
+}
+
+.glow {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(circle at 50% 50%, color-mix(in srgb, var(--brand) 16%, transparent) 0%, transparent 68%);
+}
+
+.rings {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+}
+
+.rings i {
+  position: absolute;
+  border-radius: 50%;
+}
+
+.rings i:first-child {
+  width: 48vmin;
+  height: 48vmin;
+  border: 1px solid color-mix(in srgb, var(--brand) 16%, transparent);
+}
+
+.rings i:last-child {
+  width: 76vmin;
+  height: 76vmin;
+  border: 1px dashed color-mix(in srgb, var(--ink) 16%, transparent);
+}
+
+/* ── 首屏标题：你好 / 当前用户名 ─────────────────────────────────── */
+.hero {
+  position: absolute;
+  z-index: 4;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  text-align: center;
+}
+
+.heroInner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  transform-origin: 50% 50%;
+  will-change: transform, opacity;
+}
+
+.hello,
+.name {
+  display: block;
+  font-weight: 700;
+  letter-spacing: -0.07em;
+  line-height: 0.92;
+  background: linear-gradient(180deg, var(--ink) 0%, var(--ink) 42%, color-mix(in srgb, var(--ink) 35%, transparent) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.hello {
+  font-size: clamp(56px, 9.6vw, 150px);
+}
+
+.name {
+  max-width: min(1200px, 92vw);
+  font-size: clamp(64px, 11vw, 176px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── 隧道 ────────────────────────────────────────────────────────── */
+.space {
+  position: absolute;
+  inset: 0;
+  transform-style: preserve-3d;
+  pointer-events: none;
+  will-change: transform;
+}
+
+.card {
+  --card-accent: var(--brand);
+  --card-accent-soft: var(--brand-soft);
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: clamp(170px, 18vw, 268px);
+  aspect-ratio: 4 / 5;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--card);
+  box-shadow:
+    inset 0 0 64px var(--card-accent-soft),
+    inset 0 1px 0 var(--highlight-inset);
+  transform-style: preserve-3d;
+  will-change: transform, opacity;
+  backface-visibility: hidden;
+}
+
+.card::before {
+  position: absolute;
+  inset: 0;
+  content: "";
+  background:
+    radial-gradient(circle at 78% 10%, var(--card-accent) 0%, transparent 42%),
+    radial-gradient(circle at 12% 96%, var(--card-accent-soft) 0%, transparent 56%);
+  opacity: 0.62;
+}
+
+.card::after {
+  position: absolute;
+  inset: 0;
+  content: "";
+  background: linear-gradient(180deg, transparent 38%, color-mix(in srgb, var(--bg) 82%, transparent) 100%);
+}
+
+.cardGrid {
+  position: absolute;
+  inset: 0;
+  opacity: 0.5;
+  background-image:
+    linear-gradient(color-mix(in srgb, var(--ink) 12%, transparent) 1px, transparent 1px),
+    linear-gradient(90deg, color-mix(in srgb, var(--ink) 12%, transparent) 1px, transparent 1px);
+  background-size: 26px 26px;
+  -webkit-mask-image: linear-gradient(180deg, #000 0%, transparent 78%);
+  mask-image: linear-gradient(180deg, #000 0%, transparent 78%);
+}
+
+.cardMeta {
+  position: absolute;
+  z-index: 2;
+  top: 14px;
+  right: 16px;
+  left: 16px;
+  display: flex;
+  justify-content: space-between;
+  color: var(--ink-3);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+}
+
+.cardCopy {
+  position: absolute;
+  z-index: 2;
+  right: 16px;
+  bottom: 16px;
+  left: 16px;
+}
+
+.cardCopy h2 {
+  margin: 0;
+  color: var(--ink);
+  font-size: clamp(17px, 1.5vw, 21px);
+  font-weight: 650;
+  letter-spacing: -0.02em;
+}
+
+.cardCopy p {
+  margin: 5px 0 0;
+  color: var(--ink-2);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+/* 九张卡片的点缀色：只做低饱和叠加，主色仍是信号蓝 / 数据紫的语义档位。 */
+.accent1 { --card-accent: var(--brand); --card-accent-soft: var(--brand-soft); }
+.accent2 { --card-accent: var(--data-aqua); --card-accent-soft: var(--doing-bg); }
+.accent3 { --card-accent: var(--warn); --card-accent-soft: var(--warn-bg); }
+.accent4 { --card-accent: var(--data-violet); --card-accent-soft: var(--violet-soft); }
+.accent5 { --card-accent: var(--danger); --card-accent-soft: var(--danger-bg); }
+.accent6 { --card-accent: var(--data-blue); --card-accent-soft: var(--brand-soft); }
+.accent7 { --card-accent: var(--data-aqua); --card-accent-soft: var(--done-bg); }
+.accent8 { --card-accent: var(--data-violet); --card-accent-soft: var(--violet-soft); }
+.accent9 { --card-accent: var(--data-magenta); --card-accent-soft: var(--danger-bg); }
+
+/* ── 滚动提示 ────────────────────────────────────────────────────── */
+.cue {
+  position: absolute;
+  z-index: 5;
+  bottom: 64px;
+  left: 50%;
+  display: grid;
+  justify-items: center;
+  transform: translateX(-50%);
+  opacity: 0.55;
+  pointer-events: none;
+}
+
+.cue i {
+  display: block;
+  width: 1px;
+  height: 26px;
+  background: linear-gradient(180deg, var(--brand), transparent);
+}
+
+/* ── 终点 ────────────────────────────────────────────────────────── */
+.endVeil {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  pointer-events: none;
+  background: radial-gradient(circle at 50% 50%, color-mix(in srgb, var(--bg) 55%, transparent) 0%, var(--bg) 72%);
+}
+
+.endState {
+  position: absolute;
+  z-index: 6;
+  top: 50%;
+  left: 50%;
+  width: min(640px, calc(100vw - 40px));
+  transform: translate(-50%, -50%);
+  text-align: center;
+}
+
+.endInner {
+  will-change: transform, opacity;
+}
+
+.endTitle {
+  margin: 0;
+  font-size: clamp(34px, 4.6vw, 62px);
+  font-weight: 700;
+  letter-spacing: -0.055em;
+  line-height: 1.08;
+  background: linear-gradient(180deg, var(--ink) 0%, var(--ink) 48%, color-mix(in srgb, var(--ink) 40%, transparent) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.endNote {
+  max-width: 520px;
+  margin: 14px auto 0;
+  color: var(--ink-2);
+  font-size: clamp(12px, 1.1vw, 14px);
+  line-height: 1.7;
+  text-wrap: balance;
+}
+
+.endActions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 26px;
+}
+
+.endPrimary {
+  display: inline-flex;
+  height: 44px;
+  align-items: center;
+  gap: 8px;
+  padding: 0 20px;
+  border: 1px solid var(--brand);
+  border-radius: 999px;
+  background: var(--brand);
+  color: var(--on-brand);
+  font-size: 14px;
+  font-weight: 650;
+  line-height: 1;
+  text-decoration: none;
+  transition:
+    background var(--av-dur-quick) var(--av-ease-standard),
+    border-color var(--av-dur-quick) var(--av-ease-standard),
+    transform var(--av-dur-instant) var(--av-ease-standard);
+}
+
+.endPrimary:hover {
+  border-color: var(--brand-hover);
+  background: var(--brand-hover);
+  color: var(--on-brand);
+  text-decoration: none;
+}
+
+.endPrimary:active {
+  transform: scale(0.98);
+}
+
+.endPrimary:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 3px;
+}
+
+.endArrow {
+  font-size: 15px;
+  line-height: 1;
+  transition: transform var(--av-dur-quick) var(--av-ease-standard);
+}
+
+.endPrimary:hover .endArrow {
+  transform: translateX(3px);
+}
+
+.endGhost {
+  height: 44px;
+  padding: 0 16px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: none;
+  color: var(--ink-3);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  transition:
+    color var(--av-dur-quick) var(--av-ease-standard),
+    border-color var(--av-dur-quick) var(--av-ease-standard);
+}
+
+.endGhost:hover {
+  border-color: var(--line);
+  color: var(--ink);
+}
+
+.endGhost:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 3px;
+}
+
+/* ── 窄屏 ────────────────────────────────────────────────────────── */
+@media (max-width: 767px) {
+  .card {
+    width: clamp(126px, 36vw, 172px);
+    border-radius: 13px;
+  }
+
+  .cardCopy h2 {
+    font-size: 16px;
+  }
+
+  .cardCopy p {
+    font-size: 10px;
+  }
+
+  .hero {
+    top: 52%;
+  }
+
+  .hello {
+    font-size: clamp(52px, 17vw, 92px);
+  }
+
+  .name {
+    font-size: clamp(62px, 21vw, 112px);
+  }
+
+  .rings i:first-child {
+    width: 58vmin;
+    height: 58vmin;
+  }
+
+  .rings i:last-child {
+    width: 88vmin;
+    height: 88vmin;
+  }
+
+  .cue {
+    bottom: 58px;
+  }
+
+  .endTitle {
+    font-size: clamp(30px, 9vw, 42px);
+  }
+
+  .endNote {
+    max-width: 300px;
+    font-size: 12px;
+  }
+
+  .endActions {
+    margin-top: 22px;
+  }
+
+  .endPrimary {
+    height: 42px;
+    padding: 0 17px;
+    font-size: 13px;
+  }
+
+  .endGhost {
+    height: 42px;
+    padding: 0 12px;
+  }
+}
+
+/* ── 减少动效：直接落在静态中间帧，卡片不再位移 ──────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  .card {
+    transition: none;
+  }
+
+  .heroInner,
+  .space {
+    will-change: auto;
+  }
+
+  .endArrow {
+    transition: none;
+  }
+}
