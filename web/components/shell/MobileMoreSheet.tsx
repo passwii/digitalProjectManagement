@@ -77,6 +77,19 @@ export default function MobileMoreSheet({
     return () => window.clearTimeout(timer);
   }, [open, present, reduced, handleExitComplete]);
 
+  /**
+   * 立即完成 sheet 的清理再离开页面。
+   *
+   * 修改密码是拦截路由 modal：如果只调用 onClose，320ms 的退出定时器会在密码
+   * dialog 已经挂载后才恢复 body overflow / 焦点，导致后者保存了错误的锁状态。
+   * 这里在 Link / 退出登录真正跳转前同步完成 modal 清理。
+   */
+  function closeImmediately() {
+    onClose();
+    setPresent(false);
+    handleExitComplete();
+  }
+
   useEffect(() => {
     if (open && bodyRef.current) bodyRef.current.scrollTop = 0;
   }, [open]);
@@ -171,14 +184,14 @@ export default function MobileMoreSheet({
               </span>
             </div>
             <div className={s.accountActions}>
-              <Link href="/change-password" className={s.accountLink} onClick={onClose}>
+              <Link href="/change-password" className={s.accountLink} onClick={closeImmediately}>
                 修改密码
               </Link>
               <button
                 type="button"
                 className={s.logout}
                 onClick={() => {
-                  onClose();
+                  closeImmediately();
                   onLogout();
                 }}
               >
