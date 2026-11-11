@@ -228,6 +228,14 @@ jobs:
             fi
           done
 
+      # deploy_vps.py 只使用标准库（最低 3.7），但 scripts/ 下其他 Python 工具
+      # 依赖 3.10+ 语法（typing.TypeGuard），仓库统一按 3.12 运行。这里显式固定，
+      # 避免依赖 ubuntu-latest 自带 python3 的版本漂移。
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
       - name: Deploy and verify production health
         env:
           API_IMAGE: ${{ needs.validate.outputs.api_image || needs.build.outputs.api_image }}
