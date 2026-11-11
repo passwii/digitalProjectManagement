@@ -50,8 +50,8 @@ describe("手机端入口：两个独立站点都在（BLF-1389）", () => {
   it("桌面端在手机形态下自动去掉 target（断点跟随）", () => {
     // 侧栏在 ≤767px 是 display:none（手机外壳是底部 Dock），
     // 但断点切换时 DOM 还在 —— target 必须跟着断点走。
-    expect(desktopLayout).toMatch(/useIsMobile/);
-    expect(desktopLayout).toMatch(/isMobile\s*\?\s*undefined/);
+    expect(desktopLayout).toMatch(/useMobilePwaViewport/);
+    expect(desktopLayout).toMatch(/mobileViewport\s*\?\s*undefined/);
   });
 });
 

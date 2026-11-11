@@ -219,3 +219,32 @@
 :global(:root[data-theme="light"]) .sheet {
   box-shadow: 0 -24px 60px -30px color-mix(in srgb, var(--ink) 22%, transparent);
 }
+
+/* 权限菜单加载失败：手机端没有顶部 CenteredNavbar 的重试入口，兜底提示放在 sheet 内。 */
+.permsError {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 4px 2px 10px;
+  padding: 9px 11px;
+  border: 1px solid var(--line-warn, var(--line));
+  border-radius: 10px;
+  background: var(--warn-bg, var(--card-lift));
+  color: var(--warn, var(--ink-2));
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.retry {
+  flex: none;
+  min-height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--line-warn, var(--line));
+  border-radius: 8px;
+  background: transparent;
+  color: var(--warn, var(--ink-2));
+  font-size: 11px;
+}
+.retry:hover { background: var(--card-lift); }
+.retry:focus-visible { outline: 2px solid var(--focus-ring, var(--brand)); outline-offset: 2px; }

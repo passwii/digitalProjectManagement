@@ -31,6 +31,9 @@ export interface MobileMoreSheetProps {
   items: ShellNavItem[];
   accountName: string | null;
   onLogout: () => void;
+  /** 权限菜单加载失败：手机端没有 CenteredNavbar 的重试入口，需要在 sheet 里保留。 */
+  permsError?: boolean;
+  onRetry?: () => void;
 }
 
 export default function MobileMoreSheet({
@@ -39,6 +42,8 @@ export default function MobileMoreSheet({
   items,
   accountName,
   onLogout,
+  permsError = false,
+  onRetry,
 }: MobileMoreSheetProps) {
   const titleId = `${useId()}-more-title`;
   const reduced = useReducedMotion() ?? false;
@@ -121,6 +126,14 @@ export default function MobileMoreSheet({
         </header>
 
         <div className={s.body} ref={bodyRef} {...BODY_MARK}>
+          {permsError ? (
+            <div className={s.permsError} role="alert">
+              <span>权限菜单加载失败，当前显示兜底入口。</span>
+              {onRetry ? (
+                <button type="button" onClick={onRetry} className={s.retry}>重试</button>
+              ) : null}
+            </div>
+          ) : null}
           {items.length > 0 ? (
             <div className={s.grid}>
               {items.map((item) => (

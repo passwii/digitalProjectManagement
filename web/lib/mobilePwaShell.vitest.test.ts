@@ -47,6 +47,12 @@ describe("手机 PWA 外壳结构", () => {
     expect(page).toContain("useMobilePwaViewport");
   });
 
+  it("横屏手机也使用移动视口决定 target，不把独立站点开成新标签", () => {
+    expect(layout).toContain("useMobilePwaViewport");
+    expect(layout).toMatch(/target:\s*mobileViewport\s*\?/);
+    expect(layout).not.toContain("target: isMobile ?");
+  });
+
   it("100dvh + 工作台内容区内部滚动（横屏短屏不裁切）", () => {
     expect(shellCss).toMatch(/min-height:\s*100vh;/);
     expect(shellCss).toMatch(/min-height:\s*100dvh;/);

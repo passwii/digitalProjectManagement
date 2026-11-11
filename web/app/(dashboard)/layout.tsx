@@ -10,7 +10,7 @@ import { clearMetaCache, loadMe, useMe, useMenus } from "@/lib/useMeta";
 import { identityViewOf } from "@/lib/identityCore";
 import { SPARK_WINDOW_TARGET } from "@/lib/spark/navigation";
 import { AV_WINDOW_TARGET } from "@/lib/av/navigation";
-import { useIsMobile } from "@/lib/useIsMobile";
+import { useMobilePwaViewport } from "@/lib/mobilePwaViewport";
 import Avatar from "@/components/ui/Avatar";
 import Bell from "@/components/ui/Bell";
 import ThemeModePicker from "@/components/theme/ThemeModePicker";
@@ -408,7 +408,7 @@ function DashboardShell({ children, modal }: { children: React.ReactNode; modal?
    * 回主工作台要连点好几次「返回」，而且 standalone 下（无地址栏）用户
    * 根本不知道自己「跳」到了另一个标签页。
    */
-  const isMobile = useIsMobile();
+  const mobileViewport = useMobilePwaViewport();
   const [mobileMoreOpen, setMobileMoreOpen] = useState(false);
 
   // 路由变化后「更多」sheet 不应留在原地。
@@ -453,10 +453,10 @@ function DashboardShell({ children, modal }: { children: React.ReactNode; modal?
     }
     // Spark 分组下两条独立站点入口：云电竞管理平台与智能音视频平台。
     // 两者是完全不同的产品，各自一个 target，互不抢同一个标签页。
-    out.push({ href: "/spark", label: LABEL["/spark"], icon: ICON["/spark"], external: true, target: isMobile ? undefined : SPARK_WINDOW_TARGET });
-    out.push({ href: "/stream-monitor", label: LABEL["/stream-monitor"], icon: ICON["/stream-monitor"], external: true, target: isMobile ? undefined : AV_WINDOW_TARGET });
+    out.push({ href: "/spark", label: LABEL["/spark"], icon: ICON["/spark"], external: true, target: mobileViewport ? undefined : SPARK_WINDOW_TARGET });
+    out.push({ href: "/stream-monitor", label: LABEL["/stream-monitor"], icon: ICON["/stream-monitor"], external: true, target: mobileViewport ? undefined : AV_WINDOW_TARGET });
     return out;
-  }, [menus, permsError, isMobile]);
+  }, [menus, permsError, mobileViewport]);
 
   // 「更多」sheet 的溢出项与底部 dock 共用同一份 splitNav 投影，不另维护一份菜单。
   const mobileOverflow = useMemo(() => splitNav(navItems, pathname).overflow, [navItems, pathname]);
@@ -579,6 +579,8 @@ function DashboardShell({ children, modal }: { children: React.ReactNode; modal?
           items={mobileOverflow}
           accountName={displayName}
           onLogout={logout}
+          permsError={Boolean(permsError)}
+          onRetry={reloadMenus}
         />
       </div>
       </MobileShellProvider>

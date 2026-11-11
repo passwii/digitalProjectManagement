@@ -100,7 +100,15 @@ describe("MobileBottomDock：六槽底部导航", () => {
 });
 
 describe("MobileMoreSheet：焦点、Esc 与账号区", () => {
-  function Host({ onClose = vi.fn() }: { onClose?: () => void }) {
+  function Host({
+    onClose = vi.fn(),
+    permsError = false,
+    onRetry,
+  }: {
+    onClose?: () => void;
+    permsError?: boolean;
+    onRetry?: () => void;
+  }) {
     const [open, setOpen] = useState(false);
     return (
       <>
@@ -111,6 +119,8 @@ describe("MobileMoreSheet：焦点、Esc 与账号区", () => {
           items={MENUS.filter((item) => ["/contacts", "/assets", "/spark"].includes(item.href))}
           accountName="张伟"
           onLogout={vi.fn()}
+          permsError={permsError}
+          onRetry={onRetry}
         />
       </>
     );
@@ -127,6 +137,16 @@ describe("MobileMoreSheet：焦点、Esc 与账号区", () => {
     expect(screen.getByText("张伟")).toBeTruthy();
     expect(screen.getByRole("link", { name: "修改密码" }).getAttribute("href")).toBe("/change-password");
     expect(screen.getByRole("button", { name: "退出登录" })).toBeTruthy();
+  });
+
+  it("权限菜单加载失败时，在 sheet 内保留可见重试", () => {
+    const onRetry = vi.fn();
+    render(<Host permsError onRetry={onRetry} />);
+    fireEvent.click(screen.getByRole("button", { name: "打开更多" }));
+
+    expect(screen.getByRole("alert").textContent).toContain("权限菜单加载失败");
+    fireEvent.click(screen.getByRole("button", { name: "重试" }));
+    expect(onRetry).toHaveBeenCalledTimes(1);
   });
 
   it("Esc 请求关闭（由 useModalBehavior 统一处理）", () => {
