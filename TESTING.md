@@ -11,7 +11,7 @@
 | 层 | 谁跑 | 依据 |
 | --- | --- | --- |
 | 纯逻辑、组件 DOM 行为、动效/令牌守卫 | 开发者本地（提交前必须跑） | `npm test`（前端） |
-| 后端业务用例、权限、迁移链 | GitHub Actions `api` workflow | `go test -v ./...` + 归档 `pytest tests -q` + 真实 PostgreSQL |
+| 后端业务用例、权限、迁移链 | GitHub Actions `api` workflow | `go test -v ./...` + 真实 PostgreSQL |
 | 前端全量 + 构建期类型检查 | GitHub Actions `web` workflow | `npm test` + `npm run build` |
 | 浏览器/截图类验收 | **人工按需**，不进 CI | `scripts/av-*.mjs`、`scripts/acceptance_*.py` |
 
@@ -23,7 +23,6 @@
 | 前端组件 / DOM / 动效 / 源码守卫 | `vitest` | `web/lib/**/*.vitest.test.ts(x)` | `npm run test:motion` | `web.yml` |
 | 前端构建期类型检查 | `next build` | 整个 `web/` | `npm run build` | `web.yml` |
 | Go 后端单元 / 集成 | `go test` + PostgreSQL 18 | `api/**/*_test.go` | `cd api && go test -v ./...`（集成需 `TEST_DATABASE_URL`） | `api.yml` |
-| 归档 FastAPI 行为基线 | `pytest` + PostgreSQL 18 | `tests/test_*.py` | `pytest tests -q`（需 `TEST_DATABASE_URL`） | `api.yml` |
 | 浏览器验收（截图 / 溢出 / 动效） | CDP + 本机 Chrome | `scripts/av-*.mjs`、`scripts/av-layout-*.mjs` | 手动 | 无 |
 
 前端两个数字经常被问到：`npm test` = `npm run test:unit && npm run test:motion`，也就是**两套 runner 都会跑**，不存在"跑了 npm test 但只跑了一半"。
@@ -85,7 +84,7 @@ Node 版本：CI 固定 **26**（`.github/workflows/web.yml`，与 `docker/web.D
 
 ### 4.1 本地怎么跑（要有 `TEST_DATABASE_URL`）
 
-Go 数据库集成测试在**没有** `TEST_DATABASE_URL` 时会 `t.Skip`；归档 pytest 的 `db` fixture 同样会 `pytest.skip()`。本地"绿"不代表数据库用例已执行，最终结论以 `api` workflow 为准。
+Go 数据库集成测试在**没有** `TEST_DATABASE_URL` 时会 `t.Skip`。本地"绿"不代表数据库用例已执行，最终结论以 `api` workflow 为准。
 
 推荐做法：起一个**一次性本地 PG**，凭据与 CI 完全一致：
 
@@ -97,14 +96,12 @@ docker run --rm -d --name pm-test-pg -p 5432:5432 \
 export TEST_DATABASE_URL='postgresql+psycopg://app:app@127.0.0.1:5432/app_test'
 export APP_ENV=test
 
-pip install -r api/requirements.txt
-cd api && go test -v ./... && cd ..
-pytest tests -q                            # 归档 FastAPI 行为基线
+cd api && go test -v ./...
 
 docker rm -f pm-test-pg
 ```
 
-Go 集成测试会为每个测试创建随机 schema，并执行嵌入 Go 二进制的 Goose 当前 schema 基线；`api/pkg/migrations` 另有 adoption/拒绝/失败重试用例，覆盖已有库的接管路径。数据库已配置但连接或迁移失败时直接失败，不会把基础设施故障伪装成 skip。归档 pytest 只覆盖部分历史 Alembic revision 与数据迁移，不执行完整 Alembic 链。
+Go 集成测试会为每个测试创建随机 schema，并执行嵌入 Go 二进制的 Goose 当前 schema 基线；`api/pkg/migrations` 另有 adoption/拒绝/失败重试用例，覆盖已有库的接管路径。数据库已配置但连接或迁移失败时直接失败，不会把基础设施故障伪装成 skip。
 
 需要连开发库时走 `scripts/db_tunnel.sh`（`docker compose -f docker-compose.yml -f docker-compose.local.yml up db-tunnel`，把 VPS 上的 PG 转发到本机 5432）。但**迁移类验证不要跑在共享库上**：用随机临时 schema，或就用上面的本地一次性 PG。
 
@@ -113,21 +110,18 @@ Go 集成测试会为每个测试创建随机 schema，并执行嵌入 Go 二进
 | 项 | 值 |
 | --- | --- |
 | Go | 1.27（与 `docker/api.Dockerfile` 一致） |
-| Python | 3.14（CI 仅用于安装归档 pytest 基线依赖；生产 API 镜像不含 Python） |
 | PostgreSQL | `postgres:18` service，`app/app/app_test`，显式发布 5432 |
 | 环境变量 | `TEST_DATABASE_URL=postgresql+psycopg://app:app@localhost:5432/app_test`、`APP_ENV=test` |
-| 命令 | `pip install -r api/requirements.txt` → `cd api && go test -v ./...` → `pytest tests -q` |
-
-`conftest.py` 在 `CI=true` 且缺 `TEST_DATABASE_URL` 时**直接抛错**（不是 skip）。这道防线不要拆：它的存在就是防止"跳过被当成通过"。
+| 命令 | `cd api && go test -v ./...` |
 
 ### 4.3 必须覆盖什么
 
 - **权限与数据范围**：未授权稳定 `401/403/404`；跨部门/跨项目数据不可见；超级管理员与模块权限。
 - **状态机与事务**：审批、凭证、冲销等不允许半提交；审计与业务同事务。
-- **迁移与真实 schema**：`go test` 的数据库集成用例在随机 schema 上执行 Goose 当前 schema 基线，`api/pkg/migrations` 覆盖 Alembic head 接管、错误 head/字段拒绝与失败重试；`tests/test_migration_revision_ids.py` 继续守卫历史 Alembic revision 图与部分数据迁移行为。
+- **迁移与真实 schema**：`go test` 的数据库集成用例在随机 schema 上执行 Goose 当前 schema 基线，`api/pkg/migrations` 覆盖 Alembic head 接管、错误 head/字段拒绝与失败重试。
 - **契约字段**：请求/响应字段、时间格式、分页与筛选语义。
-- **对象存储**：默认本地临时暂存，不触网；需要验证 R2 行为时用 `monkeypatch` 局部覆盖。
-- **测试账号密码哈希**：归档 pytest 直接写库的 fixture 用户使用 `tests.support.hash_test_password`（bcrypt cost 4）；Go 集成测试通过生产 `security.HashPassword` 创建账号。登录验证始终使用生产验密路径。
+- **对象存储**：Go 侧覆盖本地后端与 R2 键/URL 行为；真实 R2 凭据只用于人工验收，不进入 CI。
+- **测试账号密码哈希**：Go 集成测试通过生产 `security.HashPassword` 创建账号，登录验证始终使用生产验密路径。
 
 ### 4.4 数据库卫生
 
@@ -135,11 +129,11 @@ Go 集成测试会为每个测试创建随机 schema，并执行嵌入 Go 二进
 - 不连生产库、不连同事的开发库跑全量套件。
 - 测试里的 `STORAGE_LOCAL_ROOT` 固定指向临时目录；不要读写仓库内文件。
 
-### 4.5 归档 Python 的定位
+### 4.5 Python 的定位
 
-- 生产 API 与 schema 迁移均由 `api/` 下的 Go 模块执行；`api/legacy_py/` 和 `api/alembic/` 只保留行为基线与历史迁移回归，不随生产镜像发布。
-- `tests/**` 全部导入 `api.legacy_py.*`，不再混用 `api.core` / `api.models`，避免同一文件被加载成两套模块身份。
-- 新增业务行为优先在 `api/**/*_test.go` 覆盖；修改归档基线时必须同时确认 Go 契约没有偏离。
+- 后端 API、schema 迁移与测试全部由 `api/` 下的 Go 模块执行；仓库不再保留 `api/legacy_py/`、`api/alembic/` 或 pytest 套件。
+- 仅运维/数据工具脚本可以保留 Python（如 `scripts/deploy_vps.py`、`scripts/rekey_r2_objects.py`），它们不参与生产镜像构建，也不进入 CI。
+- 新增业务行为在 `api/**/*_test.go` 覆盖；禁止为补测试重新引入 Python 后端。
 
 ## 5. 浏览器/端到端验收（不进 CI）
 
@@ -163,7 +157,7 @@ node scripts/av-monitor-motion.mjs  http://127.0.0.1:3001 artifacts/blf1425
 | 改动面 | 必需检查 | 备注 |
 | --- | --- | --- |
 | `web/**`（页面、组件、样式、动效、`lib/`） | **`web · 测试`** | 含 `npm test` + `npm run build` |
-| `api/**`、`tests/**`、`docker/api.Dockerfile` | **`api · 测试`** | Go 全量测试 + 归档 pytest + 真实 PG |
+| `api/**`、`docker/api.Dockerfile` | **`api · 测试`** | Go 全量测试 + 真实 PG |
 | `.dockerignore`、`api/**`、`web/**`、`docker/**`、`scripts/**`、`docker-compose.yml`、`docker-compose.prod.yml`、`container-images.yml`、`deploy-vps.yml` | **`container-images`** | PR 上检查生产 Compose 合并结果并构建 API/Web 镜像，不推送、不部署 |
 | 前后端都改、或改了接口契约 | 两条都要 | 契约变更要在 PR 里点明 |
 | `docs/**`、`AGENTS.md`、`TESTING.md`、`artifacts/**` | **`web · 测试`** | `web.yml` 对所有 PR 触发，纯文档 PR 也会跑；`api` 不会跑 |
@@ -197,7 +191,7 @@ node scripts/av-monitor-motion.mjs  http://127.0.0.1:3001 artifacts/blf1425
 
 | 坑 | 症状 | 结论 |
 | --- | --- | --- |
-| 缺 `TEST_DATABASE_URL` | `52 passed, 230 skipped`、退出码 0 | 跳过不是通过；CI 已强制抛错 |
+| 缺 `TEST_DATABASE_URL` | Go 集成用例全部 `skip`、退出码 0 | 跳过不是通过；以 `api` workflow 的真实 PG 结果为准 |
 | `vitest` `include` 漏 `.tsx` | 新增组件测试全绿但一条没跑 | 新文件必须出现在输出里 |
 | `api.yml` 漏 `docker/api.Dockerfile` | 只改 Dockerfile 时 `api` job 根本不出现 | `paths` 要覆盖所有影响后端的文件 |
 | CSS Module 本地化 keyframes 名 | `animation: avXxx` 静默不执行（`animation-name` 不是 `none`，但停在首帧） | 动画名经 `--av-kf-*` 变量转发；vitest 有源码守卫 |

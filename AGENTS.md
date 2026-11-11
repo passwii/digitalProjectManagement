@@ -14,7 +14,7 @@
 - Spark / 演示站模拟设计：`docs/mock-design.md` ← 新建或扩展演示站前先读
 - 产品定位与用户：`PRODUCT.md`
 
-仓库现实：单仓库（`web/` Next.js 14 + `api/` Go/Gin/GORM + Goose）、PostgreSQL 唯一业务数据源、附件走 Cloudflare R2、部署是 VPS 上的 Docker Compose + 宿主机 Caddy。生产 API 镜像只含 Go 运行时；FastAPI 与 Alembic 历史留在仓库供归档行为和迁移回归使用。
+仓库现实：单仓库（`web/` Next.js 14 + `api/` Go/Gin/GORM + Goose）、PostgreSQL 唯一业务数据源、附件走 Cloudflare R2、部署是 VPS 上的 Docker Compose + 宿主机 Caddy。生产 API 与后端测试只含 Go；仅运维/数据工具脚本可保留 Python。
 
 ## 0. 规则优先级
 
@@ -28,8 +28,7 @@
 | 路径 | 内容 |
 | --- | --- |
 | `web/` | Next.js 14 App Router + React 18 + TypeScript。`app/` 路由、`components/` 组件、`lib/` 数据访问与纯逻辑（**测试也放在这里**） |
-| `api/` | Go 模块化单体：`internal/`（业务域）/ `pkg/`（平台能力与 Goose 迁移）/ `legacy_py/`（归档行为基线）/ `alembic/`（历史迁移回归） |
-| `tests/` | 归档 FastAPI 行为基线 pytest 套件（需要真实 PostgreSQL，见 `TESTING.md` §4） |
+| `api/` | Go 模块化单体：`internal/`（业务域）/ `pkg/`（平台能力与 Goose 迁移）/ `cmd/`（服务、迁移、seed 工具） |
 | `scripts/` | 运维脚本（`deploy_vps.py`、`db_tunnel.sh`）与验收脚本（`av-*.mjs`、`acceptance_*.py`） |
 | `docker/`、`docker-compose*.yml` | 镜像与编排。`docker-compose.local.yml` 通过 SSH 隧道连 VPS 上的 PG |
 | `docs/` | 设计与计划归档：`docs/finance/`、`docs/performance/`、`docs/prototypes/`、`docs/superpowers/plans/` |
@@ -56,9 +55,6 @@ go test -v ./...                     # 需要 TEST_DATABASE_URL 才会执行数�
 go build -o /dev/null main.go
 go build -o /dev/null ./cmd/migrate  # 生产迁移 runner
 cd ..
-
-# 归档 Python 行为与历史迁移基线
-pytest tests -q                      # 需要 TEST_DATABASE_URL，见 TESTING.md §4
 ```
 
 部署：合并到 `main` 后由 `.github/workflows/deploy-vps.yml` 自动构建并推送 API/Web 镜像到 GHCR，再 SSH 到 VPS 拉取 digest 镜像并检查健康状态；也可在 GitHub Actions 手动重跑 `main` 或指定两份 digest 回滚。PR 分支不会部署。`production` environment 需配置部署 SSH 凭据。
@@ -76,7 +72,7 @@ python3 scripts/deploy_vps.py \
 
 完整规则见 **`TESTING.md`**，这里只列不可协商的几条：
 
-- **本地只跑单元/组件测试**（前端 `web/` 下 `npm test`，后端定向 `go test` / 迁移期 `pytest` 用例）；**全量与集成测试交给 GitHub Actions** 的 `web` / `api` workflow，容器构建路径同时看 `container-images`。
+- **本地只跑单元/组件测试**（前端 `web/` 下 `npm test`，后端定向 `go test`）；**全量与集成测试交给 GitHub Actions** 的 `web` / `api` workflow，容器构建路径同时看 `container-images`。
 - 前端有 **两套 runner**，命名决定归谁：`lib/**/*.test.ts` → `node:test`；`lib/**/*.vitest.test.ts(x)` → `vitest`。放错位置等于没写测试（`vitest` 的 include 只覆盖 `web/lib/`）。
 - **跳过 ≠ 通过**：后端缺 `TEST_DATABASE_URL` 时依赖数据库的用例会 `skip`，本地"绿"没有意义；结论以 `api` workflow 为准。
 - 新增行为必须带用例；修 bug 先写能复现的失败用例。改权限、状态机、迁移、公共 schema 时，用例是硬要求，不是加分项。
@@ -89,7 +85,7 @@ python3 scripts/deploy_vps.py \
 | Workflow / 检查名 | 文件 | 触发 | 做什么 |
 | --- | --- | --- | --- |
 | `web` / **`web · 测试`** | `web.yml` | 所有 PR、push `main` | Node 26 → `npm ci` → `npm test` → `npm run build` |
-| `api` / **`api · 测试`** | `api.yml` | PR 改到 `api/**`、`tests/**`、`docker/api.Dockerfile`、`api.yml` 本身；push `main` | postgres:18 服务 + Go 1.27 + Python 3.14 → `go test -v ./...` + 归档 `pytest tests -q` |
+| `api` / **`api · 测试`** | `api.yml` | PR 改到 `api/**`、`docker/api.Dockerfile`、`api.yml` 本身；push `main` | postgres:18 服务 + Go 1.27 → `go test -v ./...` |
 | `container-images` | `container-images.yml` | PR 改动容器构建相关路径 | GitHub-hosted runner 分别构建 API/Web 镜像，不推送、不连接 VPS |
 | `deploy-vps` | `deploy-vps.yml` | push `main`、手动 dispatch（仅 `main`） | Actions 构建并推送 GHCR digest → `production` environment SSH → VPS `docker compose pull` / `up --no-build` → 服务健康检查 |
 
@@ -136,7 +132,7 @@ python3 scripts/deploy_vps.py \
 - **审计与业务同事务**（ADR-004）：不允许业务成功而审计缺失。
 - **软删除**（ADR-007）：所有业务查询必须显式下推软删除条件。
 - **时间口径统一 `Asia/Shanghai`**（README §4.4）：不用本机时区，不写裸 `datetime.now()`。
-- **迁移**：生产 schema 由 `api/pkg/migrations/` 中的 Goose SQL 管理；只新增 Goose migration，不改已合入的历史。已有数据库仅在 Alembic head 为 `0035_merge_superadmin_inventory` 且关键分支字段齐全时自动登记 Goose 基线；Go 集成测试在随机临时 schema 上跑 Goose 基线，归档 pytest 继续守历史 Alembic revision 图与数据迁移。不碰共享库。
+- **迁移**：生产 schema 由 `api/pkg/migrations/` 中的 Goose SQL 管理；只新增 Goose migration，不改已合入的历史。已有数据库仅在 Alembic head 为 `0035_merge_superadmin_inventory` 且关键分支字段齐全时自动登记 Goose 基线；Go 集成测试在随机临时 schema 上跑 Goose 基线与 adoption 用例。不碰共享库。
 - **前端样式与动效**：颜色、时长与缓动使用所属界面的语义令牌，不写裸色值或裸动效时长。`/stream-monitor` 使用 `var(--av-*)` 与 `AV_MOTION`，并由 `web/lib/av/*.vitest.test.ts` 守卫；Spark 与其他独立演示界面遵循各自的令牌体系及 `docs/mock-design.md`。
 - **前端界面文案**：Avoid unnecessary secondary labels and descriptions. Let the layout do the explaining. 不堆叠多余的二级标签与说明文字，让布局本身完成解释，而不是靠文字补充。
 - **`/stream-monitor` 演示站**：画面用 CSS/SVG 合成，不往 `public/` 加视频/图片素材。
