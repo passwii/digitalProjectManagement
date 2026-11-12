@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import ThemeProvider from "../components/theme/ThemeProvider";
 import DashboardLayout from "../app/(dashboard)/layout";
 
@@ -18,6 +18,12 @@ vi.mock("next/navigation", () => ({
 vi.mock("@/lib/api", () => ({
   authApi: { logout: () => mocks.logout() },
   clearSession: vi.fn(),
+  notificationsApi: {
+    count: () => Promise.resolve({ unread: 0 }),
+    list: () => Promise.resolve({ total: 0, unread: 0, page: 1, size: 12, items: [] }),
+    read: vi.fn(),
+    readAll: vi.fn(),
+  },
 }));
 
 vi.mock("@/lib/useMeta", () => ({
@@ -46,7 +52,6 @@ vi.mock("@/lib/useMeta", () => ({
   }),
 }));
 
-vi.mock("@/components/ui/Bell", () => ({ default: () => null }));
 vi.mock("@/components/motion/ActivityBar", () => ({ default: () => null }));
 vi.mock("@/components/mobile/MobileDock", () => ({ default: () => null }));
 vi.mock("@/components/mobile/PullToRefresh", () => ({
@@ -105,12 +110,14 @@ describe("用户菜单主题选择", () => {
     const chip = await screen.findByRole("button", { name: "账号菜单：张伟" });
     fireEvent.click(chip);
 
-    expect(screen.getByRole("menuitem", { name: "功能更新" })).toBeTruthy();
-    expect(screen.getByRole("menuitem", { name: "修改密码" })).toBeTruthy();
-    expect(screen.getByRole("menuitem", { name: "退出登录" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: "功能更新" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: "修改密码" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "退出登录" })).toBeTruthy();
     expect(screen.getByText("显示模式")).toBeTruthy();
-    expect(screen.getAllByRole("menuitemradio")).toHaveLength(3);
-    expect(screen.getByRole("menuitemradio", { name: "深色" }).getAttribute("aria-checked")).toBe("true");
+    expect(screen.getAllByRole("radio")).toHaveLength(3);
+    // 无存储值时默认「跟随系统」，深色不再是隐式默认
+    expect(screen.getByRole("radio", { name: "跟随系统" }).getAttribute("aria-checked")).toBe("true");
+    expect(screen.getByRole("radio", { name: "深色" }).getAttribute("aria-checked")).toBe("false");
   });
 
   it("选择浅色后菜单保持打开并更新当前项", async () => {
@@ -118,26 +125,27 @@ describe("用户菜单主题选择", () => {
     fireEvent.click(await screen.findByRole("button", { name: "账号菜单：张伟" }));
 
     await act(async () => {
-      fireEvent.click(screen.getByRole("menuitemradio", { name: "浅色" }));
+      fireEvent.click(screen.getByRole("radio", { name: "浅色" }));
     });
 
     await waitFor(() => expect(document.documentElement.dataset.theme).toBe("light"));
-    expect(screen.getByRole("menu")).toBeTruthy();
-    expect(screen.getByRole("menuitemradio", { name: "浅色" }).getAttribute("aria-checked")).toBe("true");
+    expect(screen.getByRole("dialog", { name: "我的" })).toBeTruthy();
+    expect(screen.getByRole("radio", { name: "浅色" }).getAttribute("aria-checked")).toBe("true");
     expect(window.localStorage.getItem("shuzhi-theme-mode")).toBe("light");
   });
 
-  it("主题项与普通菜单项共享方向键导航序列", async () => {
+  it("「我的」面板是 dialog：通知、账号动作与主题单选同处一个面板", async () => {
     mount();
     const chip = await screen.findByRole("button", { name: "账号菜单：张伟" });
     fireEvent.click(chip);
-    const menu = screen.getByRole("menu");
-    const items = menu.querySelectorAll<HTMLElement>('[role="menuitem"], [role="menuitemradio"]');
+    const dialog = screen.getByRole("dialog", { name: "我的" });
 
-    expect(items.length).toBe(6);
-    fireEvent.keyDown(menu, { key: "End" });
-    expect(document.activeElement).toBe(items[items.length - 1]);
-    fireEvent.keyDown(menu, { key: "ArrowDown" });
-    expect(document.activeElement).toBe(items[0]);
+    // 通知并入「我的」后，面板不再是纯 menuitem 集合，而是可容纳列表的非模态 dialog
+    expect(within(dialog).getByRole("heading", { name: "通知" })).toBeTruthy();
+    expect(within(dialog).getByRole("link", { name: "功能更新" })).toBeTruthy();
+    expect(within(dialog).getByRole("link", { name: "修改密码" })).toBeTruthy();
+    expect(within(dialog).getByRole("button", { name: "退出登录" })).toBeTruthy();
+    expect(within(dialog).getByRole("radiogroup", { name: "显示模式" })).toBeTruthy();
+    expect(within(dialog).getAllByRole("radio")).toHaveLength(3);
   });
 });

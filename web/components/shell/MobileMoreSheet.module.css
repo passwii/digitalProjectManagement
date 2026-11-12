@@ -176,6 +176,44 @@
   white-space: nowrap;
 }
 
+.notifyToggle {
+  width: 100%;
+  justify-content: flex-start;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.notifyToggle svg {
+  margin-left: auto;
+  transition: transform var(--av-dur-quick) var(--av-ease-standard);
+}
+
+.notifyToggle[aria-expanded="true"] svg { transform: rotate(180deg); }
+
+.notifyBadge {
+  display: inline-flex;
+  min-width: 18px;
+  height: 18px;
+  align-items: center;
+  justify-content: center;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--danger);
+  color: var(--on-brand);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.notifyPanel {
+  margin-top: 6px;
+  padding: 6px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--card-lift);
+}
+
 .accountActions {
   display: flex;
   align-items: center;
@@ -214,6 +252,7 @@
 @media (prefers-reduced-motion: reduce) {
   .sheet,
   .scrim { transition: none; }
+  .notifyToggle svg { transition: none; }
 }
 
 :global(:root[data-theme="light"]) .sheet {

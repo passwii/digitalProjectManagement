@@ -119,7 +119,6 @@ export default function LoginPage() {
               <h1>
                 复杂有章 <span>交付有信</span>
               </h1>
-              <p className={st.lede}>项目、进度、支出与审批，在同一个工作空间里保持同一条时间线。</p>
             </div>
 
             <ol className={st.steps} aria-label="工作方式">

@@ -2,9 +2,10 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { parseStoredTheme, resolveTheme } from "../components/theme/theme";
 
-test("未设置或非法值默认深色", () => {
-  assert.equal(parseStoredTheme(null), "dark");
-  assert.equal(parseStoredTheme("solarized"), "dark");
+test("未设置或非法值默认跟随系统", () => {
+  assert.equal(parseStoredTheme(null), "system");
+  assert.equal(parseStoredTheme(""), "system");
+  assert.equal(parseStoredTheme("solarized"), "system");
 });
 
 test("三档主题解析保持确定性", () => {

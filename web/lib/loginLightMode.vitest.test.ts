@@ -136,7 +136,8 @@ describe("登录页主题契约", () => {
     expect(storyBlock).toContain("border-right: 0");
     expect(storyBlock).toContain("border-bottom: 1px solid var(--login-line)");
     expect(storyBlock).not.toContain("background");
-    expect(mobile).toMatch(/\.lede\s*\{\s*display:\s*none/);
+    // 说明文案已从登录页删除，对应样式也不应残留隐藏规则
+    expect(loginCss).not.toContain(".lede");
     expect(mobile).toMatch(/\.steps\s*\{\s*display:\s*none/);
   });
 

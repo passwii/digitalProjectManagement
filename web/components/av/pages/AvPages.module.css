@@ -129,7 +129,7 @@
 }
 
 .textLink:hover {
-  text-decoration: underline;
+  color: var(--av-signal-hover);
 }
 
 .ghostButton {

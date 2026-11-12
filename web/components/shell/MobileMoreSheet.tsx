@@ -6,6 +6,7 @@ import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { useReducedMotion } from "framer-motion";
 import Avatar from "@/components/ui/Avatar";
 import ThemeModePicker from "@/components/theme/ThemeModePicker";
+import { NotificationSection, useNotificationUnread } from "@/components/ui/NotificationCenter";
 import { useTheme } from "@/components/theme/ThemeProvider";
 import { useModalBehavior } from "@/components/ui/Modal";
 import { getWorkbenchPortalContainer } from "@/lib/workbenchPortalContainer";
@@ -55,8 +56,11 @@ export default function MobileMoreSheet({
   onRetry,
 }: MobileMoreSheetProps) {
   const titleId = `${useId()}-more-title`;
+  const notificationsId = `${useId()}-more-notifications`;
   const reduced = useReducedMotion() ?? false;
   const { mode, setMode } = useTheme();
+  const { unread } = useNotificationUnread();
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
   const { mounted, panelRef, handleExitComplete } = useModalBehavior({
     open,
     onRequestClose: onClose,
@@ -183,6 +187,30 @@ export default function MobileMoreSheet({
                 <b>{accountName || "账号"}</b>
               </span>
             </div>
+            {/* 通知并入账号区：入口显示未读数，展开后才拉列表（不在 sheet 打开时主动请求）。 */}
+            <button
+              type="button"
+              className={`${s.accountLink} ${s.notifyToggle}`}
+              aria-expanded={notificationsOpen}
+              aria-controls={notificationsId}
+              onClick={() => setNotificationsOpen((value) => !value)}
+              data-notification-toggle
+            >
+              <span>通知</span>
+              {unread > 0 ? (
+                <span className={s.notifyBadge} aria-hidden="true">
+                  {unread > 99 ? "99+" : unread}
+                </span>
+              ) : null}
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" data-notification-chevron>
+                <path d="m6 9 6 6 6-6" />
+              </svg>
+            </button>
+            {notificationsOpen ? (
+              <div id={notificationsId} className={s.notifyPanel}>
+                <NotificationSection showHeader={false} onNavigate={closeImmediately} />
+              </div>
+            ) : null}
             <div className={s.accountActions}>
               <Link href="/change-password" className={s.accountLink} onClick={closeImmediately}>
                 修改密码
