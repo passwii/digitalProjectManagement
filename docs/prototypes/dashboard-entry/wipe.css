@@ -45,3 +45,13 @@ body.play .card:nth-child(4) { animation-delay: .64s; }
   from { opacity: 0; clip-path: inset(0 100% 0 0); }
   to { opacity: 1; clip-path: inset(0 0 0 0); }
 }
+
+/* reduced-motion：动画被 base.css 整体禁用后，静态 clip-path 必须回到完整可见态，
+   否则四张卡片会一直停在 inset(0 100% 0 0) 的隐藏状态。 */
+@media (prefers-reduced-motion: reduce) {
+  body.play .card {
+    clip-path: inset(0 0 0 0) !important;
+    opacity: 1 !important;
+  }
+  .wipe { display: none; }
+}
