@@ -1,32 +1,32 @@
 /* 方案 D · ORBIT —— 卡片从画面外沿轨道收拢到位，问候语以光晕扫过显影。 */
-.login-card { transition: opacity .5s var(--ease), transform .75s var(--ease), filter .5s var(--ease); }
+.login-card { transition: opacity var(--entry-dur-exit) var(--ease), transform var(--entry-dur-exit-orbit) var(--ease), filter var(--entry-dur-exit) var(--ease); }
 body.play .login-card { opacity: 0; transform: scale(.86) rotate(-4deg); filter: blur(10px); pointer-events: none; }
 body.play .login-layer { pointer-events: none; }
 
-body.play .dashboard { animation: dashIn .6s var(--ease) .12s both; }
+body.play .dashboard { animation: dashIn var(--entry-dur-enter) var(--ease) var(--entry-delay-3) both; }
 @keyframes dashIn { from { opacity: 0; } to { opacity: 1; } }
 
-body.play .topbar { animation: topIn .7s var(--ease) .2s both; }
+body.play .topbar { animation: topIn var(--entry-dur-exit-long) var(--ease) var(--entry-delay-5) both; }
 @keyframes topIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: none; } }
 
-body.play .hello { animation: helloOrbit 1s var(--ease) .24s both; }
+body.play .hello { animation: helloOrbit var(--entry-dur-hero-orbit) var(--ease) var(--entry-delay-6) both; }
 @keyframes helloOrbit {
   from { opacity: 0; transform: scale(1.14); filter: blur(14px); }
   65% { opacity: 1; filter: blur(0); }
   to { opacity: 1; transform: none; filter: none; }
 }
-body.play .glow { animation: glowPulse 1.2s var(--ease) .24s both; }
+body.play .glow { animation: glowPulse var(--entry-dur-glow) var(--ease) var(--entry-delay-6) both; }
 @keyframes glowPulse {
   0% { opacity: 0; transform: translateX(-50%) scale(.5); }
   45% { opacity: 1; }
   100% { opacity: .7; transform: translateX(-50%) scale(1); }
 }
 
-body.play .card { animation: cardOrbit 1.05s var(--ease) both; }
-body.play .card:nth-child(1) { animation-delay: .34s; --fx: -60vw; --fy: -30vh; --rot: -22deg; }
-body.play .card:nth-child(2) { animation-delay: .42s; --fx: -26vw; --fy: 34vh; --rot: 16deg; }
-body.play .card:nth-child(3) { animation-delay: .5s; --fx: 26vw; --fy: 34vh; --rot: -16deg; }
-body.play .card:nth-child(4) { animation-delay: .58s; --fx: 60vw; --fy: -30vh; --rot: 22deg; }
+body.play .card { animation: cardOrbit var(--entry-dur-pull) var(--ease) both; }
+body.play .card:nth-child(1) { animation-delay: calc(var(--entry-delay-7) + var(--entry-stagger) * 0); --fx: -60vw; --fy: -30vh; --rot: -22deg; }
+body.play .card:nth-child(2) { animation-delay: calc(var(--entry-delay-7) + var(--entry-stagger) * 1); --fx: -26vw; --fy: 34vh; --rot: 16deg; }
+body.play .card:nth-child(3) { animation-delay: calc(var(--entry-delay-7) + var(--entry-stagger) * 2); --fx: 26vw; --fy: 34vh; --rot: -16deg; }
+body.play .card:nth-child(4) { animation-delay: calc(var(--entry-delay-7) + var(--entry-stagger) * 3); --fx: 60vw; --fy: -30vh; --rot: 22deg; }
 @keyframes cardOrbit {
   from { opacity: 0; transform: translate(var(--fx), var(--fy)) rotate(var(--rot)) scale(.8); filter: blur(8px); }
   to { opacity: 1; transform: none; filter: none; }

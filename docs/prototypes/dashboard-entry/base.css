@@ -14,6 +14,39 @@
   --font: -apple-system, BlinkMacSystemFont, "SF Pro Display", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
   --mono: "SFMono-Regular", "SF Mono", ui-monospace, Menlo, monospace;
   --ease: cubic-bezier(.16, 1, .3, 1);
+
+  /* 入场草稿动效令牌：四个变体只从这里取时长 / 延迟，选择器里不再写裸时间。 */
+  --entry-dur-exit-fast: .45s;
+  --entry-dur-exit: .5s;
+  --entry-dur-exit-tunnel: .55s;
+  --entry-dur-enter: .6s;
+  --entry-dur-exit-long: .7s;
+  --entry-dur-enter-tunnel: .72s;
+  --entry-dur-exit-orbit: .75s;
+  --entry-dur-enter-long: .8s;
+  --entry-dur-hero: .9s;
+  --entry-dur-hero-orbit: 1s;
+  --entry-dur-card-pull: 1s;
+  --entry-dur-pull: 1.05s;
+  --entry-dur-wipe: 1.15s;
+  --entry-dur-glow: 1.2s;
+  --entry-delay-wipe: .06s;
+  --entry-delay-xs: .1s;
+  --entry-delay-3: .12s;
+  --entry-delay-sm: .14s;
+  --entry-delay-4: .16s;
+  --entry-delay-exit: .18s;
+  --entry-delay-5: .2s;
+  --entry-delay-lg: .22s;
+  --entry-delay-6: .24s;
+  --entry-delay-xl: .3s;
+  --entry-delay-7: .34s;
+  --entry-delay-hero: .36s;
+  --entry-delay-8: .38s;
+  --entry-delay-wipe-card: .46s;
+  --entry-delay-card: .48s;
+  --entry-stagger: .08s;
+  --entry-stagger-tight: .06s;
 }
 * { box-sizing: border-box; }
 html, body { height: 100%; }
