@@ -510,8 +510,8 @@ export default function LiquidNavbar({
           target.r * (1 - .12 * thin),
           tail.x,
           target.cy,
-          target.q * (1 - .8 * thin),
-          target.r * (1 - .5 * thin),
+          target.q * (1 - .65 * thin),
+          target.r * (1 - .38 * thin),
         ],
         0,
       );
@@ -573,7 +573,7 @@ export default function LiquidNavbar({
       });
 
       const leadBody = bodies[state.lead];
-      const targetSy = 1 - .2 * Math.min(Math.abs(leadBody.v) / 1500, 1);
+      const targetSy = 1 - .14 * Math.min(Math.abs(leadBody.v) / 1500, 1);
       state.sy.v += (280 * (targetSy - state.sy.s) - 9 * state.sy.v) * dt;
       state.sy.s += state.sy.v * dt;
       if (Math.abs(state.sy.s - 1) > .002 || Math.abs(state.sy.v) > .02) still = false;
@@ -592,14 +592,15 @@ export default function LiquidNavbar({
         state.split = true;
         const tailBody = bodies[1 - state.lead];
         const headBody = bodies[state.lead];
-        [.3, .5, .72].forEach((ratio, index) => {
+        // 只留两滴更小的拖尾：保留切换的液态感，但把收尾的“甩尾”弱化。
+        [.38, .62].forEach((ratio, index) => {
           state.sats.push({
             x: tailBody.x + (headBody.x - tailBody.x) * ratio + (Math.random() - .5) * 6,
             y: target.cy + (Math.random() - .5) * 10,
-            vx: (tailBody.v + headBody.v) * .45,
+            vx: (tailBody.v + headBody.v) * .38,
             vy: (Math.random() - .5) * 60,
-            r: 5 + Math.random() * 3 - index * .5,
-            k: 70 + Math.random() * 90,
+            r: 4 + Math.random() * 2 - index * .35,
+            k: 55 + Math.random() * 45,
           });
         });
       }
@@ -618,9 +619,9 @@ export default function LiquidNavbar({
           Math.min(target.cy + target.r - satellite.r, satellite.y),
         );
         if (Math.abs(target.x - satellite.x) < target.q + target.r * .5) {
-          satellite.r -= dt * 26;
+          satellite.r -= dt * 38;
         }
-        return satellite.r > .6;
+        return satellite.r > .5;
       });
       if (state.sats.length) still = false;
 
@@ -630,14 +631,14 @@ export default function LiquidNavbar({
           x: target.x,
           y: target.cy,
           age: 0,
-          amp: state.split ? 1.2 : .7,
+          amp: state.split ? .75 : .45,
         });
       }
 
       state.rips.forEach((ripple) => {
         ripple.age += dt;
       });
-      state.rips = state.rips.filter((ripple) => ripple.age < 2.4);
+      state.rips = state.rips.filter((ripple) => ripple.age < 1.8);
       state.mouse.s += ((state.mouse.on ? 1 : 0) - state.mouse.s) * Math.min(1, dt * 7);
     }
 

@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 
 const css = readFileSync(resolve(process.cwd(), "app/globals.css"), "utf8");
 const shellCss = readFileSync(resolve(process.cwd(), "components/ui/Shell.module.css"), "utf8");
-const bellCss = readFileSync(resolve(process.cwd(), "components/ui/Bell.module.css"), "utf8");
+const notificationCss = readFileSync(resolve(process.cwd(), "components/ui/NotificationCenter.module.css"), "utf8");
 const installPromptCss = readFileSync(resolve(process.cwd(), "components/pwa/InstallPrompt.module.css"), "utf8");
 const mobileDockCss = readFileSync(resolve(process.cwd(), "components/mobile/MobileDock.module.css"), "utf8");
 
@@ -86,7 +86,9 @@ describe("浅色主题色彩契约", () => {
     expect(shellCss).toMatch(/:global\(:root\[data-theme="light"\]\)\s*\.shell\[data-console-shell="true"\]\s*\.topbar\s*\{[^}]*background:\s*var\(--card\)/s);
     expect(shellCss).toMatch(/:global\(:root\[data-theme="light"\]\)\s*\.shell\[data-console-shell="true"\]\s*\.topTitle\s*\{\s*color:\s*var\(--ink\);\s*\}/);
     expect(shellCss).toMatch(/\.userChip:hover \.avatarSkel,[\s\S]*?\.userChip\[aria-expanded="true"\] \.nameSkel\s*\{[^}]*background:\s*var\(--ink-2\)/s);
-    expect(bellCss).toMatch(/\.bell\s*\{[^}]*color:\s*var\(--ink-2\)/s);
+    // 通知区域并入账号菜单后：标题/正文仍用工作台语义色，hover 不再靠下划线提示
+    expect(notificationCss).toMatch(/\.title\s*\{[^}]*color:\s*var\(--ink\)/s);
+    expect(notificationCss).not.toMatch(/text-decoration:\s*underline/);
     expect(contrast(tokens["ink-2"], tokens.card)).toBeGreaterThanOrEqual(3);
     expect(contrast(tokens.ink, tokens["brand-soft"])).toBeGreaterThanOrEqual(4.5);
     expect(contrast(tokens["ink-2"], tokens["brand-soft"])).toBeGreaterThanOrEqual(3);

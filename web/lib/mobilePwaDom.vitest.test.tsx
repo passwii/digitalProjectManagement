@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { useState } from "react";
 import type { ReactNode } from "react";
@@ -8,6 +8,47 @@ vi.mock("next/link", () => ({
   default: ({ href, children, ...props }: React.AnchorHTMLAttributes<HTMLAnchorElement> & { href: string; children: ReactNode }) => (
     <a href={href} {...props}>{children}</a>
   ),
+}));
+
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: vi.fn() }),
+}));
+
+const notificationMocks = vi.hoisted(() => ({
+  count: vi.fn((_signal?: AbortSignal) => Promise.resolve({ unread: 2 })),
+  list: vi.fn((_query?: string, _signal?: AbortSignal) =>
+    Promise.resolve({
+      total: 1,
+      unread: 2,
+      page: 1,
+      size: 12,
+      items: [
+        {
+          id: 11,
+          type: "task",
+          title: "任务逾期提醒",
+          body: "「官网改版」有 2 个任务已逾期",
+          ref_type: "task",
+          ref_id: 101,
+          project_id: 7,
+          read: false,
+          created_at: "2026-11-11T09:30:00+08:00",
+        },
+      ],
+    }),
+  ),
+  read: vi.fn((_id?: number) => Promise.resolve({ ok: true })),
+  readAll: vi.fn(() => Promise.resolve({ ok: true, read: 1 })),
+}));
+
+vi.mock("@/lib/api", () => ({
+  errText: (error: unknown) => (error instanceof Error ? error.message : String(error)),
+  notificationsApi: {
+    count: () => notificationMocks.count(),
+    list: (query = "", signal?: AbortSignal) => notificationMocks.list(query, signal),
+    read: (id: number) => notificationMocks.read(id),
+    readAll: () => notificationMocks.readAll(),
+  },
 }));
 
 vi.mock("@/components/theme/ThemeProvider", () => ({
@@ -23,6 +64,7 @@ import MobileBottomDock from "@/components/shell/MobileBottomDock";
 import MobileMoreSheet from "@/components/shell/MobileMoreSheet";
 import MobileHome from "@/components/dashboard/MobileHome";
 import { MobileShellProvider } from "@/components/shell/MobileShellContext";
+import { NotificationProvider } from "@/components/ui/NotificationCenter";
 import type { ShellNavItem } from "@/lib/globalNav";
 
 const MENUS: ShellNavItem[] = [
@@ -137,6 +179,29 @@ describe("MobileMoreSheet：焦点、Esc 与账号区", () => {
     expect(screen.getByText("张伟")).toBeTruthy();
     expect(screen.getByRole("link", { name: "修改密码" }).getAttribute("href")).toBe("/change-password");
     expect(screen.getByRole("button", { name: "退出登录" })).toBeTruthy();
+  });
+
+  it("账号区提供「通知」入口，展开后显示列表，且不再有独立铃铛", async () => {
+    render(
+      <NotificationProvider>
+        <Host />
+      </NotificationProvider>,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "打开更多" }));
+    const dialog = screen.getByRole("dialog", { name: "更多" });
+
+    // 旧实现是顶栏一颗独立铃铛；并入账号区后不应再出现那个按钮
+    expect(screen.queryByRole("button", { name: /^通知，/ })).toBeNull();
+
+    const toggle = screen.getByRole("button", { name: "通知" });
+    expect(toggle.getAttribute("aria-expanded")).toBe("false");
+    await waitFor(() => expect(toggle.textContent).toContain("2"));
+
+    fireEvent.click(toggle);
+    expect(toggle.getAttribute("aria-expanded")).toBe("true");
+    expect(await screen.findByText("任务逾期提醒")).toBeTruthy();
+    expect(dialog.contains(screen.getByText("任务逾期提醒"))).toBe(true);
+    expect(notificationMocks.list).toHaveBeenCalled();
   });
 
   it("权限菜单加载失败时，在 sheet 内保留可见重试", () => {

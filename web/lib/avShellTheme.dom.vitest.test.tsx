@@ -43,6 +43,20 @@ vi.mock("next/link", () => ({
   ),
 }));
 
+/** 本机 Node 的实验性 localStorage 在 jsdom 里不可用，装一个内存实现（与其它主题测试同款）。 */
+function installStorage() {
+  const store = new Map<string, string>();
+  Object.defineProperty(window, "localStorage", {
+    configurable: true,
+    value: {
+      getItem: (key: string) => (store.has(key) ? store.get(key)! : null),
+      setItem: (key: string, value: string) => void store.set(key, String(value)),
+      removeItem: (key: string) => void store.delete(key),
+      clear: () => store.clear(),
+    },
+  });
+}
+
 /** jsdom 没有 matchMedia：主题 Provider 与动效 Provider 都要读它。 */
 function mockMatchMedia(matches: boolean) {
   Object.defineProperty(window, "matchMedia", {
@@ -63,11 +77,16 @@ function mockMatchMedia(matches: boolean) {
 
 beforeEach(() => {
   mockMatchMedia(false);
+  installStorage();
+  // 主题默认已改为「跟随系统」；本组用例验证的是深浅两态下的图标契约，
+  // 从用户保存的深色起手，才能稳定覆盖「深色 → 点一下到浅色」这条路径。
+  window.localStorage.setItem("shuzhi-theme-mode", "dark");
   window.history.pushState({}, "", "/stream-monitor/overview");
 });
 
 afterEach(() => {
   cleanup();
+  window.localStorage.removeItem("shuzhi-theme-mode");
   delete document.documentElement.dataset.theme;
   document.documentElement.removeAttribute("style");
 });

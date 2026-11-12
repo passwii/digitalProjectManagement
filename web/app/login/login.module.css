@@ -293,14 +293,6 @@
   color: var(--login-ink-2);
 }
 
-.lede {
-  max-width: 30ch;
-  margin: 18px 0 0;
-  color: var(--login-ink-2);
-  font-size: 12px;
-  line-height: 1.7;
-}
-
 .steps {
   display: flex;
   flex-wrap: wrap;
@@ -766,10 +758,6 @@
 
   .storyCopy h1 {
     font-size: 31px;
-  }
-
-  .lede {
-    display: none;
   }
 
   .steps {

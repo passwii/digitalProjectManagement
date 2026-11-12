@@ -1,0 +1,57 @@
+/* 方案 C · GLASS WIPE —— 一层磨砂玻璃横向擦过，擦过之处工作台显影；登录卡随之溶解。 */
+.wipe {
+  position: absolute;
+  z-index: 9;
+  inset: -10% -30%;
+  pointer-events: none;
+  background:
+    linear-gradient(100deg, transparent 0 34%, var(--entry-signal-wipe) 46%, var(--entry-sheen-soft) 50%, var(--entry-signal-wipe-soft) 54%, transparent 66% 100%),
+    color-mix(in srgb, var(--card) 55%, transparent);
+  -webkit-backdrop-filter: blur(26px) saturate(1.4);
+  backdrop-filter: blur(26px) saturate(1.4);
+  transform: translateX(-115%) skewX(-8deg);
+  opacity: 0;
+}
+body.play .wipe { animation: wipeSweep var(--entry-dur-wipe) var(--entry-ease-wipe) var(--entry-delay-wipe) both; }
+@keyframes wipeSweep {
+  0% { opacity: 0; transform: translateX(-115%) skewX(-8deg); }
+  12% { opacity: 1; }
+  88% { opacity: 1; }
+  100% { opacity: 0; transform: translateX(115%) skewX(-8deg); }
+}
+
+.login-card { transition: opacity var(--entry-dur-exit-fast) var(--ease) var(--entry-delay-exit), transform var(--entry-dur-enter) var(--ease) var(--entry-delay-exit), filter var(--entry-dur-exit-fast) var(--ease) var(--entry-delay-exit); }
+body.play .login-card { opacity: 0; transform: scale(.985); filter: blur(5px); pointer-events: none; }
+body.play .login-layer { pointer-events: none; }
+
+body.play .dashboard { animation: dashIn var(--entry-dur-exit) var(--ease) var(--entry-delay-lg) both; }
+@keyframes dashIn { from { opacity: 0; } to { opacity: 1; } }
+
+body.play .topbar { animation: topIn var(--entry-dur-enter) var(--ease) var(--entry-delay-7) both; }
+@keyframes topIn { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: none; } }
+
+body.play .hello { animation: helloIn var(--entry-dur-enter-long) var(--ease) var(--entry-delay-8) both; }
+@keyframes helloIn {
+  from { opacity: 0; transform: translateY(18px); filter: blur(6px); }
+  to { opacity: 1; transform: none; filter: none; }
+}
+
+body.play .card { animation: cardIn var(--entry-dur-exit-long) var(--ease) both; clip-path: inset(0 100% 0 0); }
+body.play .card:nth-child(1) { animation-delay: calc(var(--entry-delay-wipe-card) + var(--entry-stagger-tight) * 0); }
+body.play .card:nth-child(2) { animation-delay: calc(var(--entry-delay-wipe-card) + var(--entry-stagger-tight) * 1); }
+body.play .card:nth-child(3) { animation-delay: calc(var(--entry-delay-wipe-card) + var(--entry-stagger-tight) * 2); }
+body.play .card:nth-child(4) { animation-delay: calc(var(--entry-delay-wipe-card) + var(--entry-stagger-tight) * 3); }
+@keyframes cardIn {
+  from { opacity: 0; clip-path: inset(0 100% 0 0); }
+  to { opacity: 1; clip-path: inset(0 0 0 0); }
+}
+
+/* reduced-motion：动画被 base.css 整体禁用后，静态 clip-path 必须回到完整可见态，
+   否则四张卡片会一直停在 inset(0 100% 0 0) 的隐藏状态。 */
+@media (prefers-reduced-motion: reduce) {
+  body.play .card {
+    clip-path: inset(0 0 0 0) !important;
+    opacity: 1 !important;
+  }
+  .wipe { display: none; }
+}

@@ -46,7 +46,7 @@ export default function ThemeModePicker({ mode, onChange }: { mode: ThemeMode; o
   );
 
   return (
-    <div className={styles.picker} role="group" aria-label="显示模式" data-active-index={activeIndex}>
+    <div className={styles.picker} role="radiogroup" aria-label="显示模式" data-active-index={activeIndex}>
       <div className={styles.title}>显示模式</div>
       <div className={styles.options}>
         <span className={styles.thumb} aria-hidden="true" />
@@ -56,7 +56,7 @@ export default function ThemeModePicker({ mode, onChange }: { mode: ThemeMode; o
             <button
               key={option.value}
               type="button"
-              role="menuitemradio"
+              role="radio"
               aria-checked={selected}
               aria-label={option.label}
               title={option.detail}

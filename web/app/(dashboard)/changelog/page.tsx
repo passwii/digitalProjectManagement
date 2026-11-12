@@ -2,13 +2,14 @@
 
 import { useState } from "react";
 import {
+  CHANGELOG_CURRENT_VERSION,
   CHANGELOG_VERSIONS,
   type ChangelogEntry,
   type ChangelogKind,
   type ChangelogVersion,
   type ChangelogVersionId,
 } from "@/lib/changelog";
-import s from "./changelog.module.css";
+import { CHANGELOG_CSS, s } from "./changelogStyles";
 import { useRegisterPageTitle } from "@/components/ui/PageTitleContext";
 
 const KIND_CLASS: Record<ChangelogKind, string> = {
@@ -17,6 +18,7 @@ const KIND_CLASS: Record<ChangelogKind, string> = {
   修复: s.kindFix,
   移动端: s.kindMobile,
   财务: s.kindFinance,
+  架构: s.kindArch,
 };
 
 function formatDate(date: string) {
@@ -83,19 +85,25 @@ function Timeline({ version }: { version: ChangelogVersion }) {
 
 export default function ChangelogPage() {
   useRegisterPageTitle("功能更新");
-  const [activeId, setActiveId] = useState<ChangelogVersionId>("v2");
-  const active = CHANGELOG_VERSIONS.find((version) => version.id === activeId) ?? CHANGELOG_VERSIONS[0];
+  const [activeId, setActiveId] = useState<ChangelogVersionId>(CHANGELOG_CURRENT_VERSION.id);
+  const active = CHANGELOG_VERSIONS.find((version) => version.id === activeId) ?? CHANGELOG_CURRENT_VERSION;
   const updateCount = active.days.reduce((count, day) => count + day.entries.length, 0);
 
   return (
     <div className={s.page}>
+      {/*
+        页面样式内联在路由自己的 JS 里，和 DOM 同一次提交落地。
+        原因与实测数据见 ./changelogStyles.ts —— 换成 CSS Module 会在客户端
+        路由切换时先画一帧无样式内容（CSS chunk 在首次提交之后才异步到达）。
+      */}
+      <style dangerouslySetInnerHTML={{ __html: CHANGELOG_CSS }} />
       <header className={s.hero}>
         <div>
           <h1 className="sr-only">功能更新</h1>
         </div>
-        <div className={s.currentMark} aria-label="V2 当前版本">
+        <div className={s.currentMark} aria-label={`${CHANGELOG_CURRENT_VERSION.label} 当前版本`}>
           <span>当前版本</span>
-          <strong>V2</strong>
+          <strong>{CHANGELOG_CURRENT_VERSION.label}</strong>
         </div>
       </header>
 

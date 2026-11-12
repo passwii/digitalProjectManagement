@@ -33,8 +33,13 @@ interface ThemeContextValue {
   setMode: (mode: ThemeMode) => void;
 }
 
+/**
+ * Provider 之外的兜底（例如孤立渲染的片段）：模式按「跟随系统」语义描述，
+ * 已经落盘的主题仍写 dark —— 首帧由 bootstrap 脚本写在 `<html>` 上，这里只是
+ * SSR / 无 Provider 时的占位值，不参与实际选色。
+ */
 const DEFAULT_THEME_CONTEXT: ThemeContextValue = {
-  mode: "dark",
+  mode: "system",
   resolvedTheme: "dark",
   appliedTheme: "dark",
   setMode: () => {},
@@ -45,33 +50,40 @@ function readStoredMode(): ThemeMode {
   try {
     return parseStoredTheme(window.localStorage.getItem(THEME_STORAGE_KEY));
   } catch {
-    return "dark";
+    // 隐私模式 / 受限存储：等同「没有存储值」→ 跟随系统
+    return "system";
   }
 }
 
 /** 首屏先于 React 读取主题选择，避免浅色用户刷新时看到一帧深色。 */
 export const themeBootstrapScript = `(() => {
+  let mode = "system";
   try {
     const stored = window.localStorage.getItem(${JSON.stringify(THEME_STORAGE_KEY)});
-    const mode = stored === "light" || stored === "dark" || stored === "system" ? stored : "dark";
-    const prefersDark = window.matchMedia(${JSON.stringify(MEDIA_QUERY)}).matches;
-    const resolved = mode === "system" ? (prefersDark ? "dark" : "light") : mode;
-    document.documentElement.dataset.theme = resolved;
-    document.documentElement.style.colorScheme = resolved;
+    if (stored === "light" || stored === "dark" || stored === "system") mode = stored;
   } catch {
-    document.documentElement.dataset.theme = "dark";
-    document.documentElement.style.colorScheme = "dark";
+    /* 存储不可用：按默认「跟随系统」处理 */
   }
+  let prefersDark = false;
+  try {
+    prefersDark = window.matchMedia(${JSON.stringify(MEDIA_QUERY)}).matches;
+  } catch {
+    /* 没有 matchMedia 的环境按浅色处理，仍不写死深色 */
+  }
+  const resolved = mode === "system" ? (prefersDark ? "dark" : "light") : mode;
+  document.documentElement.dataset.theme = resolved;
+  document.documentElement.style.colorScheme = resolved;
 })();`;
 
 export default function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [mode, setModeState] = useState<ThemeMode>("dark");
+  // 首帧无人知道设备偏好：mode 先按「跟随系统」，prefersDark 在挂载 effect 里读。
+  const [mode, setModeState] = useState<ThemeMode>("system");
   const [prefersDark, setPrefersDark] = useState(false);
   /**
    * 首帧主题由 themeBootstrapScript 直接写在 `<html>` 上，而 React 要等挂载 effect 里
-   * 读完 localStorage 才知道用户选了什么（useState 的初值只能给 "dark"，否则服务端渲染
-   * 与客户端首帧不一致）。所以读出来之前不许写 html：否则默认值 "dark" 会盖掉 bootstrap
-   * 写好的浅色，浅色用户刷新时白闪一帧深色——那正是这次要消灭的「生硬」。
+   * 读完 localStorage / 设备偏好才知道最终结果（useState 的初值只能是与服务端一致的
+   * 「跟随系统」占位值，否则服务端渲染与客户端首帧不一致）。所以读出来之前不许写
+   * html：否则占位值会盖掉 bootstrap 写好的真实主题，用户刷新时会白闪一帧错色。
    */
   const [ready, setReady] = useState(false);
   /** 上一次真正落到 `<html>` 上的主题：判断这次是不是「用户看得见的切换」，以及过场方向。 */

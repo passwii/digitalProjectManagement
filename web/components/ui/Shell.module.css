@@ -603,6 +603,7 @@
   姓名仍与顶栏右内边距对齐。
 */
 .userChip {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 9px;
@@ -617,6 +618,24 @@
 }
 .userChip:hover,
 .userChip[aria-expanded="true"] { background: var(--th-bg); }
+/* 未读通知徽标：通知入口已并入账号菜单，徽标是顶栏唯一剩下的未读信号。 */
+.userChipBadge {
+  position: absolute;
+  top: 0;
+  left: 24px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: var(--danger);
+  color: var(--on-brand);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 16px;
+  text-align: center;
+  pointer-events: none;
+}
 .userChipText { display: flex; flex-direction: column; line-height: 1.2; }
 .userChipText b { color: var(--ink); font-size: 13px; font-weight: 650; }
 
@@ -657,14 +676,23 @@
   top: calc(100% + 8px);
   right: 0;
   z-index: 40;
+  width: 320px;
   min-width: 248px;
   max-width: calc(100vw - 24px);
+  max-height: calc(100vh - 96px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
   padding: 6px;
   background: var(--card);
   border: 1px solid var(--line);
   border-radius: var(--radius);
   box-shadow: var(--shadow-float);
   animation: userMenuIn var(--av-dur-quick) var(--av-ease-enter);
+}
+.userMenuDivider {
+  height: 1px;
+  margin: 4px 6px;
+  background: var(--line-soft);
 }
 .userMenuItem {
   display: flex;
@@ -906,9 +934,6 @@
   .pageHeading { margin-bottom: 14px; font-size: 19px; }
 }
 
-.accountBell { display: inline-flex; align-items: center; }
-@media (max-width: 767px) { .accountBell { display: none; } }
-
 :global(:root[data-theme="light"]) .shell[data-console-shell="true"] .brandFloat .brandSeal {
   border-color: var(--line-blue);
   color: var(--brand);
@@ -938,14 +963,6 @@
   .content { padding-top: calc(88px + env(safe-area-inset-top, 0px)); }
 }
 
-.brandBell { display: none; }
 @media (max-width: 767px) {
   .brandFloat { display: none; }
-  .brandBell {
-    display: inline-flex;
-    position: fixed;
-    z-index: 50;
-    top: calc(26px + env(safe-area-inset-top, 0px));
-    left: 14px;
-  }
 }

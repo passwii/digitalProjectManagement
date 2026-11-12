@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { m, useReducedMotion } from "framer-motion";
@@ -12,8 +12,12 @@ import { SPARK_WINDOW_TARGET } from "@/lib/spark/navigation";
 import { AV_WINDOW_TARGET } from "@/lib/av/navigation";
 import { useMobilePwaViewport } from "@/lib/mobilePwaViewport";
 import Avatar from "@/components/ui/Avatar";
-import Bell from "@/components/ui/Bell";
 import ThemeModePicker from "@/components/theme/ThemeModePicker";
+import {
+  NotificationProvider,
+  NotificationSection,
+  useNotificationUnread,
+} from "@/components/ui/NotificationCenter";
 import { useTheme } from "@/components/theme/ThemeProvider";
 import { ToastProvider } from "@/components/ui/Toast";
 import MotionProvider from "@/components/motion/MotionProvider";
@@ -155,32 +159,37 @@ interface NavItem {
 }
 
 /**
- * 鼠标从 chip 移到菜单要跨过 8px 间隙，立刻关会「碰一下就闪」；留一段容错时间，
- * 期间移进菜单（mouseenter 冒泡到同一容器）会取消关闭。
+ * 鼠标从 chip 移到面板要跨过 8px 间隙，立刻关会「碰一下就闪」；留一段容错时间，
+ * 期间移进面板（mouseenter 冒泡到同一容器）会取消关闭。
  */
 const MENU_CLOSE_DELAY = 180;
 
 /**
- * 顶栏右上角身份区：头像 + 姓名，hover / focus / tap 出账号菜单（BLF-1141）。
+ * 顶栏右上角身份区：头像 + 姓名，hover / focus / tap 出「我的」面板（BLF-1141）。
  *
  * 身份与账号操作原本挤在侧栏底部（`sideFoot`），用户反馈那一块是冗余的（尤其
  * 「全局管理与审批」这类角色权限文案），这里把**账号操作**搬到顶栏：
- *   · hover 进 chip 或菜单 → 打开；移出 → 延时关闭（跨间隙不闪）；
- *   · 键盘 Tab 聚焦 chip → 打开；方向键 / Home / End 在菜单项之间移动；Esc 关闭并还焦；
- *   · 触屏（≤767px 没有 hover，且 chip 文字被 CSS 隐藏）→ tap 头像打开同一个菜单；
- *   · 关闭时菜单**不渲染**（而不是 visibility 隐藏），所以不在 Tab 序列里。
+ *   · hover 进 chip 或面板 → 打开；移出 → 延时关闭（跨间隙不闪）；
+ *   · 键盘 Tab 聚焦 chip → 打开，Enter / Space 把焦点送进面板，Esc 关闭并还焦；
+ *   · 触屏（≤767px 没有 hover，且 chip 文字被 CSS 隐藏）→ tap 头像打开同一个面板；
+ *   · 关闭时面板**不渲染**（而不是 visibility 隐藏），所以不在 Tab 序列里。
  *
- * 菜单只放账号操作：角色 / 权限文案（`identity.role` / `roleShort`）不再出现在这里，
- * 也不再出现在 chip 上。
+ * 面板同时承载通知（列表 / 未读 / 已读 / 深链），所以语义是**非模态 dialog** 而不是
+ * 纯 menu：里面既有列表按钮，也有账号链接与显示模式单选组，用普通 Tab 顺序浏览。
+ * 角色 / 权限文案（`identity.role` / `roleShort`）不再出现在这里，也不出现在 chip 上。
  */
 function UserMenu({ name, onLogout }: { name: string | null; onLogout: () => void }) {
   const { mode, setMode } = useTheme();
+  const { unread } = useNotificationUnread();
+  const notificationHeadingId = useId();
+  /** 未读数的可读描述：徽标本身对读屏隐藏，名称保持稳定（不随未读数变化）。 */
+  const unreadDescriptionId = useId();
   const [open, setOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement | null>(null);
   const chipRef = useRef<HTMLButtonElement | null>(null);
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  /** 方向键打开的落点序号：菜单是打开后才渲染的，得等挂载完那一帧再聚焦 */
-  const pendingFocus = useRef<number | null>(null);
+  /** 面板节点：Enter / Space 从 chip 进入面板时，聚焦面板里的第一个可交互项 */
+  const panelRef = useRef<HTMLDivElement | null>(null);
   /** 指针按下过：tap / click 也会触发 focus，不能让 focus 先开、click 再关（触屏会打不开菜单） */
   const pointerDown = useRef(false);
   /** Esc 还焦给 chip 时会触发它的 focus 处理器：跳过那一次自动展开，见 onKey 里的注释 */
@@ -211,30 +220,8 @@ function UserMenu({ name, onLogout }: { name: string | null; onLogout: () => voi
   // 卸载（例如登出跳转途中）时清掉待执行的关闭定时器
   useEffect(() => cancelClose, [cancelClose]);
 
-  function menuItems(): HTMLElement[] {
-    const found = wrapRef.current?.querySelectorAll<HTMLElement>('[role="menuitem"], [role="menuitemradio"]');
-    return found ? Array.from(found) : [];
-  }
-
-  function focusItem(index: number) {
-    const list = menuItems();
-    if (list.length === 0) return;
-    list[(index + list.length) % list.length].focus();
-  }
-
-  /** 在菜单项之间移动；焦点还在 chip 上时（`at === -1`）落向首项 / 末项 */
-  function moveFocus(step: number) {
-    const list = menuItems();
-    const at = list.indexOf(document.activeElement as HTMLElement);
-    focusItem(at === -1 ? (step > 0 ? 0 : -1) : at + step);
-  }
-
   useEffect(() => {
     if (!open) return;
-    if (pendingFocus.current !== null) {
-      focusItem(pendingFocus.current);
-      pendingFocus.current = null;
-    }
     function onKey(e: KeyboardEvent) {
       // Esc 关闭并把焦点还给 chip，键盘用户不丢位置。
       // 还焦会同步触发 chip 的 focus 处理器，用一次性标记让它别再展开 ——
@@ -279,9 +266,10 @@ function UserMenu({ name, onLogout }: { name: string | null; onLogout: () => voi
         ref={chipRef}
         type="button"
         className={s.userChip}
-        aria-haspopup="menu"
+        aria-haspopup="dialog"
         aria-expanded={open}
         aria-label={name === null ? "账号菜单，身份加载中" : `账号菜单：${name}`}
+        aria-describedby={unread > 0 ? unreadDescriptionId : undefined}
         onPointerDown={() => {
           pointerDown.current = true;
         }}
@@ -300,20 +288,11 @@ function UserMenu({ name, onLogout }: { name: string | null; onLogout: () => voi
           else openMenu();
         }}
         onKeyDown={(e) => {
-          if (e.key === "ArrowDown" || e.key === "ArrowUp") {
-            e.preventDefault();
-            const first = e.key === "ArrowDown" ? 0 : -1;
-            if (open) moveFocus(e.key === "ArrowDown" ? 1 : -1);
-            else {
-              pendingFocus.current = first;
-              openMenu();
-            }
-            return;
-          }
-          // 键盘聚焦已经把菜单打开了：Enter / Space 顺势进入菜单，而不是把刚看到的面板关掉
+          // 键盘聚焦已经把面板打开了：Enter / Space 顺势把焦点送进面板，
+          // 而不是触发按钮默认行为把刚看到的面板又关掉。
           if ((e.key === "Enter" || e.key === " ") && open) {
             e.preventDefault();
-            focusItem(0);
+            panelRef.current?.querySelector<HTMLElement>("a[href], button:not(:disabled)")?.focus();
           }
         }}
       >
@@ -333,37 +312,45 @@ function UserMenu({ name, onLogout }: { name: string | null; onLogout: () => voi
             </span>
           </>
         )}
+        {/* 身份还在加载时也照样显示未读数：通知不依赖姓名先到。 */}
+        {unread > 0 && (
+          <span className={s.userChipBadge} data-unread-badge aria-hidden="true">
+            {unread > 99 ? "99+" : unread}
+          </span>
+        )}
       </button>
+      {/*
+        未读数的可读描述挂在 chip 上（aria-describedby），而不是改名按钮：名字保持
+        「账号菜单：姓名」稳定，读屏用户聚焦时仍能听到「N 条未读通知」。徽标只有
+        视觉作用，对读屏隐藏，避免数字被念两遍。
+      */}
+      {unread > 0 && (
+        <span id={unreadDescriptionId} className="sr-only">
+          {unread} 条未读通知
+        </span>
+      )}
 
       {open && (
         <div
+          ref={panelRef}
           className={s.userMenu}
-          role="menu"
-          aria-label="账号"
-          onKeyDown={(e) => {
-            if (e.key === "ArrowDown") {
-              e.preventDefault();
-              moveFocus(1);
-            } else if (e.key === "ArrowUp") {
-              e.preventDefault();
-              moveFocus(-1);
-            } else if (e.key === "Home") {
-              e.preventDefault();
-              focusItem(0);
-            } else if (e.key === "End") {
-              e.preventDefault();
-              focusItem(-1);
-            }
-          }}
+          role="dialog"
+          aria-label="我的"
         >
-          <Link href="/changelog" role="menuitem" className={s.userMenuItem} onClick={closeMenu}>
+          {/*
+            通知整体并入「我的」：不再有独立铃铛。区域标题 + 未读数 + 全部已读在上方，
+            列表在菜单里直接可读、可点、可深链；账号操作与显示模式仍在下方。
+          */}
+          <NotificationSection headingId={notificationHeadingId} onNavigate={closeMenu} />
+          <div className={s.userMenuDivider} role="none" />
+          <Link href="/changelog" className={s.userMenuItem} onClick={closeMenu}>
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
               <path d="M4 5h16M4 12h10M4 19h7" />
               <path d="M17 14v6M14 17h6" />
             </svg>
             功能更新
           </Link>
-          <Link href="/change-password" role="menuitem" className={s.userMenuItem} onClick={closeMenu}>
+          <Link href="/change-password" className={s.userMenuItem} onClick={closeMenu}>
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
               <circle cx="8" cy="15" r="4" />
               <path d="M10.9 12.1L20 3M17 6l2.5 2.5M14.5 8.5L17 11" />
@@ -372,7 +359,6 @@ function UserMenu({ name, onLogout }: { name: string | null; onLogout: () => voi
           </Link>
           <button
             type="button"
-            role="menuitem"
             className={`${s.userMenuItem} ${s.userMenuItemDanger}`}
             onClick={() => {
               closeMenu();
@@ -541,8 +527,8 @@ function DashboardShell({ children, modal }: { children: React.ReactNode; modal?
           </div>
         </div>
 
+        {/* 顶栏只有账号浮标：通知入口 / 未读数 / 列表都在「我的」菜单里，不再单列铃铛。 */}
         <div className={`${s.accountDock} ${pwa.accountDock}`}>
-          <span className={`${s.accountBell} ${pwa.accountBell}`}><Bell /></span>
           <UserMenu name={displayName} onLogout={logout} />
         </div>
 
@@ -599,7 +585,10 @@ export default function DashboardLayout({
   return (
     <ToastProvider>
       <MotionProvider>
-        <DashboardShell modal={modal}>{children}</DashboardShell>
+        {/* 未读数只在外壳轮询一次；账号菜单与手机「更多」sheet 共享同一份状态。 */}
+        <NotificationProvider>
+          <DashboardShell modal={modal}>{children}</DashboardShell>
+        </NotificationProvider>
       </MotionProvider>
     </ToastProvider>
   );

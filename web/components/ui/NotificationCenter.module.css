@@ -1,0 +1,152 @@
+/*
+ * 站内通知中心（账号「我的」菜单 / 手机「更多」sheet 共用）。
+ *
+ * 这里不再有独立铃铛的按钮与绝对定位面板 —— 通知是菜单里的一个区域。
+ * 颜色只消费工作台语义令牌，深浅主题自动跟随；hover 用颜色而不是下划线表达可点。
+ */
+.section {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 34px;
+  padding: 4px 10px 2px;
+}
+
+.head h3 {
+  margin: 0;
+  color: var(--ink);
+  font-size: 12.5px;
+  font-weight: 700;
+  letter-spacing: .01em;
+}
+
+.count {
+  color: var(--ink-3);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.link {
+  min-height: 28px;
+  margin-left: auto;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--brand);
+  font: inherit;
+  font-size: 12px;
+}
+
+.link:hover { color: var(--brand-hover); }
+.link:disabled { color: var(--ink-3); cursor: not-allowed; }
+
+.list {
+  max-height: 268px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border-block: 1px solid var(--line-soft);
+}
+
+.item {
+  display: flex;
+  width: 100%;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 9px 10px;
+  border: 0;
+  border-bottom: 1px solid var(--line-soft);
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+}
+
+.item:last-child { border-bottom: 0; }
+.item:hover { background: var(--row-hover); }
+.item:focus-visible { outline: 2px solid var(--focus-ring, var(--brand)); outline-offset: -2px; }
+.item:disabled { opacity: .6; cursor: progress; }
+
+.unreadItem { background: var(--brand-soft); }
+.unreadItem:hover { background: var(--brand-soft); }
+
+.tag {
+  flex: none;
+  margin-top: 1px;
+  padding: 1px 6px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--bg);
+  color: var(--ink-2);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.itemBody {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.title {
+  color: var(--ink);
+  font-size: 12.5px;
+  line-height: 1.4;
+}
+
+.desc {
+  color: var(--ink-2);
+  font-size: 11.5px;
+  line-height: 1.4;
+  word-break: break-word;
+}
+
+.time {
+  color: var(--ink-3);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+}
+
+.unreadTag {
+  margin-left: 6px;
+  color: var(--brand);
+  font-family: var(--font-body);
+}
+
+.empty {
+  padding: 18px 10px;
+  color: var(--ink-3);
+  font-size: 12px;
+  text-align: center;
+}
+
+.foot {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px 14px;
+  padding: 6px 10px 4px;
+}
+
+.foot .link { margin-left: 0; }
+
+@media (max-width: 767px) {
+  .link { min-height: var(--m-tap); }
+  .item { min-height: var(--m-tap); }
+  .head { min-height: var(--m-tap); }
+}
+
+:global([data-console-shell="true"]) .section {
+  border-radius: var(--radius-sm);
+}
+
+:global([data-console-shell="true"]) .list {
+  border-color: var(--line);
+}

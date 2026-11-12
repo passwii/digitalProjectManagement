@@ -196,6 +196,9 @@ describe("主题切换（真实交互路径，不依赖刷新）", () => {
     written.length = 0;
     reads.length = 0;
     installStorage();
+    // 本组用例从深色起手切换；主题默认已改为「跟随系统」，这里显式固定用户选择，
+    // 避免 jsdom 的 matchMedia（matches: false）把首帧解析成浅色。
+    window.localStorage.setItem("shuzhi-theme-mode", "dark");
     Object.defineProperty(window, "matchMedia", {
       configurable: true,
       value: (query: string) => ({

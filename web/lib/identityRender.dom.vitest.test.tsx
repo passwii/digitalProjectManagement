@@ -21,7 +21,7 @@
  * 原因见下方 `installStorage` 的注释。
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { Suspense } from "react";
 
 import { IDENTITY_STORAGE_KEY, serializeIdentitySnapshot } from "./identityCore";
@@ -83,9 +83,9 @@ vi.mock("@/lib/api", async () => {
       ...actual.metaApi,
       menus: () => pending.menus?.() ?? Promise.resolve(null),
     },
-    // 顶栏 Bell 挂载就会拉未读数。必须挡住：本测试环境机器上可能真的跑着后端，
-    // 真实请求拿到 401 会走 `clearSession()`，把 token 与身份快照一起清掉，
-    // 后续断言就会看到一个「刚被登出」的页面（非确定性失败）。
+    // 通知 Provider / 账号菜单的通知区挂载就会拉未读数与列表。必须挡住：本测试
+    // 环境机器上可能真的跑着后端，真实请求拿到 401 会走 `clearSession()`，把 token
+    // 与身份快照一起清掉，后续断言就会看到一个「刚被登出」的页面（非确定性失败）。
     notificationsApi: {
       ...actual.notificationsApi,
       count: () => Promise.resolve({ unread: 0 }),
@@ -296,20 +296,26 @@ describe("BLF-1125 刷新闪烁：各异步阶段都不能出现「当前用户�
 /**
  * BLF-1141：身份与账号操作从侧栏底部搬到顶栏右上角。
  *
- * 真实的 hover / focus / tap 行为只能用真实 DOM 渲染来钉：这些断言覆盖「菜单在什么
- * 条件下出现在 DOM 里」，而不是 CSS 怎么写 —— 关着的菜单**不渲染**（而不是靠
- * visibility 隐藏），所以「不在 Tab 序列里」这一条等价于「DOM 里没有 menuitem」。
+ * 通知并入之后，这个弹层不再是纯操作菜单，而是承载通知列表的非模态 dialog
+ * （aria-label「我的」）。真实的 hover / focus / tap 行为只能用真实 DOM 渲染来钉：
+ * 这些断言覆盖「面板在什么条件下出现在 DOM 里」，而不是 CSS 怎么写 —— 关着的面板
+ * **不渲染**（而不是靠 visibility 隐藏），所以「不在 Tab 序列里」等价于「DOM 里没有面板」。
  *
  * 延时关闭用真实计时器（waitFor 轮询）验证，不引入 fake timers：本文件其它用例都依赖
  * 真实的 promise/microtask 时序，混用两种计时器只会让失败变得难以复现。
  */
-describe("BLF-1141 顶栏账号菜单（身份区已从侧栏搬走）", () => {
-  /** 顶栏身份区容器：触发按钮与菜单的共同父节点，也就是 hover 的进出边界 */
+describe("BLF-1141 顶栏账号面板（身份区已从侧栏搬走）", () => {
+  /** 顶栏身份区容器：触发按钮与面板的共同父节点，也就是 hover 的进出边界 */
   function chipWrap(): HTMLElement {
     return screen.getByRole("button", { name: /^账号菜单/ }).parentElement as HTMLElement;
   }
 
-  /** 已确认身份的外壳（快照 + 两个接口都返回），菜单用例的公共前置 */
+  /** 账号面板：承载通知 + 账号操作 + 显示模式的非模态 dialog，名称固定「我的」 */
+  function accountPanel(): HTMLElement {
+    return screen.getByRole("dialog", { name: "我的" });
+  }
+
+  /** 已确认身份的外壳（快照 + 两个接口都返回），面板用例的公共前置 */
   async function mountSignedIn(admin = false) {
     seedSession();
     pending.me = () => Promise.resolve(ME);
@@ -341,61 +347,62 @@ describe("BLF-1141 顶栏账号菜单（身份区已从侧栏搬走）", () => {
     expect(screen.getByRole("button", { name: /^账号菜单/ })).toBeTruthy();
   });
 
-  it("菜单与顶栏 chip 都不再出现角色权限文案", async () => {
+  it("面板与顶栏 chip 都不再出现角色权限文案", async () => {
     await mountSignedIn(true);
 
     fireEvent.mouseEnter(chipWrap());
-    expect(screen.getByRole("menu")).toBeTruthy();
+    expect(accountPanel()).toBeTruthy();
 
     expect(document.body.textContent).not.toContain("全局管理与审批");
     expect(document.body.textContent).not.toContain("管理员");
     expect(document.body.textContent).not.toContain("项目成员");
   });
 
-  it("hover 打开菜单，移出后延时关闭（跨 8px 间隙不会一抖动就闪）", async () => {
+  it("hover 打开面板，移出后延时关闭（跨 8px 间隙不会一抖动就闪）", async () => {
     await mountSignedIn();
 
-    expect(screen.queryByRole("menu"), "默认不渲染菜单").toBeNull();
+    expect(screen.queryByRole("dialog", { name: "我的" }), "默认不渲染面板").toBeNull();
     fireEvent.mouseEnter(chipWrap());
-    expect(screen.getByRole("menu")).toBeTruthy();
-    expect(screen.getByRole("menuitem", { name: "修改密码" })).toBeTruthy();
-    expect(screen.getByRole("menuitem", { name: "退出登录" })).toBeTruthy();
+    expect(accountPanel()).toBeTruthy();
+    expect(screen.getByRole("link", { name: "修改密码" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "退出登录" })).toBeTruthy();
 
     fireEvent.mouseLeave(chipWrap());
-    expect(screen.queryByRole("menu"), "移出后立刻关闭会闪，必须留出容错时间").toBeTruthy();
-    await waitFor(() => expect(screen.queryByRole("menu")).toBeNull());
+    expect(screen.queryByRole("dialog", { name: "我的" }), "移出后立刻关闭会闪，必须留出容错时间").toBeTruthy();
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "我的" })).toBeNull());
   });
 
   it("按功能更新、修改密码、退出登录顺序显示账号操作", async () => {
     await mountSignedIn();
 
     fireEvent.mouseEnter(chipWrap());
-    const items = screen.getAllByRole("menuitem");
-    expect(items.map((item) => item.textContent?.replace(/\s+/g, "").trim())).toEqual([
-      "功能更新",
-      "修改密码",
-      "退出登录",
-    ]);
-    expect(items[0].getAttribute("href")).toBe("/changelog");
+    const panel = accountPanel();
+    const changelog = within(panel).getByRole("link", { name: "功能更新" });
+    const password = within(panel).getByRole("link", { name: "修改密码" });
+    const logout = within(panel).getByRole("button", { name: "退出登录" });
+
+    expect(changelog.getAttribute("href")).toBe("/changelog");
+    expect(changelog.compareDocumentPosition(password) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(password.compareDocumentPosition(logout) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    // 通知区域在账号操作之前：这是「我的」面板里优先级最高的内容
+    const notifyHeading = within(panel).getByRole("heading", { name: "通知" });
+    expect(notifyHeading.compareDocumentPosition(changelog) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
-  it("键盘可达：焦点进入 chip 即打开，方向键移动，Esc 关闭并把焦点还给 chip", async () => {
+  it("键盘可达：焦点进入 chip 即打开，Esc 关闭并把焦点还给 chip", async () => {
     await mountSignedIn();
 
     const chip = screen.getByRole("button", { name: /^账号菜单/ });
     fireEvent.focus(chip);
     expect(chip.getAttribute("aria-expanded")).toBe("true");
-    expect(screen.getByRole("menu")).toBeTruthy();
-
-    fireEvent.keyDown(chip, { key: "ArrowDown" });
-    expect(document.activeElement).toBe(screen.getByRole("menuitem", { name: "功能更新" }));
-    fireEvent.keyDown(screen.getByRole("menu"), { key: "ArrowDown" });
-    expect(document.activeElement).toBe(screen.getByRole("menuitem", { name: "修改密码" }));
-    fireEvent.keyDown(screen.getByRole("menu"), { key: "ArrowDown" });
-    expect(document.activeElement).toBe(screen.getByRole("menuitem", { name: "退出登录" }));
+    const panel = accountPanel();
+    // 面板里三个分区都在同一非模态 dialog：通知、账号操作、显示模式
+    expect(within(panel).getByRole("heading", { name: "通知" })).toBeTruthy();
+    expect(within(panel).getByRole("link", { name: "功能更新" })).toBeTruthy();
+    expect(within(panel).getByRole("radiogroup", { name: "显示模式" })).toBeTruthy();
 
     fireEvent.keyDown(document, { key: "Escape" });
-    expect(screen.queryByRole("menu")).toBeNull();
+    expect(screen.queryByRole("dialog", { name: "我的" })).toBeNull();
     expect(chip.getAttribute("aria-expanded")).toBe("false");
     expect(document.activeElement).toBe(chip);
   });
@@ -407,35 +414,36 @@ describe("BLF-1141 顶栏账号菜单（身份区已从侧栏搬走）", () => {
     fireEvent.pointerDown(chip);
     fireEvent.focus(chip);
     fireEvent.click(chip);
-    expect(screen.getByRole("menu")).toBeTruthy();
+    expect(accountPanel()).toBeTruthy();
 
     fireEvent.click(chip); // 再点一次收起
-    expect(screen.queryByRole("menu")).toBeNull();
+    expect(screen.queryByRole("dialog", { name: "我的" })).toBeNull();
   });
 
-  it("关闭状态下菜单项不在 DOM 里（不会留在 Tab 序列）", async () => {
+  it("关闭状态下整个面板不在 DOM 里（不会留在 Tab 序列）", async () => {
     await mountSignedIn();
 
-    expect(document.querySelectorAll('[role="menuitem"]').length).toBe(0);
-    expect(chipWrap().querySelector('[role="menu"]')).toBeNull();
+    expect(screen.queryByRole("dialog", { name: "我的" })).toBeNull();
+    expect(document.querySelectorAll('[role="menuitem"], [role="menuitemradio"]').length).toBe(0);
+    expect(chipWrap().querySelector('[role="dialog"]')).toBeNull();
   });
 
-  it("「修改密码」指向 /change-password，点击后菜单收起", async () => {
+  it("「修改密码」指向 /change-password，点击后面板收起", async () => {
     await mountSignedIn();
 
     fireEvent.mouseEnter(chipWrap());
-    const link = screen.getByRole("menuitem", { name: "修改密码" });
+    const link = screen.getByRole("link", { name: "修改密码" });
     expect(link.getAttribute("href")).toBe("/change-password");
 
     fireEvent.click(link);
-    expect(screen.queryByRole("menu")).toBeNull();
+    expect(screen.queryByRole("dialog", { name: "我的" })).toBeNull();
   });
 
   it("「退出登录」调用登出接口并回到登录页", async () => {
     await mountSignedIn();
 
     fireEvent.mouseEnter(chipWrap());
-    fireEvent.click(screen.getByRole("menuitem", { name: "退出登录" }));
+    fireEvent.click(screen.getByRole("button", { name: "退出登录" }));
 
     await waitFor(() => expect(mocks.push).toHaveBeenCalledWith("/login"));
     expect(mocks.logout).toHaveBeenCalled();
@@ -450,7 +458,7 @@ describe("BLF-1141 顶栏账号菜单（身份区已从侧栏搬走）", () => {
     expect(screen.getAllByText("身份加载中").length).toBeGreaterThan(0);
 
     fireEvent.mouseEnter(chipWrap());
-    expect(screen.getByRole("menu")).toBeTruthy();
-    expect(screen.getByRole("menuitem", { name: "退出登录" })).toBeTruthy();
+    expect(accountPanel()).toBeTruthy();
+    expect(screen.getByRole("button", { name: "退出登录" })).toBeTruthy();
   });
 });

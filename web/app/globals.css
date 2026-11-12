@@ -295,11 +295,11 @@ a {
  transition: color var(--av-dur-quick) var(--av-ease-standard);
 }
 a:hover {
+ /* 全站超链接 hover 只用信号色表达可点，不再追加下划线（避免正文链接跳一行）。 */
  color: var(--brand-hover);
- text-decoration: underline;
 }
 
-/* 链接型按钮继承按钮外观，不能套用正文链接的 hover 下划线与文字色。 */
+/* 链接型按钮继承按钮外观，不能套用正文链接的 hover 文字色。 */
 a.btn-primary,
 a.btn-ghost,
 a.btn-danger,
@@ -921,7 +921,7 @@ th.num {
  text-decoration: none;
 }
 .linklike:hover {
- text-decoration: underline;
+ color: var(--brand-hover);
 }
 
 .chip {
@@ -2818,6 +2818,7 @@ textarea,
   --av-divider: var(--line);
   --av-divider-soft: var(--line-soft);
   --av-signal: var(--brand);
+  --av-signal-hover: var(--brand-hover);
   --av-action: var(--action);
   --av-danger: var(--danger);
   --av-warning: var(--warn);
