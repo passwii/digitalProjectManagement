@@ -6,7 +6,9 @@ const root = process.cwd();
 const assets = readFileSync(resolve(root, "app/(dashboard)/assets/assets.css"), "utf8");
 const finance = readFileSync(resolve(root, "app/(dashboard)/finance/finance.module.css"), "utf8");
 const receivables = readFileSync(resolve(root, "app/(dashboard)/projects/[id]/ProjectReceivables.module.css"), "utf8");
-const changelog = readFileSync(resolve(root, "app/(dashboard)/changelog/changelog.module.css"), "utf8");
+// 更新日志页面把样式内联进页面 JS（见 changelogStyles.ts 的根因说明），
+// 不再有独立的 CSS Module 文件；这里仍按同一套表面契约守样式。
+const changelog = readFileSync(resolve(root, "app/(dashboard)/changelog/changelogStyles.ts"), "utf8");
 const datePicker = readFileSync(resolve(root, "app/(dashboard)/dev/date-picker/date-picker.module.css"), "utf8");
 
 function ruleBody(source: string, selector: string) {
@@ -40,7 +42,7 @@ describe("graphite workbench feature page surfaces", () => {
   });
 
   it("keeps the latest changelog marker crisp and entry hover stationary", () => {
-    expect(ruleBody(changelog, ".dayLatest .node")).toMatch(/outline:\s*\d+px solid var\(--line-blue\)/);
+    expect(ruleBody(changelog, ".changelog-dayLatest .changelog-node")).toMatch(/outline:\s*\d+px solid var\(--line-blue\)/);
     expect(changelog).not.toMatch(/box-shadow:\s*0\s+0\s+0\s+4px var\(--brand-soft\)/);
     expect(changelog).not.toMatch(/transform:\s*translateX\(/);
   });

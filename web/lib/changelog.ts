@@ -1,4 +1,4 @@
-export type ChangelogKind = "功能" | "优化" | "修复" | "移动端" | "财务";
+export type ChangelogKind = "功能" | "优化" | "修复" | "移动端" | "财务" | "架构";
 
 export interface ChangelogEntry {
   kind: ChangelogKind;
@@ -11,7 +11,7 @@ export interface ChangelogDay {
   entries: ChangelogEntry[];
 }
 
-export type ChangelogVersionId = "v1" | "v2";
+export type ChangelogVersionId = "v1" | "v2" | "v3";
 
 export interface ChangelogVersion {
   id: ChangelogVersionId;
@@ -22,6 +22,124 @@ export interface ChangelogVersion {
 }
 
 export const CHANGELOG_VERSIONS: ChangelogVersion[] = [
+  {
+    id: "v3",
+    label: "V3",
+    title: "Go 架构",
+    summary:
+      "后端整体迁移为 Go 模块化单体，生产库迁移切换到 Goose，部署改由 GitHub Actions 构建 GHCR 镜像；前端同步换成居中液态导航、隧道欢迎页与手机 PWA 底座，权限、会话与并发写入同步加固。",
+    days: [
+      {
+        date: "2026-11-12",
+        entries: [
+          {
+            kind: "功能",
+            title: "手机 PWA 底座导航与移动首页",
+            description:
+              "窄屏下改用底部六槽导航，工作台、项目台账、进度跟踪、支出记录、审批中心与「更多」常驻可见；移动首页收拢品牌栏、问候、入口卡与快捷行，账号与通知入口保持可达。",
+          },
+          {
+            kind: "移动端",
+            title: "「更多」底部面板与横屏适配",
+            description:
+              "溢出导航、账号与设置收进单档底部面板，支持遮罩、Esc 关闭与关闭后回焦；补齐安全区、横屏短屏滚动和安装提示，页面内容不再被底部导航遮挡。",
+          },
+          {
+            kind: "优化",
+            title: "登录页液态玻璃重构",
+            description:
+              "登录页改成玻璃卡片布局，桌面左右分栏、窄屏单列压缩；保留账号密码校验、首次登录改密跳转与错误提示，密码显示与隐藏仍然可用。",
+          },
+        ],
+      },
+      {
+        date: "2026-11-11",
+        entries: [
+          {
+            kind: "功能",
+            title: "居中液态导航与隧道欢迎页",
+            description:
+              "顶栏改为居中药丸导航，五个主入口加「更多」；工作台换成透视隧道欢迎页，滚动、触控或键盘逐段推进，终点直达项目台账。",
+          },
+          {
+            kind: "架构",
+            title: "后端测试全量迁移到 Go",
+            description:
+              "删除 Python 后端与 pytest 套件，接口、迁移与后端测试全部由 Go 模块执行；旧测试脚本与前端源码检查同步改为读取 Go 实现，仓库不再保留第二套后端。",
+          },
+          {
+            kind: "修复",
+            title: "项目重名与通知已读返回修正",
+            description:
+              "项目查重把已删除记录一并计入，重名时返回明确提示而不再报 500；通知一键已读返回实际已读条数，并补上数据模型与迁移结构的对照检查。",
+          },
+        ],
+      },
+      {
+        date: "2026-11-10",
+        entries: [
+          {
+            kind: "架构",
+            title: "生产数据库迁移切换到 Goose",
+            description:
+              "库结构改由 Goose SQL 迁移管理，接入独立迁移命令与基线结构；容器启动时自动执行未应用迁移，已有库可按基线登记接管，不再依赖 Python 迁移链。",
+          },
+          {
+            kind: "修复",
+            title: "迁移接管与并发写入加固",
+            description:
+              "接管前校验已有库的版本登记，失败可重试；登录与写操作在事务内加行锁，避免并发请求互相覆盖；迁移与集成测试改为在随机创建的库结构上执行，覆盖接管、拒绝与失败重试。",
+          },
+          {
+            kind: "修复",
+            title: "通讯录保存关联账号失败修正",
+            description:
+              "通讯录保存关联账号时不再更新用户表里不存在的列，避免保存失败；补充集成用例覆盖关联账号的保存路径。",
+          },
+        ],
+      },
+      {
+        date: "2026-11-08",
+        entries: [
+          {
+            kind: "架构",
+            title: "后端整体迁移为 Go 模块化单体",
+            description:
+              "接口服务改由 Go（Gin + GORM）承担，按业务域拆分模块，数据库、迁移、存储等平台能力独立成包；构建镜像与 CI 统一到 Go 1.27。",
+          },
+          {
+            kind: "优化",
+            title: "权限与会话边界收紧",
+            description:
+              "项目接口按项目成员身份放行，不再由全局模块开关一刀切；管理员重置密码后要求下次登录改密；登录与改密在事务内递增会话版本，旧会话随即失效。",
+          },
+          {
+            kind: "修复",
+            title: "部署脚本支持重建工作目录",
+            description:
+              "VPS 部署在 Git 目录异常时可显式重建工作目录，避免拉取失败导致发布卡住；部署脚本补充对应测试。",
+          },
+        ],
+      },
+      {
+        date: "2026-11-03",
+        entries: [
+          {
+            kind: "架构",
+            title: "GitHub Actions 构建 GHCR 镜像并部署",
+            description:
+              "合并到主分支后自动构建 API 与 Web 镜像、推送 GHCR，VPS 按镜像摘要拉取启动并做健康检查；支持手动指定两份镜像回滚，回滚不会撤销数据库迁移。",
+          },
+          {
+            kind: "优化",
+            title: "工作台视觉改造与 Node 26",
+            description:
+              "建立工作台深浅主题令牌，统一共享控件、页面基元、总览与业务页面样式；前端工具链升级到 Node 26，与 CI 和镜像保持一致。",
+          },
+        ],
+      },
+    ],
+  },
   {
     id: "v2",
     label: "V2",
@@ -443,3 +561,23 @@ export const CHANGELOG_VERSIONS: ChangelogVersion[] = [
     ],
   },
 ];
+
+/**
+ * 取最新版本（数组首位）作为「当前版本」。
+ *
+ * 版本顺序即发布时间倒序，页面默认选中项与右上角「当前版本」标记都从这里派生；
+ * 新增版本时只改 CHANGELOG_VERSIONS，不再到处写死 V2。
+ *
+ * 接收参数是为了让守卫测试能喂一份构造数据，验证「当前版本」确实跟着数组首位走，
+ * 而不是另有一份写死的常量。
+ */
+export function latestChangelogVersion(
+  versions: readonly ChangelogVersion[] = CHANGELOG_VERSIONS,
+): ChangelogVersion {
+  const [latest] = versions;
+  if (!latest) throw new Error("CHANGELOG_VERSIONS 不能为空");
+  return latest;
+}
+
+/** 页面默认选中的版本，等于最新版本（V3）。 */
+export const CHANGELOG_CURRENT_VERSION = latestChangelogVersion();
