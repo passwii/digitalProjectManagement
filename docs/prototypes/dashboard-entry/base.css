@@ -9,8 +9,26 @@
   --line: hsla(0, 0%, 93%, .12);
   --line-soft: hsla(0, 0%, 93%, .075);
   --brand: #6aa9ff;
-  --brand-soft: rgba(106, 169, 255, .12);
-  --line-blue: rgba(106, 169, 255, .46);
+  /* 入场草稿的语义色：效果色只在这里定义，变体 CSS 通过 color-mix 消费。 */
+  --entry-signal: var(--brand);
+  --entry-signal-hover: #8bbcff;
+  --entry-on-signal: #0d1721;
+  --entry-green: #61d2a0;
+  --entry-gold: #f2c65c;
+  --entry-violet: #ad9cff;
+  --entry-sheen: #ffffff;
+  --entry-signal-soft: color-mix(in srgb, var(--entry-signal) 12%, transparent);
+  --entry-signal-line: color-mix(in srgb, var(--entry-signal) 46%, transparent);
+  --entry-signal-haze: color-mix(in srgb, var(--entry-signal) 8%, transparent);
+  --entry-signal-glow: color-mix(in srgb, var(--entry-signal) 13%, transparent);
+  --entry-signal-wipe: color-mix(in srgb, var(--entry-signal) 16%, transparent);
+  --entry-signal-wipe-soft: color-mix(in srgb, var(--entry-signal) 12%, transparent);
+  --entry-sheen-soft: color-mix(in srgb, var(--entry-sheen) 10%, transparent);
+  --entry-mask: #000;
+  --entry-mask-soft: color-mix(in srgb, var(--entry-mask) 50%, transparent);
+  --entry-shadow: color-mix(in srgb, var(--entry-mask) 85%, transparent);
+  --brand-soft: var(--entry-signal-soft);
+  --line-blue: var(--entry-signal-line);
   --font: -apple-system, BlinkMacSystemFont, "SF Pro Display", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
   --mono: "SFMono-Regular", "SF Mono", ui-monospace, Menlo, monospace;
   --ease: cubic-bezier(.16, 1, .3, 1);
@@ -68,7 +86,7 @@ button { cursor: pointer; }
   overflow: hidden;
   isolation: isolate;
   background:
-    radial-gradient(circle at 50% 42%, rgba(106, 169, 255, .08), transparent 34%),
+    radial-gradient(circle at 50% 42%, var(--entry-signal-haze), transparent 34%),
     var(--bg);
 }
 .bg {
@@ -87,7 +105,7 @@ button { cursor: pointer; }
     linear-gradient(var(--line-soft) 1px, transparent 1px),
     linear-gradient(90deg, var(--line-soft) 1px, transparent 1px);
   background-size: 42px 42px;
-  mask-image: radial-gradient(circle at 50% 46%, #000 0%, rgba(0, 0, 0, .5) 52%, transparent 82%);
+  mask-image: radial-gradient(circle at 50% 46%, var(--entry-mask) 0%, var(--entry-mask-soft) 52%, transparent 82%);
 }
 .bg::after {
   content: "";
@@ -110,7 +128,7 @@ button { cursor: pointer; }
   width: 50vw;
   height: 50vw;
   border-radius: 50%;
-  background: rgba(106, 169, 255, .13);
+  background: var(--entry-signal-glow);
   filter: blur(80px);
   transform: translateX(-50%);
   opacity: .7;
@@ -132,7 +150,7 @@ button { cursor: pointer; }
   border: 1px solid var(--line-blue);
   border-radius: 20px;
   background: color-mix(in srgb, var(--card) 82%, transparent);
-  box-shadow: inset 0 1px 0 var(--line-soft), 0 30px 90px -40px rgba(0, 0, 0, .85);
+  box-shadow: inset 0 1px 0 var(--line-soft), 0 30px 90px -40px var(--entry-shadow);
   -webkit-backdrop-filter: blur(24px);
   backdrop-filter: blur(24px);
   transform-origin: 50% 48%;
@@ -186,11 +204,11 @@ button { cursor: pointer; }
   border: 1px solid var(--brand);
   border-radius: 10px;
   background: var(--brand);
-  color: #0d1721;
+  color: var(--entry-on-signal);
   font-size: 12px;
   font-weight: 700;
 }
-.login-submit:hover { background: #8bbcff; }
+.login-submit:hover { background: var(--entry-signal-hover); }
 
 /* ── Dashboard 终点 ───────────────────────────────────────── */
 .dashboard {
@@ -240,10 +258,10 @@ button { cursor: pointer; }
   height: 34px;
   align-items: center;
   justify-content: center;
-  border: 1px solid rgba(89, 205, 176, .55);
+  border: 1px solid color-mix(in srgb, var(--entry-green) 55%, transparent);
   border-radius: 50%;
-  background: rgba(89, 205, 176, .14);
-  color: #61d2a0;
+  background: color-mix(in srgb, var(--entry-green) 14%, transparent);
+  color: var(--entry-green);
   font: 700 11px var(--mono);
 }
 .hero {
@@ -284,10 +302,10 @@ button { cursor: pointer; }
 .card small { color: var(--ink-3); font: 9px var(--mono); }
 .card h3 { margin: 38px 0 4px; font-size: 13px; font-weight: 650; }
 .card p { margin: 0; color: var(--ink-3); font-size: 10px; }
-.card:nth-child(1) { --c1: rgba(106, 169, 255, .22); }
-.card:nth-child(2) { --c1: rgba(97, 210, 160, .16); }
-.card:nth-child(3) { --c1: rgba(242, 198, 92, .15); }
-.card:nth-child(4) { --c1: rgba(173, 156, 255, .18); }
+.card:nth-child(1) { --c1: color-mix(in srgb, var(--entry-signal) 22%, transparent); }
+.card:nth-child(2) { --c1: color-mix(in srgb, var(--entry-green) 16%, transparent); }
+.card:nth-child(3) { --c1: color-mix(in srgb, var(--entry-gold) 15%, transparent); }
+.card:nth-child(4) { --c1: color-mix(in srgb, var(--entry-violet) 18%, transparent); }
 
 .note {
   position: fixed;

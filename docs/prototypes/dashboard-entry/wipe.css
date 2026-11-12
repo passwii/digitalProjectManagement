@@ -5,7 +5,7 @@
   inset: -10% -30%;
   pointer-events: none;
   background:
-    linear-gradient(100deg, transparent 0 34%, rgba(106, 169, 255, .16) 46%, rgba(255, 255, 255, .1) 50%, rgba(106, 169, 255, .12) 54%, transparent 66% 100%),
+    linear-gradient(100deg, transparent 0 34%, var(--entry-signal-wipe) 46%, var(--entry-sheen-soft) 50%, var(--entry-signal-wipe-soft) 54%, transparent 66% 100%),
     color-mix(in srgb, var(--card) 55%, transparent);
   -webkit-backdrop-filter: blur(26px) saturate(1.4);
   backdrop-filter: blur(26px) saturate(1.4);
