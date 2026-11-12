@@ -1,0 +1,68 @@
+/*
+ * Dashboard 隧道入场（方案 B · TUNNEL PULL）
+ *
+ * 视觉基准：docs/prototypes/dashboard-entry/b-tunnel.html。
+ * 登录成功跳到工作台、或从其他页面回到工作台时，整页从隧道深处被拉向镜头：
+ * 先快速放大、透明度与模糊收敛，最后落在原位。只动 transform / opacity / filter，
+ * 不触发布局；时长与缓动走工作台语义令牌，不写裸时长。
+ *
+ * 桌面用完整透视拉近；手机与横屏短屏改成更轻的位移 + 缩放，避免整页 3D
+ * 变换在小屏上造成文字发虚。prefers-reduced-motion 下直接落到最终态。
+ */
+
+.entry {
+  transform-origin: 50% 50%;
+  animation: dashboardTunnelIn calc(var(--av-dur-slow) * 1.4) var(--av-ease-enter) both;
+  will-change: transform, opacity, filter;
+}
+
+@keyframes dashboardTunnelIn {
+  0% {
+    opacity: 0;
+    transform: perspective(1200px) translate3d(0, 0, -900px) scale(0.62);
+    filter: blur(12px);
+  }
+  55% {
+    opacity: 1;
+    filter: blur(1px);
+  }
+  100% {
+    opacity: 1;
+    transform: perspective(1200px) translate3d(0, 0, 0) scale(1);
+    filter: blur(0);
+  }
+}
+
+@media (max-width: 767px), (max-width: 932px) and (max-height: 500px) and (orientation: landscape) {
+  .entry {
+    animation-name: dashboardTunnelInMobile;
+    animation-duration: calc(var(--av-dur-slow) * 1.1);
+  }
+}
+
+@keyframes dashboardTunnelInMobile {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, 14px, 0) scale(0.985);
+    filter: blur(5px);
+  }
+  60% {
+    opacity: 1;
+    filter: blur(1px);
+  }
+  100% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+    filter: blur(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .entry {
+    animation: none;
+    filter: none;
+    opacity: 1;
+    transform: none;
+    will-change: auto;
+  }
+}

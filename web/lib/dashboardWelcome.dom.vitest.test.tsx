@@ -38,6 +38,7 @@ describe("Dashboard 欢迎页", () => {
     const { container } = render(<DashboardPage />);
 
     expect(container.querySelector('[data-dashboard-page="true"]')).not.toBeNull();
+    expect(container.querySelector('[data-dashboard-entry="tunnel"]')).not.toBeNull();
     expect(container.querySelector('[data-welcome-tunnel="true"]')).not.toBeNull();
 
     const text = container.textContent ?? "";
@@ -84,6 +85,18 @@ describe("Dashboard 欢迎页", () => {
     expect(welcome).toContain("从这里开始。");
     expect(welcome).toContain('href="/projects"');
     expect(welcome).toContain("data-end-primary");
+  });
+
+  it("工作台入场是隧道拉近，且 reduced-motion 下落到最终态", () => {
+    const css = readFileSync(
+      resolve(__dirname, "../app/(dashboard)/dashboard/dashboardEntry.module.css"),
+      "utf8",
+    );
+    expect(css).toContain("@keyframes dashboardTunnelIn");
+    expect(css).toContain("perspective(1200px)");
+    expect(css).toContain("var(--av-dur-slow)");
+    expect(css).toContain("@media (prefers-reduced-motion: reduce)");
+    expect(css).not.toMatch(/\d+ms/);
   });
 
   it("隧道使用自定义纵向手势，避免移动端被原生 pan-y 取消", () => {

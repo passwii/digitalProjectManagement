@@ -3,6 +3,7 @@
 import MobileHome from "@/components/dashboard/MobileHome";
 import WelcomeTunnel from "@/components/dashboard/welcome/WelcomeTunnel";
 import { useMobilePwaViewport } from "@/lib/mobilePwaViewport";
+import entry from "./dashboardEntry.module.css";
 
 /**
  * 工作台首屏：桌面是透视隧道欢迎页，手机（≤767px）是已确认草稿
@@ -17,7 +18,12 @@ export default function DashboardPage() {
   const mobileViewport = useMobilePwaViewport();
 
   return (
-    <div data-dashboard-page="true" data-dashboard-welcome={mobileViewport ? undefined : "true"}>
+    <div
+      className={entry.entry}
+      data-dashboard-page="true"
+      data-dashboard-entry="tunnel"
+      data-dashboard-welcome={mobileViewport ? undefined : "true"}
+    >
       {mobileViewport ? <MobileHome /> : <WelcomeTunnel />}
     </div>
   );
