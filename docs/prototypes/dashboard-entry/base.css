@@ -309,6 +309,9 @@ body.play .dashboard { pointer-events: auto; }
 }
 
 @media (prefers-reduced-motion: reduce) {
+  body, body *,
+  body *::before,
+  body *::after { animation: none !important; transition: none !important; }
   body .login-layer { display: none; }
   body .dashboard { opacity: 1; pointer-events: auto; }
   body .topbar,
