@@ -12,7 +12,7 @@
   transform: translateX(-115%) skewX(-8deg);
   opacity: 0;
 }
-body.play .wipe { animation: wipeSweep var(--entry-dur-wipe) cubic-bezier(.65, 0, .35, 1) var(--entry-delay-wipe) both; }
+body.play .wipe { animation: wipeSweep var(--entry-dur-wipe) var(--entry-ease-wipe) var(--entry-delay-wipe) both; }
 @keyframes wipeSweep {
   0% { opacity: 0; transform: translateX(-115%) skewX(-8deg); }
   12% { opacity: 1; }

@@ -47,6 +47,7 @@
   --entry-dur-card-pull: 1s;
   --entry-dur-pull: 1.05s;
   --entry-dur-wipe: 1.15s;
+  --entry-ease-wipe: cubic-bezier(.65, 0, .35, 1);
   --entry-dur-glow: 1.2s;
   --entry-delay-wipe: .06s;
   --entry-delay-xs: .1s;
