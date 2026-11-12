@@ -1,0 +1,91 @@
+/*
+ * 手机品牌顶栏（≤767px）。桌面品牌浮标仍是 layout 里的 .brandFloat，
+ * 两者互斥：本组件在 >767px 用 display:none 退场。
+ */
+.root { display: none; }
+
+@media (max-width: 767px), (max-width: 932px) and (max-height: 500px) and (orientation: landscape) {
+  .root {
+    position: fixed;
+    z-index: 50;
+    top: calc(18px + env(safe-area-inset-top, 0px));
+    left: max(14px, env(safe-area-inset-left, 0px));
+    display: flex;
+    min-height: var(--m-tap);
+    align-items: center;
+    gap: 9px;
+    min-width: 0;
+    color: var(--ink);
+    text-decoration: none;
+  }
+
+  .root:focus-visible {
+    outline: 2px solid var(--focus-ring, var(--brand));
+    outline-offset: 4px;
+    border-radius: var(--radius-sm);
+  }
+
+  .seal {
+    position: relative;
+    display: inline-flex;
+    width: 30px;
+    height: 30px;
+    flex: 0 0 auto;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    border: 1px solid var(--line-blue);
+    border-radius: 5px;
+    color: var(--brand);
+    font-family: var(--font-mono);
+  }
+
+  .seal::before {
+    position: absolute;
+    inset: 2px;
+    border: 1px solid var(--line-blue);
+    border-radius: 3px;
+    content: "";
+    opacity: .45;
+    pointer-events: none;
+  }
+
+  .sealWord {
+    font-size: 8px;
+    font-weight: 700;
+    line-height: 1;
+    letter-spacing: .01em;
+  }
+
+  .sealBar {
+    width: 7px;
+    height: 1.5px;
+    border-radius: 2px;
+    background: var(--brand);
+    opacity: .7;
+  }
+
+  .text {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    gap: 2px;
+    overflow: hidden;
+    white-space: nowrap;
+  }
+
+  .text b {
+    color: var(--ink);
+    font-family: var(--font-brand);
+    font-size: 13px;
+    font-weight: 650;
+    letter-spacing: .02em;
+  }
+
+  .text span {
+    color: var(--ink-3);
+    font-size: 9.5px;
+    letter-spacing: .08em;
+  }
+}

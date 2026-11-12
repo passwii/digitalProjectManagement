@@ -1,34 +1,626 @@
+/* ---------------------------------------------------------------------------
+ * 登录页 · 液态玻璃（按 docs/prototypes/login/index.html 实现）
+ *
+ * 颜色全部来自本文件顶部的本地语义令牌；深色默认值对齐工作台
+ * `[data-console-shell="true"]` 的语义角色，浅色覆盖集中在文件末尾。
+ * 动效时长使用全站 --av-dur-* / --av-ease-*，不写裸毫秒。
+ *
+ * 本模块同时被 /change-password 复用（.solo + .auth + .card），
+ * 所以这些共享类名与页面骨架保持不变。
+ * ------------------------------------------------------------------------- */
+
 .wrap {
-  --login-bg: #07131f;
-  --login-surface: #0d1d2c;
-  --login-line: rgba(146, 189, 210, 0.2);
-  --login-ink: #eaf9fb;
-  --login-muted: rgba(201, 227, 235, 0.64);
-  --login-dim: rgba(201, 227, 235, 0.38);
-  --login-signal: #6cf3ff;
-  --login-active: #c6ff72;
-  /*
-   * 上面这一套是**深色真源**；浅色（`data-theme="light"`）的覆盖全部集中在文件末尾的
-   * 「浅色适配（BLF-1343）」一段，两处一起看才算完整配色。
-   */
+  /* 深色：与工作台 [data-console-shell="true"] 同一套语义值 */
+  --login-bg: #141516;
+  --login-surface: #191a1c;
+  --login-surface-raised: #24272a;
+  --login-ink: #ededed;
+  --login-ink-2: #a1a1a6;
+  --login-ink-3: #85858b;
+  --login-line: rgba(237, 237, 237, 0.12);
+  --login-line-soft: rgba(237, 237, 237, 0.075);
+  --login-brand: #6aa9ff;
+  --login-brand-hover: #8bbcff;
+  --login-brand-soft: rgba(106, 169, 255, 0.12);
+  --login-line-blue: rgba(106, 169, 255, 0.46);
+  --login-focus: #7fc6ff;
+  --login-danger: #f17e78;
+  --login-danger-bg: rgba(241, 126, 120, 0.12);
+  --login-line-danger: rgba(241, 126, 120, 0.5);
+  --login-control-border: rgba(237, 237, 237, 0.28);
+  --login-success-ink: #61d2a0;
+  --login-done-bg: rgba(97, 210, 160, 0.12);
+  --login-on-brand: #101820;
+  --login-story-glow: rgba(106, 169, 255, 0.15);
+  --login-story-glow-alt: rgba(89, 205, 176, 0.1);
+  --login-blob-a: rgba(106, 169, 255, 0.18);
+  --login-blob-b: rgba(89, 205, 176, 0.13);
+  --login-blob-mix: screen;
+  --login-blob-opacity: 0.38;
+  --login-shadow: 0 40px 120px -48px rgba(0, 0, 0, 0.85);
+  --login-spin-duration: calc(var(--av-dur-slow) * 1.2);
+
+  /* 让共享控件（ChangePasswordForm / btn-primary 等）也读工作台语义色 */
+  --bg: var(--login-bg);
+  --card: var(--login-surface);
+  --card-lift: var(--login-surface-raised);
+  --ink: var(--login-ink);
+  --ink-2: var(--login-ink-2);
+  --ink-3: var(--login-ink-3);
+  --line: var(--login-line);
+  --line-soft: var(--login-line-soft);
+  --brand: var(--login-brand);
+  --brand-hover: var(--login-brand-hover);
+  --brand-soft: var(--login-brand-soft);
+  --line-blue: var(--login-line-blue);
+  --action: var(--login-brand);
+  --action-hover: var(--login-brand-hover);
+  --on-action: var(--login-on-brand);
+  --danger: var(--login-danger);
+  --danger-bg: var(--login-danger-bg);
+  --line-danger: var(--login-line-danger);
+  --focus-ring: var(--login-focus);
+  --control-border: var(--login-control-border);
+  --success-ink: var(--login-success-ink);
+  --done-bg: var(--login-done-bg);
+  --th-bg: var(--login-surface-raised);
+
+  position: relative;
   min-height: 100vh;
+  min-height: 100dvh;
   display: grid;
-  grid-template-columns: minmax(0, 1.14fr) minmax(440px, 0.86fr);
+  place-items: center;
   overflow: hidden;
   background: var(--login-bg);
   color: var(--login-ink);
+  color-scheme: dark;
+  font-family: var(--font-body);
+  -webkit-font-smoothing: antialiased;
 }
 
-.solo {
-  min-height: 100vh;
+/* ── 背景氛围：细网格 + 同心圆 + 两团柔光 ─────────────────────────── */
+.ambient {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.ambient::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  opacity: 0.55;
+  background-image:
+    linear-gradient(var(--login-line-soft) 1px, transparent 1px),
+    linear-gradient(90deg, var(--login-line-soft) 1px, transparent 1px);
+  background-size: 44px 44px;
+  mask-image: radial-gradient(circle at 50% 46%, #000 0%, rgba(0, 0, 0, 0.45) 50%, transparent 80%);
+}
+
+.ambient::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: min(74vw, 980px);
+  height: min(74vw, 980px);
+  border: 1px solid var(--login-line);
+  border-radius: 50%;
+  box-shadow: 0 0 0 80px var(--login-line-soft), 0 0 0 180px var(--login-line-soft);
+  transform: translate(-50%, -50%);
+  opacity: 0.55;
+}
+
+.blob {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(52px);
+  opacity: var(--login-blob-opacity);
+  mix-blend-mode: var(--login-blob-mix);
+}
+
+.blobA {
+  top: -18%;
+  right: 8%;
+  width: 44vw;
+  height: 44vw;
+  background: var(--login-blob-a);
+}
+
+.blobB {
+  bottom: -26%;
+  left: -8%;
+  width: 46vw;
+  height: 46vw;
+  background: var(--login-blob-b);
+}
+
+.stage {
+  position: relative;
+  z-index: 1;
   display: flex;
+  width: 100%;
   align-items: center;
   justify-content: center;
+  gap: 40px;
   padding: 24px;
-  overflow: auto;
+}
+
+/* ── 一张玻璃卡片：左品牌故事 / 右登录表单 ───────────────────────── */
+.authCard {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1.04fr) minmax(380px, 0.96fr);
+  width: min(940px, calc(100vw - 48px));
+  min-height: 560px;
+  overflow: hidden;
+  border: 1px solid var(--login-line);
+  border-radius: 26px;
+  background: color-mix(in srgb, var(--login-surface) 74%, transparent);
+  box-shadow: inset 0 1px 0 var(--login-line-soft), var(--login-shadow);
+  -webkit-backdrop-filter: blur(28px) saturate(1.2);
+  backdrop-filter: blur(28px) saturate(1.2);
+}
+
+/* ── 左栏：品牌故事 ─────────────────────────────────────────────── */
+.story {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 28px;
+  overflow: hidden;
+  padding: 34px 36px 30px;
+  border-right: 1px solid var(--login-line);
   background:
-    radial-gradient(circle at 50% 0%, rgba(30, 122, 150, 0.18), transparent 52%),
-    #07131f;
+    radial-gradient(circle at 82% 18%, var(--login-story-glow), transparent 38%),
+    radial-gradient(circle at 12% 92%, var(--login-story-glow-alt), transparent 42%),
+    color-mix(in srgb, var(--login-surface) 50%, transparent);
+}
+
+.storyGrid {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  opacity: 0.5;
+  background-image:
+    linear-gradient(var(--login-line-soft) 1px, transparent 1px),
+    linear-gradient(90deg, var(--login-line-soft) 1px, transparent 1px);
+  background-size: 34px 34px;
+  mask-image: linear-gradient(140deg, #000 0%, rgba(0, 0, 0, 0.55) 45%, transparent 82%);
+  pointer-events: none;
+}
+
+.brand,
+.storyCopy,
+.steps {
+  position: relative;
+  z-index: 1;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+}
+
+.brandGlyph {
+  position: relative;
+  display: inline-flex;
+  width: 34px;
+  height: 34px;
+  flex: 0 0 auto;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  border: 1px solid var(--login-line-blue);
+  border-radius: 5px;
+  color: var(--login-brand);
+  font-family: var(--font-mono);
+}
+
+.brandGlyph::before {
+  content: "";
+  position: absolute;
+  inset: 2px;
+  border: 1px solid var(--login-line-blue);
+  border-radius: 3px;
+  opacity: 0.45;
+  pointer-events: none;
+}
+
+.brandGlyph b {
+  font-size: 9px;
+  line-height: 1;
+  letter-spacing: 0.01em;
+}
+
+.brandGlyph i {
+  width: 8px;
+  height: 1.5px;
+  border-radius: 2px;
+  background: var(--login-brand);
+  opacity: 0.7;
+}
+
+.brandText {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.brandText b {
+  color: var(--login-ink);
+  font-size: 14px;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+}
+
+.brandText span {
+  color: var(--login-ink-3);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.14em;
+}
+
+.storyCopy {
+  max-width: 360px;
+}
+
+.eyebrow {
+  margin: 0 0 14px;
+  color: var(--login-ink-3);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.16em;
+}
+
+.storyCopy h1 {
+  margin: 0;
+  color: var(--login-ink);
+  font-family: var(--font-brand);
+  font-size: clamp(38px, 4.2vw, 56px);
+  font-weight: 700;
+  line-height: 1.03;
+  letter-spacing: -0.06em;
+}
+
+.storyCopy h1 span {
+  display: block;
+  color: var(--login-ink-2);
+}
+
+.lede {
+  max-width: 30ch;
+  margin: 18px 0 0;
+  color: var(--login-ink-2);
+  font-size: 12px;
+  line-height: 1.7;
+}
+
+.steps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.steps li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--login-ink-3);
+  font-size: 10.5px;
+}
+
+.steps b {
+  color: var(--login-brand);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.08em;
+}
+
+.steps i {
+  width: 16px;
+  height: 1px;
+  background: var(--login-line);
+}
+
+/* ── 右栏：登录表单 ─────────────────────────────────────────────── */
+.auth {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+}
+
+.formPanel {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-direction: column;
+  justify-content: center;
+  padding: 38px 38px 30px;
+}
+
+.formHead {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 26px;
+}
+
+.miniSeal {
+  margin-top: 1px;
+  transform: scale(0.82);
+  transform-origin: top left;
+}
+
+.kicker {
+  margin: 0 0 6px;
+  color: var(--login-ink-3);
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.14em;
+}
+
+.title {
+  margin: 0;
+  color: var(--login-ink);
+  font-size: 27px;
+  font-weight: 700;
+  letter-spacing: -0.04em;
+  line-height: 1.15;
+}
+
+.subtitle {
+  margin: 7px 0 0;
+  color: var(--login-ink-3);
+  font-size: 11px;
+}
+
+.auth form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.field > label {
+  color: var(--login-ink-2);
+  font-size: 10.5px;
+  font-weight: 550;
+  letter-spacing: 0.04em;
+}
+
+.control {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.control input {
+  width: 100%;
+  height: 48px;
+  padding: 0 14px;
+  border: 1px solid var(--login-line);
+  border-radius: 12px;
+  outline: none;
+  background: color-mix(in srgb, var(--login-bg) 48%, transparent);
+  color: var(--login-ink);
+  caret-color: var(--login-brand);
+  font-size: 13px;
+  transition:
+    border-color var(--av-dur-quick) var(--av-ease-enter),
+    box-shadow var(--av-dur-quick) var(--av-ease-enter),
+    background var(--av-dur-quick) var(--av-ease-enter);
+}
+
+.passwordControl input {
+  padding-right: 46px;
+}
+
+.control input::placeholder {
+  color: var(--login-ink-3);
+  opacity: 0.65;
+}
+
+.control input:focus {
+  border-color: var(--login-line-blue);
+  background: color-mix(in srgb, var(--login-bg) 62%, transparent);
+  box-shadow: 0 0 0 3px var(--login-brand-soft);
+}
+
+.control input[aria-invalid="true"] {
+  border-color: var(--login-line-danger);
+}
+
+.control input:disabled {
+  color: var(--login-ink-3);
+  cursor: not-allowed;
+}
+
+.eye {
+  position: absolute;
+  right: 5px;
+  display: inline-flex;
+  width: 38px;
+  height: 38px;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 9px;
+  background: none;
+  color: var(--login-ink-3);
+}
+
+.eye:hover:not(:disabled) {
+  background: var(--login-surface-raised);
+  color: var(--login-ink);
+}
+
+.eye:focus-visible {
+  outline: 2px solid var(--login-focus);
+  outline-offset: 2px;
+}
+
+.eye:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.eye svg {
+  width: 17px;
+  height: 17px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.alert {
+  display: flex;
+  min-height: 38px;
+  align-items: center;
+  gap: 8px;
+  padding: 0 11px;
+  border: 1px solid var(--login-line-danger);
+  border-radius: 10px;
+  background: var(--login-danger-bg);
+  color: var(--login-danger);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.alert svg {
+  width: 15px;
+  height: 15px;
+  flex: none;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.submit {
+  display: flex;
+  width: 100%;
+  height: 48px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 4px;
+  padding: 0 16px;
+  border: 1px solid var(--login-brand);
+  border-radius: 12px;
+  background: var(--login-brand);
+  color: var(--login-on-brand);
+  font-size: 13px;
+  font-weight: 700;
+  transition:
+    background var(--av-dur-quick) var(--av-ease-enter),
+    border-color var(--av-dur-quick) var(--av-ease-enter),
+    transform var(--av-dur-instant) var(--av-ease-enter);
+}
+
+.submit:hover:not(:disabled) {
+  border-color: var(--login-brand-hover);
+  background: var(--login-brand-hover);
+}
+
+.submit:active:not(:disabled) {
+  transform: scale(0.995);
+}
+
+.submit:focus-visible {
+  outline: 2px solid var(--login-focus);
+  outline-offset: 3px;
+}
+
+.submit:disabled {
+  cursor: wait;
+  opacity: 0.85;
+}
+
+.submit[data-phase="success"] {
+  cursor: default;
+}
+
+.submitLabel {
+  display: block;
+  max-width: calc(100% - 42px);
+  overflow: hidden;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.submitArrow {
+  display: inline-flex;
+  width: 17px;
+  height: 17px;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+}
+
+.submitArrow svg {
+  width: 17px;
+  height: 17px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.submitSpinner {
+  width: 15px;
+  height: 15px;
+  border: 2px solid color-mix(in srgb, currentColor 30%, transparent);
+  border-top-color: currentColor;
+  border-radius: 50%;
+  animation: loginSpin var(--login-spin-duration) linear infinite;
+}
+
+.submitCheck {
+  width: 17px;
+  height: 17px;
+}
+
+.formFoot {
+  margin: 22px 0 0;
+  color: var(--login-ink-3);
+  font-size: 10px;
+  line-height: 1.6;
+}
+
+.formFoot span {
+  color: var(--login-ink-2);
+}
+
+/* ── 改密页共享壳（.solo + .auth + .card）──────────────────────── */
+.solo {
+  display: flex;
+  min-height: 100vh;
+  min-height: 100dvh;
+  align-items: center;
+  justify-content: center;
+  overflow: auto;
+  padding: calc(env(safe-area-inset-top, 0px) + 24px) 24px
+    calc(env(safe-area-inset-bottom, 0px) + 24px);
+  background: var(--login-bg);
 }
 
 .solo .auth {
@@ -38,302 +630,49 @@
   background: none;
 }
 
-.solo .authShell { width: 100%; }
-
-.story {
-  position: relative;
-  display: flex;
-  min-height: 100vh;
-  flex-direction: column;
-  justify-content: space-between;
-  overflow: hidden;
-  padding: 38px clamp(28px, 5vw, 84px) 32px;
-  isolation: isolate;
-  background:
-    radial-gradient(circle at 63% 46%, rgba(16, 94, 119, 0.28), transparent 34%),
-    radial-gradient(circle at 0% 100%, rgba(17, 46, 81, 0.72), transparent 40%),
-    #07131f;
-}
-
-.story::before,
-.story::after {
-  content: "";
-  position: absolute;
-  pointer-events: none;
-}
-
-.story::before {
-  inset: 0;
-  z-index: -3;
-  opacity: 0.7;
-  background:
-    radial-gradient(circle at 16% 20%, rgba(108, 243, 255, 0.85) 0 1px, transparent 1.6px),
-    radial-gradient(circle at 58% 13%, rgba(198, 255, 114, 0.68) 0 1px, transparent 1.5px),
-    radial-gradient(circle at 74% 72%, rgba(108, 243, 255, 0.52) 0 1px, transparent 1.6px),
-    radial-gradient(circle at 28% 76%, rgba(186, 234, 241, 0.4) 0 1px, transparent 1.5px),
-    radial-gradient(circle at 92% 28%, rgba(108, 243, 255, 0.48) 0 1px, transparent 1.5px);
-  background-size: 260px 240px, 340px 300px, 420px 360px, 310px 280px, 510px 430px;
-  animation: starDrift 22s linear infinite;
-}
-
-.story::after {
-  right: -260px;
-  bottom: -250px;
-  z-index: -2;
-  width: 650px;
-  height: 650px;
-  border: 1px solid rgba(108, 243, 255, 0.14);
-  border-radius: 50%;
-  box-shadow:
-    0 0 0 44px rgba(108, 243, 255, 0.025),
-    0 0 0 126px rgba(108, 243, 255, 0.018);
-  transform: rotate(-18deg) skewX(-12deg);
-}
-
-.storyGrid {
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  opacity: 0.22;
-  background-image:
-    linear-gradient(rgba(108, 243, 255, 0.08) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(108, 243, 255, 0.08) 1px, transparent 1px);
-  background-size: 42px 42px;
-  mask-image: linear-gradient(128deg, #000 0%, rgba(0, 0, 0, 0.72) 46%, transparent 87%);
-}
-
-.storyTop,
-.storyMain,
-.storyFoot {
-  position: relative;
-  z-index: 1;
-}
-
-.storyTop {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 20px;
-  animation: surfaceIn 760ms var(--ease-console) both;
-}
-
-.brandLockup {
-  display: inline-flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.brandGlyph,
-.cardBadge {
-  position: relative;
-  display: inline-flex;
-  width: 32px;
-  height: 32px;
-  align-items: center;
-  justify-content: center;
-  gap: 3px;
-  border: 1px solid rgba(108, 243, 255, 0.56);
-  background: rgba(108, 243, 255, 0.05);
-  box-shadow: inset 0 0 16px rgba(108, 243, 255, 0.08), 0 0 18px rgba(108, 243, 255, 0.06);
-}
-
-.brandGlyph::before,
-.brandGlyph::after,
-.cardBadge::before,
-.cardBadge::after {
-  content: "";
-  position: absolute;
-  background: var(--login-signal);
-}
-
-.brandGlyph::before,
-.cardBadge::before {
-  top: -4px;
-  right: 5px;
-  width: 4px;
-  height: 1px;
-}
-
-.brandGlyph::after,
-.cardBadge::after {
-  bottom: -4px;
-  left: 5px;
-  width: 4px;
-  height: 1px;
-}
-
-.brandGlyph i,
-.cardBadge i {
-  display: block;
-  width: 2px;
-  height: 13px;
-  background: var(--login-signal);
-  box-shadow: 0 0 7px rgba(108, 243, 255, 0.75);
-  transform: skewY(-24deg);
-}
-
-.brandGlyph i:nth-child(2),
-.cardBadge i:nth-child(2) {
-  height: 20px;
-  background: var(--login-active);
-}
-
-.brandGlyph i:nth-child(3),
-.cardBadge i:nth-child(3) { height: 9px; }
-
-.mark {
-  color: var(--login-ink);
-  font-family: var(--font-brand);
-  font-size: 18px;
-  font-weight: 700;
-  letter-spacing: 0.12em;
-}
-
-.storyMain {
-  display: flex;
-  flex: 1;
-  min-height: 0;
-  flex-direction: column;
-  justify-content: center;
-  gap: clamp(22px, 4vh, 42px);
-  padding: clamp(36px, 5vh, 72px) 0;
-}
-
-.storyCopy {
-  max-width: 590px;
-  animation: surfaceIn 820ms 90ms var(--ease-console) both;
-}
-
-.storyMain h1 {
-  max-width: 600px;
-  margin: 0;
-  color: var(--login-ink);
-  font-family: var(--font-brand);
-  font-size: clamp(46px, 5.7vw, 84px);
-  font-weight: 800;
-  line-height: 1.02;
-  letter-spacing: -0.025em;
-}
-
-.storyMain h1 span {
-  display: block;
-  color: var(--login-active);
-  text-shadow: 0 0 30px rgba(198, 255, 114, 0.14);
-}
-
-.storyFoot {
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 20px;
-  animation: surfaceIn 760ms 180ms var(--ease-console) both;
-}
-
-.auth {
-  position: relative;
-  display: flex;
-  min-height: 100vh;
-  align-items: center;
-  justify-content: center;
-  overflow: hidden;
-  padding: 44px clamp(26px, 6vw, 82px);
-  background:
-    radial-gradient(circle at 20% 36%, rgba(26, 86, 111, 0.18), transparent 38%),
-    linear-gradient(112deg, rgba(108, 243, 255, 0.045), transparent 16%),
-    #081622;
-}
-
-.auth::before,
-.auth::after {
-  content: "";
-  position: absolute;
-  pointer-events: none;
-}
-
-.auth::before {
-  top: 0;
-  bottom: 0;
-  left: 0;
-  width: 1px;
-  background: linear-gradient(transparent, rgba(108, 243, 255, 0.5), transparent);
-  box-shadow: 0 0 26px rgba(108, 243, 255, 0.25);
-}
-
-.auth::after {
-  right: 18%;
-  bottom: 9%;
-  width: 140px;
-  height: 140px;
-  border: 1px solid rgba(108, 243, 255, 0.08);
-  border-radius: 50%;
-  box-shadow: 0 0 0 18px rgba(108, 243, 255, 0.02), 0 0 0 46px rgba(108, 243, 255, 0.015);
-}
-
-.authShell {
-  position: relative;
-  z-index: 1;
-  width: min(100%, 460px);
-}
-
 .card {
   position: relative;
   width: 100%;
   overflow: hidden;
-  border: 1px solid rgba(146, 189, 210, 0.28);
-  background:
-    linear-gradient(90deg, rgba(108, 243, 255, 0.035) 1px, transparent 1px),
-    #0d1d2c;
-  background-size: 32px 32px, auto;
   padding: clamp(26px, 4vw, 38px);
-  box-shadow:
-    0 30px 90px rgba(0, 0, 0, 0.32),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.022);
-  animation: cardIn 720ms 120ms var(--ease-console) both;
-}
-
-.card::before,
-.card::after {
-  content: "";
-  position: absolute;
-  pointer-events: none;
-}
-
-.card::before {
-  top: 0;
-  right: 12%;
-  left: 12%;
-  height: 1px;
-  background: linear-gradient(90deg, transparent, var(--login-signal), transparent);
-  box-shadow: 0 0 18px rgba(108, 243, 255, 0.45);
-}
-
-.card::after {
-  right: 0;
-  bottom: 0;
-  width: 72px;
-  height: 1px;
-  background: var(--login-active);
-  box-shadow: 0 0 12px rgba(198, 255, 114, 0.4);
+  border: 1px solid var(--login-line);
+  border-radius: 26px;
+  background: color-mix(in srgb, var(--login-surface) 88%, transparent);
+  box-shadow: inset 0 1px 0 var(--login-line-soft), var(--login-shadow);
+  -webkit-backdrop-filter: blur(28px) saturate(1.2);
+  backdrop-filter: blur(28px) saturate(1.2);
 }
 
 .cardHead {
   display: flex;
-  align-items: flex-start;
-  gap: 15px;
+  align-items: center;
+  gap: 14px;
 }
-
-.wrap[data-login-page] .cardHead { align-items: center; }
 
 .cardBadge {
-  width: 48px;
-  height: 48px;
-  flex: 0 0 auto;
+  display: inline-flex;
+  width: 44px;
+  height: 44px;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--login-line-blue);
+  border-radius: 5px;
+  color: var(--login-brand);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.02em;
 }
 
-.cardBadge i:nth-child(2) { height: 27px; }
+.cardEyebrow {
+  margin: 0 0 4px;
+  color: var(--login-ink-3);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+}
 
-.card h1,
-.card h2 {
+.card h1 {
   margin: 0;
   color: var(--login-ink);
   font-size: 24px;
@@ -342,680 +681,179 @@
   letter-spacing: -0.02em;
 }
 
-.compactTitle { display: none; }
-
-.card form { margin-top: 32px; }
-
-.field {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  margin-bottom: 18px;
-}
-
-.field label {
-  color: var(--login-muted);
-  font-family: var(--font-mono);
-  font-size: 11px;
-  letter-spacing: 0.16em;
-}
-
-.field input {
-  height: 48px;
-  padding: 0 14px;
-  border: 1px solid rgba(146, 189, 210, 0.28);
-  border-radius: 0;
-  background: rgba(4, 13, 22, 0.76);
-  color: var(--login-ink);
-  caret-color: var(--login-active);
-  font-size: 16px;
-  transition:
-    border-color 180ms ease,
-    background-color 180ms ease,
-    box-shadow 180ms ease,
-    transform 180ms ease;
-}
-
-.field input::placeholder { color: rgba(201, 227, 235, 0.58); }
-
-.field input:hover { border-color: rgba(108, 243, 255, 0.42); }
-
-.field input:focus {
-  border-color: var(--login-active);
-  background: rgba(6, 23, 34, 0.92);
-  box-shadow: 0 0 0 1px var(--login-active), 0 0 26px rgba(198, 255, 114, 0.12);
-  outline: none;
-  transform: translateY(-1px);
-}
-
-.alert {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  padding: 11px 12px;
-  margin: 3px 0 13px;
-  border: 1px solid rgba(255, 154, 106, 0.42);
-  border-radius: 0;
-  background: rgba(98, 39, 34, 0.22);
-  color: #ffd0bb;
-  font-size: 13px;
-  line-height: 1.55;
-}
-
-.alert::before {
-  content: "//";
-  color: #ff9a6a;
-  font-family: var(--font-mono);
-  font-size: 10px;
-}
-
-.submit {
-  position: relative;
-  display: flex;
-  width: 100%;
-  height: 50px;
-  align-items: center;
-  justify-content: center;
-  gap: 14px;
-  overflow: hidden;
-  margin-top: 8px;
-  border: 1px solid var(--login-active);
-  border-radius: 0;
-  background: var(--login-active);
-  color: #10220d;
-  font-size: 15px;
-  font-weight: 800;
-  letter-spacing: 0.06em;
-  transition:
-    background-color 180ms ease,
-    border-color 180ms ease,
-    box-shadow 180ms ease,
-    transform 180ms ease;
-}
-
-.submit::before {
-  content: "";
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  left: -42%;
-  width: 30%;
-  background: rgba(255, 255, 255, 0.36);
-  transform: skewX(-22deg);
-  transition: left 520ms var(--ease-console);
-}
-
-.submit:hover {
-  border-color: #e0ffb5;
-  background: #d5ff91;
-  box-shadow: 0 0 28px rgba(198, 255, 114, 0.18);
-}
-
-.submit:hover::before { left: 122%; }
-.submit:active { transform: translateY(1px); }
-
-.submit:focus-visible {
-  outline: 2px solid var(--login-signal);
-  outline-offset: 3px;
-}
-
-.submit:disabled {
-  cursor: wait;
-  background: #8fae63;
-  border-color: #b7d886;
-  box-shadow: 0 0 22px rgba(198, 255, 114, 0.12);
-}
-
-.submit[data-phase="success"] {
-  cursor: default;
-  background: #d8ffa1;
-  border-color: #c6ff72;
-  box-shadow: 0 0 30px rgba(198, 255, 114, 0.24);
-  transition-duration: 120ms;
-}
-
-.submit:disabled::before { opacity: 0; }
-
-.submitLabel {
-  display: block;
-  max-width: calc(100% - 42px);
-  overflow: hidden;
-  text-align: center;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.submit[data-phase="loading"] .submitLabel,
-.submit[data-phase="success"] .submitLabel {
-  animation: submitLabelIn 130ms var(--ease-console) both;
-}
-
-.submitArrow {
-  position: absolute;
-  top: 50%;
-  right: 14px;
-  display: inline-flex;
-  width: 16px;
-  height: 16px;
-  align-items: center;
-  justify-content: center;
-  transform: translateY(-50%);
-}
-
-.submitArrow svg {
-  width: 16px;
-  height: 16px;
-  stroke: currentColor;
-  stroke-width: 1.7;
-  stroke-linecap: square;
-  stroke-linejoin: miter;
-}
-
-.submitSpinner {
-  width: 14px;
-  height: 14px;
-  border: 1.5px solid currentColor;
-  border-top-color: transparent;
-  border-radius: 50%;
-  animation: submitSpin 720ms linear infinite;
-}
-
-.submitCheck {
-  width: 16px;
-  height: 16px;
-  stroke: currentColor;
-  stroke-width: 1.8;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  animation: submitCheckIn 120ms var(--ease-console) both;
-}
-
-.submitCheck path {
-  stroke-dasharray: 18;
-  stroke-dashoffset: 18;
-  animation: submitCheckDraw 100ms 20ms ease-out forwards;
-}
-
-@keyframes starDrift {
-  from { transform: translate3d(0, 0, 0); }
-  to { transform: translate3d(-24px, 18px, 0); }
-}
-
-@keyframes surfaceIn {
-  from { opacity: 0; transform: translateY(14px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
-@keyframes cardIn {
-  from { opacity: 0.2; transform: translateY(18px) scale(0.985); }
-  to { opacity: 1; transform: translateY(0) scale(1); }
-}
-
-@keyframes submitSpin {
-  to { transform: rotate(360deg); }
-}
-
-@keyframes submitLabelIn {
-  from { opacity: 0.45; transform: translateY(2px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
-@keyframes submitCheckIn {
-  from { opacity: 0; transform: scale(0.72); }
-  to { opacity: 1; transform: scale(1); }
-}
-
-@keyframes submitCheckDraw {
-  to { stroke-dashoffset: 0; }
+@keyframes loginSpin {
+  to {
+    transform: rotate(1turn);
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .wrap *,
-  .wrap::before,
-  .wrap::after {
-    animation-duration: 1ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 1ms !important;
+  .control input,
+  .submit {
+    transition: none;
   }
 
-  .storyTop,
-  .storyCopy,
-  .storyFoot,
-  .card {
-    opacity: 1;
-    transform: none;
+  .submitSpinner {
+    animation: none;
   }
 }
 
-@media (max-width: 1100px) {
-  .wrap { grid-template-columns: minmax(0, 1fr) minmax(390px, 0.78fr); }
-  .story { padding-right: 48px; padding-left: 48px; }
-  .storyMain h1 { font-size: clamp(44px, 5.2vw, 68px); }
+@media (max-width: 1120px) {
+  .stage {
+    gap: 24px;
+  }
+
+  .authCard {
+    width: min(900px, calc(100vw - 32px));
+  }
 }
 
-@media (min-width: 981px) and (max-height: 820px) {
+/* 短屏桌面：别让 560px 的卡片被上下裁掉 */
+@media (min-width: 821px) and (max-height: 700px) {
+  .stage {
+    padding: 12px;
+  }
+
+  .authCard {
+    min-height: 0;
+  }
+
   .story {
-    padding-top: 24px;
-    padding-bottom: 20px;
-  }
-
-  .storyMain {
     gap: 18px;
-    padding: 18px 0;
+    padding: 24px 28px;
   }
 
-  .storyMain h1 { font-size: clamp(42px, 4.8vw, 66px); }
+  .formPanel {
+    padding: 26px 30px 22px;
+  }
+
+  .storyCopy h1 {
+    font-size: clamp(34px, 3.4vw, 44px);
+  }
 }
 
-@media (max-width: 980px) {
+/* 平板 / 手机：一张卡片改为单列 */
+@media (max-width: 820px) {
   .wrap {
+    display: block;
+    overflow: auto;
+  }
+
+  .stage {
+    display: block;
+    padding: 16px;
+  }
+
+  .authCard {
     display: flex;
+    width: 100%;
+    min-height: 0;
     flex-direction: column;
-    overflow: visible;
+    border-radius: 22px;
   }
 
   .story {
-    min-height: auto;
-    padding: 28px 28px 34px;
+    min-height: 0;
+    gap: 20px;
+    padding: 24px 22px 20px;
+    border-right: 0;
+    border-bottom: 1px solid var(--login-line);
   }
 
-  .storyMain { padding: 50px 0 26px; }
-  .storyCopy { max-width: 720px; }
-  .storyMain h1 { font-size: clamp(46px, 9vw, 74px); }
-
-  .auth {
-    min-height: auto;
-    padding: 40px 28px 50px;
+  .storyCopy {
+    max-width: none;
   }
 
-  .auth::before { display: none; }
-
-  .wrap[data-login-page] .story {
-    margin-top: auto;
-    padding-bottom: 12px;
+  .storyCopy h1 {
+    font-size: 31px;
   }
 
-  .wrap[data-login-page] .storyMain,
-  .wrap[data-login-page] .storyFoot,
-  .wrap[data-login-page] .cardBadge,
-  .wrap[data-login-page] .desktopTitle { display: none; }
-
-  .wrap[data-login-page] .compactTitle { display: block; }
-  .wrap[data-login-page] .auth {
-    margin-bottom: auto;
-    padding-top: 12px;
+  .lede {
+    display: none;
   }
-  .wrap[data-login-page] .card form { margin-top: 24px; }
+
+  .steps {
+    display: none;
+  }
+
+  .formPanel {
+    padding: 24px 22px 26px;
+  }
+
+  .formHead {
+    margin-bottom: 20px;
+  }
+
+  .title {
+    font-size: 24px;
+  }
+
+  .formFoot {
+    margin-top: 18px;
+  }
 }
 
-@media (max-width: 767px) {
-  .wrap {
-    position: relative;
-    z-index: 0;
-    min-height: 100vh;
+@media (max-width: 420px) {
+  .stage {
+    padding: 0;
+  }
+
+  .authCard {
     min-height: 100dvh;
-    padding: calc(env(safe-area-inset-top, 0px) + 16px) 18px
-      calc(env(safe-area-inset-bottom, 0px) + 16px);
-    background:
-      radial-gradient(120% 60% at 50% -10%, rgba(30, 122, 150, 0.3), transparent 74%),
-      var(--login-bg);
+    border: 0;
+    border-radius: 0;
   }
 
-  .wrap[data-login-page] .story {
-    min-height: auto;
-    margin: auto 0 24px;
-    padding: 0;
-    background: none;
-    text-align: center;
+  .story {
+    padding-top: calc(24px + env(safe-area-inset-top, 0px));
   }
 
-  .story::after { display: none; }
-
-  .storyGrid {
-    inset: -16px -18px 0;
-    opacity: 0.14;
-    background-size: 32px 32px;
-    mask-image: linear-gradient(180deg, #000, transparent 76%);
+  .formPanel {
+    padding-bottom: calc(26px + env(safe-area-inset-bottom, 0px));
   }
-
-  .storyTop { flex-direction: column; justify-content: center; gap: 8px; }
-  .brandLockup { gap: 10px; }
-  .brandGlyph { width: 28px; height: 28px; }
-  .mark { font-size: 20px; letter-spacing: 0.13em; }
-
-  .wrap[data-login-page] .auth {
-    min-height: auto;
-    margin-bottom: auto;
-    padding: 0;
-    background: none;
-  }
-
-  .auth::after { display: none; }
-  .authShell { width: 100%; }
-
-  .card {
-    padding: 19px 18px 15px;
-    box-shadow: 0 26px 70px rgba(0, 0, 0, 0.38);
-  }
-
-  .cardBadge { width: 42px; height: 42px; }
-  .card h1,
-  .card h2 { font-size: 19px; }
-  .card form { margin-top: 21px; }
-  .wrap[data-login-page] .card form { margin-top: 20px; }
-  .field { gap: 7px; margin-bottom: 12px; }
-  .field label { font-size: 12px; letter-spacing: 0.08em; }
-  .field input { height: 46px; min-height: 46px; font-size: 16px; }
-  .submit { height: 48px; min-height: 48px; font-size: 15px; }
 
   .solo {
-    min-height: 100vh;
-    min-height: 100dvh;
-    padding: calc(env(safe-area-inset-top, 0px) + 18px) 18px
-      calc(env(safe-area-inset-bottom, 0px) + 18px);
+    padding-right: 18px;
+    padding-left: 18px;
   }
-
-  .solo .auth { margin: auto; }
-}
-
-@media (max-width: 400px) {
-  .cardHead { gap: 11px; }
-  .cardBadge { width: 38px; height: 38px; }
-  .card h1,
-  .card h2 { font-size: 18px; }
 }
 
 /* ---------------------------------------------------------------------------
- * 浅色适配（BLF-1343）
+ * 浅色适配
  *
- * 这段之前并不存在：整个模块只有一套深色硬编码，`data-theme="light"` 下登录页仍是
- * 深色世界，与工作台（`globals.css` 的 `:root[data-theme="light"]`）割裂。本段是
- * **唯一的浅色真源**——上面所有深色默认值一行未动，这里只做覆盖；选择器一律带
- * `:global(:root[data-theme="light"])`，靠更高特异性压过上文的 `.xxx`。
- *
- * 两栏在浅色下各归其位：
- *   · 左栏 `.story`（品牌栏）——沿用工作台侧栏的深海蓝导航骨架（`--nav-bg` #142f40）：
- *     浅色主题的导航同样保留深蓝导轨，只把文字与信号换成 nav 语义色，品牌身份不丢；
- *   · 右栏 `.auth` / `.card`（工作区）——冷白画布 + 白色内容面 + 深墨文字，
- *     边界、焦点、错误与完成态全部取 `:root[data-theme="light"]` 的语义 token。
- *
- * 两条浅色纪律（本段所有规则共用）：
- *   1. 高饱和色不再大面积铺陈——深色里那些装饰性发光（glow）在浅色下收敛为边界与细线；
- *   2. 酸橙只留主按钮（`--login-active` → `--action`）与完成态（`--success-ink`），
- *      浅色卡面上的徽记改用信号青 + 完成绿，否则浅色青柠在白底上几乎不可见。
- *
- * 覆盖顺序与上文的规则顺序一一对应，找某个类直接往下搜同名选择器即可。
- * 对比度由 `lib/loginLightMode.vitest.test.ts` 守着（正文/标签/按钮/错误态 ≥ 4.5）。
+ * 深色默认值一行未动；这里只把本地令牌交接给工作台的浅色语义值
+ * （与 Shell.module.css 的 [data-console-shell="true"] 浅色块一致）。
+ * 选择器统一使用 :global(:root[data-theme="light"])，靠更高特异性压过默认值。
  * ------------------------------------------------------------------------- */
-
 :global(:root[data-theme="light"]) .wrap {
-  /* 工作区（右栏）：交接回主题语义 token，上文所有 `--login-*` 规则自动换色 */
-  --login-bg: var(--bg);
-  --login-surface: var(--card);
-  --login-line: var(--line);
-  --login-ink: var(--ink);
-  --login-muted: var(--ink-2);
-  --login-dim: var(--ink-3);
-  --login-signal: var(--brand);
-  --login-active: var(--action);
-  /* 品牌栏（左栏）：浅色下仍是深海蓝导航面，文字取 nav 语义色 */
-  --login-story-bg: var(--nav-bg);
-  --login-story-ink: var(--nav-ink);
+  --login-bg: #eef2f3;
+  --login-surface: #fbfcfd;
+  --login-surface-raised: #e4e9ec;
+  --login-ink: #1d252a;
+  --login-ink-2: #53616a;
+  --login-ink-3: #63717a;
+  --login-line: rgba(40, 54, 62, 0.16);
+  --login-line-soft: rgba(40, 54, 62, 0.09);
+  --login-brand: #286ca4;
+  --login-brand-hover: #1e5d90;
+  --login-brand-soft: rgba(40, 108, 164, 0.1);
+  --login-line-blue: rgba(40, 108, 164, 0.4);
+  --login-focus: #176b9f;
+  --login-danger: #a04e48;
+  --login-danger-bg: rgba(160, 78, 72, 0.1);
+  --login-line-danger: rgba(160, 78, 72, 0.4);
+  --login-control-border: #8d9da5;
+  --login-success-ink: #28764f;
+  --login-done-bg: rgba(53, 139, 101, 0.1);
+  --login-on-brand: #ffffff;
+  --login-story-glow: rgba(40, 108, 164, 0.13);
+  --login-story-glow-alt: rgba(22, 132, 110, 0.1);
+  --login-blob-a: rgba(40, 108, 164, 0.13);
+  --login-blob-b: rgba(22, 132, 110, 0.1);
+  --login-blob-mix: multiply;
+  --login-blob-opacity: 0.3;
+  --login-shadow: 0 40px 120px -48px rgba(28, 52, 67, 0.28);
+  color-scheme: light;
 }
 
-/* 改密页壳（`.solo`）：与登录页同一套冷白画布，只是没有左栏 */
-:global(:root[data-theme="light"]) .solo {
-  background:
-    radial-gradient(circle at 50% 0%, rgba(23, 97, 125, 0.09), transparent 52%),
-    var(--login-bg);
-}
-
-/* `.solo` 的 `.auth` 由外层铺底，别再叠一层渐变 */
-:global(:root[data-theme="light"]) .solo .auth {
-  background: none;
-}
-
-/* 品牌栏：深海蓝底 + 冷白点阵，装饰透明度整体压低（浅色下不做大面积发光） */
-:global(:root[data-theme="light"]) .story {
-  background:
-    radial-gradient(circle at 63% 46%, rgba(244, 248, 250, 0.06), transparent 38%),
-    radial-gradient(circle at 0% 100%, rgba(7, 19, 31, 0.42), transparent 44%),
-    var(--login-story-bg);
-}
-
-:global(:root[data-theme="light"]) .story::before {
-  opacity: 0.42;
-  background-image:
-    radial-gradient(circle at 16% 20%, rgba(244, 248, 250, 0.5) 0 1px, transparent 1.6px),
-    radial-gradient(circle at 58% 13%, rgba(198, 223, 123, 0.42) 0 1px, transparent 1.5px),
-    radial-gradient(circle at 74% 72%, rgba(244, 248, 250, 0.34) 0 1px, transparent 1.6px),
-    radial-gradient(circle at 28% 76%, rgba(244, 248, 250, 0.24) 0 1px, transparent 1.5px),
-    radial-gradient(circle at 92% 28%, rgba(244, 248, 250, 0.3) 0 1px, transparent 1.5px);
-}
-
-:global(:root[data-theme="light"]) .story::after {
-  border-color: rgba(244, 248, 250, 0.12);
-  box-shadow:
-    0 0 0 44px rgba(244, 248, 250, 0.03),
-    0 0 0 126px rgba(244, 248, 250, 0.02);
-}
-
-:global(:root[data-theme="light"]) .storyGrid {
-  background-image:
-    linear-gradient(rgba(244, 248, 250, 0.07) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(244, 248, 250, 0.07) 1px, transparent 1px);
-}
-
-/* 品牌徽记（左栏）：深蓝底上用冷白三竖 + 青柠中竖，去掉青色霓虹 */
-:global(:root[data-theme="light"]) .brandGlyph {
-  border-color: rgba(198, 223, 123, 0.42);
-  background: rgba(198, 223, 123, 0.06);
-  box-shadow: none;
-}
-
-:global(:root[data-theme="light"]) .brandGlyph::before,
-:global(:root[data-theme="light"]) .brandGlyph::after {
-  background: var(--login-story-ink);
-}
-
-:global(:root[data-theme="light"]) .brandGlyph i {
-  background: var(--login-story-ink);
-  box-shadow: none;
-}
-
-:global(:root[data-theme="light"]) .brandGlyph i:nth-child(2) {
-  background: var(--nav-active-accent);
-}
-
-:global(:root[data-theme="light"]) .mark {
-  color: var(--login-story-ink);
-}
-
-:global(:root[data-theme="light"]) .storyMain h1 {
-  color: var(--login-story-ink);
-}
-
-/* 主标题第二行取 `--login-active`（浅色 = 青柠导航强调色），浅色下不再叠发光 */
-:global(:root[data-theme="light"]) .storyMain h1 span {
-  text-shadow: none;
-}
-
-/* 工作区右栏：冷白画布 + 信号青细线，装饰环换成低透明度青色轮廓 */
-:global(:root[data-theme="light"]) .auth {
-  background:
-    radial-gradient(circle at 20% 36%, rgba(23, 97, 125, 0.07), transparent 42%),
-    linear-gradient(112deg, rgba(23, 97, 125, 0.05), transparent 16%),
-    var(--login-bg);
-}
-
-:global(:root[data-theme="light"]) .auth::before {
-  background: linear-gradient(transparent, rgba(23, 97, 125, 0.3), transparent);
-  box-shadow: none;
-}
-
-:global(:root[data-theme="light"]) .auth::after {
-  border-color: rgba(23, 97, 125, 0.12);
-  box-shadow:
-    0 0 0 18px rgba(23, 97, 125, 0.035),
-    0 0 0 46px rgba(23, 97, 125, 0.02);
-}
-
-/* 卡片：白色内容面 + 冷灰边界 + 极浅网格，浮起一层柔和中性阴影 */
-:global(:root[data-theme="light"]) .card {
-  border-color: var(--line);
-  background:
-    linear-gradient(90deg, rgba(23, 97, 125, 0.045) 1px, transparent 1px),
-    var(--card);
-  background-size: 32px 32px, auto;
-  box-shadow: var(--shadow-float);
-}
-
-/* 卡片上下两条装饰线：浅色下一律走信号青（酸橙归还给主按钮），并去掉发光 */
-:global(:root[data-theme="light"]) .card::before {
-  box-shadow: none;
-}
-
-:global(:root[data-theme="light"]) .card::after {
-  background: var(--login-signal);
-  box-shadow: none;
-}
-
-/* 卡片徽记：信号青三竖 + 完成绿中竖（对应深色里的青 + 酸橙） */
-:global(:root[data-theme="light"]) .cardBadge {
-  border-color: rgba(23, 97, 125, 0.42);
-  background: var(--brand-soft);
-  box-shadow: none;
-}
-
-:global(:root[data-theme="light"]) .cardBadge::before,
-:global(:root[data-theme="light"]) .cardBadge::after {
-  background: var(--login-signal);
-}
-
-:global(:root[data-theme="light"]) .cardBadge i {
-  background: var(--login-signal);
-  box-shadow: none;
-}
-
-:global(:root[data-theme="light"]) .cardBadge i:nth-child(2) {
-  background: var(--success-ink);
-}
-
-/* 表单控件：白底 + `--control-border` 给足边界，光标与焦点改用信号青 */
-:global(:root[data-theme="light"]) .field input {
-  border-color: var(--control-border);
-  background: var(--card);
-  caret-color: var(--login-signal);
-}
-
-:global(:root[data-theme="light"]) .field input::placeholder {
-  color: var(--login-dim);
-}
-
-:global(:root[data-theme="light"]) .field input:hover {
-  border-color: var(--login-signal);
-}
-
-:global(:root[data-theme="light"]) .field input:focus {
-  border-color: var(--login-signal);
-  background: var(--card);
-  box-shadow: 0 0 0 3px var(--signal-glow);
-}
-
-/* 错误提示：低饱和错误底 + 错误色文字（`//` 前缀与正文同色） */
-:global(:root[data-theme="light"]) .alert {
-  border-color: var(--line-danger);
-  background: var(--danger-bg);
-  color: var(--danger);
-}
-
-:global(:root[data-theme="light"]) .alert::before {
-  color: var(--danger);
-}
-
-/* 主按钮：柔和青柠填充 + `--action-border` 收边 + 深前景 */
-:global(:root[data-theme="light"]) .submit {
-  border-color: var(--action-border);
-  background: var(--login-active);
-  color: var(--on-action);
-}
-
-/* hover 只加深底色，不加发光 */
-:global(:root[data-theme="light"]) .submit:hover {
-  border-color: var(--action-border);
-  background: var(--action-hover);
-  box-shadow: none;
-}
-
-/* 载入中（`:disabled`）：降到次级表面 + 次文字，状态文案仍须可读 */
-:global(:root[data-theme="light"]) .submit:disabled {
-  border-color: var(--separator);
-  background: var(--th-bg);
-  color: var(--ink-2);
-  box-shadow: none;
-}
-
-/* 成功态：独立成功绿 + 完成底色（酸橙只留在默认态的主按钮上） */
-:global(:root[data-theme="light"]) .submit[data-phase="success"] {
-  border-color: var(--line-done);
-  background: var(--done-bg);
-  color: var(--success-ink);
-  box-shadow: none;
-}
-
-/* 手机壳（≤767px）：品牌栏不再铺深海蓝（见上文 `.wrap[data-login-page] .story`），
-   底色统一由 `.wrap` 提供，字标与徽记因此改回工作区的深墨 / 信号青 / 完成绿。 */
-@media (max-width: 767px) {
-  :global(:root[data-theme="light"]) .wrap {
-    background:
-      radial-gradient(120% 60% at 50% -10%, rgba(23, 97, 125, 0.1), transparent 74%),
-      var(--login-bg);
-  }
-
-  :global(:root[data-theme="light"]) .wrap[data-login-page] .auth {
-    background: none;
-  }
-
-  /* 手机壳里 `.story` 原本就不铺底（见上文 `.wrap[data-login-page] .story { background: none }`），
-     浅色同样交还给 `.wrap` 的画布，别把深海蓝重新铺回来（否则字标是深墨文字压在深蓝上） */
-  :global(:root[data-theme="light"]) .wrap[data-login-page] .story {
-    background: none;
-  }
-
-  :global(:root[data-theme="light"]) .wrap[data-login-page] .story::before {
-    opacity: 0.32;
-    background-image:
-      radial-gradient(circle at 16% 20%, rgba(23, 97, 125, 0.55) 0 1px, transparent 1.6px),
-      radial-gradient(circle at 74% 72%, rgba(23, 97, 125, 0.4) 0 1px, transparent 1.6px),
-      radial-gradient(circle at 92% 28%, rgba(23, 97, 125, 0.34) 0 1px, transparent 1.5px);
-    background-size: 260px 240px, 420px 360px, 510px 430px;
-  }
-
-  :global(:root[data-theme="light"]) .wrap[data-login-page] .storyGrid {
-    background-image:
-      linear-gradient(rgba(23, 97, 125, 0.09) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(23, 97, 125, 0.09) 1px, transparent 1px);
-  }
-
-  :global(:root[data-theme="light"]) .wrap[data-login-page] .mark {
-    color: var(--ink);
-  }
-
-  :global(:root[data-theme="light"]) .wrap[data-login-page] .brandGlyph {
-    border-color: rgba(23, 97, 125, 0.42);
-    background: var(--brand-soft);
-  }
-
-  :global(:root[data-theme="light"]) .wrap[data-login-page] .brandGlyph::before,
-  :global(:root[data-theme="light"]) .wrap[data-login-page] .brandGlyph::after {
-    background: var(--login-signal);
-  }
-
-  :global(:root[data-theme="light"]) .wrap[data-login-page] .brandGlyph i {
-    background: var(--login-signal);
-  }
-
-  :global(:root[data-theme="light"]) .wrap[data-login-page] .brandGlyph i:nth-child(2) {
-    background: var(--success-ink);
-  }
-}
+/* 手机壳里故事区只保留卡片自身的表面；浅色同样由令牌自动交接，不重复铺大背景。 */

@@ -109,7 +109,17 @@
     width: var(--m-tap);
     height: var(--m-tap);
   }
-  /* 工作台已改为顶部居中药丸导航，不再有底部 Dock，安装提示保持在底部安全区上方。 */
+  /* 手机工作台有底部 dock：安装提示抬到 dock 上方，避免压住导航。 */
+  body:has(nav[data-mobile-dock]) .prompt {
+    bottom: calc(var(--m-dock-h) + var(--m-safe-b) + 16px);
+  }
+}
+
+/* 横屏手机的 CSS 宽度是长边（844/852/932），与 MobileBottomDock 同一视口口径。 */
+@media (max-width: 932px) and (max-height: 500px) and (orientation: landscape) {
+  body:has(nav[data-mobile-dock]) .prompt {
+    bottom: calc(var(--m-dock-h) + var(--m-safe-b) + 16px);
+  }
 }
 
 @media (prefers-reduced-motion: no-preference) {
