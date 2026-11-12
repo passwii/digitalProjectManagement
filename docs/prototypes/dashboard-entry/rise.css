@@ -1,0 +1,26 @@
+/* 方案 A · RISE —— 登录卡上浮淡出，工作台从下方托起，元素依次落位。 */
+.login-card { transition: opacity .5s var(--ease), transform .7s var(--ease), filter .5s var(--ease); }
+body.play .login-card { opacity: 0; transform: translateY(-26px) scale(.96); filter: blur(6px); pointer-events: none; }
+body.play .login-layer { pointer-events: none; }
+
+body.play .dashboard { animation: dashIn .6s var(--ease) .18s both; }
+@keyframes dashIn { from { opacity: 0; } to { opacity: 1; } }
+
+body.play .topbar { animation: topIn .7s var(--ease) .3s both; }
+@keyframes topIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: none; } }
+
+body.play .hello { animation: helloIn .9s var(--ease) .36s both; }
+@keyframes helloIn {
+  from { opacity: 0; transform: translateY(34px) scale(.97); filter: blur(8px); }
+  to { opacity: 1; transform: none; filter: none; }
+}
+
+body.play .card { animation: cardIn .8s var(--ease) both; }
+body.play .card:nth-child(1) { animation-delay: .48s; }
+body.play .card:nth-child(2) { animation-delay: .56s; }
+body.play .card:nth-child(3) { animation-delay: .64s; }
+body.play .card:nth-child(4) { animation-delay: .72s; }
+@keyframes cardIn {
+  from { opacity: 0; transform: translateY(22px); }
+  to { opacity: 1; transform: none; }
+}

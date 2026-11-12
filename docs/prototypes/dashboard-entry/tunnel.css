@@ -1,0 +1,28 @@
+/* 方案 B · TUNNEL PULL —— 工作台从隧道深处被拉向镜头，登录卡同时被“吸”进纵深。 */
+.login-card { transition: opacity .55s var(--ease), transform .8s var(--ease), filter .55s var(--ease); }
+body.play .login-card { opacity: 0; transform: scale(1.6) translateZ(0); filter: blur(14px); pointer-events: none; }
+body.play .login-layer { pointer-events: none; perspective: 1200px; }
+
+body.play .dashboard { animation: dashIn .72s var(--ease) .1s both; }
+@keyframes dashIn { from { opacity: 0; } to { opacity: 1; } }
+
+body.play .topbar { animation: topIn .8s var(--ease) .14s both; }
+@keyframes topIn { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: none; } }
+
+body.play .hero { perspective: 1200px; }
+body.play .hello { animation: helloPull 1.05s var(--ease) .16s both; transform-origin: 50% 55%; }
+@keyframes helloPull {
+  from { opacity: 0; transform: translateZ(-900px) scale(.42); filter: blur(16px); }
+  60% { opacity: 1; filter: blur(2px); }
+  to { opacity: 1; transform: none; filter: none; }
+}
+
+body.play .card { animation: cardPull 1s var(--ease) both; }
+body.play .card:nth-child(1) { animation-delay: .3s; --dx: -260px; }
+body.play .card:nth-child(2) { animation-delay: .38s; --dx: -90px; }
+body.play .card:nth-child(3) { animation-delay: .46s; --dx: 90px; }
+body.play .card:nth-child(4) { animation-delay: .54s; --dx: 260px; }
+@keyframes cardPull {
+  from { opacity: 0; transform: translateX(calc(var(--dx) * .28)) translateZ(-800px) scale(.5); filter: blur(10px); }
+  to { opacity: 1; transform: none; filter: none; }
+}

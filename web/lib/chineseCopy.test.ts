@@ -22,6 +22,7 @@ describe("生产端中文界面文案", () => {
       "数科云办公 // 项目运营",
       "©2026",
       "链路图 / 项目交付",
+      "项目、进度、支出与审批，在同一个工作空间里保持同一条时间线。",
     ]) {
       assert.doesNotMatch(login, new RegExp(removedCopy));
     }

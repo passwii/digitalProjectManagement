@@ -1,0 +1,47 @@
+/* 方案 C · GLASS WIPE —— 一层磨砂玻璃横向擦过，擦过之处工作台显影；登录卡随之溶解。 */
+.wipe {
+  position: absolute;
+  z-index: 9;
+  inset: -10% -30%;
+  pointer-events: none;
+  background:
+    linear-gradient(100deg, transparent 0 34%, rgba(106, 169, 255, .16) 46%, rgba(255, 255, 255, .1) 50%, rgba(106, 169, 255, .12) 54%, transparent 66% 100%),
+    color-mix(in srgb, var(--card) 55%, transparent);
+  -webkit-backdrop-filter: blur(26px) saturate(1.4);
+  backdrop-filter: blur(26px) saturate(1.4);
+  transform: translateX(-115%) skewX(-8deg);
+  opacity: 0;
+}
+body.play .wipe { animation: wipeSweep 1.15s cubic-bezier(.65, 0, .35, 1) .06s both; }
+@keyframes wipeSweep {
+  0% { opacity: 0; transform: translateX(-115%) skewX(-8deg); }
+  12% { opacity: 1; }
+  88% { opacity: 1; }
+  100% { opacity: 0; transform: translateX(115%) skewX(-8deg); }
+}
+
+.login-card { transition: opacity .45s var(--ease) .18s, transform .6s var(--ease) .18s, filter .45s var(--ease) .18s; }
+body.play .login-card { opacity: 0; transform: scale(.985); filter: blur(5px); pointer-events: none; }
+body.play .login-layer { pointer-events: none; }
+
+body.play .dashboard { animation: dashIn .5s var(--ease) .22s both; }
+@keyframes dashIn { from { opacity: 0; } to { opacity: 1; } }
+
+body.play .topbar { animation: topIn .6s var(--ease) .34s both; }
+@keyframes topIn { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: none; } }
+
+body.play .hello { animation: helloIn .8s var(--ease) .38s both; }
+@keyframes helloIn {
+  from { opacity: 0; transform: translateY(18px); filter: blur(6px); }
+  to { opacity: 1; transform: none; filter: none; }
+}
+
+body.play .card { animation: cardIn .7s var(--ease) both; clip-path: inset(0 100% 0 0); }
+body.play .card:nth-child(1) { animation-delay: .46s; }
+body.play .card:nth-child(2) { animation-delay: .52s; }
+body.play .card:nth-child(3) { animation-delay: .58s; }
+body.play .card:nth-child(4) { animation-delay: .64s; }
+@keyframes cardIn {
+  from { opacity: 0; clip-path: inset(0 100% 0 0); }
+  to { opacity: 1; clip-path: inset(0 0 0 0); }
+}
