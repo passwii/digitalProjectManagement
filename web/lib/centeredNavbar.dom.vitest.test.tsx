@@ -469,6 +469,15 @@ describe("CenteredNavbar：样式与液态引擎的源码契约", () => {
     expect(wideBlock).toMatch(/\.label\s*\{[^}]*clip:\s*rect\(0 0 0 0\)/);
   });
 
+  it("切换动效是单体弹簧（方案 B），没有拖尾 / 分裂 / 涟漪", () => {
+    expect(liquidSrc).toMatch(/from "@\/lib\/liquidNavMotion"/);
+    expect(liquidSrc).toMatch(/stepLiquid\(state\.a, target\.x, dt\)/);
+    expect(liquidSrc).toMatch(/while \(state\.acc >= LIQUID_STEP/);
+    expect(liquidSrc).not.toMatch(/state\.sats/);
+    expect(liquidSrc).not.toMatch(/state\.rips/);
+    expect(liquidSrc).not.toMatch(/Satellite/);
+  });
+
   it("液态引擎静止 900ms 停 rAF，reduced-motion 不创建 WebGL", () => {
     expect(liquidSrc).toMatch(/const IDLE_HOLD_MS = 900;/);
     expect(liquidSrc).toMatch(/performance\.now\(\) \+ IDLE_HOLD_MS/);
