@@ -1,16 +1,27 @@
 "use client";
 
 import { useLayoutEffect, useRef } from "react";
+import {
+  LIQUID_STEP,
+  liquidAtRest,
+  liquidStretchAtRest,
+  stepLiquid,
+  stepLiquidStretch,
+  type LiquidBody,
+  type LiquidStretch,
+} from "@/lib/liquidNavMotion";
 
 /**
  * 液态导航（React 版）。
  *
- * 行为对齐 docs/prototypes/navbar-centered/index.html 与
- * docs/prototypes/dashboard-welcome/index.html 的 Liquid glass 草稿：
- *   · 水面 / 液滴拉伸与分裂 / 点击涟漪 / 鼠标弯月面；
- *   · 静止 HOLD_MS 后停 rAF，不在页面后台持续烧 GPU；
- *   · prefers-reduced-motion 直接退回 CSS 液滴，不创建 WebGL；
- *   · WebGL 不可用（或 context lost）也退回 CSS 液滴，不崩。
+ * 方案 B（2026-11-13 定稿，见 docs/prototypes/navbar-motion）：
+ *   · 一个液滴，位移由单体弹簧推进（固定 1/240 子步，60/120Hz 手感一致），
+ *     346px 位移约 325ms 落位、只有一次约 6% 的回弹；
+ *   · 位移速度带来最多 +8% 的横向拉伸，到位后回落到 1；
+ *   · 不再有双体跟随 / 分裂小滴 / 落点涟漪 / 点击涟漪；
+ *   · 鼠标弯月面保留（悬停反馈，不属于切换动效）；
+ *   · 静止 IDLE_HOLD_MS 后停 rAF，不在页面后台持续烧 GPU；
+ *   · prefers-reduced-motion、WebGL 不可用、context lost 都退回 CSS 液滴。
  *
  * 尺寸 / 定位的 CSS 由调用方传入（水面画布的类与 CSS 液滴的类都在
  * CenteredNavbar.module.css 里）；本组件只负责把画布画在正确的位置。
@@ -176,45 +187,18 @@ void main() {
 }
 `;
 
-interface Body {
-  x: number;
-  v: number;
-}
-
-interface Satellite {
-  x: number;
-  y: number;
-  vx: number;
-  vy: number;
-  r: number;
-  k: number;
-}
-
-interface Ripple {
-  x: number;
-  y: number;
-  age: number;
-  amp: number;
-}
-
 interface EngineState {
-  a: Body;
-  b: Body;
-  sy: { s: number; v: number };
-  lead: number;
-  lagFrom: number;
-  sats: Satellite[];
-  rips: Ripple[];
-  t: { x: number; cy: number; q: number; r: number };
+  a: LiquidBody;
+  stretch: LiquidStretch;
   q: number;
   mouse: { x: number; y: number; s: number; on: boolean };
   moving: boolean;
-  split: boolean;
   ready: boolean;
   w: number;
   h: number;
   raf: number;
   last: number;
+  acc: number;
   time: number;
   holdUntil: number;
 }
@@ -416,25 +400,21 @@ export default function LiquidNavbar({
 
     const state: EngineState = {
       a: { x: 0, v: 0 },
-      b: { x: 0, v: 0 },
-      sy: { s: 1, v: 0 },
-      lead: 0,
-      lagFrom: 0,
-      sats: [],
-      rips: [],
-      t: { x: 0, cy: 0, q: 0, r: 21 },
+      stretch: { s: 1, v: 0 },
       q: 0,
       mouse: { x: 0, y: 0, s: 0, on: false },
       moving: false,
-      split: false,
       ready: false,
       w: 0,
       h: 0,
       raf: 0,
       last: 0,
+      acc: 0,
       time: 0,
       holdUntil: 0,
     };
+    /** 目标几何：由激活项量出来；位移目标是 state.a 的弹簧目标。 */
+    const target = { x: 0, cy: 0, q: 0, r: 21 };
 
     const resizeCanvas = () => {
       const dpr = Math.min(window.devicePixelRatio || 1, 2);
@@ -458,33 +438,30 @@ export default function LiquidNavbar({
       state.w = pill.offsetWidth;
       state.h = pill.offsetHeight;
 
-      const target = state.t;
+      const previousX = target.x;
       target.r = element.offsetHeight / 2;
       target.q = Math.max(0, element.offsetWidth / 2 - target.r);
       target.cy = PAD + element.offsetTop + element.offsetHeight / 2;
       const nextX = PAD + element.offsetLeft + element.offsetWidth / 2;
+      target.x = nextX;
 
       if (!state.ready) {
+        // 首次挂载 / resize：直接落到位置，不做入场动画。
         state.a.x = nextX;
-        state.b.x = nextX;
+        state.a.v = 0;
         state.q = target.q;
+        state.stretch.s = 1;
+        state.stretch.v = 0;
         state.ready = true;
-      } else if (Math.abs(nextX - target.x) > 0.5) {
-        state.lead = Math.abs(nextX - state.a.x) <= Math.abs(nextX - state.b.x) ? 0 : 1;
-        state.lagFrom = performance.now() + 70;
+      } else if (Math.abs(nextX - previousX) > 0.5) {
+        // 只把位移交给弹簧；拉伸由速度在 step 里自己算。
         state.moving = true;
-        state.split = false;
       }
-
-      target.x = nextX;
       resizeCanvas();
       wake();
     };
 
     const draw = () => {
-      const target = state.t;
-      const separation = Math.abs(state.a.x - state.b.x);
-      const thin = Math.min(separation / (2 * (state.q + target.r) || 1), 1);
       const dpr = Math.min(window.devicePixelRatio || 1, 2);
 
       glContext.viewport(
@@ -498,36 +475,17 @@ export default function LiquidNavbar({
       glContext.uniform1f(uniforms.uTime, state.time);
       glContext.uniform4f(uniforms.uPill, PAD, PAD, state.w, state.h);
 
+      // 只有一个液滴：拉伸是沿胶囊长轴的对称放大，其余 blob 保持未激活（w=0）。
       const blobs = new Float32Array(24);
       const sy = new Float32Array(6).fill(1);
-      const head = state.lead === 0 ? state.a : state.b;
-      const tail = state.lead === 0 ? state.b : state.a;
-      blobs.set(
-        [
-          head.x,
-          target.cy,
-          target.q * (1 - .25 * thin),
-          target.r * (1 - .12 * thin),
-          tail.x,
-          target.cy,
-          target.q * (1 - .65 * thin),
-          target.r * (1 - .38 * thin),
-        ],
-        0,
-      );
-      sy[0] = state.sy.s;
-      sy[1] = state.sy.s;
-      state.sats.slice(0, 4).forEach((satellite, index) => {
-        blobs.set([satellite.x, satellite.y, 0, satellite.r], 8 + index * 4);
-      });
+      const capsule = Math.max(0, state.q * state.stretch.s);
+      blobs.set([state.a.x, target.cy, capsule, target.r], 0);
 
       glContext.uniform4fv(uniforms.uBlob, blobs);
       glContext.uniform1fv(uniforms.uSy, sy);
 
+      // 方案 B 没有落点涟漪：uRip 全零，shader 的 waves() 只剩鼠标弯月面。
       const ripples = new Float32Array(24);
-      state.rips.slice(-6).forEach((ripple, index) => {
-        ripples.set([ripple.x, ripple.y, ripple.age, ripple.amp], index * 4);
-      });
       glContext.uniform4fv(uniforms.uRip, ripples);
       glContext.uniform3f(uniforms.uMouse, state.mouse.x, state.mouse.y, state.mouse.s);
       glContext.uniform1f(
@@ -545,100 +503,18 @@ export default function LiquidNavbar({
       loop();
     }
 
-    function step(dt: number, now: number) {
-      const target = state.t;
+    /** 单个子步：位移弹簧 + 横向拉伸 + q 平滑 + 鼠标弯月面。 */
+    function step(dt: number) {
       state.time += dt;
-      state.q += (target.q - state.q) * Math.min(1, dt * 12);
+      stepLiquid(state.a, target.x, dt);
+      stepLiquidStretch(state.stretch, state.a.v, dt);
+      state.q += (target.q - state.q) * Math.min(1, dt * 16);
 
-      const bodies = [state.a, state.b];
-      let still = true;
-
-      bodies.forEach((body, index) => {
-        const lead = index === state.lead;
-        const stiffness = lead ? 210 : 72;
-        const damping = lead ? 25 : 13;
-        const factor = !lead && now < state.lagFrom ? .08 : 1;
-        body.v += (stiffness * (target.x - body.x) - damping * body.v) * dt * factor;
-        body.x += body.v * dt;
-
-        const low = PAD + 6 + state.q + target.r - 3;
-        const high = PAD + state.w - 6 - state.q - target.r + 3;
-        if (body.x < low || body.x > high) {
-          state.sy.v -= Math.min(Math.abs(body.v), 900) * .0016;
-          body.x = Math.max(low, Math.min(high, body.x));
-          body.v *= -.25;
-        }
-
-        if (Math.abs(target.x - body.x) > .3 || Math.abs(body.v) > 3) still = false;
-      });
-
-      const leadBody = bodies[state.lead];
-      const targetSy = 1 - .14 * Math.min(Math.abs(leadBody.v) / 1500, 1);
-      state.sy.v += (280 * (targetSy - state.sy.s) - 9 * state.sy.v) * dt;
-      state.sy.s += state.sy.v * dt;
-      if (Math.abs(state.sy.s - 1) > .002 || Math.abs(state.sy.v) > .02) still = false;
-
-      const separation = Math.abs(state.a.x - state.b.x);
-      const radius = target.r * (1 - .3 * Math.min(
-        separation / (2 * (target.q + target.r) || 1),
-        1,
-      ));
-
-      if (
-        !state.split
-        && state.moving
-        && separation - 2 * target.q - 2 * radius > -6
-      ) {
-        state.split = true;
-        const tailBody = bodies[1 - state.lead];
-        const headBody = bodies[state.lead];
-        // 只留两滴更小的拖尾：保留切换的液态感，但把收尾的“甩尾”弱化。
-        [.38, .62].forEach((ratio, index) => {
-          state.sats.push({
-            x: tailBody.x + (headBody.x - tailBody.x) * ratio + (Math.random() - .5) * 6,
-            y: target.cy + (Math.random() - .5) * 10,
-            vx: (tailBody.v + headBody.v) * .38,
-            vy: (Math.random() - .5) * 60,
-            r: 4 + Math.random() * 2 - index * .35,
-            k: 55 + Math.random() * 45,
-          });
-        });
-      }
-
-      state.sats = state.sats.filter((satellite) => {
-        satellite.vx += (satellite.k * (target.x - satellite.x) - 9 * satellite.vx) * dt;
-        satellite.vy += (90 * (target.cy - satellite.y) - 7 * satellite.vy) * dt;
-        satellite.x += satellite.vx * dt;
-        satellite.y += satellite.vy * dt;
-        satellite.x = Math.max(
-          PAD + 8 + satellite.r,
-          Math.min(PAD + state.w - 8 - satellite.r, satellite.x),
-        );
-        satellite.y = Math.max(
-          target.cy - target.r + satellite.r,
-          Math.min(target.cy + target.r - satellite.r, satellite.y),
-        );
-        if (Math.abs(target.x - satellite.x) < target.q + target.r * .5) {
-          satellite.r -= dt * 38;
-        }
-        return satellite.r > .5;
-      });
-      if (state.sats.length) still = false;
-
-      if (state.moving && still) {
+      // 落位以液滴位移为准（约 325ms）；拉伸是副产品，由 busy 继续收尾。
+      if (state.moving && liquidAtRest(state.a, target.x)) {
         state.moving = false;
-        state.rips.push({
-          x: target.x,
-          y: target.cy,
-          age: 0,
-          amp: state.split ? .75 : .45,
-        });
       }
 
-      state.rips.forEach((ripple) => {
-        ripple.age += dt;
-      });
-      state.rips = state.rips.filter((ripple) => ripple.age < 1.8);
       state.mouse.s += ((state.mouse.on ? 1 : 0) - state.mouse.s) * Math.min(1, dt * 7);
     }
 
@@ -648,21 +524,27 @@ export default function LiquidNavbar({
       state.last = performance.now();
 
       const tick = (now: number) => {
-        const dt = Math.min((now - state.last) / 1000, 1 / 30);
+        state.raf = 0;
+        // 固定 1/240 子步：rAF 的间隔只决定这一帧补几步，不改手感。
+        const raw = Math.max(0, Math.min((now - state.last) / 1000, 1 / 15));
         state.last = now;
-        step(dt, now);
+        state.acc += raw;
+        let guard = 0;
+        while (state.acc >= LIQUID_STEP && guard < 48) {
+          step(LIQUID_STEP);
+          state.acc -= LIQUID_STEP;
+          guard += 1;
+        }
         draw();
 
+        // 拉伸虽然肉眼几乎看不见，也要等它回到 1 再停，免得留下残余形变。
         const busy = state.moving
-          || state.rips.length > 0
-          || state.sats.length > 0
+          || !liquidStretchAtRest(state.stretch)
           || state.mouse.s > .01;
-        // 只有还在动 / 涟漪未散 / 鼠标弯月面未收 / 900ms 静止窗口内才继续；
+        // 只有还在动 / 鼠标弯月面未收 / 900ms 静止窗口内才继续；
         // 否则停掉 rAF（下一次交互再 wake）。
         if (busy || now < state.holdUntil) {
           state.raf = window.requestAnimationFrame(tick);
-        } else {
-          state.raf = 0;
         }
       };
 
@@ -672,11 +554,6 @@ export default function LiquidNavbar({
     const localPoint = (clientX: number, clientY: number) => {
       const rect = pill.getBoundingClientRect();
       return { x: clientX - rect.left + PAD, y: clientY - rect.top + PAD };
-    };
-
-    const ripple = (x: number, y: number, amp: number) => {
-      state.rips.push({ x, y, age: 0, amp });
-      wake();
     };
 
     const onPointerMove = (event: PointerEvent) => {
@@ -693,18 +570,11 @@ export default function LiquidNavbar({
       wake();
     };
 
-    const onPointerDown = (event: PointerEvent) => {
-      const point = localPoint(event.clientX, event.clientY);
-      ripple(point.x, point.y, .85);
-    };
-
     pill.addEventListener("pointermove", onPointerMove);
     pill.addEventListener("pointerleave", onPointerLeave);
-    pill.addEventListener("pointerdown", onPointerDown);
     cleanups.push(() => {
       pill.removeEventListener("pointermove", onPointerMove);
       pill.removeEventListener("pointerleave", onPointerLeave);
-      pill.removeEventListener("pointerdown", onPointerDown);
     });
 
     let themeObserver: MutationObserver | null = null;
