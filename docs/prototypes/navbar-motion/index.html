@@ -24,6 +24,7 @@
   --blob-hi: rgba(255, 255, 255, .52);
   --sat: rgba(206, 242, 255, .75);
   --ease: cubic-bezier(.2, .72, .2, 1);
+  --motion-quick: 160ms;
   --radius: 16px;
 }
 :root[data-theme="light"] {
@@ -134,7 +135,7 @@ h1 {
   font: inherit;
   font-size: 13px;
   cursor: pointer;
-  transition: border-color 160ms var(--ease), color 160ms var(--ease), background 160ms var(--ease);
+  transition: border-color var(--motion-quick) var(--ease), color var(--motion-quick) var(--ease), background var(--motion-quick) var(--ease);
 }
 .btn:hover { color: var(--ink); }
 .btn[aria-pressed="true"] {
@@ -226,7 +227,7 @@ h2 {
   font: inherit;
   font-size: 12.5px;
   cursor: pointer;
-  transition: border-color 160ms var(--ease), color 160ms var(--ease);
+  transition: border-color var(--motion-quick) var(--ease), color var(--motion-quick) var(--ease);
 }
 .replay:hover { color: var(--ink); border-color: color-mix(in srgb, var(--brand) 40%, transparent); }
 .replay:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
@@ -310,7 +311,7 @@ h2 {
   letter-spacing: -.01em;
   white-space: nowrap;
   cursor: pointer;
-  transition: color 160ms var(--ease);
+  transition: color var(--motion-quick) var(--ease);
 }
 .item:hover { color: var(--ink); }
 .item[aria-current="page"] { color: var(--ink); }
