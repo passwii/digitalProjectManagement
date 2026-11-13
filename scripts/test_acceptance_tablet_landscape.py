@@ -32,12 +32,14 @@ class TabletLandscapeAcceptanceHelpersTest(unittest.TestCase):
             "/dashboard", "/projects", "/progress", "/costs", "/approvals", "/opportunities",
             "/assets", "/finance", "/reports", "/contacts", "/partners", "/admin", "/changelog",
             "/spark/dashboard", "/spark/stores", "/spark/billing", "/spark/security", "/spark/ops", "/spark/permission",
+            "/stream-monitor/overview", "/stream-monitor/monitor", "/stream-monitor/alarm",
+            "/stream-monitor/event", "/stream-monitor/device", "/stream-monitor/capability",
         ])
 
     def test_boundary_and_regression_sizes_use_only_representative_routes(self):
         self.assertEqual(routes_for_viewport(1180), TARGET_ROUTES)
         self.assertEqual(routes_for_viewport(1366), TARGET_ROUTES)
-        self.assertEqual(REGRESSION_ROUTES, ["/dashboard", "/projects", "/approvals", "/finance", "/assets", "/reports", "/admin", "/spark/dashboard"])
+        self.assertEqual(REGRESSION_ROUTES, ["/dashboard", "/projects", "/approvals", "/finance", "/assets", "/reports", "/admin", "/spark/dashboard", "/stream-monitor/overview"])
         for width in (1179, 1367, 390, 1440):
             with self.subTest(width=width):
                 self.assertEqual(routes_for_viewport(width), REGRESSION_ROUTES)

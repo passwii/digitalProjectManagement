@@ -12,7 +12,8 @@
 #   VPS_SSH_USER=someone   换登录用户
 #
 # 候选列表必须与 scripts/deploy_vps.py 的 VPS_HOSTS 一致（同一台机器、同两条
-# 链路），tests/test_local_tunnel.py 会守住这个同步。
+# 链路）。原先守护该同步的 tests/test_local_tunnel.py 已随 Python 后端删除，
+# 现在只能人工核对。
 set -eu
 
 USER_NAME="${VPS_SSH_USER:-root}"

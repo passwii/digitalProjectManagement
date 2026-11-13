@@ -29,10 +29,10 @@
 依赖：playwright（channel=chrome）、本机后端 8001、前端 3001。
 
 账号：浏览器登录表单只接受 **11 位手机号**（会把非数字字符直接删掉），而
-`scripts/seed_mock.py` 的 demo_admin / zhangwei 是字母账号——它们在界面上永远登不进去。
+历史上的 `scripts/seed_mock.py`（已随 Python 后端删除）的 demo_admin / zhangwei 是字母账号——它们在界面上永远登不进去。
 所以本脚本先走**公开的管理员 API** 开两个保留号段的手机号账号（139 0000 0001 管理员 /
 139 0000 0002 普通成员），再用它们登录。已验证过的账号会被直接复用（幂等）。
-取 token 用的是 `api/seed.py` 的初始管理员，只用来开户，不改它的密码。
+取 token 用的是 `api/cmd/seed` 的初始管理员，只用来开户，不改它的密码。
 
 环境变量：
     FE_BASE / API_BASE / SHOT_DIR
@@ -66,8 +66,8 @@ ADMIN_PWD = os.environ.get("PM_ADMIN_PWD", "Blf1129demo")
 MEMBER_PHONE = os.environ.get("PM_MEMBER_PHONE", "13900000002")
 MEMBER_PWD = os.environ.get("PM_MEMBER_PWD", "Blf1129demo")
 # /admin/users 建出来的账号带 must_change_pwd，脚本自己走一次强制改密把它落定。
-# 这是**保留号段的验收夹具密码**，不是密钥：与 scripts/seed_mock.py 的
-# DEMO_PASSWORD、api/seed.py 的 admin123456 同一性质（可用环境变量覆盖）。
+# 这是**保留号段的验收夹具密码**，不是密钥：与已删除的 scripts/seed_mock.py 的
+# DEMO_PASSWORD、api/cmd/seed 的 admin123456 同一性质（可用环境变量覆盖）。
 TMP_PWD = os.environ.get("PM_PROVISION_TMP_PWD") or "Blf1129tmp"
 
 # 只允许 http(s)：API_BASE 是外部输入。API 末尾的斜杠是必须的的——
@@ -238,7 +238,7 @@ def ensure_accounts(req: APIRequestContext) -> tuple[bool, str]:
     """两个账号一起准备：管理员（D3 红点）与非管理员（D3 隐藏管理入口）"""
     seed_token, _ = auth_token(req, SEED_USER, SEED_PWD)
     if not seed_token:
-        return False, f"开户管理员 {SEED_USER} 登录失败（api/seed.py 的初始管理员？）"
+        return False, f"开户管理员 {SEED_USER} 登录失败（api/cmd/seed 的初始管理员？）"
     ok_a, det_a = ensure_account(
         req, seed_token, ADMIN_PHONE, ADMIN_PWD, "验收管理员", "admin"
     )
