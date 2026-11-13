@@ -238,15 +238,33 @@
   left: 50%;
   display: grid;
   justify-items: center;
+  gap: 14px;
   transform: translateX(-50%);
-  opacity: 0.55;
   pointer-events: none;
+}
+
+.cueCopy {
+  display: grid;
+  gap: 1px;
+  color: var(--ink-2);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.2em;
+  line-height: 1.6;
+  text-align: center;
+  white-space: nowrap;
+}
+
+/* 字距会给末字也补一格，居中时视觉整体偏左；把多出来的一格收回去。 */
+.cueCopy > span {
+  margin-right: -0.2em;
 }
 
 .cue i {
   display: block;
   width: 1px;
   height: 26px;
+  opacity: 0.55;
   background: linear-gradient(180deg, var(--brand), transparent);
 }
 
