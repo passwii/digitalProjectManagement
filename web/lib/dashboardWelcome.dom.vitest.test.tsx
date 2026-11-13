@@ -73,6 +73,15 @@ describe("Dashboard 欢迎页", () => {
     expect(container.textContent).toContain("智能音视频");
   });
 
+  it("首屏底部的滚动提示写明「滚动鼠标 开启工作」", () => {
+    const { container } = render(<DashboardPage />);
+    const cue = container.querySelector('[data-scroll-cue="true"]');
+
+    expect(cue).not.toBeNull();
+    expect(container.querySelector('[data-welcome-tunnel="true"]')?.contains(cue)).toBe(true);
+    expect((cue?.textContent ?? "").replace(/\s+/g, "")).toBe("滚动鼠标开启工作");
+  });
+
   it("页面源码不再请求看板接口，终点入口指向项目台账", () => {
     const page = readFileSync(resolve(__dirname, "../app/(dashboard)/dashboard/page.tsx"), "utf8");
     const welcome = readFileSync(

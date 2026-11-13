@@ -319,7 +319,16 @@ export default function WelcomeTunnel() {
         ))}
       </ul>
 
-      <m.div className={s.cue} style={{ opacity: cueOpacity }} aria-hidden="true">
+      <m.div
+        className={s.cue}
+        style={{ opacity: cueOpacity }}
+        aria-hidden="true"
+        data-scroll-cue="true"
+      >
+        <span className={s.cueCopy}>
+          <span>滚动鼠标</span>
+          <span>开启工作</span>
+        </span>
         <i />
       </m.div>
 
