@@ -232,7 +232,7 @@ jobs:
       # 依赖 3.10+ 语法（typing.TypeGuard），仓库统一按 3.12 运行。这里显式固定，
       # 避免依赖 ubuntu-latest 自带 python3 的版本漂移。
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
           python-version: "3.12"
 
